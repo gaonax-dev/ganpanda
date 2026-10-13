@@ -30,5 +30,7 @@
 - 에셋 ID = 내용 SHA-256 앞 16바이트(32자 hex). 클라이언트와 서버가 같은 방식으로 계산합니다.
 - 기기에서는 IndexedDB(`ganpanda-assets`)에 둡니다.
 - 서버에서는 R2에 두고, 업로드할 때 해시를 검증합니다.
-- 업로드(`putAsset`): 기기에 저장한 뒤 서버에 `HEAD`로 있는지 확인하고 없으면 `PUT`. 실패하면 보관했다가 다시 연결될 때 재시도(`flushPendingUploads`).
+- 에셋 요청에는 프로젝트 자격(`?project=&session|invite`)이 붙습니다(`setAssetScope`, 방 진입 후 설정).
+- 업로드(`putAsset`): 서버에 `HEAD`로 있는지 확인하고 없으면 `PUT`한 뒤 기기에 저장. 용량 한도 초과(413 `storage_limit`)면 저장하지 않고 `StorageLimitError` → 상단 알림. 네트워크 실패는 보관했다가 다시 연결될 때 재시도(`flushPendingUploads`).
+- 동시접속 한도(429)로 접속이 거부되면 y-websocket 이 재시도하는 동안 앱은 3초마다 `/access`의 좌석 현황을 확인해 안내 배너를 보여 주고, 연결되면 지웁니다.
 - 다운로드(`assetUrl`): 기기에 없으면 서버에서 받아 기기에 저장합니다.

@@ -6,9 +6,9 @@ import type { Message, SignObject } from './core/model';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
-import { flushPendingUploads } from './assets';
+import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account, type Usage } from './auth';
 import { checkAccess, postMessage, type Role } from './projects';
 
 export type ViewKind = 'board' | 'list' | 'uv';
@@ -48,6 +48,12 @@ class AppState {
   loginOpen = $state(false);
   /** 매직링크 처리 중 생긴 오류 (로그인 창에 표시) */
   authError = $state('');
+  /** 내 요금제 한도·사용량 (/api/me) */
+  usage = $state<Usage | null>(null);
+  /** 동시접속 한도에 막혀 연결 대기 중 */
+  seatLimit = $state<{ used: number; limit: number } | null>(null);
+  /** 화면 상단 알림 (용량 초과 등) */
+  notice = $state('');
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -96,9 +102,18 @@ class AppState {
       }
       history.replaceState(null, '', this.room ? `/?room=${this.room}` : '/');
     } else {
-      this.applyAccount(await fetchMe());
+      this.applyMe(await fetchMe());
     }
     this.authReady = true;
+  }
+
+  async refreshMe() {
+    this.applyMe(await fetchMe());
+  }
+
+  private applyMe(me: Awaited<ReturnType<typeof fetchMe>>) {
+    this.applyAccount(me?.account ?? null);
+    this.usage = me ? { limits: me.limits, usage: me.usage } : null;
   }
 
   /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
@@ -109,7 +124,11 @@ class AppState {
         const a = await checkAccess(room, this.invite);
         this.access = { status: 'ok', role: a.role, projectName: a.project.name };
         const session = loadSession();
-        params = a.role === 'owner' && session ? { session } : this.invite ? { invite: this.invite } : session ? { session } : {};
+        const useSession = (a.role === 'owner' || !this.invite) && !!session;
+        params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
+        setAssetScope({ project: room, session: useSession ? session : null, invite: useSession ? null : this.invite });
+        if (a.seats.used >= a.seats.limit) this.seatLimit = a.seats;
+        this.watchSeats(room);
       } catch (e) {
         const code = e instanceof AuthError ? e.status : 0;
         this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 ? code : 0 };
@@ -117,6 +136,7 @@ class AppState {
       }
     } else {
       this.access = { status: 'ok', role: 'owner', projectName: '로컬 작업' };
+      setAssetScope(null);
     }
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
     persist.whenSynced.then(() => (this.ready = true));
@@ -126,6 +146,20 @@ class AppState {
   }
 
   /** 표시 이름: 계정 이름 > 기기에 정한 이름 > 이메일 앞부분 */
+  /** 연결이 안 될 때 좌석 한도 때문인지 3초마다 확인. 연결되면 안내를 지운다 */
+  private watchSeats(room: string) {
+    const tick = async () => {
+      if (this.sync === 'online') { this.seatLimit = null; return; }
+      if (this.sync === 'offline' || this.seatLimit) {
+        try {
+          const a = await checkAccess(room, this.invite);
+          this.seatLimit = a.seats.used >= a.seats.limit ? a.seats : null;
+        } catch { /* 서버 응답 없음 */ }
+      }
+    };
+    setInterval(tick, 3000);
+  }
+
   applyAccount(a: Account | null) {
     this.account = a;
     if (a) this.setNickname(a.name || this.nickname || a.email.split('@')[0], false);
@@ -183,6 +217,12 @@ function parse(s: string | null): unknown {
 }
 function load(k: string) {
   try { return localStorage.getItem(k); } catch { return null; }
+}
+/** 초대 손님의 브라우저 고유 ID — 같은 사람의 탭 여러 개를 한 좌석으로 세기 위해 */
+function guestId(): string {
+  let id = load('ganpanda.guestId');
+  if (!id) { id = crypto.randomUUID(); save('ganpanda.guestId', id); }
+  return id;
 }
 function save(k: string, v: string) {
   try { localStorage.setItem(k, v); } catch { /* 저장 불가 환경 */ }

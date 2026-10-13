@@ -11,13 +11,13 @@
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
 | GET | `/api/health` | 상태 확인 | `{ "ok": true }` |
-| GET (WebSocket) | `/api/rooms/:room` (또는 `/api/rooms/:room/ws`) | 프로젝트 실시간 동기화 (y-websocket 호환 — 클라이언트는 `/api/rooms/<room>`으로 접속) | 101 / 400 잘못된 방 이름 / 426 WebSocket 아님 |
-| PUT | `/api/assets/:id` | 에셋 업로드 | 201 / 400 ID 형식·해시 불일치 / 413 25MB 초과 / 415 형식 불가 |
-| GET, HEAD | `/api/assets/:id` | 에셋 다운로드·존재 확인 | 200 / 404 |
+| GET (WebSocket) | `/api/rooms/:room` (또는 `/ws`) `?session=`\|`?invite=&guest=` | 프로젝트 실시간 동기화 (y-websocket 호환) | 101 / 400 방 이름 / 401·403·404 권한 / **429 `{error:'seat_limit', used, limit}`** 동시접속 한도 / 426 |
+| PUT | `/api/assets/:id` `?project=&session\|invite` | 에셋 업로드 (owner·editor). 사용량은 프로젝트 소유 계정에 | 201 / 400 ID·해시 / 401·403 권한 / 413 25MB 초과 또는 **`{error:'storage_limit', limitBytes, usedBytes, sizeBytes}`** / 415 |
+| GET, HEAD | `/api/assets/:id` `?project=&session\|invite` | 에셋 다운로드·존재 확인 (viewer 포함, 소유 계정에 등록된 에셋만) | 200 / 403 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
 | POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
 | POST | `/api/auth/verify` `{token}` | 링크 검증 → 계정 생성(최초)·세션 발급 | 200 `{session, account}` / 404 없음 / 410 만료·사용됨 |
-| GET | `/api/me` | 내 계정 (`Authorization: Bearer <세션>`) | 200 `{account}` / 401 |
+| GET | `/api/me` | 내 계정 + 한도·사용량 (`Authorization: Bearer <세션>`) | 200 `{account, limits:{storageBytes, seats}, usage:{storageBytes, seats}}` / 401 |
 | PATCH | `/api/me` `{name}` | 표시 이름 변경 (40자) | 200 / 401 |
 | POST | `/api/auth/logout` | 세션 삭제 | 204 / 401 |
 
@@ -39,7 +39,7 @@
 | POST | `/api/projects/:id/invites` `{role: viewer\|editor}` | 초대 링크 생성 | 201 `{token, role, url}` / 400 |
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
-| GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 | `{role, project}` / 401 / 403 / 404 |
+| GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 | `{role, project, seats:{used, limit}}` / 401 / 403 / 404 |
 | POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록) | 201 / 400 / 401 / 403 |
 
 - WebSocket `/api/rooms/:id`는 `?session=<세션>` 또는 `?invite=<토큰>`으로 자격을 넘깁니다(브라우저 WebSocket 은 헤더를 못 넣음). 등록 안 된 방 404, 자격 없음 401, 다른 프로젝트 토큰 403.
@@ -52,8 +52,8 @@
 - 이메일 발송은 도메인 인증 뒤 Cloudflare Email 로 연결 예정. 그전에는 503.
 
 ## 계획 (미구현)
-- 카카오·구글 로그인(1-2d), 요금제 한도·에셋 권한(1-2c) → [../product/pricing.md](../product/pricing.md)
-- 방 접속은 1-2b 에서 권한 검사가 붙었습니다. 에셋은 아직 ID만 알면 받을 수 있습니다(ID 는 내용 해시 32자라 추측은 어렵지만, 1-2c 에서 프로젝트 기준 권한을 붙입니다).
+- 카카오·구글 로그인(1-2d), 이메일 발송 → [../product/pricing.md](../product/pricing.md)
+- 방 접속(1-2b)과 에셋(1-2c) 모두 프로젝트 자격으로 권한을 검사합니다. 요금제 한도 → [../product/pricing.md](../product/pricing.md)
 
 ## 관련 테스트
-- `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`, `server/test/projects.test.ts`, `server/test/access.test.ts`
+- `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`, `server/test/projects.test.ts`, `server/test/access.test.ts`, `server/test/limits.test.ts`

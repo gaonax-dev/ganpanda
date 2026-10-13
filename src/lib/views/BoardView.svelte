@@ -3,7 +3,8 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import { app } from '../state.svelte';
-  import { assetUrl, imageSize, putAsset } from '../assets';
+  import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
+  import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
   import type { Pt } from '../core/homography';
@@ -42,7 +43,16 @@
     let i = 0;
     for (const f of files) {
       if (!f.type.startsWith('image/')) continue;
-      const assetId = await putAsset(f);
+      let assetId: string;
+      try {
+        assetId = await putAsset(f);
+      } catch (e) {
+        if (e instanceof StorageLimitError) {
+          app.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 "${f.name}"(${formatBytes(e.sizeBytes)})을 올릴 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}. 더 많은 용량이 필요하면 요금제를 올려 주세요.`;
+          continue;
+        }
+        throw e;
+      }
       const url = (await assetUrl(assetId))!;
       const { w, h } = await imageSize(url);
       const width = 1200;

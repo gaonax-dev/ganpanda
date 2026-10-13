@@ -2,6 +2,8 @@
 import { SERVER_URL } from './sync';
 
 export interface Account { id: string; email: string; name: string; plan: string }
+export interface Usage { limits: { storageBytes: number; seats: number }; usage: { storageBytes: number; seats: number } }
+export type Me = { account: Account } & Usage;
 const KEY = 'ganpanda.session';
 
 export const loadSession = (): string | null => { try { return localStorage.getItem(KEY); } catch { return null; } };
@@ -31,10 +33,10 @@ export async function verifyToken(token: string): Promise<Account> {
   return r.account;
 }
 
-export async function fetchMe(): Promise<Account | null> {
+export async function fetchMe(): Promise<Me | null> {
   if (!loadSession()) return null;
   try {
-    return (await call<{ account: Account }>('/api/me')).account;
+    return await call<Me>('/api/me');
   } catch (e) {
     if (e instanceof AuthError && e.status === 401) saveSession(null); // 만료된 세션
     return null;

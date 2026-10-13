@@ -1,5 +1,6 @@
 // 계정·로그인 (1-2a): 이메일 매직링크 → 세션 Bearer 토큰. 카카오·구글은 1-2d.
 import { json, randomToken, readJson, sha256hex, text } from './http';
+import { usageOf } from './usage';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LOGIN_TTL = 15 * 60 * 1000;
@@ -71,7 +72,7 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(me.sessionHash).run();
     return new Response(null, { status: 204 });
   }
-  if (pathname === '/api/me' && req.method === 'GET') return json({ account: publicAccount(me) });
+  if (pathname === '/api/me' && req.method === 'GET') return json({ account: publicAccount(me), ...(await usageOf(env, me.id, me.plan)) });
   if (pathname === '/api/me' && req.method === 'PATCH') {
     const body = await readJson<{ name?: string }>(req);
     const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : null;

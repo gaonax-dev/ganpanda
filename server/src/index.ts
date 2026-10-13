@@ -1,5 +1,8 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
+export { Account } from './account';
+import { planOf } from './plans';
+import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
 import { json, readJson, text } from './http';
@@ -32,25 +35,47 @@ async function assetId(bytes: ArrayBuffer): Promise<string> {
   return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function handleAsset(req: Request, env: Env, id: string): Promise<Response> {
+async function handleAsset(req: Request, env: Env, id: string, url: URL): Promise<Response> {
   if (!ASSET_RE.test(id)) return text('bad asset id', 400);
+  // 에셋은 프로젝트 자격으로만 접근 (업로드: owner/editor, 다운로드: viewer 포함)
+  const projectId = url.searchParams.get('project');
+  if (!projectId) return text('project required', 401);
+  const access = await resolveAccess(withSessionParam(req, url), env, projectId, url.searchParams.get('invite'));
+  if (typeof access === 'number') return text('no access', access);
+  const ownerId = access.project.owner_id;
+
   if (req.method === 'PUT') {
+    if (access.role === 'viewer') return text('viewer cannot upload', 403);
     const type = (req.headers.get('content-type') ?? '').split(';')[0].trim();
     if (!ASSET_TYPES.has(type)) return text('unsupported type', 415);
     if (Number(req.headers.get('content-length') ?? 0) > MAX_ASSET) return text('too large', 413);
     const bytes = await req.arrayBuffer();
     if (bytes.byteLength > MAX_ASSET) return text('too large', 413);
     if ((await assetId(bytes)) !== id) return text('hash mismatch', 400);
+    const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(ownerId).first<{ plan: string }>();
+    const counted = await env.DB.prepare('SELECT 1 FROM account_assets WHERE account_id = ? AND asset_id = ?').bind(ownerId, id).first();
+    if (!counted) {
+      const limitBytes = planOf(owner?.plan ?? 'free').storageBytes;
+      const usedBytes = await storageUsed(env, ownerId);
+      if (usedBytes + bytes.byteLength > limitBytes) return json({ error: 'storage_limit', limitBytes, usedBytes, sizeBytes: bytes.byteLength }, 413);
+    }
     await env.ASSETS.put(id, bytes, { httpMetadata: { contentType: type } });
+    if (!counted) {
+      await env.DB.prepare('INSERT OR IGNORE INTO account_assets (account_id, asset_id, size, created_at) VALUES (?, ?, ?, ?)')
+        .bind(ownerId, id, bytes.byteLength, Date.now()).run();
+    }
     return new Response(null, { status: 201 });
   }
   if (req.method === 'GET' || req.method === 'HEAD') {
+    // 소유 계정에 등록된 에셋만 (다른 계정의 프로젝트 자격으로는 받을 수 없다)
+    const mine = await env.DB.prepare('SELECT 1 FROM account_assets WHERE account_id = ? AND asset_id = ?').bind(ownerId, id).first();
+    if (!mine) return text('not found', req.method === 'HEAD' ? 404 : 403);
     const obj = req.method === 'HEAD' ? await env.ASSETS.head(id) : await env.ASSETS.get(id);
     if (!obj) return text('not found', 404);
     const headers = new Headers({
       'content-type': obj.httpMetadata?.contentType ?? 'application/octet-stream',
       'content-length': String(obj.size),
-      'cache-control': 'public, max-age=31536000, immutable',
+      'cache-control': 'private, max-age=31536000, immutable',
       'x-content-type-options': 'nosniff',
       // SVG·PDF 안의 스크립트가 실행되지 않도록 격리
       'content-security-policy': "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
@@ -60,13 +85,16 @@ async function handleAsset(req: Request, env: Env, id: string): Promise<Response
   return text('method not allowed', 405);
 }
 
-/** ?session= 쿼리를 Authorization 헤더로 옮긴 요청 (WebSocket 용) */
+/**
+ * ?session= 쿼리를 Authorization 헤더로 옮긴 "권한 검사용" 요청 (WebSocket·에셋 용).
+ * 본문은 복제하지 않는다 — 원본 요청에서 본문을 읽을 수 있어야 하므로 헤더만 담은 GET 요청을 만든다.
+ */
 function withSessionParam(req: Request, url: URL): Request {
   const s = url.searchParams.get('session');
   if (!s || req.headers.has('authorization')) return req;
-  const r = new Request(req, { headers: new Headers(req.headers) });
-  r.headers.set('authorization', `Bearer ${s}`);
-  return r;
+  const headers = new Headers(req.headers);
+  headers.set('authorization', `Bearer ${s}`);
+  return new Request(req.url, { method: 'GET', headers });
 }
 
 const MESSAGE_KINDS = new Set(['chat', 'comment']);
@@ -105,13 +133,22 @@ export default {
       if (typeof access === 'number') return withCors(text('no access', access));
       if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));
+      // 동시접속 좌석: 사람 = 계정 ID 또는 손님 브라우저 ID (없으면 소켓마다 1석)
+      const sid = crypto.randomUUID();
+      const person = access.account ? `acct:${access.account.id}` : `guest:${url.searchParams.get('guest') || sid}`;
+      const ownerId = access.project.owner_id;
+      const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(ownerId).first<{ plan: string }>();
+      const seat = await env.ACCOUNT.getByName(ownerId).acquire(person, sid, planOf(owner?.plan ?? 'free').seats);
+      if (!seat.ok) return withCors(json({ error: 'seat_limit', used: seat.used, limit: seat.limit }, 429));
       const fwd = new Request(req, { headers: new Headers(req.headers) });
       fwd.headers.set('x-role', access.role);
+      fwd.headers.set('x-sid', sid);
+      fwd.headers.set('x-owner', ownerId);
       return env.ROOM.getByName(name).fetch(fwd);
     }
 
     const asset = pathname.match(/^\/api\/assets\/([^/]+)$/);
-    if (asset) return withCors(await handleAsset(req, env, asset[1]));
+    if (asset) return withCors(await handleAsset(req, env, asset[1], url));
 
     return withCors(text('not found', 404));
   },
