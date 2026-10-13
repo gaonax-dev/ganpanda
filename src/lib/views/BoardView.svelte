@@ -100,6 +100,16 @@
   }
 
   let dropping = $state(false);
+
+  // 내 커서를 다른 접속자에게 (world 좌표, 50ms 간격)
+  let cursorTimer = 0;
+  function sendCursor(e: PointerEvent) {
+    if (cursorTimer) return;
+    cursorTimer = window.setTimeout(() => {
+      cursorTimer = 0;
+      app.setCursor(canvas.clientToWorld(e.clientX, e.clientY));
+    }, 50);
+  }
   const hint = (a: Action) => app.keymap[a].map((c) => formatCombo(c, app.isMac)).join(', ') || '없음';
 </script>
 
@@ -113,6 +123,8 @@
   ondragover={(e) => { e.preventDefault(); dropping = true; }}
   ondragleave={() => (dropping = false)}
   ondrop={(e) => { e.preventDefault(); dropping = false; if (e.dataTransfer?.files) addPhotos(e.dataTransfer.files); }}
+  onpointermove={sendCursor}
+  onpointerleave={() => app.setCursor(null)}
 >
   <InfiniteCanvas
     bind:this={canvas}
@@ -139,6 +151,14 @@
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) app.project.removePhoto(p.id); }}
       />
     {/each}
+    {#each app.peers as p (p.name)}
+      {#each p.cursors as c, i (i)}
+        <div class="cursor" data-testid="peer-cursor" style:left="{c.x}px" style:top="{c.y}px" style:transform="scale({1 / viewport.zoom})" style:--c={p.color}>
+          <svg width="16" height="18" viewBox="0 0 16 18"><path d="M1 1l14 6-6 2-3 8z" fill="var(--c)" stroke="#fff" stroke-width="1.2"/></svg>
+          <span>{p.name}</span>
+        </div>
+      {/each}
+    {/each}
     {#snippet overlay()}
       {#if app.ready && !app.photos.length}
         <div class="empty">
@@ -162,6 +182,8 @@
 
 <style>
   .board { position: absolute; inset: 0; }
+  .cursor { position: absolute; transform-origin: 0 0; pointer-events: none; display: flex; align-items: flex-start; gap: 2px; z-index: 3; }
+  .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;

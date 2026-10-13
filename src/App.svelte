@@ -21,6 +21,7 @@
     { id: 'list', label: '사인물 리스트' },
     { id: 'uv', label: 'UV 뷰' },
   ];
+  const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived([...app.measures.values()].filter((m) => m.warnings.length).length);
 </script>
 
@@ -38,7 +39,12 @@
     </div>
     <div class="right">
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
-      <span class="sync" title="실시간 서버 연결은 다음 단계">● 로컬 저장</span>
+      <span class="peers">
+        {#each app.peers as p (p.name)}
+          <span class="peer" data-testid="peer" title={p.name}><i style:background={p.color}></i>{p.name}</span>
+        {/each}
+      </span>
+      <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {SYNC_LABEL[app.sync]}</span>
       <button class="who" onclick={() => { const n = prompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>
         {app.nickname || '이름 설정'}
       </button>
@@ -67,6 +73,11 @@
   .n { color: var(--muted); font-size: 11px; }
   .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .sync { font-size: 12px; color: var(--muted); }
+  .sync[data-status='online'] { color: var(--ok); }
+  .sync[data-status='offline'] { color: var(--warn); }
+  .peers { display: flex; gap: 6px; }
+  .peer { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px 2px 6px; }
+  .peer i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .who { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
   main { position: relative; overflow: hidden; }
   .view { position: absolute; inset: 0; }

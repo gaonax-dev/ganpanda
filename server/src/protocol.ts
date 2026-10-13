@@ -6,31 +6,39 @@ export const MSG_SYNC = 0;
 export const MSG_AWARENESS = 1;
 export const MSG_QUERY_AWARENESS = 3;
 
-/**
- * 접속자 상태(awareness) 메시지로부터 "퇴장" 메시지를 만든다.
- * 형식: [MSG_AWARENESS][len][count]{clientID, clock, stateJSON}* → 같은 clientID, clock+1, "null"
- */
-export function awarenessRemoval(message: Uint8Array): Uint8Array | null {
+/** awareness 항목: clientID, clock, 상태 JSON ("null" = 퇴장) */
+export interface AwarenessEntry { clientId: number; clock: number; state: string }
+
+/** [MSG_AWARENESS][len][count]{clientID, clock, stateJSON}* → 항목 배열. 형식이 깨졌으면 null */
+export function parseAwareness(message: Uint8Array): AwarenessEntry[] | null {
   try {
     const dec = decoding.createDecoder(message);
     if (decoding.readVarUint(dec) !== MSG_AWARENESS) return null;
     const upd = decoding.createDecoder(decoding.readVarUint8Array(dec));
     const n = decoding.readVarUint(upd);
-    const inner = encoding.createEncoder();
-    encoding.writeVarUint(inner, n);
+    const out: AwarenessEntry[] = [];
     for (let i = 0; i < n; i++) {
-      const clientID = decoding.readVarUint(upd);
-      const clock = decoding.readVarUint(upd);
-      decoding.readVarString(upd);
-      encoding.writeVarUint(inner, clientID);
-      encoding.writeVarUint(inner, clock + 1);
-      encoding.writeVarString(inner, 'null');
+      out.push({ clientId: decoding.readVarUint(upd), clock: decoding.readVarUint(upd), state: decoding.readVarString(upd) });
     }
-    const out = encoding.createEncoder();
-    encoding.writeVarUint(out, MSG_AWARENESS);
-    encoding.writeVarUint8Array(out, encoding.toUint8Array(inner));
-    return encoding.toUint8Array(out);
+    return out;
   } catch {
     return null;
   }
 }
+
+export function encodeAwareness(entries: AwarenessEntry[]): Uint8Array {
+  const inner = encoding.createEncoder();
+  encoding.writeVarUint(inner, entries.length);
+  for (const e of entries) {
+    encoding.writeVarUint(inner, e.clientId);
+    encoding.writeVarUint(inner, e.clock);
+    encoding.writeVarString(inner, e.state);
+  }
+  const out = encoding.createEncoder();
+  encoding.writeVarUint(out, MSG_AWARENESS);
+  encoding.writeVarUint8Array(out, encoding.toUint8Array(inner));
+  return encoding.toUint8Array(out);
+}
+
+/** 퇴장 알림: 같은 clientID, clock + 1, 상태 null */
+export const removalOf = (e: { clientId: number; clock: number }): AwarenessEntry => ({ clientId: e.clientId, clock: e.clock + 1, state: 'null' });

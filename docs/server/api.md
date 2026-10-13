@@ -11,7 +11,7 @@
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
 | GET | `/api/health` | 상태 확인 | `{ "ok": true }` |
-| GET (WebSocket) | `/api/rooms/:room/ws` | 프로젝트 실시간 동기화 (y-websocket 호환) | 101 / 400 잘못된 방 이름 / 426 WebSocket 아님 |
+| GET (WebSocket) | `/api/rooms/:room` (또는 `/api/rooms/:room/ws`) | 프로젝트 실시간 동기화 (y-websocket 호환 — 클라이언트는 `/api/rooms/<room>`으로 접속) | 101 / 400 잘못된 방 이름 / 426 WebSocket 아님 |
 | PUT | `/api/assets/:id` | 에셋 업로드 | 201 / 400 ID 형식·해시 불일치 / 413 25MB 초과 / 415 형식 불가 |
 | GET, HEAD | `/api/assets/:id` | 에셋 다운로드·존재 확인 | 200 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |

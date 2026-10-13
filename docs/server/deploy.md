@@ -14,6 +14,10 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - R2 바인딩 `ASSETS` → 버킷 `ganpanda-assets`
 - `observability.enabled = true`
 
+## 앱에서 서버 지정
+- 앱의 `VITE_SYNC_URL`(`.env`, 예시는 `.env.example`)에 서버 주소를 넣고 빌드합니다. 비우면 개발 중에는 `http://localhost:8787`, 운영 빌드에서는 서버 없이 로컬 모드로 동작합니다.
+- E2E(`npm run e2e`)는 `wrangler dev`를 자동으로 띄웁니다.
+
 ## 배포 (아직 안 함)
 - Cloudflare 계정이 필요합니다: `npx wrangler login` → `npm run deploy`
 - R2 버킷은 배포할 때 자동 생성되거나, `npx wrangler r2 bucket create ganpanda-assets`로 만듭니다.

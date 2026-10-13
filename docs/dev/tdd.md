@@ -16,12 +16,12 @@
 | 종류 | 위치 | 실행 | 환경 |
 |---|---|---|---|
 | 앱 단위 | `tests/unit/` | `npm test` (`npm run test:watch`) | Vitest, node |
-| 앱 E2E | `tests/e2e/` | `npm run e2e` | Playwright + 시스템 Chrome, 개발 서버(5199) 자동 실행 |
+| 앱 E2E | `tests/e2e/` | `npm run e2e` | Playwright + 시스템 Chrome. 개발 서버(5199)와 동기화 서버(`wrangler dev`, 8787)를 자동 실행 |
 | 서버 | `server/test/` | `cd server && npm test` | Workers 런타임 (`@cloudflare/vitest-plugin`) |
 | 타입 | | `npm run check` | svelte-check |
 
 ## E2E 작성 규칙
-- 테스트마다 `?room=e2e-<무작위>`로 문서를 분리합니다.
+- 테스트마다 `?room=e2e-<무작위>`로 문서를 분리합니다. 협업 테스트는 브라우저 컨텍스트 두 개를 같은 방에 접속시킵니다(`tests/e2e/realtime.spec.ts`).
 - 요소는 `data-testid`로 찾습니다.
 - 테스트 사진은 `tests/e2e/helpers.ts`의 `makePhoto`(1600×1000 정면 사진)를 씁니다. 원근 검증이 필요하면 `src/lib/sim/sample.ts`의 합성 사진을 씁니다.
 
