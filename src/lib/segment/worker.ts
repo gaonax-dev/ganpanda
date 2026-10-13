@@ -78,7 +78,7 @@ self.onmessage = async (ev: MessageEvent) => {
     else if (msg.type === 'embed') { await embed(msg.photoId, msg.bitmap); post({ type: 'embedded', photoId: msg.photoId }); }
     else if (msg.type === 'segment') {
       const r = await segment(msg.photoId, msg.x, msg.y);
-      post({ type: 'mask', reqId: msg.reqId, ...r }, [r.data.buffer]);
+      post({ type: 'mask', reqId: msg.reqId, photoId: msg.photoId, ...r }, [r.data.buffer]);
     } else if (msg.type === 'forget') embedded.delete(msg.photoId);
   } catch (e) {
     post({ type: 'error', reqId: msg.reqId, photoId: msg.photoId, message: e instanceof Error ? e.message : String(e) });
