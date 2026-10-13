@@ -68,8 +68,17 @@
     const span = Math.max(w, h);
     sun.position.set(-span * 0.4, span * 0.9, span * 0.8); sun.target.position.set(0, 0, 0); scene.add(sun.target);
     const cam = sun.shadow.camera; cam.left = cam.bottom = -span; cam.right = cam.top = span; cam.near = 1; cam.far = span * 4; cam.updateProjectionMatrix();
-    camera.position.set(span * 0.35, h * 0.3, span * 1.1); controls.target.set(0, 0, 0);
+    frame(w, h);
     applyNight(night);
+  }
+
+  /** 글자 전체가 화면에 들어오도록 카메라 거리 계산 (가로·세로 화각 중 큰 쪽) */
+  function frame(w: number, h: number) {
+    const vfov = (camera.fov * Math.PI) / 180;
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+    const dist = Math.max((w / 2) / Math.tan(hfov / 2), (h * 1.6) / 2 / Math.tan(vfov / 2)) * 1.25;
+    camera.position.set(dist * 0.18, h * 0.25, dist); controls.target.set(0, 0, 0);
+    camera.near = dist / 100; camera.far = dist * 20; camera.updateProjectionMatrix();
   }
 
   function applyNight(n: boolean) {
