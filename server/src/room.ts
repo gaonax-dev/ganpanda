@@ -15,7 +15,9 @@ const COMPACT_AT = 200;
 const MAX_STATE = 4096;
 const LOAD = Symbol('load');
 
-interface Attachment { sid: string }
+type Role = 'owner' | 'editor' | 'viewer';
+interface Attachment { sid: string; role: Role }
+export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment'; ts: number }
 type AwRow = { client_id: number; sock: string; clock: number; state: string };
 
 export class Room extends DurableObject<Env> {
@@ -43,8 +45,9 @@ export class Room extends DurableObject<Env> {
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
     const [client, server] = Object.values(new WebSocketPair());
     const sid = crypto.randomUUID();
+    const role = (req.headers.get('x-role') ?? 'viewer') as Role; // Worker 가 권한 검사 후 넣는다
     this.ctx.acceptWebSocket(server, [sid]);
-    server.serializeAttachment({ sid } satisfies Attachment);
+    server.serializeAttachment({ sid, role } satisfies Attachment);
     // 서버 상태 벡터를 먼저 보내 클라이언트가 가진(서버에 없는) 변경을 받는다
     const enc = encoding.createEncoder();
     encoding.writeVarUint(enc, MSG_SYNC);
@@ -60,6 +63,8 @@ export class Room extends DurableObject<Env> {
     const dec = decoding.createDecoder(data);
     switch (decoding.readVarUint(dec)) {
       case MSG_SYNC: {
+        // viewer 는 동기화 요청(step1)만 — 문서 변경(step2·update)은 버린다
+        if (this.roleOf(ws) === 'viewer' && decoding.peekVarUint(dec) !== sync.messageYjsSyncStep1) break;
         const enc = encoding.createEncoder();
         encoding.writeVarUint(enc, MSG_SYNC);
         sync.readSyncMessage(dec, enc, this.doc, ws);
@@ -107,6 +112,17 @@ export class Room extends DurableObject<Env> {
 
   private sidOf(ws: WebSocket): string {
     return (ws.deserializeAttachment() as Attachment).sid;
+  }
+
+  private roleOf(ws: WebSocket): Role {
+    return (ws.deserializeAttachment() as Attachment).role;
+  }
+
+  /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */
+  async addMessage(objectId: string, author: string, text: string, kind: Message['kind']): Promise<Message> {
+    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now() };
+    this.doc.getArray<Message>('messages').push([msg]);
+    return msg;
   }
 
   private isLive(sock: string): boolean {

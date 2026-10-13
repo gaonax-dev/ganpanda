@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 const email = () => `e2e-${Math.random().toString(36).slice(2, 8)}@example.com`;
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/?room=e2e-' + Math.random().toString(36).slice(2));
+  await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 });

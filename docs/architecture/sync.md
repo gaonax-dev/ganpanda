@@ -16,7 +16,7 @@
 - 접속자 목록은 `name`이 없는(아직 상태를 보내지 않은) 접속을 제외합니다. 이름이 빈 문자열이면 "손님"으로 표시합니다.
 
 ## 방(room)
-- 프로젝트 하나 = 방 하나. URL `?room=<id>`로 지정하며, 없으면 `local-default`입니다.
+- 프로젝트 하나 = 방 하나. URL `?room=<id>`. 서버가 있는 빌드에서는 **등록된 프로젝트만** 접속되고(`/api/projects/:id/access`), 자격은 WebSocket 쿼리 `?session=` 또는 `?invite=`로 넘깁니다 → [../features/projects-invites.md](../features/projects-invites.md). 서버 주소가 없는 빌드는 `local-default`.
 - 방 ID 형식(서버 검사): `^[A-Za-z0-9_-]{6,64}$`
 - E2E 테스트는 테스트마다 다른 방을 써서 서로 섞이지 않게 합니다.
 

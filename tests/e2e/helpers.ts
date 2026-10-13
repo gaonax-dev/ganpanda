@@ -1,4 +1,6 @@
-import type { Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
+
+export const SERVER = 'http://localhost:8787';
 
 /** 단색 테스트 사진 (정면, 1600×1000) */
 export async function makePhoto(page: Page): Promise<Buffer> {
@@ -28,4 +30,48 @@ export async function dragOnPhoto(page: Page, from: [number, number], to: [numbe
   await page.mouse.down();
   await page.mouse.move(b.x + to[0] * k, b.y + to[1] * k, { steps: 6 });
   await page.mouse.up();
+}
+
+// ---------- 계정·프로젝트 (서버 API 직접 호출) ----------
+
+const rand = () => Math.random().toString(36).slice(2, 10);
+
+/** 이메일 매직링크로 로그인한 세션 토큰 */
+export async function apiLogin(request: APIRequestContext, email = `e2e-${rand()}@example.com`): Promise<string> {
+  const r = await request.post(`${SERVER}/api/auth/email`, { data: { email } });
+  const token = new URL((await r.json()).link).searchParams.get('token')!;
+  const v = await request.post(`${SERVER}/api/auth/verify`, { data: { token } });
+  return (await v.json()).session;
+}
+
+export async function apiCreateProject(request: APIRequestContext, session: string, name = '테스트 매장'): Promise<string> {
+  const r = await request.post(`${SERVER}/api/projects`, { data: { name }, headers: { authorization: `Bearer ${session}` } });
+  return (await r.json()).project.id;
+}
+
+export async function apiCreateInvite(request: APIRequestContext, session: string, projectId: string, role: 'viewer' | 'editor'): Promise<string> {
+  const r = await request.post(`${SERVER}/api/projects/${projectId}/invites`, { data: { role }, headers: { authorization: `Bearer ${session}` } });
+  return (await r.json()).url;
+}
+
+/** 로그인한 소유자로 새 프로젝트를 열어 둔 페이지 */
+export async function openOwnedProject(page: Page, request: APIRequestContext, name = '테스트 매장', displayName = '제작자') {
+  const session = await apiLogin(request);
+  const projectId = await apiCreateProject(request, session, name);
+  await page.goto('/');
+  await page.evaluate(([s, n]) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', n); }, [session, displayName]);
+  await page.goto(`/?room=${projectId}`);
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
+  return { session, projectId };
+}
+
+/** 새 브라우저 컨텍스트에서 초대 링크로 들어온 페이지 */
+export async function openInvited(browser: Browser, inviteUrl: string, displayName = '고객'): Promise<Page & { ctx: BrowserContext }> {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto('/');
+  await page.evaluate((n) => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', n); }, displayName);
+  await page.goto(new URL(inviteUrl).pathname + new URL(inviteUrl).search);
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
+  return Object.assign(page, { ctx });
 }

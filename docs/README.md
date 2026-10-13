@@ -32,6 +32,7 @@
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴
+  - [projects-invites.md](features/projects-invites.md) — 프로젝트 소유, 초대 링크 역할(owner/editor/viewer)
   - [uv-view.md](features/uv-view.md) — 디자인 소스 매핑 (계획)
   - [render-3d.md](features/render-3d.md) — 입체 간판·실사 렌더링 (계획, 초기 코드 보관)
 - server

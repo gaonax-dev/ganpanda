@@ -16,7 +16,8 @@
   const lines = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj));
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
-  const update = (patch: Partial<SignObject>) => app.project.updateObject(obj.id, patch);
+  const ro = $derived(!app.canEdit);
+  const update = (patch: Partial<SignObject>) => { if (app.canEdit) app.project.updateObject(obj.id, patch); };
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
 
   function setCategory(c: Category | null) {
@@ -31,20 +32,20 @@
 
 <aside class="panel" data-testid="object-panel">
   <header>
-    <input class="title" value={obj.name} onchange={(e) => update({ name: e.currentTarget.value || obj.name })} />
+    <input class="title" value={obj.name} disabled={ro} onchange={(e) => update({ name: e.currentTarget.value || obj.name })} />
     <button class="icon" title="닫기" onclick={() => (app.selectedId = null)}>✕</button>
   </header>
 
   <section>
     <h3>간판 종류</h3>
     <div class="seg">
-      <button class:on={category === null} onclick={() => setCategory(null)}>없음</button>
+      <button class:on={category === null} disabled={ro} onclick={() => setCategory(null)}>없음</button>
       {#each Object.entries(CATEGORY_LABEL) as [c, label] (c)}
-        <button data-testid="category-{c}" class:on={category === c} onclick={() => setCategory(c as Category)}>{label}</button>
+        <button data-testid="category-{c}" class:on={category === c} disabled={ro} onclick={() => setCategory(c as Category)}>{label}</button>
       {/each}
     </div>
     {#if category}
-      <select data-testid="product-select" value={obj.productId} onchange={(e) => update({ productId: e.currentTarget.value })}>
+      <select data-testid="product-select" value={obj.productId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value })}>
         {#each CATALOG.filter((p) => p.category === category) as p (p.id)}
           <option value={p.id}>{p.name}</option>
         {/each}
@@ -56,7 +57,7 @@
     <h3>시트</h3>
     <div class="chips">
       {#each SHEETS as s (s.id)}
-        <button data-testid="sheet-{s.id}" class:on={obj.sheetIds.includes(s.id)} onclick={() => toggleSheet(s.id)}>{s.name}</button>
+        <button data-testid="sheet-{s.id}" class:on={obj.sheetIds.includes(s.id)} disabled={ro} onclick={() => toggleSheet(s.id)}>{s.name}</button>
       {/each}
     </div>
   </section>
@@ -68,18 +69,18 @@
     </h3>
     <div class="grid2">
       <label>가로
-        <input data-testid="width-mm" type="number" min="0" step="10" value={obj.widthMm ?? ''}
+        <input data-testid="width-mm" type="number" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro}
           placeholder={m?.estimate ? `≈ ${fmt(m.estimate.widthMm)}` : '입력'}
           oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} />
       </label>
       <label>세로
-        <input data-testid="height-mm" type="number" min="0" step="10" value={obj.heightMm ?? ''}
+        <input data-testid="height-mm" type="number" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
           placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
           oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
       </label>
       {#if category === 'channel'}
         <label>글자수
-          <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
+          <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
         </label>
       {/if}
     </div>
@@ -87,7 +88,7 @@
       <div class="warning" data-testid="measure-warning">
         <b>⚠ 실측 확인 필요</b>
         <p>{w.message}</p>
-        <button data-testid="apply-estimate" class="btn small"
+        <button data-testid="apply-estimate" class="btn small" disabled={ro}
           onclick={() => update({ widthMm: Math.round(w.expected.widthMm / 10) * 10, heightMm: Math.round(w.expected.heightMm / 10) * 10 })}>
           추정값 적용 ({fmt(w.expected.widthMm)}×{fmt(w.expected.heightMm)})
         </button>
@@ -114,7 +115,7 @@
   </section>
 
   <footer>
-    <button class="btn small danger" onclick={() => { app.project.removeObject(obj.id); app.selectedId = null; }}>사인물 삭제</button>
+    {#if !ro}<button class="btn small danger" onclick={() => { app.project.removeObject(obj.id); app.selectedId = null; }}>사인물 삭제</button>{/if}
   </footer>
 </aside>
 

@@ -1,7 +1,8 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
 import { handleAuth } from './auth';
-import { text } from './http';
+import { handleProjects, resolveAccess, type Role } from './projects';
+import { json, readJson, text } from './http';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const ASSET_RE = /^[0-9a-f]{32}$/;
@@ -59,20 +60,54 @@ async function handleAsset(req: Request, env: Env, id: string): Promise<Response
   return text('method not allowed', 405);
 }
 
+/** ?session= 쿼리를 Authorization 헤더로 옮긴 요청 (WebSocket 용) */
+function withSessionParam(req: Request, url: URL): Request {
+  const s = url.searchParams.get('session');
+  if (!s || req.headers.has('authorization')) return req;
+  const r = new Request(req, { headers: new Headers(req.headers) });
+  r.headers.set('authorization', `Bearer ${s}`);
+  return r;
+}
+
+const MESSAGE_KINDS = new Set(['chat', 'comment']);
+const MESSAGE_MAX = 2000;
+
+/** viewer 는 문서를 편집할 수 없으므로 대화는 서버가 대신 기록한다 (다른 역할도 사용 가능) */
+async function postMessage(req: Request, env: Env, room: string, _role: Role): Promise<Response> {
+  if (req.method !== 'POST') return text('method not allowed', 405);
+  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string }>(req);
+  const txt = typeof b?.text === 'string' ? b.text.trim().slice(0, MESSAGE_MAX) : '';
+  const objectId = typeof b?.objectId === 'string' ? b.objectId : '';
+  const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
+  const kind = b?.kind ?? 'chat';
+  if (!txt || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
+  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment');
+  return json({ message: msg }, 201);
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-    const { pathname } = new URL(req.url);
+    const url = new URL(req.url);
+    const { pathname } = url;
 
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me') return withCors(await handleAuth(req, env, pathname));
+    if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
-    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(?:\/ws)?$/); // y-websocket 은 /api/rooms/<room> 으로 접속
+    // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)
+    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages)?$/);
     if (room) {
       const name = decodeURIComponent(room[1]);
       if (!ROOM_RE.test(name)) return withCors(text('bad room', 400));
+      const authed = withSessionParam(req, url);
+      const access = await resolveAccess(authed, env, name, url.searchParams.get('invite'));
+      if (typeof access === 'number') return withCors(text('no access', access));
+      if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));
-      return env.ROOM.getByName(name).fetch(req);
+      const fwd = new Request(req, { headers: new Headers(req.headers) });
+      fwd.headers.set('x-role', access.role);
+      return env.ROOM.getByName(name).fetch(fwd);
     }
 
     const asset = pathname.match(/^\/api\/assets\/([^/]+)$/);

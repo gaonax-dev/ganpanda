@@ -21,7 +21,7 @@
 | 타입 | | `npm run check` | svelte-check |
 
 ## E2E 작성 규칙
-- 테스트마다 `?room=e2e-<무작위>`로 문서를 분리합니다. 협업 테스트는 브라우저 컨텍스트 두 개를 같은 방에 접속시킵니다(`tests/e2e/realtime.spec.ts`).
+- 방은 등록된 프로젝트여야 하므로, 테스트마다 `openOwnedProject(page, request)`로 계정·프로젝트를 만들어 접속합니다. 다른 사람은 `openInvited(browser, inviteUrl)`로 초대 링크 접속(`tests/e2e/helpers.ts`).
 - 요소는 `data-testid`로 찾습니다.
 - 테스트 사진은 `tests/e2e/helpers.ts`의 `makePhoto`(1600×1000 정면 사진)를 씁니다. 원근 검증이 필요하면 `src/lib/sim/sample.ts`의 합성 사진을 씁니다.
 

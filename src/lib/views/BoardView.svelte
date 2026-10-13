@@ -79,6 +79,7 @@
     if (e.key === 'Escape') { if (typing) t.blur(); else app.tool = 'select'; return; }
     if (typing) return;
     const action = matchAction(app.keymap, e, app.isMac);
+    if (!app.canEdit) return;
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';
@@ -122,7 +123,7 @@
   class:dropping
   ondragover={(e) => { e.preventDefault(); dropping = true; }}
   ondragleave={() => (dropping = false)}
-  ondrop={(e) => { e.preventDefault(); dropping = false; if (e.dataTransfer?.files) addPhotos(e.dataTransfer.files); }}
+  ondrop={(e) => { e.preventDefault(); dropping = false; if (app.canEdit && e.dataTransfer?.files) addPhotos(e.dataTransfer.files); }}
   onpointermove={sendCursor}
   onpointerleave={() => app.setCursor(null)}
 >
@@ -142,7 +143,8 @@
         objects={app.objects.filter((o) => o.photoId === p.id)}
         measures={app.measures}
         selectedId={app.selectedId}
-        tool={app.tool}
+        tool={app.canEdit ? app.tool : 'select'}
+        editable={app.canEdit}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => (app.selectedId = id)}
@@ -160,7 +162,7 @@
       {/each}
     {/each}
     {#snippet overlay()}
-      {#if app.ready && !app.photos.length}
+      {#if app.ready && !app.photos.length && app.canEdit}
         <div class="empty">
           <p>건물 사진을 올려 시작하세요</p>
           <label class="btn primary">사진 추가<input type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
@@ -168,11 +170,15 @@
         </div>
       {/if}
       <div class="tools" role="toolbar">
-        <button class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖ 선택</button>
-        <button class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
-        <button class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
-        <span class="sep"></span>
-        <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+        {#if app.canEdit}
+          <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖ 선택</button>
+          <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
+          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
+          <span class="sep"></span>
+          <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+        {:else}
+          <span class="readonly">보기·대화만 가능</span>
+        {/if}
         <button title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
         <span class="zoom" data-testid="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
       </div>
@@ -201,6 +207,7 @@
   }
   .tools button:hover, .tools .file:hover { background: var(--hover); }
   .tools button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .readonly { color: var(--muted); font-size: 12px; padding: 7px 11px; }
   .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
   .zoom { color: var(--muted); font-size: 12px; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 </style>

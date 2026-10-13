@@ -17,11 +17,15 @@ export class TestClient {
   /** y-websocket 처럼 다른 사람의 상태를 받으면 서버에 그대로 되돌려 보낸다 */
   echo = false;
 
-  static async connect(room: string, doc?: Y.Doc) {
+  /** 기본 자격: 테스트 파일의 beforeEach 가 소유자 세션을 넣는다 */
+  static defaultAuth: { session?: string; invite?: string } = {};
+
+  static async connect(room: string, doc?: Y.Doc, auth: { session?: string; invite?: string } = TestClient.defaultAuth) {
     const c = new TestClient();
     if (doc) c.doc = doc;
     c.awareness = new awarenessProtocol.Awareness(c.doc);
-    const res = await exports.default.fetch(`http://sync/api/rooms/${room}/ws`, { headers: { Upgrade: 'websocket' } });
+    const q = auth.session ? `?session=${auth.session}` : auth.invite ? `?invite=${auth.invite}` : '';
+    const res = await exports.default.fetch(`http://sync/api/rooms/${room}/ws${q}`, { headers: { Upgrade: 'websocket' } });
     if (res.status !== 101 || !res.webSocket) throw new Error(`upgrade failed: ${res.status}`);
     c.ws = res.webSocket;
     c.ws.accept();

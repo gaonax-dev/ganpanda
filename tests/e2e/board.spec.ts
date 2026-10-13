@@ -1,10 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, uploadPhoto } from './helpers';
+import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/?room=e2e-' + Math.random().toString(36).slice(2));
-  await page.evaluate(() => localStorage.setItem('ganpanda.nickname', '제작자'));
-  await page.reload();
+test.beforeEach(async ({ page, request }) => {
+  await openOwnedProject(page, request);
 });
 
 test('사진을 올리면 보드에 구역으로 놓인다', async ({ page }) => {

@@ -28,6 +28,23 @@
 - 다운로드 응답: `cache-control: immutable`(내용이 바뀌지 않으므로), `nosniff`, `content-security-policy: … sandbox` (SVG·PDF 안의 스크립트 실행 방지)
 - WebSocket 메시지 형식 → [../architecture/sync.md](../architecture/sync.md)
 
+## 프로젝트·초대 (1-2b) — `Authorization: Bearer <세션>`
+| 메서드 | 경로 | 설명 | 응답 |
+|---|---|---|---|
+| GET | `/api/projects` | 내 프로젝트 (최근 순) | `{projects}` |
+| POST | `/api/projects` `{name}` | 프로젝트 생성 (id = 방 이름, 16자) | 201 `{project}` / 400 |
+| PATCH | `/api/projects/:id` `{name}` | 이름 변경 (소유자) | 200 / 403 / 404 |
+| DELETE | `/api/projects/:id` | 삭제 + 초대 폐기 (소유자) | 204 / 403 |
+| GET | `/api/projects/:id/invites` | 초대 목록 (토큰은 돌려주지 않음, id = 해시 앞 16자) | `{invites}` |
+| POST | `/api/projects/:id/invites` `{role: viewer\|editor}` | 초대 링크 생성 | 201 `{token, role, url}` / 400 |
+| DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
+| GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
+| GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 | `{role, project}` / 401 / 403 / 404 |
+| POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록) | 201 / 400 / 401 / 403 |
+
+- WebSocket `/api/rooms/:id`는 `?session=<세션>` 또는 `?invite=<토큰>`으로 자격을 넘깁니다(브라우저 WebSocket 은 헤더를 못 넣음). 등록 안 된 방 404, 자격 없음 401, 다른 프로젝트 토큰 403.
+- 역할: `owner`(소유자 세션) / `editor` / `viewer`. **viewer 소켓이 보낸 문서 변경은 서버가 버립니다**(동기화 요청만 처리). → [../features/projects-invites.md](../features/projects-invites.md)
+
 ## 인증 (1-2a)
 - 세션은 90일 Bearer 토큰. 서버에는 SHA-256 해시만 저장(`sessions.token_hash`). 매직링크 토큰도 해시만 저장.
 - 이메일은 소문자·공백 제거 후 저장. 계정 `plan` 기본값 `free`.
@@ -35,8 +52,8 @@
 - 이메일 발송은 도메인 인증 뒤 Cloudflare Email 로 연결 예정. 그전에는 503.
 
 ## 계획 (미구현)
-- 카카오·구글 로그인(1-2d), 프로젝트 소유·초대 권한(1-2b), 요금제 한도(1-2c) → [../product/pricing.md](../product/pricing.md)
-- 지금은 방 ID와 에셋 ID만 알면 누구나 접근할 수 있습니다. **인증 도입 전에는 공개 배포에 쓰지 않습니다.**
+- 카카오·구글 로그인(1-2d), 요금제 한도·에셋 권한(1-2c) → [../product/pricing.md](../product/pricing.md)
+- 방 접속은 1-2b 에서 권한 검사가 붙었습니다. 에셋은 아직 ID만 알면 받을 수 있습니다(ID 는 내용 해시 32자라 추측은 어렵지만, 1-2c 에서 프로젝트 기준 권한을 붙입니다).
 
 ## 관련 테스트
-- `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`
+- `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`, `server/test/projects.test.ts`, `server/test/access.test.ts`

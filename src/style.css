@@ -18,7 +18,7 @@ code { font-size: 11px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
   background: var(--hover); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 14px; font: inherit; font-size: 13px;
+  padding: 8px 14px; font: inherit; font-size: 13px; white-space: nowrap;
 }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
 .btn.small { padding: 5px 10px; font-size: 12px; }
