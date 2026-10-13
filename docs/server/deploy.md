@@ -28,7 +28,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 ## 배포 (서버)
 - 계정: Cloudflare (`npx wrangler whoami`). 명령: `cd server && npm run deploy`
 - 주소: **`https://sync.ganpanda.co.kr`** (커스텀 도메인) + 비상용 `https://ganpanda-sync.gaonax-dev.workers.dev` (`workers_dev: true`)
-- 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`. 2026-10-13 1차 전체(인증·프로젝트·한도·이메일·모델 제공) 배포 완료.
+- 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`, **반드시 `npx wrangler d1 migrations list ganpanda --remote`로 적용됐는지 확인**(2026-10-13 0005 가 첫 시도에서 조용히 적용되지 않은 적 있음). 2026-10-13 1차 전체 + 2차(단가표) 배포 완료.
 - R2 버킷 `ganpanda-assets`는 첫 배포(2026-10-13) 때 자동 생성
 - 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장 프로브, 에셋 PUT 201 → GET 동일 바이트
 
