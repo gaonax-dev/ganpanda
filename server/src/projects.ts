@@ -1,12 +1,13 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
 import { authenticate, type Account } from './auth';
 import { json, randomToken, readJson, sha256hex, text } from './http';
+import { planOf } from './plans';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-interface ProjectRow { id: string; owner_id: string; name: string; created_at: number }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
@@ -56,7 +57,9 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
   if (access && req.method === 'GET') {
     const r = await resolveAccess(req, env, access[1], url.searchParams.get('invite'));
     if (typeof r === 'number') return text('no access', r);
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name } });
+    const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(r.project.owner_id).first<{ plan: string }>();
+    const seats = { used: await env.ACCOUNT.getByName(r.project.owner_id).usedSeats(), limit: planOf(owner?.plan ?? 'free').seats };
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats });
   }
 
   const me = await authenticate(req, env);

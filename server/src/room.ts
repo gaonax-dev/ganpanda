@@ -16,7 +16,9 @@ const MAX_STATE = 4096;
 const LOAD = Symbol('load');
 
 type Role = 'owner' | 'editor' | 'viewer';
-interface Attachment { sid: string; role: Role }
+/** 좌석 갱신 간격 (Account.SEAT_TTL 보다 충분히 짧게) */
+const SEAT_RENEW = 30_000;
+interface Attachment { sid: string; role: Role; owner: string; renewedAt: number }
 export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment'; ts: number }
 type AwRow = { client_id: number; sock: string; clock: number; state: string };
 
@@ -44,10 +46,12 @@ export class Room extends DurableObject<Env> {
   async fetch(req: Request): Promise<Response> {
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
     const [client, server] = Object.values(new WebSocketPair());
-    const sid = crypto.randomUUID();
-    const role = (req.headers.get('x-role') ?? 'viewer') as Role; // Worker 가 권한 검사 후 넣는다
+    // Worker 가 권한·좌석 검사 후 넣는다
+    const sid = req.headers.get('x-sid') ?? crypto.randomUUID();
+    const role = (req.headers.get('x-role') ?? 'viewer') as Role;
+    const owner = req.headers.get('x-owner') ?? '';
     this.ctx.acceptWebSocket(server, [sid]);
-    server.serializeAttachment({ sid, role } satisfies Attachment);
+    server.serializeAttachment({ sid, role, owner, renewedAt: Date.now() } satisfies Attachment);
     // 서버 상태 벡터를 먼저 보내 클라이언트가 가진(서버에 없는) 변경을 받는다
     const enc = encoding.createEncoder();
     encoding.writeVarUint(enc, MSG_SYNC);
@@ -59,6 +63,7 @@ export class Room extends DurableObject<Env> {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     if (typeof message === 'string') return;
+    this.renewSeat(ws);
     const data = new Uint8Array(message);
     const dec = decoding.createDecoder(data);
     switch (decoding.readVarUint(dec)) {
@@ -84,11 +89,27 @@ export class Room extends DurableObject<Env> {
 
   async webSocketClose(ws: WebSocket, code: number, reason: string) {
     this.leave(this.sidOf(ws), ws);
+    this.releaseSeat(ws);
     try { ws.close(code, reason); } catch { /* 이미 닫힘 */ }
   }
 
   async webSocketError(ws: WebSocket) {
     this.leave(this.sidOf(ws), ws);
+    this.releaseSeat(ws);
+  }
+
+  // ---------- 동시접속 좌석 (Account DO) ----------
+
+  private renewSeat(ws: WebSocket) {
+    const a = ws.deserializeAttachment() as Attachment;
+    if (!a.owner || Date.now() - a.renewedAt < SEAT_RENEW) return;
+    ws.serializeAttachment({ ...a, renewedAt: Date.now() } satisfies Attachment);
+    this.ctx.waitUntil(this.env.ACCOUNT.getByName(a.owner).renew(a.sid));
+  }
+
+  private releaseSeat(ws: WebSocket) {
+    const a = ws.deserializeAttachment() as Attachment;
+    if (a.owner) this.ctx.waitUntil(this.env.ACCOUNT.getByName(a.owner).release(a.sid));
   }
 
   /** 문서 변경: 저장 먼저, 그다음 다른 접속자에게 전달 */

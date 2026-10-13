@@ -23,7 +23,7 @@ export const createProject = (name: string) =>
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>
-  call<{ role: Role; project: { id: string; name: string } }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
+  call<{ role: Role; project: { id: string; name: string }; seats: { used: number; limit: number } }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
 export const listInvites = (room: string) => call<{ invites: InviteInfo[] }>(`/api/projects/${room}/invites`).then((r) => r.invites);
 export const createInvite = (room: string, role: 'viewer' | 'editor') =>

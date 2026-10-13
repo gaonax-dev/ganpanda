@@ -42,31 +42,59 @@ const urls = new Map<string, string>();
 /** 서버 전송에 실패한 에셋 — 다시 연결되면 재시도 */
 const pending = new Map<string, Blob>();
 
-const serverPath = (id: string) => `${SERVER_URL}/api/assets/${id}`;
+/** 에셋 접근 자격: 서버는 프로젝트와 세션/초대로 권한을 검사한다 (state 가 방 진입 후 설정) */
+let scope: { project: string; session?: string | null; invite?: string | null } | null = null;
+export function setAssetScope(s: typeof scope) { scope = s; }
 
+function serverPath(id: string) {
+  const q = new URLSearchParams();
+  if (scope) {
+    q.set('project', scope.project);
+    if (scope.session) q.set('session', scope.session); else if (scope.invite) q.set('invite', scope.invite);
+  }
+  return `${SERVER_URL}/api/assets/${id}?${q}`;
+}
+
+/** 저장 용량 한도 초과 (서버 413 storage_limit) */
+export class StorageLimitError extends Error {
+  constructor(public limitBytes: number, public usedBytes: number, public sizeBytes: number) {
+    super('storage_limit');
+  }
+}
+
+/** true = 서버에 있음(올렸거나 이미 있음), false = 지금은 못 올림(재시도). 한도 초과는 예외 */
 async function upload(id: string, blob: Blob): Promise<boolean> {
-  if (!SERVER_URL) return false;
+  if (!SERVER_URL || !scope) return false;
   try {
     const head = await fetch(serverPath(id), { method: 'HEAD' });
     if (head.ok) return true; // 같은 내용이 이미 있음
     const r = await fetch(serverPath(id), { method: 'PUT', body: blob, headers: { 'content-type': blob.type } });
+    if (r.status === 413) {
+      const b = await r.json().catch(() => null) as { error?: string; limitBytes?: number; usedBytes?: number } | null;
+      if (b?.error === 'storage_limit') throw new StorageLimitError(b.limitBytes ?? 0, b.usedBytes ?? 0, blob.size);
+    }
     return r.ok;
-  } catch {
+  } catch (e) {
+    if (e instanceof StorageLimitError) throw e;
     return false;
   }
 }
 
+/** 기기에 저장하고 서버에 올린다. 용량 한도를 넘으면 저장하지 않고 StorageLimitError */
 export async function putAsset(blob: Blob): Promise<string> {
   const id = await hash(blob);
+  const uploaded = SERVER_URL ? await upload(id, blob) : false;
   await localPut(id, blob);
   urls.set(id, URL.createObjectURL(blob));
-  if (SERVER_URL && !(await upload(id, blob))) pending.set(id, blob);
+  if (SERVER_URL && !uploaded) pending.set(id, blob);
   return id;
 }
 
 /** 연결이 돌아왔을 때 미전송 에셋을 다시 올린다 */
 export async function flushPendingUploads() {
-  for (const [id, blob] of [...pending]) if (await upload(id, blob)) pending.delete(id);
+  for (const [id, blob] of [...pending]) {
+    try { if (await upload(id, blob)) pending.delete(id); } catch { pending.delete(id); /* 한도 초과 — 재시도해도 같음 */ }
+  }
 }
 
 export async function assetUrl(id: string): Promise<string | undefined> {

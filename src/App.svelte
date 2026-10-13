@@ -10,6 +10,7 @@
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import { ROLE_LABEL } from './lib/projects';
+  import { formatBytes } from './lib/core/format';
 
   let accountOpen = $state(false);
   let nameDraft = $state('');
@@ -34,6 +35,7 @@
     { id: 'list', label: '사인물 리스트' },
     { id: 'uv', label: 'UV 뷰' },
   ];
+  const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived([...app.measures.values()].filter((m) => m.warnings.length).length);
 </script>
@@ -67,12 +69,16 @@
       {/if}
       {#if app.account}
         <span class="account">
-          <button class="who" data-testid="account-menu" onclick={() => { nameDraft = app.account!.name || app.nickname; accountOpen = !accountOpen; }}>
+          <button class="who" data-testid="account-menu" onclick={() => { nameDraft = app.account!.name || app.nickname; accountOpen = !accountOpen; if (accountOpen) app.refreshMe(); }}>
             {app.account.name || app.account.email.split('@')[0]}
           </button>
           {#if accountOpen}
             <div class="menu" role="menu">
-              <small>{app.account.email} · {app.account.plan === 'free' ? '무료' : app.account.plan}</small>
+              <small>{app.account.email} · {PLAN_LABEL[app.account.plan] ?? app.account.plan}</small>
+              {#if app.usage}
+                <small data-testid="usage-storage">저장 용량 {formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</small>
+                <small data-testid="usage-seats">동시접속 {app.usage.usage.seats} / {app.usage.limits.seats}명</small>
+              {/if}
               <label>표시 이름
                 <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
               </label>
@@ -86,6 +92,17 @@
       {/if}
     </div>
   </nav>
+  <!-- 알림 영역: 비어 있어도 항상 있어 그리드 행이 유지된다 -->
+  <div class="banners">
+    {#if app.seatLimit && app.sync !== 'online'}
+      <div class="banner warn" data-testid="seat-limit">
+        동시접속 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 접속 중 — 자리가 나면 자동으로 연결됩니다. 더 많은 인원이 필요하면 요금제를 올려 주세요.
+      </div>
+    {/if}
+    {#if app.notice}
+      <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
+    {/if}
+  </div>
   <main>
     {#if !app.room}
       <Home />
@@ -107,7 +124,9 @@
 {#if app.inviteOpen}<InviteDialog />{/if}
 
 <style>
-  .shell { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
+  .shell { display: grid; grid-template-rows: 48px auto 1fr; height: 100%; }
+  .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; }
+  .banner.warn { background: rgba(255, 170, 0, 0.14); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
   .project { font-weight: 600; font-size: 14px; }
