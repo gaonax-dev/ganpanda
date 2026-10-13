@@ -6,6 +6,8 @@ import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex } from './core/zone';
+import { rasterizePolygon, zoneBounds } from './core/zoneMask';
+import { pointInPolygon } from './core/perspective';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -90,6 +92,8 @@ class AppState {
   segmentStatus = $state<SegmentStatus>('idle');
   segmentError = $state('');
   embeddedPhotos = $state<Record<string, 'embedding' | 'ready' | 'error'>>({});
+  /** 사진별로 분석에 쓴 존 (바뀌면 다시 분석) */
+  private embeddedZone = new Map<string, string>();
   hoverSegment = $state<{ photoId: string; polygon: Pt[] } | null>(null);
   private segmentSeq = 0;
   /** 실행 취소 (내 편집만) */
@@ -311,13 +315,28 @@ class AppState {
   async prepareSegment(photoId: string) {
     if (!SERVER_URL) return;
     if (!this.segmenter) this.segmenter = new Segmenter(SERVER_URL, (st, detail) => { this.segmentStatus = st; this.segmentError = detail ?? ''; });
-    if (this.embeddedPhotos[photoId]) return;
     const photo = this.project.photo(photoId);
-    const url = photo && (await assetUrl(photo.assetId));
+    if (!photo) return;
+    // 존이 바뀌었으면 이전 분석을 버린다
+    const zoneKey = JSON.stringify(photo.zone ?? null);
+    if (this.embeddedPhotos[photoId] && this.embeddedZone.get(photoId) !== zoneKey) {
+      this.segmenter.forget(photoId);
+      const { [photoId]: _, ...rest } = this.embeddedPhotos; this.embeddedPhotos = rest;
+    }
+    if (this.embeddedPhotos[photoId]) return;
+    const url = await assetUrl(photo.assetId);
     if (!url) return;
+    this.embeddedZone.set(photoId, zoneKey);
     this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'embedding' };
     try {
-      await this.segmenter.embed(photoId, url);
+      // 존이 있으면 존 외곽만 잘라 분석(해상도 집중), 결과는 존 안으로만
+      let opts: { region?: ReturnType<typeof zoneBounds>; clip?: Uint8Array } = {};
+      if (photo.zone && photo.zone.length >= 3) {
+        const region = zoneBounds(photo.zone, photo.w, photo.h, 16);
+        const local = photo.zone.map(([x, y]) => [x - region.x, y - region.y] as Pt);
+        opts = { region, clip: rasterizePolygon(local, region.w, region.h) };
+      }
+      await this.segmenter.embed(photoId, url, opts);
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'ready' };
     } catch {
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'error' };
@@ -327,6 +346,8 @@ class AppState {
   /** 호버 지점의 물체 윤곽 미리보기 (최신 요청만 반영) */
   async segmentAt(photoId: string, x: number, y: number) {
     if (!this.segmenter || this.embeddedPhotos[photoId] !== 'ready') return;
+    const zone = this.project.photo(photoId)?.zone;
+    if (zone && zone.length >= 3 && !pointInPolygon([x, y], zone)) { this.clearHoverSegment(); return; }
     const seq = ++this.segmentSeq;
     const r = await this.segmenter.segment(photoId, x, y);
     if (seq !== this.segmentSeq) return;

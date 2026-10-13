@@ -47,6 +47,7 @@ ganpanda/
 | `design.ts` | 디자인 영역 정규화, 소스 히스토리, 파일 종류 |
 | `letter3d.ts` | 입체 간판 사양·조명·폰트 기준 폭 |
 | `zone.ts` | 작업 존 꼭짓점 추가·삭제·가까운 변 |
+| `zoneMask.ts` | 존 외곽 사각형, 다각형 래스터화, 마스크 자르기 (AI 분석 범위) |
 | `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |

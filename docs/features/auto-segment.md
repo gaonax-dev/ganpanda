@@ -20,6 +20,12 @@
 | 마스크 → 다각형 | `src/lib/core/mask.ts`: 가장 큰 연결 조각의 바깥 윤곽을 픽셀 모서리 좌표로 따라간 뒤 Douglas–Peucker 단순화(허용 오차 1.5px) |
 | 메인 스레드 | `src/lib/segment/segmenter.ts`(모델 로드·임베딩·분리 요청), `state.svelte.ts`(`prepareSegment`, `segmentAt`, `createFromSegment`) |
 
+## 작업 존과 함께 (2026-10-13, 사용자 요청 "AI가 효과적으로 작업하기 위한 것")
+- 사진에 작업 존이 있으면 **존의 외곽 사각형(+16px 여유)만 잘라서** 분석합니다(`zoneBounds`). SAM 은 입력을 긴 변 1024px 로 줄이므로 벽면만 넣으면 해상도가 그 영역에 집중돼 작은 간판 자리도 더 정확히 잡힙니다.
+- 분리 결과는 존 다각형 래스터(`rasterizePolygon`, 스캔라인)와 AND 해 **존 안으로만** 남깁니다(`clipMask`). 존 밖에 마우스를 올리면 미리보기가 없습니다.
+- 존을 바꾸면 그 사진은 다시 분석합니다(`embeddedZone` 키 비교 → `segmenter.forget`).
+- 워커에 넘기는 좌표는 범위 기준으로 바꾸고, 돌아온 윤곽은 사진 px 로 되돌립니다.
+
 ## 규칙
 - **좌표 변환**: 모델에 넘기는 점은 원본 px 가 아니라 **축소된 입력(긴 변 1024px) 좌표**입니다(`x × reshaped_w / original_w`). 빠뜨리면 약 1.56배 어긋난 엉뚱한 물체가 잡힙니다(실제 겪은 버그).
 - 마스크는 SAM 이 돌려주는 3개 후보 중 IoU 점수가 가장 높은 것. 단 **사진의 90% 이상을 덮거나 비어 있는 후보는 제외**(`pickMask`) — 배경·건물 전체는 간판이 아니므로.
@@ -29,7 +35,7 @@
 - 임베딩은 워커 메모리에만 있고 저장하지 않습니다(새로고침하면 다시 분석).
 
 ## 관련 테스트
-- `tests/unit/mask.test.ts`, `server/test/models.test.ts`, `tests/e2e/magic.spec.ts`(실제 추론, 최대 3분)
+- `tests/unit/mask.test.ts`, `tests/unit/zoneMask.test.ts`, `server/test/models.test.ts`, `tests/e2e/magic.spec.ts`(실제 추론 2건: 전체 사진 / 존 제한, 최대 3분)
 
 ## 남은 일
 - WebGPU 백엔드(지원 브라우저에서 수 배 빠름), 임베딩 캐시(IndexedDB), 클릭 여러 점으로 윤곽 보정

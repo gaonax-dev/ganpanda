@@ -41,3 +41,39 @@ test('자동 분리: 호버하면 물체 윤곽이 미리 보이고, 클릭하�
   expect(w).toBeLessThan(1600 * 0.3);
   expect(h).toBeLessThan(1100 * 0.3);
 });
+
+test('작업 존이 있으면 존 안만 분석·분리하고, 존 밖에서는 미리보기가 없다', async ({ page, request }) => {
+  test.setTimeout(180_000);
+  await openOwnedProject(page, request);
+  const dataUrl = await page.evaluate(async () => {
+    const path = '/src/lib/sim/sample.ts';
+    const { makeSamplePhoto } = await import(/* @vite-ignore */ path);
+    return makeSamplePhoto().toDataURL('image/png') as string;
+  });
+  await page.getByTestId('photo-input').setInputFiles({ name: '매장.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await page.getByTestId('photo-zone').waitFor();
+  // 존 = 간판 띠 주변 (사진 px 약 180..1380 × 330..580)
+  await page.keyboard.press('z');
+  const b = (await page.getByTestId('photo-img').boundingBox())!;
+  const k = b.width / 1600;
+  await page.mouse.move(b.x + 180 * k, b.y + 330 * k); await page.mouse.down();
+  await page.mouse.move(b.x + 1380 * k, b.y + 580 * k, { steps: 5 }); await page.mouse.up();
+  await expect(page.getByTestId('zone-shape')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('ai-status')).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByTestId('photo-ai-status')).toHaveCount(0, { timeout: 120_000 });
+  // 존 밖(2층 창문) → 미리보기 없음
+  await page.mouse.move(b.x + 450 * k, b.y + 290 * k);
+  await page.mouse.move(b.x + 453 * k, b.y + 293 * k);
+  await page.waitForTimeout(800);
+  await expect(page.getByTestId('magic-preview')).toHaveCount(0);
+  // 존 안(간판 띠) → 미리보기, 윤곽이 존 안에만
+  await page.mouse.move(b.x + 700 * k, b.y + 470 * k);
+  await page.mouse.move(b.x + 703 * k, b.y + 473 * k);
+  await expect(page.getByTestId('magic-preview')).toBeVisible({ timeout: 30_000 });
+  const pts = (await page.getByTestId('magic-preview').getAttribute('points'))!.split(' ').map((q) => q.split(',').map(Number));
+  expect(Math.min(...pts.map((q) => q[1]))).toBeGreaterThanOrEqual(329);
+  expect(Math.max(...pts.map((q) => q[1]))).toBeLessThanOrEqual(581);
+  expect(Math.min(...pts.map((q) => q[0]))).toBeGreaterThanOrEqual(179);
+});
