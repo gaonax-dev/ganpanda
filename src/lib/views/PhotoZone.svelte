@@ -14,7 +14,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    toPhoto, oncreate, onselect, onquad, onmove, ondelete,
+    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -55,6 +55,7 @@
     onquad: (id: string, quad: Pt[]) => void;
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
+    onrender?: () => void;
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
@@ -227,6 +228,7 @@
   >
     <span class="name">{photo.name}</span>
     <span class="count">사인물 {objects.length}</span>
+    {#if onrender && objects.length}<button class="x" data-testid="render-open" title="실사 보기 (사진 속 합성)" onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>🎞 실사</button>{/if}
     {#if editable}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
   {#if url}

@@ -32,6 +32,8 @@ ganpanda/
 | `perspective.ts` | 사각 영역 ↔ 정면 직사각형 변환, CSS `matrix3d`, 원근 속 타원, 다각형 면적 |
 | `measure.ts` | 실측 판독 (기준선 보정 또는 자동 기준, 추정, 경고) |
 | `calibration.ts` | 기준선 보정: 소실점 정면 보정, 가로·세로 축척, 모서리 보정 |
+| `wallPlane.ts` | 실사 합성용 벽면 좌표계 (px ↔ mm, 카메라 포즈) |
+| `render.ts` | 사인물 → 3D 간판 사양 (실사 보기) |
 | `catalog.ts` | 간판 종류·시트 종류 (이름·단위), 분류 간판/스카시/시트 (`categoryOf`) |
 | `pricing.ts` | 단가표(기본값·합치기) |
 | `quote.ts` | 오브젝트·프로젝트 견적 (단가표·설치비·추가 항목·부가세) |

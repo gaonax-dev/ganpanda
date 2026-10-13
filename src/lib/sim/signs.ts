@@ -129,7 +129,10 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   };
 }
 
-export function buildLightbox(spec: SignSpec, fontFamily: string): BuiltSign {
+/** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */
+export interface FaceImage { image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number }
+
+export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceImage): BuiltSign {
   const group = new THREE.Group();
   const w = spec.widthMm, h = spec.heightMm, d = spec.depthMm;
 
@@ -140,8 +143,9 @@ export function buildLightbox(spec: SignSpec, fontFamily: string): BuiltSign {
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = spec.faceColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (face) ctx.drawImage(face.image, face.sx, face.sy, face.sw, face.sh, 0, 0, canvas.width, canvas.height);
   const text = spec.text.trim();
-  if (text) {
+  if (text && !face) {
     let size = canvas.height * 0.62;
     ctx.font = `800 ${size}px ${fontFamily}`;
     const maxW = canvas.width * 0.88;
