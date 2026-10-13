@@ -27,4 +27,3 @@ playwright-report/
 .env
 .env.*.local
 !.env.production
-public/ort/

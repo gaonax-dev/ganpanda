@@ -25,8 +25,8 @@ async function load(serverUrl: string) {
   env.allowRemoteModels = true;
   env.remoteHost = `${serverUrl}/api/models/`;
   env.remotePathTemplate = '{model}/';
-  // onnxruntime wasm 도 자체 호스팅 (public/ort)
-  if (env.backends.onnx.wasm) env.backends.onnx.wasm.wasmPaths = `${self.location.origin}/ort/`;
+  // onnxruntime wasm 도 우리 서버(R2)에서 — 정적 에셋 한도(25MiB)를 넘는 파일이 있어 모델과 같은 경로로 제공
+  if (env.backends.onnx.wasm) env.backends.onnx.wasm.wasmPaths = `${serverUrl}/api/models/ort/`;
   model = (await SamModel.from_pretrained(MODEL, { dtype: 'q8' })) as SamModel;
   processor = (await AutoProcessor.from_pretrained(MODEL)) as unknown as SamProcessorLike;
 }

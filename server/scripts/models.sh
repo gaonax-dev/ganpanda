@@ -18,3 +18,12 @@ for f in $FILES; do
 done
 rm -rf "$DIR"
 echo "완료"
+
+# onnxruntime-web 런타임(wasm·mjs)도 같은 곳에 (정적 에셋 25MiB 한도 때문에 앱에 넣지 않는다)
+ORT="$(dirname "$0")/../../node_modules/onnxruntime-web/dist"
+for f in $(ls "$ORT" | grep -E "^ort-wasm-simd-threaded.*\.(wasm|mjs)$"); do
+  case "$f" in *.mjs) CT="text/javascript" ;; *) CT="application/wasm" ;; esac
+  echo "업로드 models/ort/$f ($MODE)"
+  npx wrangler r2 object put "ganpanda-assets/models/ort/$f" --file "$ORT/$f" --content-type "$CT" $FLAG >/dev/null
+done
+echo "런타임 완료"

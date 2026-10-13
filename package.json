@@ -4,15 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run ort && vite",
-    "build": "npm run ort && svelte-check && vite build",
+    "dev": "vite",
+    "build": "svelte-check && vite build && node scripts/strip-ort.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
     "check": "svelte-check",
-    "deploy": "npm run build && wrangler deploy",
-    "ort": "node scripts/copy-ort.mjs"
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
