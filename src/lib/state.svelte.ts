@@ -76,6 +76,8 @@ class AppState {
   accountPrices = $state<unknown>(null);
   pricesOpen = $state(false);
   letter3dOpen = $state(false);
+  /** 선택한 사인물의 세부 설정 창 */
+  objectSettingsOpen = $state(false);
   quoteSheetOpen = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);
@@ -473,6 +475,7 @@ class AppState {
   editBoundary() { this.history.stopCapturing(); }
 
   selectObject(id: string | null) {
+    if (id !== this.selectedId) this.objectSettingsOpen = false;
     this.selectedId = id;
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }

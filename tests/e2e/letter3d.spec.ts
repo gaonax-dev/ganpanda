@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test('채널 간판에 문구를 넣으면 입체 보기로 3D 글자를 보고, 폰트 기준 폭을 치수에 넣을 수 있다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-channel').click();
+  await page.getByTestId('category-sign').click();
+  await openObjectSettings(page);
   await page.getByTestId('product-select').selectOption('ch-halo');
   await expect(page.getByTestId('open-letter3d')).toHaveCount(0); // 문구·높이 전에는 없음
   await page.getByTestId('sign-text').fill('간판다 카페');
@@ -31,6 +32,7 @@ test('채널 간판에 문구를 넣으면 입체 보기로 3D 글자를 보고,
   await page.getByTestId('close-letter3d').click();
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await guest.getByTestId('sign-shape').click();
+  await openObjectSettings(guest);
   await guest.getByTestId('open-letter3d').click();
   await expect(guest.getByTestId('letter3d-canvas')).toBeVisible();
   await expect(guest.getByTestId('letter3d-depth')).toBeDisabled();

@@ -32,3 +32,22 @@ export const productById = (id?: string) => CATALOG.find((p) => p.id === id);
 export const sheetById = (id: string) => SHEETS.find((s) => s.id === id);
 export const CATEGORY_LABEL: Record<Category, string> = { board: '보드', channel: '채널' };
 export const UNIT_LABEL: Record<Unit, string> = { m2: '원/㎡', charCm: '원/자·cm' };
+
+// ---------- 사인물 분류 (패널에서 고르는 큰 묶음) ----------
+// 간판 = 보드 + 조명 채널, 스카시 = 비조명 입체 글자, 시트 = 제품 없이 시트만
+export type Group = 'sign' | 'scashi' | 'sheet';
+export const CATEGORY_GROUPS: { id: Group; label: string; hint: string }[] = [
+  { id: 'sign', label: '간판', hint: '보드·채널(전광·후광) 간판' },
+  { id: 'scashi', label: '스카시', hint: '비조명 입체 글자' },
+  { id: 'sheet', label: '시트', hint: '유리·벽면 시트 작업' },
+];
+const SCASHI_IDS = new Set(['ch-scashi', 'ch-rubber']);
+
+export const groupOfProduct = (id: string): Group => (SCASHI_IDS.has(id) ? 'scashi' : 'sign');
+export const productsOf = (g: Group): Product[] => (g === 'sheet' ? [] : CATALOG.filter((p) => groupOfProduct(p.id) === g));
+export const defaultProductFor = (g: Group): string | undefined => (g === 'sign' ? 'board-acp' : g === 'scashi' ? 'ch-scashi' : undefined);
+/** 제품이 있으면 그 분류, 없고 시트만 있으면 시트, 아무것도 없으면 null */
+export function categoryOf(o: { productId?: string; sheetIds: string[] }): Group | null {
+  if (o.productId && productById(o.productId)) return groupOfProduct(o.productId);
+  return o.sheetIds.length ? 'sheet' : null;
+}

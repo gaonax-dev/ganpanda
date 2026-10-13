@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
-import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, openObjectSettings, uploadPhoto } from './helpers';
 
 /** 소유자(제작자)가 만든 프로젝트와 editor 초대 링크 */
 async function newRoom(request: APIRequestContext) {
@@ -70,6 +70,7 @@ test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침
   await uploadPhoto(a);
   await a.keyboard.press('r');
   await dragOnPhoto(a, [400, 200], [800, 300]);
+  await openObjectSettings(a);
   await a.getByTestId('width-mm').fill('4000');
   await a.waitForTimeout(300);
   await a.context().close();
@@ -78,5 +79,6 @@ test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침
   await expect(b.getByTestId('photo-img')).toBeVisible();
   await expect(b.getByTestId('sign-shape')).toHaveCount(1);
   await b.getByTestId('sign-shape').click();
+  await openObjectSettings(b);
   await expect(b.getByTestId('width-mm')).toHaveValue('4000');
 });

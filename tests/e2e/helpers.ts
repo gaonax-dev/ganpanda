@@ -75,3 +75,10 @@ export async function openInvited(browser: Browser, inviteUrl: string, displayNa
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   return Object.assign(page, { ctx });
 }
+
+/** 선택한 사인물의 설정 창 열기 (이미 열려 있으면 그대로) */
+export async function openObjectSettings(page: Page) {
+  if (await page.getByTestId('object-settings').count()) return;
+  await page.getByTestId('object-settings-open').click();
+  await page.getByTestId('object-settings').waitFor();
+}

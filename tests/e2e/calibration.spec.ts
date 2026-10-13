@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { openObjectSettings, openOwnedProject } from './helpers';
 
 /**
  * 샘플 건물 사진(원근 있음)에서 간판 띠(9000×1000)·출입문(1000×2900)을 정확한 모서리로 만들고,
@@ -38,9 +38,12 @@ test('실측 기준선: 가로·세로 기준을 따로 지정 → AI 평가 →
 
   // 띠 → 가로 기준, 문 → 세로 기준
   await select(ids.band);
+  await openObjectSettings(page);
   await page.getByTestId('ref-h').check();
   await select(ids.door);
+  await openObjectSettings(page);
   await page.getByTestId('ref-v').check();
+  await page.getByTestId('close-object-settings').click();
 
   // 기준선 패널: 평가 전 → 적용 불가
   await expect(page.getByTestId('calib-panel')).toBeVisible();
@@ -53,6 +56,7 @@ test('실측 기준선: 가로·세로 기준을 따로 지정 → AI 평가 →
 
   // 창문 추정 치수가 1500×850 의 10% 안
   await select(ids.win);
+  await openObjectSettings(page);
   const w = Number((await page.getByTestId('width-mm').getAttribute('placeholder'))!.replace(/[^\d]/g, ''));
   const h = Number((await page.getByTestId('height-mm').getAttribute('placeholder'))!.replace(/[^\d]/g, ''));
   expect(Math.abs(w - 1500) / 1500).toBeLessThan(0.1);
@@ -60,6 +64,8 @@ test('실측 기준선: 가로·세로 기준을 따로 지정 → AI 평가 →
 
   // 기준을 바꾸면(문 세로 기준 해제) 다시 평가 필요
   await select(ids.door);
+  await openObjectSettings(page);
   await page.getByTestId('ref-v').uncheck();
+  await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('calib-status')).toContainText('다시 평가');
 });
