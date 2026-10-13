@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // 도메인 전파 전·비상용으로 workers.dev 주소도 유지
+  "workers_dev": true,
+  "routes": [{ "pattern": "sync.ganpanda.co.kr", "custom_domain": true }],
   // 프로젝트(방) 하나 = Durable Object 하나: Yjs 문서 보관 + WebSocket 중계 (Hibernation)
   "durable_objects": {
     "bindings": [{ "name": "ROOM", "class_name": "Room" }]
