@@ -99,6 +99,8 @@
     if (action === 'undo') { e.preventDefault(); app.undo(); return; }
     if (action === 'redo') { e.preventDefault(); app.redo(); return; }
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
+    if (action === 'toolZone') { app.tool = 'zone'; return; }
+    if (action === 'deleteSelection' && app.zoneSel?.vertex !== null && app.zoneSel) { e.preventDefault(); app.deleteZoneVertex(); return; }
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';
@@ -160,7 +162,7 @@
     testid="board-canvas"
     onfit={fitAll}
     {zoomAnchor}
-    onbackgrounddown={() => { app.selectObject(null); app.selectPin(null); }}
+    onbackgrounddown={() => { app.selectObject(null); app.selectPin(null); app.selectZone(null); }}
   >
     {#each app.photos as p (p.id)}
       <PhotoZone
@@ -185,6 +187,12 @@
         onmagichover={(x, y) => app.segmentAt(p.id, x, y)}
         onmagicleave={() => app.clearHoverSegment()}
         onmagicclick={() => app.createFromSegment()}
+        zoneSel={app.zoneSel?.photoId === p.id ? app.zoneSel.vertex : undefined}
+        oncreatezone={(zone) => app.setZone(p.id, zone)}
+        onselectzone={(vertex) => app.selectZone(p.id, vertex)}
+        onmovezonevertex={(i, pt) => app.moveZoneVertex(p.id, i, pt)}
+        onzonemoveend={() => app.editBoundary()}
+        onaddzonevertex={(edge, pt) => app.addZoneVertex(p.id, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}
@@ -221,6 +229,7 @@
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍 핀</button>
+          <button data-testid="tool-zone" class:on={app.tool === 'zone'} title="작업 존 ({hint('toolZone')})" onclick={() => (app.tool = 'zone')}>▱ 존</button>
           {#if SERVER_URL}
             <button data-testid="tool-magic" class:on={app.tool === 'magic'} title="자동 분리 · AI ({hint('toolMagic')})" onclick={() => (app.tool = 'magic')}>✨ 자동</button>
           {/if}

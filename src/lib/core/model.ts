@@ -16,6 +16,8 @@ export interface Photo {
   x: number;
   y: number;
   width: number;
+  /** 작업 존: 실제 작업할 벽면 영역 (사진 px 다각형, 3점 이상) */
+  zone?: Pt[];
 }
 
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */
