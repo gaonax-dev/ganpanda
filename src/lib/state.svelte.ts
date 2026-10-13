@@ -78,6 +78,10 @@ class AppState {
   letter3dOpen = $state(false);
   /** 선택한 사인물의 세부 설정 창 */
   objectSettingsOpen = $state(false);
+  /** 실사 보기 창 (사진 id) */
+  renderPhotoId = $state<string | null>(null);
+  /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
+  lastRender = $state('');
   quoteSheetOpen = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);

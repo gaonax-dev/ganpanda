@@ -10,7 +10,7 @@
 | 2차 | 자동 견적이 가능하도록 준비 | **구현됨** (단가표·견적 규칙·견적서) → [features/sign-list-quote.md](../features/sign-list-quote.md) |
 | 3차 | 일러스트레이터 파일을 이미지 소스로 직접 변환 + 소스 히스토리 | **구현됨** → [features/uv-view.md](../features/uv-view.md) |
 | 4차 | 입체 간판 (글자를 3D로) | **구현됨** → [features/render-3d.md](../features/render-3d.md) |
-| 5차 | 결과물을 바로 확인하는 실사 렌더링 | 계획 |
+| 5차 | 결과물을 바로 확인하는 실사 렌더링 | **구현됨** → [features/render-3d.md](../features/render-3d.md) |
 
 ## 기반 단계 — 구현됨
 - 사진 보드: 사진 업로드·이동, 사각·원형 영역, 원근 모서리 편집 → [photo-board.md](../features/photo-board.md)
@@ -59,5 +59,6 @@
 - 채널 간판 [입체 보기]: 3D 글자, 주야간, 두께·색·자간, 폰트 기준 폭 → 치수 → [render-3d.md](../features/render-3d.md)
 - 남은 일: 글꼴 선택, 박스 간판 3D
 
-## 5차 — 실사 렌더링 (계획)
-- 사진 속에 실제처럼 합성 (주간 그림자, 야간 LED 발광) → [render-3d.md](../features/render-3d.md)
+## 5차 — 실사 렌더링 (구현됨 2026-10-13)
+- 사진 보드 [🎞 실사]: 벽면 좌표계(기준선 보정 또는 치수 입력 영역) → 복원 카메라로 사인물을 사진 속에 합성. 입체 글자·보드·시트, 입힌 디자인, 주간 그림자·야간 발광, PNG 저장 → [render-3d.md](../features/render-3d.md)
+- 남은 일: 대화 첨부, 태양 방향, 톤 보정, 여러 벽면
