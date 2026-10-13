@@ -137,3 +137,19 @@ describe('프로젝트 설정 (단가표·설치비·추가 항목)', () => {
     expect(p.object(id)!.text).toBe('간판다');
   });
 });
+
+describe('디자인 소스', () => {
+  const src = { name: '시안.ai', fileAssetId: 'f'.repeat(32), kind: 'pdf' as const, pages: [{ assetId: 'a'.repeat(32), w: 2000, h: 1000 }, { assetId: 'b'.repeat(32), w: 1000, h: 1000 }], author: '디자이너' };
+  it('소스를 추가·조회·삭제하고, 삭제하면 그 소스를 쓰던 사인물의 매핑이 풀린다', () => {
+    const p = new Project();
+    const sid = p.addSource(src);
+    expect(p.allSources()).toHaveLength(1);
+    expect(p.source(sid)!.pages).toHaveLength(2);
+    const oid = p.addObject({ photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [] });
+    p.updateObject(oid, { design: { sourceId: sid, page: 0, crop: { x: 0, y: 0, w: 100, h: 50 } } });
+    expect(p.object(oid)!.design?.sourceId).toBe(sid);
+    p.removeSource(sid);
+    expect(p.allSources()).toEqual([]);
+    expect(p.object(oid)!.design).toBeUndefined();
+  });
+});

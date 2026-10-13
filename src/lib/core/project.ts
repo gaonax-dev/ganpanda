@@ -1,6 +1,6 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
-import type { Attachment, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
+import type { Attachment, DesignSource, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
 
 type Fields<T> = Omit<T, 'id'>;
 const uid = () => crypto.randomUUID();
@@ -18,6 +18,7 @@ export class Project {
   readonly photos: Y.Map<Y.Map<unknown>>;
   readonly objects: Y.Map<Y.Map<unknown>>;
   readonly pins: Y.Map<Y.Map<unknown>>;
+  readonly sources: Y.Map<Y.Map<unknown>>;
   /** 단가표·설치비·추가 항목 (키별 JSON 값) */
   readonly settingsMap: Y.Map<unknown>;
   /** 모든 대화를 한 배열에 — 키별 배열을 동시 생성하면 한쪽이 유실되므로 */
@@ -28,6 +29,7 @@ export class Project {
     this.photos = doc.getMap('photos');
     this.objects = doc.getMap('objects');
     this.pins = doc.getMap('pins');
+    this.sources = doc.getMap('sources');
     this.settingsMap = doc.getMap('settings');
     this.messages = doc.getArray('messages');
   }
@@ -56,6 +58,35 @@ export class Project {
       for (const o of this.objectsOf(id)) this.removeObject(o.id);
       for (const p of this.pinsOf(id)) this.removePin(p.id);
       this.photos.delete(id);
+    });
+  }
+
+  // ---------- 디자인 소스 ----------
+
+  addSource(s: Omit<DesignSource, 'id' | 'createdAt'>): string {
+    const id = uid();
+    this.sources.set(id, toYMap({ ...s, id, createdAt: Date.now() }));
+    return id;
+  }
+
+  updateSource(id: string, patch: Partial<Pick<DesignSource, 'x' | 'y' | 'name'>>) {
+    this.patch(this.sources.get(id), patch);
+  }
+
+  source(id: string) {
+    const m = this.sources.get(id);
+    return m ? fromYMap<DesignSource>(m) : undefined;
+  }
+
+  allSources(): DesignSource[] {
+    return [...this.sources.values()].map((m) => fromYMap<DesignSource>(m)).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  }
+
+  /** 소스를 지우면 그 소스를 입힌 사인물의 매핑을 푼다 (이력은 남김) */
+  removeSource(id: string) {
+    this.doc.transact(() => {
+      for (const o of this.allObjects()) if (o.design?.sourceId === id) this.updateObject(o.id, { design: undefined });
+      this.sources.delete(id);
     });
   }
 

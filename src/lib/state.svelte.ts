@@ -4,6 +4,10 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
+import { pushHistory, type DesignRef } from './core/design';
+import { convertFile, ConvertError } from './design/convert';
+import { putAsset, StorageLimitError } from './assets';
+import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -104,6 +108,10 @@ class AppState {
   pins = $derived.by(() => (this.version, this.project.allPins()));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
+  sources = $derived.by(() => (this.version, this.project.allSources()));
+  /** UV 뷰에서 고른 사인물 */
+  uvObjectId = $state<string | null>(null);
+  converting = $state(false);
   settings = $derived.by<ProjectSettings>(() => (this.version, this.project.settings()));
   /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
   prices = $derived<PriceTable>(mergePrices(this.settings.prices ?? this.accountPrices));
@@ -170,6 +178,39 @@ class AppState {
     this.applyAccount(me?.account ?? null);
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
+  }
+
+  /** 디자인 파일 → 페이지 이미지 → 소스 등록 (편집 권한) */
+  async addSourceFile(file: File) {
+    if (!this.canEdit) return;
+    this.converting = true;
+    try {
+      const { kind, pages } = await convertFile(file);
+      const fileAssetId = await putAsset(file);
+      const pageAssets = [];
+      for (const pg of pages) pageAssets.push({ assetId: await putAsset(pg.blob), w: pg.w, h: pg.h });
+      this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
+    } catch (e) {
+      if (e instanceof ConvertError) this.notice = e.message;
+      else if (e instanceof StorageLimitError) this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 올릴 수 없습니다.`;
+      else this.notice = '파일을 처리하지 못했습니다.';
+    } finally { this.converting = false; }
+  }
+
+  /** 사인물에 디자인 영역을 입히고 이력에 남긴다 */
+  setDesign(objectId: string, ref: DesignRef) {
+    const o = this.project.object(objectId);
+    if (!o || !this.canEdit) return;
+    this.editBoundary();
+    this.project.updateObject(objectId, { design: ref, designHistory: pushHistory(o.designHistory ?? [], ref, { at: Date.now(), author: this.nickname }) });
+    this.editBoundary();
+  }
+
+  clearDesign(objectId: string) {
+    if (!this.canEdit) return;
+    this.editBoundary();
+    this.project.updateObject(objectId, { design: undefined });
+    this.editBoundary();
   }
 
   /** 단가표·설치비·추가 항목 수정 (편집 권한) */
