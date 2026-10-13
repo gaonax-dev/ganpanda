@@ -1,0 +1,30 @@
+:root {
+  --bg: #0f1115; --panel: #171a21; --line: #2a2f3a; --text: #e7e9ee; --muted: #8b93a3; --input: #0f1218; --hover: #232835;
+  --canvas: #101217; --dot: #2a2f3a; --accent: #ffcc00; --accent-ink: #1a1500; --blue: #2f8bff; --warn: #ffaa00; --danger: #ff5a52;
+  --dim: #7fd3ff; --chat-bg: #b2c7da; --chat-who: #4a5866;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  color: var(--text); background: var(--bg); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; height: 100%; overflow: hidden; }
+input[type=text], input[type=number], input:not([type]), select {
+  background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px;
+  padding: 7px 9px; font: inherit; font-size: 13px; width: 100%;
+}
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 6px 0 0; }
+code { font-size: 11px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+  background: var(--hover); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 14px; font: inherit; font-size: 13px;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn.small { padding: 5px 10px; font-size: 12px; }
+.btn.danger { color: var(--danger); }
+.icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; }
+.icon:hover { background: var(--hover); color: var(--text); }
+.seg { display: flex; background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.seg button { flex: 1; background: none; border: 0; color: var(--muted); padding: 6px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
