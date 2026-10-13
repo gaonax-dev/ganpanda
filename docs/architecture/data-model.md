@@ -13,6 +13,7 @@
 | `photos` | `Y.Map<id, Y.Map>` | 사진(구역) |
 | `objects` | `Y.Map<id, Y.Map>` | 사인물 오브젝트 |
 | `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(핀) |
+| `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`) — [sign-list-quote.md](../features/sign-list-quote.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id) |
 
 ### Photo
@@ -33,7 +34,8 @@
 | `widthMm?`, `heightMm?` | 사용자가 입력한 실제 치수 |
 | `productId?` | 간판 종류 (`catalog.ts`의 보드·채널) |
 | `sheetIds` | 시트 종류 (복수) |
-| `charCount?` | 채널 글자수 |
+| `text?` | 간판 문구 (채널 글자수 자동 산출, 견적서 표기) |
+| `charCount?` | 채널 글자수 (수동, 문구보다 우선) |
 | `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |
 
 ### Pin

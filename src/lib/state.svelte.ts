@@ -2,7 +2,9 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
-import type { Attachment, Message, SignObject } from './core/model';
+import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from './core/model';
+import { mergePrices, type PriceTable } from './core/pricing';
+import { quoteProject } from './core/quote';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -61,6 +63,10 @@ class AppState {
   authError = $state('');
   /** 내 요금제 한도·사용량 (/api/me) */
   usage = $state<Usage | null>(null);
+  /** 계정 기본 단가표 (/api/me) */
+  accountPrices = $state<unknown>(null);
+  pricesOpen = $state(false);
+  quoteSheetOpen = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);
   /** 화면 상단 알림 (용량 초과 등) */
@@ -98,6 +104,13 @@ class AppState {
   pins = $derived.by(() => (this.version, this.project.allPins()));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
+  settings = $derived.by<ProjectSettings>(() => (this.version, this.project.settings()));
+  /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
+  prices = $derived<PriceTable>(mergePrices(this.settings.prices ?? this.accountPrices));
+  quote = $derived(quoteProject(
+    this.objects.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : []; }),
+    this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null },
+  ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
   unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
@@ -156,7 +169,15 @@ class AppState {
   private applyMe(me: Awaited<ReturnType<typeof fetchMe>>) {
     this.applyAccount(me?.account ?? null);
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
+    this.accountPrices = me?.prices ?? null;
   }
+
+  /** 단가표·설치비·추가 항목 수정 (편집 권한) */
+  updateSettings(patch: Partial<ProjectSettings>) {
+    if (this.canEdit) this.project.updateSettings(patch);
+  }
+  setPrices(prices: PriceTable) { this.updateSettings({ prices }); }
+  setExtras(extras: ExtraItem[]) { this.updateSettings({ extras }); }
 
   /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
   private async initRoom(room: string) {
@@ -186,6 +207,10 @@ class AppState {
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
     this.client.whenOnline(flushPendingUploads);
+    // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
+    this.client.whenOnline(() => {
+      if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.accountPrices) });
+    });
     this.client.setName(this.nickname);
   }
 

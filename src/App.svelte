@@ -10,6 +10,8 @@
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
+  import PricesDialog from './lib/ui/PricesDialog.svelte';
+  import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -133,6 +135,8 @@
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
+{#if app.pricesOpen}<PricesDialog />{/if}
+{#if app.quoteSheetOpen}<QuoteSheet />{/if}
 
 <style>
   .shell { display: grid; grid-template-rows: 48px auto 1fr; height: 100%; }

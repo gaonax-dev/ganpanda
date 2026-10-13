@@ -7,7 +7,8 @@
   import { cssMatrix3d, quadToRect } from '../core/perspective';
   import { applyHomography } from '../core/homography';
   import { productById, sheetById } from '../core/catalog';
-  import { quoteObject, quoteProject, won } from '../core/quote';
+  import { quoteObject, won } from '../core/quote';
+  import type { ExtraItem } from '../core/model';
   import { fitRect, type Viewport } from '../core/viewport';
   import type { SignObject } from '../core/model';
 
@@ -26,10 +27,13 @@
   );
   const pending = $derived(app.objects.filter((o) => !app.sizeOf(o)));
   const placed = $derived(layoutList(sized.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
-  // 견적은 추정 치수도 반영 (추정 표시)
-  const quote = $derived(
-    quoteProject(sized.map(({ o, w, h }) => ({ ...o, widthMm: w, heightMm: h }))),
-  );
+  // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
+  const quote = $derived(app.quote);
+  const extras = $derived(app.settings.extras ?? []);
+  const setExtra = (id: string, patch: Partial<ExtraItem>) => app.setExtras(extras.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  const addExtra = () => app.setExtras([...extras, { id: Math.random().toString(36).slice(2, 9), label: '', amount: 0 }]);
+  const removeExtra = (id: string) => app.setExtras(extras.filter((e) => e.id !== id));
+  const setInstall = (v: string) => app.updateSettings({ installFee: v.trim() === '' ? undefined : Math.max(0, Number(v) || 0) });
 
   $effect(() => {
     for (const p of app.photos) if (!urls[p.assetId]) assetUrl(p.assetId).then((u) => u && (urls[p.assetId] = u));
@@ -92,7 +96,9 @@
     const text = [
       '[사인물 견적]',
       ...quote.lines.map((l) => `- ${l.label} (${l.detail}): ${won(l.amount)}`),
-      `공급가 ${won(quote.subtotal)} / 부가세 ${won(quote.vat)} / 합계 ${won(quote.total)}`,
+      `- 설치·운반비: ${won(quote.install)}`,
+      ...quote.extras.map((e) => `- ${e.label}: ${won(e.amount)}`),
+      quote.vatIncluded ? `합계 ${won(quote.total)} (부가세 ${won(quote.vat)} 포함)` : `공급가 ${won(quote.subtotal)} / 부가세 ${won(quote.vat)} / 합계 ${won(quote.total)}`,
     ].join('\n');
     await navigator.clipboard.writeText(text);
   }
@@ -104,7 +110,7 @@
       {@const pos = drag?.id === o.id ? { x: drag.sx, y: drag.sy } : placed.get(o.id)!}
       {@const photo = app.photos.find((p) => p.id === o.photoId)}
       {@const prod = productById(o.productId)}
-      {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }).reduce((a, l) => a + l.amount, 0)}
+      {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0)}
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
           class="face"
@@ -140,7 +146,14 @@
   </InfiniteCanvas>
 
   <aside class="quote">
-    <header><h2>견적</h2><button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button></header>
+    <header>
+      <h2>견적</h2>
+      <span class="actions">
+        {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
+        <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>견적서</button>
+        <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
+      </span>
+    </header>
     <div class="lines">
       {#each quote.lines as l, i (i)}
         <div class="line" class:zero={!l.amount}>
@@ -150,6 +163,24 @@
       {:else}
         <p class="hint">종류·시트를 지정한 사인물이 없습니다.</p>
       {/each}
+      <div class="line" data-testid="quote-install">
+        <div><span>설치·운반비</span>{#if app.canEdit}<small>비우면 단가표 기본값 ({won(app.prices.install)})</small>{/if}</div>
+        {#if app.canEdit}
+          <input class="amt" type="number" min="0" step="1000" value={app.settings.installFee ?? ''} placeholder={String(app.prices.install)} onchange={(e) => setInstall(e.currentTarget.value)} />
+        {:else}<b>{won(quote.install)}</b>{/if}
+      </div>
+      {#each extras as e (e.id)}
+        <div class="line extra" data-testid="quote-extra">
+          {#if app.canEdit}
+            <input data-testid="extra-label" value={e.label} placeholder="추가 항목 (예: 야간 작업, 소개 할인)" onchange={(ev) => setExtra(e.id, { label: ev.currentTarget.value })} />
+            <input class="amt" data-testid="extra-amount" type="number" step="1000" value={e.amount} placeholder="금액 (할인은 −)" onchange={(ev) => setExtra(e.id, { amount: Number(ev.currentTarget.value) || 0 })} onkeydown={(ev) => { if (ev.key === 'Enter') ev.currentTarget.blur(); }} />
+            <button class="icon" title="삭제" onclick={() => removeExtra(e.id)}>✕</button>
+          {:else}
+            <div><span>{e.label || '추가 항목'}</span></div><b>{won(e.amount)}</b>
+          {/if}
+        </div>
+      {/each}
+      {#if app.canEdit}<button class="link" data-testid="extra-add" onclick={addExtra}>+ 추가 항목·할인</button>{/if}
       {#if pending.length}
         <div class="pending">
           <b>치수 필요 {pending.length}건</b>
@@ -158,11 +189,15 @@
       {/if}
     </div>
     <footer>
-      <div class="sum"><span>공급가</span><span>{won(quote.subtotal)}</span></div>
-      <div class="sum"><span>부가세</span><span>{won(quote.vat)}</span></div>
+      {#if quote.vatIncluded}
+        <div class="sum"><span data-testid="quote-vat-note">부가세 {won(quote.vat)} 포함</span><span></span></div>
+      {:else}
+        <div class="sum"><span>공급가</span><span>{won(quote.subtotal)}</span></div>
+        <div class="sum"><span data-testid="quote-vat-note">부가세 (10%)</span><span>{won(quote.vat)}</span></div>
+      {/if}
       <div class="sum total"><span>합계</span><span data-testid="quote-total">{won(quote.total)}</span></div>
       <button class="btn small" onclick={copyQuote}>견적 텍스트 복사</button>
-      <p class="hint">※ 예시 단가 · <code>src/lib/core/catalog.ts</code></p>
+      <p class="hint">{app.settings.prices ? '이 프로젝트의 단가표 기준' : '※ 예시 단가 — 단가 설정에서 바꾸세요'}</p>
     </footer>
   </aside>
 </div>
@@ -186,7 +221,11 @@
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; background: var(--panel); border: 1px solid var(--line);
     border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.45);
   }
-  .quote header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .quote header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 6px; }
+  .actions { display: flex; align-items: center; gap: 4px; }
+  .line.extra { gap: 4px; align-items: center; }
+  .line.extra input:first-child { flex: 1; min-width: 0; }
+  .amt { width: 120px; text-align: right; }
   .quote h2 { margin: 0; font-size: 16px; }
   .lines { flex: 1; overflow-y: auto; padding: 6px 14px; }
   .line { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px; }

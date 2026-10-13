@@ -8,7 +8,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null }
 
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 
@@ -97,7 +97,9 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(me.sessionHash).run();
     return new Response(null, { status: 204 });
   }
-  if (pathname === '/api/me' && req.method === 'GET') return json({ account: publicAccount(me), ...(await usageOf(env, me.id, me.plan)) });
+  if (pathname === '/api/me' && req.method === 'GET') {
+    return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, ...(await usageOf(env, me.id, me.plan)) });
+  }
   if (pathname === '/api/me' && req.method === 'PATCH') {
     const body = await readJson<{ name?: string }>(req);
     const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : null;

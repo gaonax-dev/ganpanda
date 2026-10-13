@@ -3,7 +3,9 @@ import { SERVER_URL } from './sync';
 
 export interface Account { id: string; email: string; name: string; plan: string }
 export interface Usage { limits: { storageBytes: number; seats: number }; usage: { storageBytes: number; seats: number } }
-export type Me = { account: Account } & Usage;
+export type Me = { account: Account; prices: unknown } & Usage;
+/** 계정 기본 단가표 저장 */
+export const savePrices = (prices: unknown) => call<{ prices: unknown }>('/api/me/prices', { method: 'PUT', body: JSON.stringify({ prices }) });
 const KEY = 'ganpanda.session';
 
 export const loadSession = (): string | null => { try { return localStorage.getItem(KEY); } catch { return null; } };

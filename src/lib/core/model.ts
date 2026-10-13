@@ -32,7 +32,9 @@ export interface SignObject {
   productId?: string;
   /** 시트 (복수 선택) */
   sheetIds: string[];
-  /** 채널 글자수 */
+  /** 간판 문구 (채널 글자수 자동 산출, 견적서 표기) */
+  text?: string;
+  /** 채널 글자수 (수동 입력, 문구보다 우선) */
   charCount?: number;
   /** 리스트 뷰(전개도) 위 위치, mm */
   listX?: number;
@@ -55,6 +57,17 @@ export interface Pin {
 }
 
 export interface Attachment { assetId: string; name: string; type: string; size: number }
+
+/** 견적 추가 항목 (할인은 음수) */
+export interface ExtraItem { id: string; label: string; amount: number }
+
+/** 프로젝트 설정 (단가표·설치비·추가 항목) — 모두 선택 */
+export interface ProjectSettings {
+  prices?: import('./pricing').PriceTable;
+  /** 프로젝트별 설치비 (없으면 단가표 기본값) */
+  installFee?: number;
+  extras?: ExtraItem[];
+}
 
 export interface Message {
   id: string;

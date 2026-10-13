@@ -2,7 +2,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, productById, type Category } from '../core/catalog';
-  import { quoteObject, won } from '../core/quote';
+  import { charCountOf, quoteObject, won } from '../core/quote';
   import type { SignObject } from '../core/model';
   import Chat from './Chat.svelte';
 
@@ -16,7 +16,8 @@
   const m = $derived(app.measures.get(obj.id));
   // 입력 치수가 없으면 판독 추정 치수로 계산 (리스트 견적과 동일 규칙)
   const size = $derived(app.sizeOf(obj));
-  const lines = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj));
+  const lines = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices));
+  const autoChars = $derived(charCountOf({ text: obj.text }));
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
   const ro = $derived(!app.canEdit);
@@ -57,6 +58,12 @@
   </section>
 
   <section>
+    <h3>문구</h3>
+    <input data-testid="sign-text" value={obj.text ?? ''} placeholder="간판에 들어갈 글자 (예: 간판다 카페)" disabled={ro}
+      oninput={(e) => update({ text: e.currentTarget.value })} />
+  </section>
+
+  <section>
     <h3>시트</h3>
     <div class="chips">
       {#each SHEETS as s (s.id)}
@@ -83,7 +90,8 @@
       </label>
       {#if category === 'channel'}
         <label>글자수
-          <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
+          <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}
+            placeholder={autoChars ? `자동 ${autoChars}` : '문구 입력'} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
         </label>
       {/if}
     </div>
