@@ -1,10 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, uploadPhoto } from './helpers';
+import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
-test.beforeEach(async ({ page }) => {
-  await page.goto('/?room=e2e-' + Math.random().toString(36).slice(2));
-  await page.evaluate(() => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', '제작자'); });
-  await page.reload();
+test.beforeEach(async ({ page, request }) => {
+  await openOwnedProject(page, request);
   await uploadPhoto(page);
 });
 

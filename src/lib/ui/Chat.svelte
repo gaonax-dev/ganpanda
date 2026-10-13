@@ -26,8 +26,8 @@
       if (!name.trim()) return;
       app.setNickname(name.trim());
     }
-    app.project.addMessage(objectId, app.nickname, t, kind);
     text = '';
+    app.sendMessage(objectId, t, kind).catch(() => { text = t; });
   }
 
   const time = (ts: number) => new Date(ts).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });

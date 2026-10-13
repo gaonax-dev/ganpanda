@@ -13,10 +13,11 @@ export class SyncClient {
   private provider: WebsocketProvider | null = null;
   private onOnline: (() => void)[] = [];
 
-  constructor(room: string, doc: Y.Doc, onStatus: (s: SyncStatus) => void, onPeers: (p: Peer[]) => void) {
+  /** params: 자격 (?session= 또는 ?invite=) — 서버가 역할을 정한다 */
+  constructor(room: string, doc: Y.Doc, onStatus: (s: SyncStatus) => void, onPeers: (p: Peer[]) => void, params: Record<string, string> = {}) {
     if (!SERVER_URL) { onStatus('local'); return; }
     onStatus('connecting');
-    const p = new WebsocketProvider(roomsWsBase(SERVER_URL), room, doc);
+    const p = new WebsocketProvider(roomsWsBase(SERVER_URL), room, doc, { params });
     p.on('status', ({ status }: { status: string }) => {
       onStatus(status === 'connected' ? 'online' : status === 'connecting' ? 'connecting' : 'offline');
       if (status === 'connected') this.onOnline.forEach((f) => f());

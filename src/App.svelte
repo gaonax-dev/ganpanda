@@ -6,6 +6,10 @@
   import ObjectPanel from './lib/ui/ObjectPanel.svelte';
   import Settings from './lib/ui/Settings.svelte';
   import LoginDialog from './lib/ui/LoginDialog.svelte';
+  import Home from './lib/ui/Home.svelte';
+  import AccessDenied from './lib/ui/AccessDenied.svelte';
+  import InviteDialog from './lib/ui/InviteDialog.svelte';
+  import { ROLE_LABEL } from './lib/projects';
 
   let accountOpen = $state(false);
   let nameDraft = $state('');
@@ -36,8 +40,13 @@
 
 <div class="shell">
   <nav class="top">
-    <span class="logo">간판다</span>
-    <div class="views">
+    <a class="logo" href="/" data-testid="go-projects">간판다</a>
+    {#if app.room && app.access.status === 'ok'}
+      <span class="project" data-testid="project-title">{app.access.projectName}</span>
+      <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
+      {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>초대 링크</button>{/if}
+    {/if}
+    <div class="views" class:hidden={!app.room || app.access.status !== 'ok'}>
       {#each VIEWS as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
           {v.label}
@@ -53,7 +62,9 @@
           <span class="peer" data-testid="peer" title={p.name}><i style:background={p.color}></i>{p.name}</span>
         {/each}
       </span>
-      <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {SYNC_LABEL[app.sync]}</span>
+      {#if app.room}
+        <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {SYNC_LABEL[app.sync]}</span>
+      {/if}
       {#if app.account}
         <span class="account">
           <button class="who" data-testid="account-menu" onclick={() => { nameDraft = app.account!.name || app.nickname; accountOpen = !accountOpen; }}>
@@ -76,22 +87,32 @@
     </div>
   </nav>
   <main>
-    <!-- 뷰는 전환해도 캔버스 위치를 유지하도록 숨김 처리 -->
-    <div class="view" hidden={app.view !== 'board'}><BoardView /></div>
-    {#if app.view === 'list'}<div class="view"><ListView /></div>{/if}
-    {#if app.view === 'uv'}<div class="view"><UvView /></div>{/if}
-    {#if app.selected && app.view === 'board'}
-      {#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}
+    {#if !app.room}
+      <Home />
+    {:else if app.access.status === 'denied'}
+      <AccessDenied />
+    {:else if app.access.status === 'ok'}
+      <!-- 뷰는 전환해도 캔버스 위치를 유지하도록 숨김 처리 -->
+      <div class="view" hidden={app.view !== 'board'}><BoardView /></div>
+      {#if app.view === 'list'}<div class="view"><ListView /></div>{/if}
+      {#if app.view === 'uv'}<div class="view"><UvView /></div>{/if}
+      {#if app.selected && app.view === 'board'}
+        {#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}
+      {/if}
     {/if}
   </main>
 </div>
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
+{#if app.inviteOpen}<InviteDialog />{/if}
 
 <style>
   .shell { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
-  .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; }
+  .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
+  .project { font-weight: 600; font-size: 14px; }
+  .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }
+  .views.hidden { visibility: hidden; }
   .views { display: flex; gap: 2px; background: var(--input); padding: 3px; border-radius: 9px; }
   .views button { background: none; border: 0; color: var(--muted); padding: 6px 14px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .views button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }

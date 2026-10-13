@@ -66,6 +66,7 @@
 
   function down(e: PointerEvent, id: string) {
     if (e.button !== 0) return;
+    if (!app.canEdit) { app.selectedId = id; return; }
     e.stopPropagation();
     app.selectedId = id;
     const p = placed.get(id)!;

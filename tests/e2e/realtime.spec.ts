@@ -1,19 +1,27 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
-import { dragOnPhoto, uploadPhoto } from './helpers';
+import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, uploadPhoto } from './helpers';
 
-async function open(browser: Browser, room: string, name: string): Promise<Page> {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  await page.goto(`/?room=${room}`);
-  await page.evaluate((n) => localStorage.setItem('ganpanda.nickname', n), name);
-  await page.reload();
-  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
-  return page;
+/** 소유자(제작자)가 만든 프로젝트와 editor 초대 링크 */
+async function newRoom(request: APIRequestContext) {
+  const session = await apiLogin(request);
+  const projectId = await apiCreateProject(request, session);
+  return { session, projectId, invite: await apiCreateInvite(request, session, projectId, 'editor') };
 }
-const newRoom = () => 'e2e-rt-' + Math.random().toString(36).slice(2, 10);
+async function open(browser: Browser, room: Awaited<ReturnType<typeof newRoom>>, name: string): Promise<Page> {
+  if (name === '제작자') {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto('/');
+    await page.evaluate(([s, n]) => { localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', n); }, [room.session, name]);
+    await page.goto(`/?room=${room.projectId}`);
+    await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
+    return page;
+  }
+  return openInvited(browser, room.invite, name);
+}
 
-test('두 사람이 같은 방에서 사진·영역·대화를 실시간으로 공유한다', async ({ browser }) => {
-  const room = newRoom();
+test('두 사람이 같은 방에서 사진·영역·대화를 실시간으로 공유한다', async ({ browser, request }) => {
+  const room = await newRoom(request);
   const a = await open(browser, room, '제작자');
   const b = await open(browser, room, '고객');
 
@@ -32,8 +40,8 @@ test('두 사람이 같은 방에서 사진·영역·대화를 실시간으로 �
   await expect(a.getByTestId('chat-bubble')).not.toHaveClass(/mine/);
 });
 
-test('접속자 표시: 들어오면 보이고 나가면 사라진다', async ({ browser }) => {
-  const room = newRoom();
+test('접속자 표시: 들어오면 보이고 나가면 사라진다', async ({ browser, request }) => {
+  const room = await newRoom(request);
   const a = await open(browser, room, '제작자');
   const b = await open(browser, room, '고객');
   await expect(a.getByTestId('peer')).toHaveCount(1);
@@ -43,8 +51,8 @@ test('접속자 표시: 들어오면 보이고 나가면 사라진다', async ({
   await expect(a.getByTestId('peer')).toHaveCount(0);
 });
 
-test('상대방의 커서가 사진 보드에 보인다', async ({ browser }) => {
-  const room = newRoom();
+test('상대방의 커서가 사진 보드에 보인다', async ({ browser, request }) => {
+  const room = await newRoom(request);
   const a = await open(browser, room, '제작자');
   const b = await open(browser, room, '고객');
   await uploadPhoto(a);
@@ -56,8 +64,8 @@ test('상대방의 커서가 사진 보드에 보인다', async ({ browser }) =>
   await expect(a.getByTestId('peer-cursor')).toContainText('고객');
 });
 
-test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침해도 서버에서 복원된다', async ({ browser }) => {
-  const room = newRoom();
+test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침해도 서버에서 복원된다', async ({ browser, request }) => {
+  const room = await newRoom(request);
   const a = await open(browser, room, '제작자');
   await uploadPhoto(a);
   await a.keyboard.press('r');

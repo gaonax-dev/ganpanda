@@ -7,9 +7,11 @@
   import type { Tool } from '../state.svelte';
 
   let {
-    photo, url, zoom, objects, measures, selectedId, tool,
+    photo, url, zoom, objects, measures, selectedId, tool, editable = true,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete,
   }: {
+    /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
+    editable?: boolean;
     photo: Photo;
     url?: string;
     zoom: number;
@@ -54,7 +56,7 @@
     if (e.button !== 0) return;
     e.stopPropagation();
     onselect(o.id);
-    if (tool !== 'select' && mode === 'move') return;
+    if (!editable || (tool !== 'select' && mode === 'move')) return;
     editing = { id: o.id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
@@ -84,6 +86,7 @@
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
   let headerDrag: { x: number; y: number } | null = null;
   function headerDown(e: PointerEvent) {
+    if (!editable) return;
     e.stopPropagation();
     headerDrag = { x: e.clientX, y: e.clientY };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
@@ -108,7 +111,7 @@
   >
     <span class="name">{photo.name}</span>
     <span class="count">사인물 {objects.length}</span>
-    <button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>
+    {#if editable}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
@@ -142,7 +145,7 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
-        {#if sel && tool === 'select'}
+        {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
             <circle class="handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
               onpointerdown={(e) => shapeDown(e, o, i)} />
