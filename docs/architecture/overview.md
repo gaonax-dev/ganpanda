@@ -10,7 +10,7 @@ ganpanda/
 │  ├─ lib/core/            순수 로직 (DOM 없음, 단위 테스트 대상)
 │  ├─ lib/ui/              공용 UI (무한 캔버스, 오브젝트 패널, 대화)
 │  ├─ lib/views/           화면 (사진 보드, 사인물 리스트, UV 뷰)
-│  ├─ lib/sim/             초기 3D 시뮬레이터 (보관, 4·5차에서 재사용)
+│  ├─ lib/sim/             3D 글자·박스 생성, 사진 합성 뷰어(5차용)
 │  ├─ lib/state.svelte.ts  앱 전역 상태 (Yjs 문서 ↔ Svelte 반응성)
 │  ├─ lib/sync.ts          동기화 서버 연결 (y-websocket, 접속자 상태)
 │  ├─ lib/auth.ts          계정 API 클라이언트 (세션 토큰)
@@ -45,6 +45,7 @@ ganpanda/
 | `history.ts` | 실행 취소·다시 실행 (내 편집만) |
 | `mask.ts` | 분리 마스크 → 다각형, 후보 마스크 선택 |
 | `design.ts` | 디자인 영역 정규화, 소스 히스토리, 파일 종류 |
+| `letter3d.ts` | 입체 간판 사양·조명·폰트 기준 폭 |
 | `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |

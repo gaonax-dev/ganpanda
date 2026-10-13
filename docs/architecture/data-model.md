@@ -37,6 +37,7 @@
 | `sheetIds` | 시트 종류 (복수) |
 | `text?` | 간판 문구 (채널 글자수 자동 산출, 견적서 표기) |
 | `charCount?` | 채널 글자수 (수동, 문구보다 우선) |
+| `letter3d?` | 입체 설정 `{depthMm, faceColor, sideColor, letterSpacing}` |
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
 | `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |

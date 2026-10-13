@@ -3,6 +3,7 @@
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, productById, type Category } from '../core/catalog';
   import { charCountOf, quoteObject, won } from '../core/quote';
+  import { specFromObject } from '../core/letter3d';
   import type { SignObject } from '../core/model';
   import Chat from './Chat.svelte';
 
@@ -18,6 +19,7 @@
   const size = $derived(app.sizeOf(obj));
   const lines = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices));
   const autoChars = $derived(charCountOf({ text: obj.text }));
+  const can3d = $derived(category === 'channel' && !!specFromObject(obj));
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
   const ro = $derived(!app.canEdit);
@@ -48,6 +50,9 @@
         <button data-testid="category-{c}" class:on={category === c} disabled={ro} onclick={() => setCategory(c as Category)}>{label}</button>
       {/each}
     </div>
+    {#if can3d}
+      <button class="btn small" data-testid="open-letter3d" onclick={() => (app.letter3dOpen = true)}>입체 보기 (3D)</button>
+    {/if}
     {#if category}
       <select data-testid="product-select" value={obj.productId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value })}>
         {#each CATALOG.filter((p) => p.category === category) as p (p.id)}
