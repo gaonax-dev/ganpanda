@@ -44,15 +44,15 @@ describe('저장 용량', () => {
     expect(me.limits.storageBytes).toBe(50 * MB);
   });
 
-  it('editor 초대로도 올릴 수 있고 소유자 계정 용량에 쌓인다. viewer 는 403', async () => {
+  it('editor·viewer 초대로도 올릴 수 있고(첨부 용), 소유자 계정 용량에 쌓인다', async () => {
     const ed = await createInvite(owner, project.id, 'editor');
     const vw = await createInvite(owner, project.id, 'viewer');
     const a = png(2, 500);
     expect((await put(await idOf(a), a, `project=${project.id}&invite=${ed.token}`)).status).toBe(201);
     const b = png(3, 500);
-    expect((await put(await idOf(b), b, `project=${project.id}&invite=${vw.token}`)).status).toBe(403);
+    expect((await put(await idOf(b), b, `project=${project.id}&invite=${vw.token}`)).status).toBe(201);
     const me = await (await get('/api/me', owner)).json<{ usage: { storageBytes: number } }>();
-    expect(me.usage.storageBytes).toBe(500);
+    expect(me.usage.storageBytes).toBe(1000);
   });
 
   it('한도를 넘으면 413 과 함께 한도·사용량을 알려 준다', async () => {

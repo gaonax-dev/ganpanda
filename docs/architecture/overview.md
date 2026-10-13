@@ -37,6 +37,7 @@ ganpanda/
 | `presence.ts` | 접속자 색·목록 계산 |
 | `unread.ts` | 안 읽은 메시지 계산·알림 여부 |
 | `format.ts` | 용량 표시 |
+| `attachments.ts` | 첨부 종류 판별·요약 |
 | `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |

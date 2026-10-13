@@ -54,6 +54,8 @@ export interface Pin {
   number: number;
 }
 
+export interface Attachment { assetId: string; name: string; type: string; size: number }
+
 export interface Message {
   id: string;
   objectId: string;
@@ -61,4 +63,6 @@ export interface Message {
   text: string;
   kind: 'chat' | 'comment';
   ts: number;
+  /** 사진·PDF 첨부 (에셋 ID 로 참조) */
+  attachments?: Attachment[];
 }

@@ -1,6 +1,6 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
-import type { Message, Photo, Pin, SignObject } from './model';
+import type { Attachment, Message, Photo, Pin, SignObject } from './model';
 
 type Fields<T> = Omit<T, 'id'>;
 const uid = () => crypto.randomUUID();
@@ -126,8 +126,8 @@ export class Project {
     for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === objectId) this.messages.delete(i, 1);
   }
 
-  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat') {
-    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now() }]);
+  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat', attachments?: Attachment[]) {
+    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}) }]);
   }
 
   allMessages(): Message[] {

@@ -18,8 +18,10 @@ const LOAD = Symbol('load');
 type Role = 'owner' | 'editor' | 'viewer';
 /** 좌석 갱신 간격 (Account.SEAT_TTL 보다 충분히 짧게) */
 const SEAT_RENEW = 30_000;
-interface Attachment { sid: string; role: Role; owner: string; renewedAt: number }
-export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment'; ts: number }
+/** 소켓에 붙여 두는 정보 (Hibernation 뒤에도 유지) */
+interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: number }
+export interface Attachment { assetId: string; name: string; type: string; size: number }
+export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment'; ts: number; attachments?: Attachment[] }
 type AwRow = { client_id: number; sock: string; clock: number; state: string };
 
 export class Room extends DurableObject<Env> {
@@ -51,7 +53,7 @@ export class Room extends DurableObject<Env> {
     const role = (req.headers.get('x-role') ?? 'viewer') as Role;
     const owner = req.headers.get('x-owner') ?? '';
     this.ctx.acceptWebSocket(server, [sid]);
-    server.serializeAttachment({ sid, role, owner, renewedAt: Date.now() } satisfies Attachment);
+    server.serializeAttachment({ sid, role, owner, renewedAt: Date.now() } satisfies SocketAttachment);
     // 서버 상태 벡터를 먼저 보내 클라이언트가 가진(서버에 없는) 변경을 받는다
     const enc = encoding.createEncoder();
     encoding.writeVarUint(enc, MSG_SYNC);
@@ -101,14 +103,14 @@ export class Room extends DurableObject<Env> {
   // ---------- 동시접속 좌석 (Account DO) ----------
 
   private renewSeat(ws: WebSocket) {
-    const a = ws.deserializeAttachment() as Attachment;
+    const a = ws.deserializeAttachment() as SocketAttachment;
     if (!a.owner || Date.now() - a.renewedAt < SEAT_RENEW) return;
-    ws.serializeAttachment({ ...a, renewedAt: Date.now() } satisfies Attachment);
+    ws.serializeAttachment({ ...a, renewedAt: Date.now() } satisfies SocketAttachment);
     this.ctx.waitUntil(this.env.ACCOUNT.getByName(a.owner).renew(a.sid));
   }
 
   private releaseSeat(ws: WebSocket) {
-    const a = ws.deserializeAttachment() as Attachment;
+    const a = ws.deserializeAttachment() as SocketAttachment;
     if (a.owner) this.ctx.waitUntil(this.env.ACCOUNT.getByName(a.owner).release(a.sid));
   }
 
@@ -132,11 +134,11 @@ export class Room extends DurableObject<Env> {
   // ---------- 접속자 상태 (awareness) ----------
 
   private sidOf(ws: WebSocket): string {
-    return (ws.deserializeAttachment() as Attachment).sid;
+    return (ws.deserializeAttachment() as SocketAttachment).sid;
   }
 
   private roleOf(ws: WebSocket): Role {
-    return (ws.deserializeAttachment() as Attachment).role;
+    return (ws.deserializeAttachment() as SocketAttachment).role;
   }
 
   /** 위치 코멘트(핀) 추가 (RPC, viewer 용). 앱의 Project.addPin 과 같은 구조 */
@@ -155,8 +157,8 @@ export class Room extends DurableObject<Env> {
   }
 
   /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */
-  async addMessage(objectId: string, author: string, text: string, kind: Message['kind']): Promise<Message> {
-    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now() };
+  async addMessage(objectId: string, author: string, text: string, kind: Message['kind'], attachments?: Attachment[]): Promise<Message> {
+    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}) };
     this.doc.getArray<Message>('messages').push([msg]);
     return msg;
   }

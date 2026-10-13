@@ -45,7 +45,7 @@ async function handleAsset(req: Request, env: Env, id: string, url: URL): Promis
   const ownerId = access.project.owner_id;
 
   if (req.method === 'PUT') {
-    if (access.role === 'viewer') return text('viewer cannot upload', 403);
+    // viewer 도 올릴 수 있다 (대화 첨부용). 용량은 소유 계정에 쌓인다
     const type = (req.headers.get('content-type') ?? '').split(';')[0].trim();
     if (!ASSET_TYPES.has(type)) return text('unsupported type', 415);
     if (Number(req.headers.get('content-length') ?? 0) > MAX_ASSET) return text('too large', 413);
@@ -99,17 +99,36 @@ function withSessionParam(req: Request, url: URL): Request {
 
 const MESSAGE_KINDS = new Set(['chat', 'comment']);
 const MESSAGE_MAX = 2000;
+const ATTACH_MAX = 5;
+
+/** 첨부 목록 검증: 에셋 ID 형식·허용 형식·개수 */
+function parseAttachments(v: unknown): { assetId: string; name: string; type: string; size: number }[] | null {
+  if (v === undefined) return [];
+  if (!Array.isArray(v) || v.length > ATTACH_MAX) return null;
+  const out = [];
+  for (const a of v) {
+    if (!a || typeof a !== 'object') return null;
+    const { assetId, name, type, size } = a as Record<string, unknown>;
+    if (typeof assetId !== 'string' || !ASSET_RE.test(assetId)) return null;
+    if (typeof name !== 'string' || !name.trim() || name.length > 120) return null;
+    if (typeof type !== 'string' || !ASSET_TYPES.has(type)) return null;
+    if (typeof size !== 'number' || !(size >= 0)) return null;
+    out.push({ assetId, name: name.trim(), type, size: Math.round(size) });
+  }
+  return out;
+}
 
 /** viewer 는 문서를 편집할 수 없으므로 대화는 서버가 대신 기록한다 (다른 역할도 사용 가능) */
 async function postMessage(req: Request, env: Env, room: string, _role: Role): Promise<Response> {
   if (req.method !== 'POST') return text('method not allowed', 405);
-  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string }>(req);
+  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string; attachments?: unknown }>(req);
   const txt = typeof b?.text === 'string' ? b.text.trim().slice(0, MESSAGE_MAX) : '';
   const objectId = typeof b?.objectId === 'string' ? b.objectId : '';
   const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
   const kind = b?.kind ?? 'chat';
-  if (!txt || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
-  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment');
+  const attachments = parseAttachments(b?.attachments);
+  if (!attachments || (!txt && !attachments.length) || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
+  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment', attachments);
   return json({ message: msg }, 201);
 }
 

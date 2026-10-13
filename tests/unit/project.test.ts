@@ -103,3 +103,12 @@ describe('위치 코멘트(핀)', () => {
     expect(p.messagesOf(b)).toEqual([]);
   });
 });
+
+describe('메시지 첨부', () => {
+  it('첨부 목록이 함께 저장된다', () => {
+    const p = new Project();
+    const att = [{ assetId: 'a'.repeat(32), name: '현장.jpg', type: 'image/jpeg', size: 1234 }];
+    p.addMessage('o1', '고객', '', 'chat', att);
+    expect(p.messagesOf('o1')[0]).toMatchObject({ text: '', attachments: att });
+  });
+});
