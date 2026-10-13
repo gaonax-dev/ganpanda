@@ -13,8 +13,9 @@ ganpanda/
 │  ├─ lib/sim/             초기 3D 시뮬레이터 (보관, 4·5차에서 재사용)
 │  ├─ lib/state.svelte.ts  앱 전역 상태 (Yjs 문서 ↔ Svelte 반응성)
 │  ├─ lib/sync.ts          동기화 서버 연결 (y-websocket, 접속자 상태)
+│  ├─ lib/auth.ts          계정 API 클라이언트 (세션 토큰)
 │  └─ lib/assets.ts        이미지 에셋 저장 (IndexedDB + 서버 R2)
-├─ server/                 동기화 API 서버 (Cloudflare Worker + Durable Object + R2)
+├─ server/                 API 서버 (Cloudflare Worker + Durable Object + R2 + D1)
 ├─ tests/unit/             앱 단위 테스트 (Vitest)
 ├─ tests/e2e/              앱 E2E 테스트 (Playwright)
 └─ docs/                   이 문서

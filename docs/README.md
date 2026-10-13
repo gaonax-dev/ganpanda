@@ -31,6 +31,7 @@
   - [measurement.md](features/measurement.md) — 실측 판독과 경고 규칙
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
+  - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴
   - [uv-view.md](features/uv-view.md) — 디자인 소스 매핑 (계획)
   - [render-3d.md](features/render-3d.md) — 입체 간판·실사 렌더링 (계획, 초기 코드 보관)
 - server

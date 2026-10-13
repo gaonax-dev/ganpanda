@@ -8,6 +8,7 @@ import { isMacPlatform } from './core/wheel';
 import { SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads } from './assets';
 import type { Cursor, Peer } from './core/presence';
+import { describeAuthError, fetchMe, logout as apiLogout, updateName, verifyToken, type Account } from './auth';
 
 export type ViewKind = 'board' | 'list' | 'uv';
 export type Tool = 'select' | 'rect' | 'ellipse';
@@ -29,6 +30,12 @@ class AppState {
   sync = $state<SyncStatus>('local');
   peers = $state<Peer[]>([]);
   private client: SyncClient;
+  /** 로그인한 계정 (null = 로그아웃 상태). authReady 전에는 미확인 */
+  account = $state<Account | null>(null);
+  authReady = $state(false);
+  loginOpen = $state(false);
+  /** 매직링크 처리 중 생긴 오류 (로그인 창에 표시) */
+  authError = $state('');
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -49,6 +56,41 @@ class AppState {
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p));
     this.client.whenOnline(flushPendingUploads);
     this.client.setName(this.nickname);
+    this.initAuth();
+  }
+
+  /** 시작 시: /login?token= 이면 검증, 아니면 저장된 세션으로 내 계정 확인 */
+  private async initAuth() {
+    const url = new URL(location.href);
+    const token = url.pathname === '/login' ? url.searchParams.get('token') : null;
+    if (token) {
+      try {
+        this.applyAccount(await verifyToken(token));
+      } catch (e) {
+        this.authError = describeAuthError(e);
+        this.loginOpen = true;
+      }
+      // 주소에서 토큰 제거 (방이 있었으면 유지)
+      const room = url.searchParams.get('room');
+      history.replaceState(null, '', room ? `/?room=${room}` : '/');
+    } else {
+      this.applyAccount(await fetchMe());
+    }
+    this.authReady = true;
+  }
+
+  applyAccount(a: Account | null) {
+    this.account = a;
+    if (a) this.setNickname(a.name || a.email.split('@')[0], false);
+  }
+
+  async renameAccount(name: string) {
+    this.applyAccount(await updateName(name));
+  }
+
+  async logout() {
+    await apiLogout();
+    this.account = null;
   }
 
   /** 사진 보드 위 내 커서 (world 좌표). null = 보드 밖 */
@@ -56,10 +98,10 @@ class AppState {
     this.client.setCursor(c);
   }
 
-  setNickname(n: string) {
+  setNickname(n: string, persist = true) {
     this.nickname = n;
     this.client.setName(n);
-    try { localStorage.setItem('ganpanda.nickname', n); } catch { /* 저장 불가 환경 */ }
+    if (persist) try { localStorage.setItem('ganpanda.nickname', n); } catch { /* 저장 불가 환경 */ }
   }
 
   setKeymap(km: Keymap) {

@@ -5,6 +5,15 @@
   import UvView from './lib/views/UvView.svelte';
   import ObjectPanel from './lib/ui/ObjectPanel.svelte';
   import Settings from './lib/ui/Settings.svelte';
+  import LoginDialog from './lib/ui/LoginDialog.svelte';
+
+  let accountOpen = $state(false);
+  let nameDraft = $state('');
+  async function saveName() {
+    const n = nameDraft.trim();
+    if (n && n !== app.account?.name) await app.renameAccount(n);
+    accountOpen = false;
+  }
 
   // 캔버스 밖에서도 브라우저 확대(Ctrl+휠·핀치)가 일어나지 않게 (xlpop 과 동일)
   $effect(() => {
@@ -45,9 +54,25 @@
         {/each}
       </span>
       <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {SYNC_LABEL[app.sync]}</span>
-      <button class="who" onclick={() => { const n = prompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>
-        {app.nickname || '이름 설정'}
-      </button>
+      {#if app.account}
+        <span class="account">
+          <button class="who" data-testid="account-menu" onclick={() => { nameDraft = app.account!.name || app.nickname; accountOpen = !accountOpen; }}>
+            {app.account.name || app.account.email.split('@')[0]}
+          </button>
+          {#if accountOpen}
+            <div class="menu" role="menu">
+              <small>{app.account.email} · {app.account.plan === 'free' ? '무료' : app.account.plan}</small>
+              <label>표시 이름
+                <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
+              </label>
+              <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
+            </div>
+          {/if}
+        </span>
+      {:else if app.authReady || app.sync === 'local'}
+        <button class="who" data-testid="login-button" onclick={() => (app.loginOpen = true)}>로그인</button>
+        <button class="icon small-name" title="이름만 설정 (로그인 없이)" onclick={() => { const n = prompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>{app.nickname || '이름'}</button>
+      {/if}
     </div>
   </nav>
   <main>
@@ -61,6 +86,7 @@
   </main>
 </div>
 {#if app.settingsOpen}<Settings />{/if}
+{#if app.loginOpen}<LoginDialog />{/if}
 
 <style>
   .shell { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
@@ -78,6 +104,10 @@
   .peers { display: flex; gap: 6px; }
   .peer { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px 2px 6px; }
   .peer i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .account { position: relative; }
+  .menu { position: absolute; right: 0; top: 36px; width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); z-index: 20; }
+  .menu small { color: var(--muted); font-size: 11px; }
+  .small-name { font-size: 12px; }
   .who { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
   main { position: relative; overflow: hidden; }
   .view { position: absolute; inset: 0; }
