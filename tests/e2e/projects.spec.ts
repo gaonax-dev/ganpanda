@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test('로그인하면 내 프로젝트 목록이 보이고, 새 프로젝트를 만들어 들어간다', async ({ page, request }) => {
   const session = await apiLogin(request);
@@ -63,7 +63,9 @@ test('viewer 초대: 보고 대화할 수 있지만 편집은 못 한다', async
   await expect(guest.getByTestId('tool-rect')).toHaveCount(0); // 그리기 도구 없음
   // 치수 입력 불가
   await guest.getByTestId('sign-shape').click();
+  await openObjectSettings(guest);
   await expect(guest.getByTestId('width-mm')).toBeDisabled();
+  await guest.keyboard.press('Escape');
   // 대화는 가능 → 소유자에게 도착
   await guest.getByTestId('chat-input').fill('가로 4m 맞나요?');
   await guest.getByTestId('chat-input').press('Enter');

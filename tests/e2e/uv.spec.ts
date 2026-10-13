@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 /** 2쪽짜리 최소 PDF: 1쪽 빨간 사각형(400×200pt), 2쪽 파란 사각형(200×200pt) */
 function twoPagePdf(): Buffer {
@@ -27,8 +27,10 @@ async function makeSign(page: Page) {
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
+  await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
+  await page.keyboard.press('Escape');
 }
 
 /** UV 뷰 페이지 위에서 페이지 px 좌표로 드래그 */

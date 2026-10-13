@@ -1,14 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiCreateProject, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiCreateProject, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 async function makeSign(page: import('@playwright/test').Page) {
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
+  await page.getByTestId('category-sign').click();
+  await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('2000');
   await page.getByTestId('height-mm').fill('1000');
-  await page.getByTestId('category-board').click();
   await page.getByTestId('product-select').selectOption('board-acp');
+  await page.getByTestId('close-object-settings').click();
 }
 
 test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async ({ page, request }) => {
@@ -16,7 +18,9 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-channel').click();
+  await page.getByTestId('category-sign').click();
+  await openObjectSettings(page);
+  await page.getByTestId('product-select').selectOption('ch-front');
   await page.getByTestId('sign-text').fill('간판다 카페');
   await expect(page.getByTestId('char-count')).toHaveAttribute('placeholder', /5/);
   await page.getByTestId('height-mm').fill('600');

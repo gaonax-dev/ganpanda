@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -30,6 +30,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고 → 
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]); // 400×100px
+  await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
   await expect(page.getByTestId('reference-badge')).toBeVisible();
@@ -37,6 +38,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고 → 
   await page.keyboard.press('Escape');
   await page.keyboard.press('r');
   await dragOnPhoto(page, [900, 200], [1100, 300]); // 200×100px → 2000×1000mm
+  await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveAttribute('placeholder', /2,000/);
   // 치수 미입력이어도 추정 치수로 예상 금액을 보여준다 (리스트 견적과 일치)
   await page.getByTestId('sheet-sh-print').click();
@@ -56,11 +58,13 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
+  await page.getByTestId('category-sign').click();
+  await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
-  await page.getByTestId('category-board').click();
   await page.getByTestId('product-select').selectOption('board-acp');
   await page.getByTestId('sheet-sh-print').click();
+  await page.getByTestId('close-object-settings').click();
 
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-card')).toHaveCount(1);
@@ -84,6 +88,7 @@ test('새로고침해도 작업이 유지된다', async ({ page }) => {
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
+  await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.waitForTimeout(300);
   await page.reload();

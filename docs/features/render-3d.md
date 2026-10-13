@@ -8,7 +8,7 @@
 - 5차 계획 — 초기 코드 `src/lib/sim/viewer.ts`(사진 배경 + 복원 카메라 + 그림자·블룸) 보관
 
 ## 입체 보기 (4차)
-- 조건: 간판 종류가 **채널**이고 문구·글자 높이가 있을 때 사인물 패널에 [입체 보기 (3D)]가 나타납니다.
+- 조건: 간판 종류가 **채널**이고 문구·글자 높이가 있을 때 사인물 설정 창([설정])에 [입체 보기 (3D)]가 나타납니다.
 - 창(`src/lib/ui/Letter3DDialog.svelte`): Three.js 로 글자를 돌려 보고(OrbitControls) 주간/야간 전환, PNG 저장. 고객(viewer)도 열어 볼 수 있고 설정은 바꿀 수 없습니다.
 - 글자: Pretendard Bold 윤곽(`core/textShapes.ts`) → `ExtrudeGeometry`(`sim/signs.ts`). 전광(`ch-front`)은 면 발광, 후광(`ch-halo`)은 벽면 반사 글로우, 그 외 비조명(`lightingOf`).
 - 설정은 사인물 `letter3d { depthMm, faceColor, sideColor, letterSpacing }`에 저장(기본 두께 80mm). 바꾸면 모두에게 반영.

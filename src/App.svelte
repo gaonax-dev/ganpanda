@@ -13,6 +13,7 @@
   import PricesDialog from './lib/ui/PricesDialog.svelte';
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import Letter3DDialog from './lib/ui/Letter3DDialog.svelte';
+  import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -138,6 +139,7 @@
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
+{#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
 {#if app.letter3dOpen && app.selected}{#key app.selected.id}<Letter3DDialog obj={app.selected} />{/key}{/if}
 
 <style>

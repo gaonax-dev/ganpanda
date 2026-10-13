@@ -13,6 +13,13 @@
 - **원근 맞추기**: 선택한 영역의 모서리 핸들 4개를 끌어 사진 속 실제 모서리에 맞춥니다. 영역 안쪽을 끌면 통째로 이동합니다. 원형은 이 사각형에 내접한 타원(원근 반영)으로 그려집니다.
 - **라벨**: 이름 · 입력 치수(또는 `≈추정 치수`). 실측 경고가 있으면 ⚠ 표시.
 
+## 사인물 패널과 설정 창 (2026-10-13 사용자 요청)
+- 사용자 요청: "사인물 설정이 인터페이스를 차지하고 있다… 설정창을 따로 두고, 패널은 간판·스카시·시트 정도로 분류해주는 창으로."
+- **패널(`ObjectPanel.svelte`, 보드 오른쪽)**: 이름, 분류 세그먼트 **간판 / 스카시 / 시트**, 한 줄 요약(종류 · 치수(추정 표시) · 예상 금액), 실측 경고 알림(누르면 설정 창), [설정] 버튼, 대화. 세부 입력칸은 없습니다.
+- **설정 창(`ObjectSettingsDialog.svelte`, `app.objectSettingsOpen`)**: 세부 종류 선택, 시트, 문구, 치수·글자수, 가로/세로 기준 체크, 실측 경고와 추정값 적용, 입체 보기(3D), 예상 금액 상세, 사인물 삭제. Esc·바깥 클릭·닫기로 닫힙니다. 다른 사인물을 선택하면 닫힙니다(`selectObject`).
+- **분류 규칙(`catalog.ts` `categoryOf/productsOf/defaultProductFor`)**: 제품이 있으면 그 분류 — 보드·전광·후광·갈바 채널 = 간판, 스카시·고무 스카시 = 스카시. 제품 없이 시트만 = 시트. 분류 버튼은 기본 제품으로 시작합니다(간판 → 알루미늄 복합판, 스카시 → 스카시, 시트 → 제품 없음). 데이터 모델은 바뀌지 않았습니다(`productId`, `sheetIds`).
+- E2E 는 `openObjectSettings(page)` 헬퍼로 설정 창을 연 뒤 세부 항목(`width-mm` 등)을 다룹니다. 창이 열려 있으면 뒤의 보드·패널은 눌리지 않으므로 다른 조작 전에 `close-object-settings` 로 닫습니다.
+
 ## 작업 존 (`src/lib/core/zone.ts`, 2026-10-13 사용자 요청)
 - 사진마다 **실제 작업할 벽면 영역**을 다각형으로 표시합니다(`Photo.zones`, 사진 px, 정수. 옛 데이터의 `zone` 하나도 `zonesOf()`로 읽음). 존 밖은 어둡게 처리됩니다.
 - 만들기: 존 도구(Z 또는 ▱ 존) → 사진 위 드래그 → 사각형 존이 **추가**됩니다(사진당 여러 개, 예: 정면 벽 + 옆면 벽). 라벨은 "작업 존 1, 2…".
@@ -31,11 +38,11 @@
 
 ## 관련 코드
 - `src/lib/views/BoardView.svelte`, `src/lib/views/PhotoZone.svelte`
-- `src/lib/ui/ObjectPanel.svelte` (오브젝트 패널)
+- `src/lib/ui/ObjectPanel.svelte` (사인물 패널), `src/lib/ui/ObjectSettingsDialog.svelte` (설정 창), `src/lib/core/catalog.ts` (분류)
 - `src/lib/core/perspective.ts` (`quadFromDrag`, `ellipseInQuad`)
 
 ## 관련 테스트
-- `tests/e2e/board.spec.ts`, `tests/e2e/zone.spec.ts`, `tests/unit/zone.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
+- `tests/e2e/board.spec.ts`, `tests/e2e/objectPanel.spec.ts`, `tests/unit/category.test.ts`, `tests/e2e/zone.spec.ts`, `tests/unit/zone.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
 
 ## 남은 일
 - SAM 호버 영역 분리 (다각형 오브젝트), 터치 조작 최적화, 사진 확대경(모서리 정밀 지정)
