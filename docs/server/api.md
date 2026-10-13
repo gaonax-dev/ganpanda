@@ -21,8 +21,9 @@
 | GET | `/api/auth/providers` | 자격이 설정된 소셜 공급자 | `{providers:[…]}` |
 | GET | `/api/auth/{kakao\|google\|apple}/start?next=` | 소셜 로그인 시작 (302 → 공급자) | 302 / 400 next 형식 / 503 미설정 |
 | GET·POST | `/api/auth/{p}/callback` | 공급자 콜백 (애플은 POST form) → 302 `APP_URL/login#session=…&next=…` | 302 / 400 state / 502 공급자 오류 |
-| GET | `/api/me` | 내 계정 + 한도·사용량 (`Authorization: Bearer <세션>`) | 200 `{account, limits:{storageBytes, seats}, usage:{storageBytes, seats}}` / 401 |
+| GET | `/api/me` | 내 계정 + 한도·사용량 + 기본 단가표 (`Authorization: Bearer <세션>`) | 200 `{account, prices, limits:{…}, usage:{…}}` / 401 |
 | PATCH | `/api/me` `{name}` | 표시 이름 변경 (40자) | 200 / 401 |
+| GET·PUT | `/api/me/prices` `{prices}` | 계정 기본 단가표 (JSON, 형식·크기만 검사: version 1, 숫자 ≥0, 키 100개·20KB 이하) | 200 / 400 / 401 |
 | POST | `/api/auth/logout` | 세션 삭제 | 204 / 401 |
 
 ## 규칙

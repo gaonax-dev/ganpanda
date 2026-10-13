@@ -1,16 +1,35 @@
-// 규칙 기반 견적: 사인물 리스트 → 견적
+// 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { productById, sheetById } from './catalog';
-import type { SignObject } from './model';
+import type { ExtraItem, SignObject } from './model';
+import type { PriceTable } from './pricing';
 import { polygonArea, quadToRect } from './perspective';
 import { applyHomography } from './homography';
 
 export const VAT_RATE = 0.1;
 
 export interface QuoteLine { objectId: string; label: string; detail: string; amount: number }
-export interface Quote { lines: QuoteLine[]; subtotal: number; vat: number; total: number }
+export interface Quote {
+  lines: QuoteLine[];
+  /** 사인물 항목 합계 */
+  itemsTotal: number;
+  install: number;
+  extras: ExtraItem[];
+  /** 항목 + 설치비 + 추가 항목 */
+  subtotal: number;
+  vat: number;
+  total: number;
+  vatIncluded: boolean;
+}
+export interface QuoteOptions { extras?: ExtraItem[]; /** null/undefined = 단가표 기본 설치비 */ installFee?: number | null }
 
 export const won = (n: number) => Math.round(n).toLocaleString('ko-KR') + '원';
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+
+/** 글자수: 수동 입력 우선, 없으면 문구에서 공백·줄바꿈 제외 */
+export function charCountOf(o: Pick<SignObject, 'text' | 'charCount'>): number {
+  if (o.charCount) return o.charCount;
+  return [...(o.text ?? '')].filter((c) => c.trim()).length;
+}
 
 /** 실제 도형 면적(㎡). 사각=w·h, 원=π/4·w·h, 다각형=정면 보정 후 면적 */
 export function shapeAreaM2(o: SignObject): number {
@@ -25,22 +44,29 @@ export function shapeAreaM2(o: SignObject): number {
   return (w * h) / 1e6;
 }
 
-export function quoteObject(o: SignObject): QuoteLine[] {
+const roundTo = (n: number, unit: number) => Math.round(n / unit) * unit;
+
+export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const lines: QuoteLine[] = [];
   const sized = !!(o.widthMm && o.heightMm);
   const size = sized ? `${fmt(o.widthMm!)}×${fmt(o.heightMm!)}mm` : '';
+  const finish = (label: string, detail: string, raw: number) => {
+    let amount = roundTo(raw, prices.rounding);
+    if (amount < prices.minimum) { amount = prices.minimum; detail += ` · 최소 ${fmt(prices.minimum)}원 적용`; }
+    lines.push({ objectId: o.id, label, detail, amount });
+  };
   const p = productById(o.productId);
   if (p) {
     const label = `${o.name} · ${p.name}`;
+    const unit = prices.products[p.id] ?? 0;
     if (!sized) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else if (p.pricing.type === 'area') {
+    else if (p.unit === 'm2') {
       const m2 = (o.widthMm! * o.heightMm!) / 1e6;
-      lines.push({ objectId: o.id, label, detail: `${size} = ${m2.toFixed(2)}㎡`, amount: Math.round(m2 * p.pricing.perM2) });
-    } else if (!o.charCount) {
-      lines.push({ objectId: o.id, label, detail: '글자수 필요', amount: 0 });
+      finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit);
     } else {
-      const unit = p.pricing.perCharPerCm * (o.heightMm! / 10);
-      lines.push({ objectId: o.id, label, detail: `${o.charCount}자 × 높이 ${fmt(o.heightMm!)}mm`, amount: Math.round(unit * o.charCount) });
+      const n = charCountOf(o);
+      if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
+      else finish(label, `${n}자 × 높이 ${fmt(o.heightMm!)}mm × ${fmt(unit)}원/자·cm`, n * (o.heightMm! / 10) * unit);
     }
   }
   for (const id of o.sheetIds) {
@@ -49,14 +75,21 @@ export function quoteObject(o: SignObject): QuoteLine[] {
     const label = `${o.name} · ${s.name}`;
     if (!sized) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
     const m2 = shapeAreaM2(o);
-    lines.push({ objectId: o.id, label, detail: `${m2.toFixed(2)}㎡`, amount: Math.round(m2 * s.pricing.perM2) });
+    finish(label, `${m2.toFixed(2)}㎡ × ${fmt(prices.sheets[id] ?? 0)}원`, m2 * (prices.sheets[id] ?? 0));
   }
   return lines;
 }
 
-export function quoteProject(objs: SignObject[]): Quote {
-  const lines = objs.flatMap(quoteObject);
-  const subtotal = lines.reduce((a, l) => a + l.amount, 0);
+export function quoteProject(objs: SignObject[], prices: PriceTable, opts: QuoteOptions = {}): Quote {
+  const lines = objs.flatMap((o) => quoteObject(o, prices));
+  const itemsTotal = lines.reduce((a, l) => a + l.amount, 0);
+  const install = opts.installFee ?? prices.install;
+  const extras = opts.extras ?? [];
+  const subtotal = itemsTotal + install + extras.reduce((a, e) => a + e.amount, 0);
+  if (prices.vatIncluded) {
+    const vat = Math.round(subtotal - subtotal / (1 + VAT_RATE));
+    return { lines, itemsTotal, install, extras, subtotal, vat, total: subtotal, vatIncluded: true };
+  }
   const vat = Math.round(subtotal * VAT_RATE);
-  return { lines, subtotal, vat, total: subtotal + vat };
+  return { lines, itemsTotal, install, extras, subtotal, vat, total: subtotal + vat, vatIncluded: false };
 }

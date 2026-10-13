@@ -1,6 +1,6 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
-import type { Attachment, Message, Photo, Pin, SignObject } from './model';
+import type { Attachment, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
 
 type Fields<T> = Omit<T, 'id'>;
 const uid = () => crypto.randomUUID();
@@ -18,6 +18,8 @@ export class Project {
   readonly photos: Y.Map<Y.Map<unknown>>;
   readonly objects: Y.Map<Y.Map<unknown>>;
   readonly pins: Y.Map<Y.Map<unknown>>;
+  /** 단가표·설치비·추가 항목 (키별 JSON 값) */
+  readonly settingsMap: Y.Map<unknown>;
   /** 모든 대화를 한 배열에 — 키별 배열을 동시 생성하면 한쪽이 유실되므로 */
   readonly messages: Y.Array<Message>;
 
@@ -26,6 +28,7 @@ export class Project {
     this.photos = doc.getMap('photos');
     this.objects = doc.getMap('objects');
     this.pins = doc.getMap('pins');
+    this.settingsMap = doc.getMap('settings');
     this.messages = doc.getArray('messages');
   }
 
@@ -53,6 +56,20 @@ export class Project {
       for (const o of this.objectsOf(id)) this.removeObject(o.id);
       for (const p of this.pinsOf(id)) this.removePin(p.id);
       this.photos.delete(id);
+    });
+  }
+
+  // ---------- 프로젝트 설정 ----------
+
+  settings(): ProjectSettings {
+    return this.settingsMap.toJSON() as ProjectSettings;
+  }
+
+  updateSettings(patch: Partial<ProjectSettings>) {
+    this.doc.transact(() => {
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) this.settingsMap.delete(k); else this.settingsMap.set(k, JSON.parse(JSON.stringify(v)));
+      }
     });
   }
 

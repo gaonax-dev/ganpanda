@@ -112,3 +112,28 @@ describe('메시지 첨부', () => {
     expect(p.messagesOf('o1')[0]).toMatchObject({ text: '', attachments: att });
   });
 });
+
+describe('프로젝트 설정 (단가표·설치비·추가 항목)', () => {
+  it('설정이 없으면 undefined, 저장하면 JSON 그대로 돌려준다', () => {
+    const p = new Project();
+    expect(p.settings()).toEqual({});
+    p.updateSettings({ prices: { version: 1, products: { 'board-acp': 1 }, sheets: {}, install: 0, minimum: 0, rounding: 1, vatIncluded: false }, installFee: 12000 });
+    expect(p.settings().installFee).toBe(12000);
+    expect(p.settings().prices?.products['board-acp']).toBe(1);
+    p.updateSettings({ installFee: undefined });
+    expect(p.settings().installFee).toBeUndefined();
+  });
+
+  it('추가 항목은 목록으로 넣고 지운다', () => {
+    const p = new Project();
+    p.updateSettings({ extras: [{ id: 'x', label: '야간', amount: 1000 }] });
+    p.updateSettings({ extras: [...(p.settings().extras ?? []), { id: 'y', label: '할인', amount: -500 }] });
+    expect(p.settings().extras).toHaveLength(2);
+  });
+
+  it('사인물 문구를 저장한다', () => {
+    const p = new Project();
+    const id = p.addObject({ photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], text: '간판다' });
+    expect(p.object(id)!.text).toBe('간판다');
+  });
+});
