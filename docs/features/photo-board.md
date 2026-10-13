@@ -13,6 +13,13 @@
 - **원근 맞추기**: 선택한 영역의 모서리 핸들 4개를 끌어 사진 속 실제 모서리에 맞춥니다. 영역 안쪽을 끌면 통째로 이동합니다. 원형은 이 사각형에 내접한 타원(원근 반영)으로 그려집니다.
 - **라벨**: 이름 · 입력 치수(또는 `≈추정 치수`). 실측 경고가 있으면 ⚠ 표시.
 
+## 작업 존 (`src/lib/core/zone.ts`, 2026-10-13 사용자 요청)
+- 사진마다 **실제 작업할 벽면 영역**을 다각형으로 표시합니다(`Photo.zone`, 사진 px, 정수). 존 밖은 어둡게 처리됩니다.
+- 만들기: 존 도구(Z 또는 ▱ 존) → 사진 위 드래그 → 사각형 존. 사진당 하나이며 다시 그리면 교체됩니다.
+- 편집(편집 권한): 존을 선택하면 꼭짓점 핸들(○)과 **변 중간 핸들(□)**이 보입니다. 중간 핸들을 누르면 그 자리에 꼭짓점이 추가되고, 꼭짓점을 눌러 선택한 뒤 **Delete/Backspace**로 지웁니다(3개 미만으로는 줄지 않음). 꼭짓점은 드래그로 이동. 모두 ⌘Z 로 되돌릴 수 있습니다.
+- 고객(viewer)은 존을 보지만 핸들은 없습니다.
+- 다음 단계 후보: 존의 실제 가로·세로(mm)를 넣어 실측 기준으로 쓰기, 5차 실사 합성의 벽면 기준, 다각형 사인물에 같은 꼭짓점 편집 적용.
+
 ## 화면 조작과 단축키
 마우스 휠 = 확대·축소, 트랙패드 스크롤 = 이동 등 xlpop과 같은 조작을 씁니다. 단축키(기본 V·R·O, ⌘/Ctrl + = − 0, 스페이스)는 설정에서 바꿀 수 있습니다. → [shortcuts.md](shortcuts.md)
 
@@ -27,7 +34,7 @@
 - `src/lib/core/perspective.ts` (`quadFromDrag`, `ellipseInQuad`)
 
 ## 관련 테스트
-- `tests/e2e/board.spec.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
+- `tests/e2e/board.spec.ts`, `tests/e2e/zone.spec.ts`, `tests/unit/zone.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
 
 ## 남은 일
 - SAM 호버 영역 분리 (다각형 오브젝트), 터치 조작 최적화, 사진 확대경(모서리 정밀 지정)

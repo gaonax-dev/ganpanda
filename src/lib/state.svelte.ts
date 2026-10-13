@@ -5,6 +5,7 @@ import { measurePhoto, type MeasureResult } from './core/measure';
 import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
+import { insertVertex, removeVertex } from './core/zone';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -27,7 +28,7 @@ import { assetUrl } from './assets';
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
-export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic';
+export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
@@ -43,6 +44,8 @@ class AppState {
   selectedId = $state<string | null>(null);
   /** 선택한 핀 (사인물 선택과 배타적) */
   selectedPinId = $state<string | null>(null);
+  /** 선택한 작업 존(사진 id)과 꼭짓점 번호 */
+  zoneSel = $state<{ photoId: string; vertex: number | null } | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
@@ -352,12 +355,59 @@ class AppState {
 
   selectObject(id: string | null) {
     this.selectedId = id;
-    if (id) this.selectedPinId = null;
+    if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }
 
   selectPin(id: string | null) {
     this.selectedPinId = id;
-    if (id) this.selectedId = null;
+    if (id) { this.selectedId = null; this.zoneSel = null; }
+  }
+
+  selectZone(photoId: string | null, vertex: number | null = null) {
+    this.zoneSel = photoId ? { photoId, vertex } : null;
+    if (photoId) { this.selectedId = null; this.selectedPinId = null; }
+  }
+
+  // ---------- 작업 존 ----------
+
+  /** 존 만들기(사진당 하나, 다시 그리면 교체) */
+  setZone(photoId: string, zone: Pt[] | undefined) {
+    if (!this.canEdit) return;
+    this.editBoundary();
+    this.project.updatePhoto(photoId, { zone });
+    this.editBoundary();
+    this.selectZone(zone ? photoId : null);
+  }
+
+  moveZoneVertex(photoId: string, index: number, p: Pt) {
+    const z = this.project.photo(photoId)?.zone;
+    if (!z || !this.canEdit) return;
+    this.project.updatePhoto(photoId, { zone: z.map((v, i) => (i === index ? p : v)) });
+  }
+
+  /** 변 중간 클릭 → 꼭짓점 추가, 추가된 꼭짓점을 선택 */
+  addZoneVertex(photoId: string, edge: number, p: Pt) {
+    const z = this.project.photo(photoId)?.zone;
+    if (!z || !this.canEdit) return;
+    this.editBoundary();
+    this.project.updatePhoto(photoId, { zone: insertVertex(z, edge, p) });
+    this.editBoundary();
+    this.selectZone(photoId, edge + 1);
+  }
+
+  /** 선택한 꼭짓점 삭제 (3개 미만으로는 안 줄어듦) */
+  deleteZoneVertex(): boolean {
+    const s = this.zoneSel;
+    const z = s && this.project.photo(s.photoId)?.zone;
+    if (!s || s.vertex === null || !z || !this.canEdit) return false;
+    const next = removeVertex(z, s.vertex);
+    if (next !== z) {
+      this.editBoundary();
+      this.project.updatePhoto(s.photoId, { zone: next });
+      this.editBoundary();
+    }
+    this.selectZone(s.photoId, null);
+    return true;
   }
 
   /** 핀 만들기: viewer 는 서버 API 로, 그 외는 문서에 직접. 만든 핀을 선택한다 */
