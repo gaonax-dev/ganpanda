@@ -8,6 +8,13 @@
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
   import { SERVER_URL } from '../sync';
+  import CalibPanel from '../ui/CalibPanel.svelte';
+  /** 기준선 패널을 보여 줄 사진: 선택한 사인물의 사진, 없으면 기준이 있는 첫 사진 */
+  const calibPhoto = $derived.by(() => {
+    const sel = app.selected && app.photos.find((p) => p.id === app.selected!.photoId);
+    if (sel && app.refsKeys.get(sel.id)) return sel;
+    return app.photos.find((p) => !!app.refsKeys.get(p.id)) ?? null;
+  });
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
@@ -210,6 +217,7 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      {#if calibPhoto}{#key calibPhoto.id}<CalibPanel photo={calibPhoto} />{/key}{/if}
       {#if app.tool === 'magic' && app.segmentStatus !== 'ready'}
         <div class="ai-status" data-testid="ai-status" data-status={app.segmentStatus}>
           {#if app.segmentStatus === 'error'}AI 모델을 불러오지 못했습니다. {app.segmentError}

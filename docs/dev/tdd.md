@@ -22,7 +22,7 @@
 
 ## E2E 작성 규칙
 - 방은 등록된 프로젝트여야 하므로, 테스트마다 `openOwnedProject(page, request)`로 계정·프로젝트를 만들어 접속합니다. 다른 사람은 `openInvited(browser, inviteUrl)`로 초대 링크 접속(`tests/e2e/helpers.ts`).
-- 요소는 `data-testid`로 찾습니다.
+- 요소는 `data-testid`로 찾습니다. 정확한 좌표의 사인물이 필요하면 개발용 훅 `window.__ganpanda`(DEV 빌드에만 있음)로 문서에 직접 넣고 `selectObject(id)`로 고릅니다(같은 밀리초에 만든 사인물은 표시 순서가 임의이므로 위치 기반 nth 선택을 피합니다).
 - 테스트 사진은 `tests/e2e/helpers.ts`의 `makePhoto`(1600×1000 정면 사진)를 씁니다. 원근 검증이 필요하면 `src/lib/sim/sample.ts`의 합성 사진을 씁니다.
 
 ## 완료 기준
