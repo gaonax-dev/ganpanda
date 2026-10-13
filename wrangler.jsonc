@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // 앱(정적 파일) — Workers 정적 에셋 호스팅. 배포: npm run deploy
+  "name": "ganpanda",
+  "compatibility_date": "2026-10-01",
+  // 도메인 전파 전·비상용으로 workers.dev 주소도 유지
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    // 모든 경로를 index.html 로 (?room= 같은 쿼리 포함 단일 페이지 앱)
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [
+    { "pattern": "ganpanda.co.kr", "custom_domain": true },
+    { "pattern": "www.ganpanda.co.kr", "custom_domain": true }
+  ]
+}

@@ -18,10 +18,19 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - 앱의 `VITE_SYNC_URL`(`.env`, 예시는 `.env.example`)에 서버 주소를 넣고 빌드합니다. 비우면 개발 중에는 `http://localhost:8787`, 운영 빌드에서는 서버 없이 로컬 모드로 동작합니다.
 - E2E(`npm run e2e`)는 `wrangler dev`를 자동으로 띄웁니다.
 
-## 배포
-- 계정: Cloudflare (`npx wrangler whoami`로 확인). 배포 명령: `cd server && npm run deploy`
-- **현재 배포 주소**: `https://ganpanda-sync.gaonax-dev.workers.dev` (2026-10-13 첫 배포, R2 버킷 `ganpanda-assets` 자동 생성)
-- 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장(`scratchpad` 프로브), 에셋 PUT 201 → GET 동일 바이트
-- 앱에서 쓰려면 `.env`에 `VITE_SYNC_URL=https://ganpanda-sync.gaonax-dev.workers.dev`
-- 서비스 도메인이 정해지면 `wrangler.jsonc`에 `routes`를 추가해 `sync.<도메인>` 같은 주소로 바꿉니다.
-- **주의**: 인증(1-2)이 붙기 전까지는 방 ID만 알면 누구나 접속할 수 있습니다. 주소를 외부에 공유하지 않습니다 → [api.md](api.md)
+## 배포 (서버)
+- 계정: Cloudflare (`npx wrangler whoami`). 명령: `cd server && npm run deploy`
+- 주소: **`https://sync.ganpanda.co.kr`** (커스텀 도메인) + 비상용 `https://ganpanda-sync.gaonax-dev.workers.dev` (`workers_dev: true`)
+- R2 버킷 `ganpanda-assets`는 첫 배포(2026-10-13) 때 자동 생성
+- 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장 프로브, 에셋 PUT 201 → GET 동일 바이트
+
+## 배포 (앱)
+- 루트 `wrangler.jsonc`: Workers 정적 에셋 호스팅(`assets.directory = dist`, SPA 폴백). Cloudflare Pages는 쓰지 않습니다(2026-10-13 결정).
+- 명령: `npm run deploy` (= `npm run build && wrangler deploy`). 빌드는 `.env.production`의 `VITE_SYNC_URL=https://sync.ganpanda.co.kr`을 씁니다.
+- 주소: **`https://ganpanda.co.kr`**, `https://www.ganpanda.co.kr` + 비상용 `https://ganpanda.gaonax-dev.workers.dev`
+- 임시 조치: 도메인 전파 전에는 `VITE_SYNC_URL=https://ganpanda-sync.gaonax-dev.workers.dev npx vite build && npx wrangler deploy`로 올려 두었습니다. 전파 뒤 `npm run deploy`로 되돌립니다.
+
+## 도메인 `ganpanda.co.kr`
+- Cloudflare 영역에 추가됨. 커스텀 도메인(`routes[].custom_domain`)은 배포 시 DNS 레코드가 자동 생성됩니다.
+- **등록기관 네임서버를 Cloudflare 것으로 바꿔야 외부에서 접속됩니다.** 전파 확인: `dig +short NS ganpanda.co.kr`에 `*.ns.cloudflare.com`이 나오면 완료.
+- **주의**: 인증(1-2) 전까지는 방 ID만 알면 누구나 접속할 수 있으니 주소를 외부에 공유하지 않습니다 → [api.md](api.md)
