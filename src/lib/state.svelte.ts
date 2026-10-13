@@ -10,6 +10,9 @@ import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account, type Usage } from './auth';
 import { checkAccess, postMessage, type Role } from './projects';
+import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
+
+export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
 export type Tool = 'select' | 'rect' | 'ellipse';
@@ -54,6 +57,12 @@ class AppState {
   seatLimit = $state<{ used: number; limit: number } | null>(null);
   /** 화면 상단 알림 (용량 초과 등) */
   notice = $state('');
+  /** 사인물별 내가 마지막으로 본 메시지 시각 (기기 저장) */
+  seen = $state<SeenMap>({});
+  /** 새 메시지 토스트 (최근 것이 뒤) */
+  toasts = $state<Toast[]>([]);
+  private readonly startedAt = Date.now();
+  private knownMessageIds = new Set<string>();
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -66,6 +75,9 @@ class AppState {
     }
     return out;
   });
+  messages = $derived.by(() => (this.version, this.project.allMessages()));
+  unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
+  unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
   canEdit = $derived(this.role === 'owner' || this.role === 'editor');
@@ -138,6 +150,8 @@ class AppState {
       this.access = { status: 'ok', role: 'owner', projectName: '로컬 작업' };
       setAssetScope(null);
     }
+    this.seen = (parse(load(`ganpanda.seen.${room}`)) as SeenMap | null) ?? {};
+    this.project.onChange(() => this.detectNewMessages());
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
@@ -158,6 +172,48 @@ class AppState {
       }
     };
     setInterval(tick, 3000);
+  }
+
+  /** 선택한 사인물의 대화를 봤다고 기록 (ObjectPanel 이 열려 있을 때 호출) */
+  markSeen(objectId: string) {
+    const next = markSeen(this.seen, objectId, this.messages);
+    if (next === this.seen) return;
+    this.seen = next;
+    if (this.room) save(`ganpanda.seen.${this.room}`, JSON.stringify(next));
+  }
+
+  /** 앱 시작 이후 새로 도착한 남의 메시지 → 토스트·브라우저 알림 */
+  private detectNewMessages() {
+    for (const m of this.project.allMessages()) {
+      if (this.knownMessageIds.has(m.id)) continue;
+      this.knownMessageIds.add(m.id);
+      if (m.ts < this.startedAt) continue;
+      if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' ? this.selectedId : null, hidden: document.hidden })) continue;
+      this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text: m.text }];
+      setTimeout(() => this.dismissToast(m.id), 8000);
+      this.browserNotify(m.author, m.text);
+    }
+  }
+
+  dismissToast(id: string) {
+    this.toasts = this.toasts.filter((t) => t.id !== id);
+  }
+
+  /** 토스트를 누르면 그 사인물의 대화를 연다 */
+  openFromToast(t: Toast) {
+    this.dismissToast(t.id);
+    this.view = 'board';
+    this.selectedId = t.objectId;
+  }
+
+  private browserNotify(author: string, text: string) {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !document.hidden) return;
+    try { new Notification(`${author}: ${text.slice(0, 80)}`, { tag: 'ganpanda-chat' }); } catch { /* 알림 불가 환경 */ }
+  }
+
+  /** 사용자가 처음 대화를 보낼 때 브라우저 알림 권한을 요청 (사용자 동작이 있을 때만 허용됨) */
+  requestNotifyPermission() {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
   }
 
   applyAccount(a: Account | null) {

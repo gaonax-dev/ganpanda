@@ -90,6 +90,10 @@ export class Project {
     this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now() }]);
   }
 
+  allMessages(): Message[] {
+    return this.messages.toArray();
+  }
+
   messagesOf(objectId: string): Message[] {
     return this.messages.toArray().filter((m) => m.objectId === objectId);
   }

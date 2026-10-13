@@ -52,6 +52,7 @@
       {#each VIEWS as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
           {v.label}
+          {#if v.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
           {#if v.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
           {#if v.id === 'list' && app.objects.length}<span class="n">{app.objects.length}</span>{/if}
         </button>
@@ -70,7 +71,7 @@
       {#if app.account}
         <span class="account">
           <button class="who" data-testid="account-menu" onclick={() => { nameDraft = app.account!.name || app.nickname; accountOpen = !accountOpen; if (accountOpen) app.refreshMe(); }}>
-            {app.account.name || app.account.email.split('@')[0]}
+            {app.account.name || app.nickname || app.account.email.split('@')[0]}
           </button>
           {#if accountOpen}
             <div class="menu" role="menu">
@@ -119,6 +120,13 @@
     {/if}
   </main>
 </div>
+<div class="toasts">
+  {#each app.toasts as t (t.id)}
+    <button class="toast" data-testid="toast" onclick={() => app.openFromToast(t)}>
+      <b>{t.author}</b><span>{t.text}</span>
+    </button>
+  {/each}
+</div>
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
@@ -136,6 +144,10 @@
   .views button { background: none; border: 0; color: var(--muted); padding: 6px 14px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .views button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
   .dot { background: var(--warn); color: #000; border-radius: 9px; font-size: 10px; padding: 0 6px; font-weight: 700; }
+  .dot.chat { background: var(--accent); }
+  .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
+  .toast { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 300px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .toast span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .n { color: var(--muted); font-size: 11px; }
   .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .sync { font-size: 12px; color: var(--muted); }

@@ -8,6 +8,9 @@
 
   let { obj }: { obj: SignObject } = $props();
 
+  // 패널이 열려 있는 동안 이 사인물의 새 메시지는 읽은 것으로
+  $effect(() => { app.messages; app.markSeen(obj.id); });
+
   const product = $derived(productById(obj.productId));
   const category = $derived<Category | null>(product?.category ?? null);
   const m = $derived(app.measures.get(obj.id));
