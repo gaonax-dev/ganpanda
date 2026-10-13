@@ -59,3 +59,21 @@ test('로그인하면 표시 이름이 계정 이름이 되고, 이름을 바꾸
   await page.reload();
   await expect(page.getByTestId('account-menu')).toContainText('간판다 사장님');
 });
+
+test('소셜 로그인 결과(/login#session=…&next=…)로 들어오면 로그인되고 next 로 이동한다', async ({ page, request }) => {
+  const { apiLogin, apiCreateProject } = await import('./helpers');
+  const session = await apiLogin(request);
+  const projectId = await apiCreateProject(request, session, '소셜 매장');
+  await page.goto(`/login#session=${encodeURIComponent(session)}&next=${encodeURIComponent(`/?room=${projectId}`)}`);
+  await expect(page.getByTestId('account-menu')).toBeVisible();
+  await expect(page.getByTestId('project-title')).toContainText('소셜 매장');
+  expect(page.url()).not.toContain('session=');
+});
+
+test('로그인 창에 서버가 지원하는 소셜 로그인 버튼이 보인다', async ({ page }) => {
+  await page.getByTestId('login-button').click();
+  await expect(page.getByTestId('social-kakao')).toBeVisible();
+  await expect(page.getByTestId('social-google')).toBeVisible();
+  const href = await page.getByTestId('social-kakao').getAttribute('href');
+  expect(href).toContain('/api/auth/kakao/start');
+});

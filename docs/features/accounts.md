@@ -1,7 +1,7 @@
 # 계정·로그인
 
 ## 요약
-비밀번호 없는 **이메일 매직링크** 로그인입니다. 카카오·구글 로그인은 1-2d에서 추가합니다. 로그인하면 표시 이름이 계정 이름(없으면 이메일 앞부분)이 되고, 대화·접속자 표시에 그 이름이 쓰입니다.
+**이메일 매직링크**와 **소셜 로그인(카카오·Google·Apple)**입니다. 로그인하면 표시 이름이 계정 이름(없으면 기기 이름, 없으면 이메일 앞부분)이 되고, 대화·접속자 표시에 그 이름이 쓰입니다.
 
 ## 상태
 구현됨 (1-2a, 2026-10-13). 이메일 발송은 Cloudflare Email Sending(`send_email` 바인딩 `EMAIL`, 발신 `login@ganpanda.co.kr`)으로 연결됨 — 도메인 온보딩이 끝나야 실제로 나갑니다(→ [../server/deploy.md](../server/deploy.md)).
@@ -26,10 +26,18 @@
 ## 관련 테스트
 - `server/test/auth.test.ts`, `tests/e2e/auth.spec.ts`
 
+## 소셜 로그인 (1-2d, `server/src/social.ts`)
+- 흐름: 앱의 버튼 → `GET /api/auth/{kakao|google|apple}/start?next=<돌아갈 경로>` → 서버가 state(10분, 1회용)를 D1 `oauth_states`에 저장하고 공급자 로그인 화면으로 → 공급자가 `…/api/auth/{p}/callback`으로 돌려주면(애플은 POST form_post) 서버가 code 를 교환해 사용자 정보를 얻고 → 세션을 만들어 **`APP_URL/login#session=…&next=…`**로 보냄 → 앱이 세션을 저장하고 `next`로 이동(주소에서 세션 제거).
+- **계정 연결 규칙**(`identities` 테이블): 같은 공급자 ID → 기존 계정. 없으면 같은 이메일의 계정에 연결(이메일 로그인 계정과 합쳐짐). 둘 다 없으면 새 계정. 공급자가 이메일을 안 주면(카카오 동의 안 함) `kakao-<id>@noemail.ganpanda.co.kr` 같은 대체 이메일.
+- 애플: client secret 은 `.p8` 키로 ES256 서명한 JWT(1시간), 돌아온 `id_token`은 애플 공개키(JWKS)로 서명·`iss`·`aud`·만료를 검증. 이름은 첫 로그인 때만 `user` 폼 필드로 옴. 이메일은 비공개 릴레이 주소일 수 있음.
+- 자격이 없는 공급자는 `GET /api/auth/providers`에서 빠지고 앱이 버튼을 숨깁니다. 로컬 `.dev.vars`에는 자리값이 들어 있어 버튼은 보이지만 실제 로그인은 안 됩니다.
+- 서버의 공급자 호출은 `setOauthFetch`로 바꿔 끼울 수 있어 테스트가 가짜 공급자로 전 흐름을 검사합니다(`server/test/social.test.ts`).
+
 ## 이메일 발송 규칙
 - 메일: 제목 `[간판다] 로그인 링크`, 텍스트·HTML 둘 다, 버튼 + 주소 원문, "15분 유효·1회용" 안내.
 - 바인딩이 없으면 503, 발송 실패(한도 초과 등)면 502 를 돌려주고 **그 토큰은 즉시 폐기**합니다(떠도는 링크 방지). 앱은 "잠시 후 다시 시도" 안내.
 - 테스트는 `EMAIL.send`를 가짜로 바꿔 메시지 구성과 실패 처리를 검사합니다(`server/test/email.test.ts`).
 
 ## 남은 일
-- 카카오·구글 로그인 (1-2d), 매직링크 요청 횟수 제한
+- 운영 자격 등록(각 콘솔에 리디렉션 URI + `wrangler secret put`) → [../server/deploy.md](../server/deploy.md)
+- 매직링크 요청 횟수 제한, 계정 메뉴에서 연결된 공급자 보기

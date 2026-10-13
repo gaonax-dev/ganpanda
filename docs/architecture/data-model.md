@@ -39,6 +39,9 @@
 ### Pin
 `{ id, photoId, x, y(사진 px), author, createdAt, resolved, number(사진 안 순번) }`
 
+### 계정 쪽 (D1, 문서 아님)
+`accounts`, `sessions`, `login_tokens`, `projects`, `invites`, `account_assets`, `identities`(공급자 계정 연결), `oauth_states` → `server/migrations/`
+
 ### Message
 `{ id, objectId, author, text, kind: 'chat' | 'comment', ts }`
 

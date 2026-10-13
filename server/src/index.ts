@@ -5,6 +5,7 @@ import { planOf } from './plans';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
+import { handleSocial } from './social';
 import { json, readJson, text } from './http';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -168,6 +169,7 @@ export default {
     const { pathname } = url;
 
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
+    if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 

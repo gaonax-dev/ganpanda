@@ -18,6 +18,9 @@
 | GET, HEAD | `/api/models/*` | AI 모델 파일 (R2 `models/` 아래, 공개·`immutable` 캐시, 경로 탈출 400) | 200 / 404 |
 | POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
 | POST | `/api/auth/verify` `{token}` | 링크 검증 → 계정 생성(최초)·세션 발급 | 200 `{session, account}` / 404 없음 / 410 만료·사용됨 |
+| GET | `/api/auth/providers` | 자격이 설정된 소셜 공급자 | `{providers:[…]}` |
+| GET | `/api/auth/{kakao\|google\|apple}/start?next=` | 소셜 로그인 시작 (302 → 공급자) | 302 / 400 next 형식 / 503 미설정 |
+| GET·POST | `/api/auth/{p}/callback` | 공급자 콜백 (애플은 POST form) → 302 `APP_URL/login#session=…&next=…` | 302 / 400 state / 502 공급자 오류 |
 | GET | `/api/me` | 내 계정 + 한도·사용량 (`Authorization: Bearer <세션>`) | 200 `{account, limits:{storageBytes, seats}, usage:{storageBytes, seats}}` / 401 |
 | PATCH | `/api/me` `{name}` | 표시 이름 변경 (40자) | 200 / 401 |
 | POST | `/api/auth/logout` | 세션 삭제 | 204 / 401 |

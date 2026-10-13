@@ -7,7 +7,7 @@ export type Me = { account: Account } & Usage;
 const KEY = 'ganpanda.session';
 
 export const loadSession = (): string | null => { try { return localStorage.getItem(KEY); } catch { return null; } };
-const saveSession = (s: string | null) => { try { s ? localStorage.setItem(KEY, s) : localStorage.removeItem(KEY); } catch { /* 저장 불가 환경 */ } };
+export const saveSession = (s: string | null) => { try { s ? localStorage.setItem(KEY, s) : localStorage.removeItem(KEY); } catch { /* 저장 불가 환경 */ } };
 
 export class AuthError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -24,6 +24,14 @@ async function call<T>(path: string, init: RequestInit = {}, session = loadSessi
 }
 
 /** 매직링크 요청. 개발 모드면 서버가 링크를 돌려준다 */
+export type SocialProvider = 'kakao' | 'google' | 'apple';
+/** 서버에 자격이 설정된 소셜 공급자 */
+export const fetchProviders = (): Promise<SocialProvider[]> =>
+  call<{ providers: SocialProvider[] }>('/api/auth/providers').then((r) => r.providers).catch(() => []);
+/** 소셜 로그인 시작 주소 (서버가 공급자로 보내고, 끝나면 /login#session= 으로 돌아온다) */
+export const socialStartUrl = (p: SocialProvider, next: string) =>
+  `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}`;
+
 export const requestLink = (email: string) =>
   call<{ ok: true; link?: string }>('/api/auth/email', { method: 'POST', body: JSON.stringify({ email }) });
 

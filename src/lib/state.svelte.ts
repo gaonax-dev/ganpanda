@@ -9,7 +9,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account, type Usage } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyToken, type Account, type Usage } from './auth';
 import { checkAccess, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
@@ -127,6 +127,13 @@ class AppState {
   /** 시작 시: /login?token= 이면 검증, 아니면 저장된 세션으로 내 계정 확인 */
   private async initAuth() {
     const url = new URL(location.href);
+    // 소셜 로그인 결과: /login#session=…&next=… → 세션 저장 후 next 로 이동 (주소에서 세션 제거)
+    if (url.pathname === '/login' && url.hash.includes('session=')) {
+      const h = new URLSearchParams(url.hash.slice(1));
+      const session = h.get('session');
+      const next = h.get('next') || '/';
+      if (session) { saveSession(session); location.replace(next.startsWith('/') ? next : '/'); return; }
+    }
     const token = url.pathname === '/login' ? url.searchParams.get('token') : null;
     if (token) {
       try {
