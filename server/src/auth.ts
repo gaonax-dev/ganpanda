@@ -3,6 +3,7 @@ import { json, randomToken, readJson, sha256hex, text } from './http';
 import { usageOf } from './usage';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FROM = { email: 'login@ganpanda.co.kr', name: '간판다' };
 const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
@@ -34,8 +35,32 @@ async function requestEmailLogin(req: Request, env: Env): Promise<Response> {
     .bind(await sha256hex(token), email, now, now + LOGIN_TTL).run();
   const link = `${env.APP_URL.replace(/\/+$/, '')}/login?token=${token}`;
   if (env.AUTH_DEV_LINK === '1') return json({ ok: true, link }, 202);
-  // 이메일 발송은 도메인 인증 뒤 연결 (Cloudflare Email). 그전에는 설정 안 됨을 알린다.
-  return text('email sending not configured', 503);
+  if (!env.EMAIL) return text('email sending not configured', 503);
+  try {
+    await env.EMAIL.send(loginMail(email, link));
+  } catch (e) {
+    // 발송 실패: 링크가 떠돌지 않도록 토큰을 바로 폐기
+    await env.DB.prepare('UPDATE login_tokens SET used_at = ? WHERE token_hash = ?').bind(now, await sha256hex(token)).run();
+    const err = e as { code?: string; message?: string };
+    console.error('login email failed', err.code, err.message);
+    return text('email send failed', 502);
+  }
+  return json({ ok: true }, 202);
+}
+
+/** 매직링크 메일 본문 (텍스트·HTML 둘 다) */
+function loginMail(to: string, link: string) {
+  const text = [
+    '간판다 로그인 링크입니다.', '', '아래 링크를 열면 로그인됩니다 (15분 동안 유효, 한 번만 사용 가능).', link, '',
+    '본인이 요청하지 않았다면 이 메일은 무시해도 됩니다.',
+  ].join('\n');
+  const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+<h2 style="margin:0 0 12px">간판다 로그인</h2>
+<p>아래 버튼을 누르면 로그인됩니다. 링크는 <b>15분</b> 동안 유효하고 한 번만 쓸 수 있습니다.</p>
+<p style="margin:24px 0"><a href="${link}" style="background:#ffcc00;color:#1a1500;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:8px;display:inline-block">로그인하기</a></p>
+<p style="color:#666;font-size:12px">버튼이 안 눌리면 이 주소를 브라우저에 붙여 넣으세요:<br><a href="${link}">${link}</a></p>
+<p style="color:#666;font-size:12px">본인이 요청하지 않았다면 이 메일은 무시해도 됩니다.</p></div>`;
+  return { to, from: FROM, subject: '[간판다] 로그인 링크', text, html };
 }
 
 async function verifyEmailLogin(req: Request, env: Env): Promise<Response> {
