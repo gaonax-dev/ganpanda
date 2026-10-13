@@ -1,6 +1,6 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
-import type { Message, Photo, SignObject } from './model';
+import type { Message, Photo, Pin, SignObject } from './model';
 
 type Fields<T> = Omit<T, 'id'>;
 const uid = () => crypto.randomUUID();
@@ -17,6 +17,7 @@ export class Project {
   readonly doc: Y.Doc;
   readonly photos: Y.Map<Y.Map<unknown>>;
   readonly objects: Y.Map<Y.Map<unknown>>;
+  readonly pins: Y.Map<Y.Map<unknown>>;
   /** 모든 대화를 한 배열에 — 키별 배열을 동시 생성하면 한쪽이 유실되므로 */
   readonly messages: Y.Array<Message>;
 
@@ -24,6 +25,7 @@ export class Project {
     this.doc = doc;
     this.photos = doc.getMap('photos');
     this.objects = doc.getMap('objects');
+    this.pins = doc.getMap('pins');
     this.messages = doc.getArray('messages');
   }
 
@@ -49,7 +51,41 @@ export class Project {
   removePhoto(id: string) {
     this.doc.transact(() => {
       for (const o of this.objectsOf(id)) this.removeObject(o.id);
+      for (const p of this.pinsOf(id)) this.removePin(p.id);
       this.photos.delete(id);
+    });
+  }
+
+  // ---------- 위치 코멘트(핀) ----------
+
+  addPin(p: Pick<Pin, 'photoId' | 'x' | 'y' | 'author'>): string {
+    const id = uid();
+    const number = this.pinsOf(p.photoId).length + 1;
+    this.pins.set(id, toYMap({ ...p, id, createdAt: Date.now(), resolved: false, number }));
+    return id;
+  }
+
+  updatePin(id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'resolved'>>) {
+    this.patch(this.pins.get(id), patch);
+  }
+
+  pin(id: string) {
+    const m = this.pins.get(id);
+    return m ? fromYMap<Pin>(m) : undefined;
+  }
+
+  allPins(): Pin[] {
+    return [...this.pins.values()].map((m) => fromYMap<Pin>(m)).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  }
+
+  pinsOf(photoId: string) {
+    return this.allPins().filter((p) => p.photoId === photoId);
+  }
+
+  removePin(id: string) {
+    this.doc.transact(() => {
+      this.pins.delete(id);
+      this.deleteMessagesOf(id);
     });
   }
 
@@ -81,9 +117,13 @@ export class Project {
   removeObject(id: string) {
     this.doc.transact(() => {
       this.objects.delete(id);
-      const arr = this.messages.toArray();
-      for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === id) this.messages.delete(i, 1);
+      this.deleteMessagesOf(id);
     });
+  }
+
+  private deleteMessagesOf(objectId: string) {
+    const arr = this.messages.toArray();
+    for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === objectId) this.messages.delete(i, 1);
   }
 
   addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat') {

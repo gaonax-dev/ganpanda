@@ -41,6 +41,7 @@
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
 | GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 | `{role, project, seats:{used, limit}}` / 401 / 403 / 404 |
 | POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록) | 201 / 400 / 401 / 403 |
+| POST | `/api/rooms/:id/pins` (`?invite=` 또는 세션) `{photoId, x, y, author}` | 위치 코멘트(핀) 추가 (viewer 용) | 201 `{pin}` / 400 / 401 / 403 |
 
 - WebSocket `/api/rooms/:id`는 `?session=<세션>` 또는 `?invite=<토큰>`으로 자격을 넘깁니다(브라우저 WebSocket 은 헤더를 못 넣음). 등록 안 된 방 404, 자격 없음 401, 다른 프로젝트 토큰 403.
 - 역할: `owner`(소유자 세션) / `editor` / `viewer`. **viewer 소켓이 보낸 문서 변경은 서버가 버립니다**(동기화 요청만 처리). → [../features/projects-invites.md](../features/projects-invites.md)

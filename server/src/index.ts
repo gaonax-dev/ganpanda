@@ -113,6 +113,17 @@ async function postMessage(req: Request, env: Env, room: string, _role: Role): P
   return json({ message: msg }, 201);
 }
 
+/** viewer 가 사진 위에 핀을 꽂는다 (문서 편집 권한 없이) */
+async function postPin(req: Request, env: Env, room: string): Promise<Response> {
+  if (req.method !== 'POST') return text('method not allowed', 405);
+  const b = await readJson<{ photoId?: string; x?: number; y?: number; author?: string }>(req);
+  const photoId = typeof b?.photoId === 'string' ? b.photoId : '';
+  const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
+  if (!photoId || !author || typeof b?.x !== 'number' || typeof b?.y !== 'number' || !isFinite(b.x) || !isFinite(b.y)) return text('bad pin', 400);
+  const pin = await env.ROOM.getByName(room).addPin(photoId, b.x, b.y, author);
+  return json({ pin }, 201);
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -124,7 +135,7 @@ export default {
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
     // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)
-    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages)?$/);
+    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages|\/pins)?$/);
     if (room) {
       const name = decodeURIComponent(room[1]);
       if (!ROOM_RE.test(name)) return withCors(text('bad room', 400));
@@ -132,6 +143,7 @@ export default {
       const access = await resolveAccess(authed, env, name, url.searchParams.get('invite'));
       if (typeof access === 'number') return withCors(text('no access', access));
       if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
+      if (room[2] === '/pins') return withCors(await postPin(req, env, name));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));
       // 동시접속 좌석: 사람 = 계정 ID 또는 손님 브라우저 ID (없으면 소켓마다 1석)
       const sid = crypto.randomUUID();

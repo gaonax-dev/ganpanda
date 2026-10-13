@@ -9,13 +9,13 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account, type Usage } from './auth';
-import { checkAccess, postMessage, type Role } from './projects';
+import { checkAccess, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
-export type Tool = 'select' | 'rect' | 'ellipse';
+export type Tool = 'select' | 'rect' | 'ellipse' | 'pin';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
@@ -29,6 +29,8 @@ class AppState {
   view = $state<ViewKind>('board');
   tool = $state<Tool>('select');
   selectedId = $state<string | null>(null);
+  /** 선택한 핀 (사인물 선택과 배타적) */
+  selectedPinId = $state<string | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
@@ -75,6 +77,8 @@ class AppState {
     }
     return out;
   });
+  pins = $derived.by(() => (this.version, this.project.allPins()));
+  selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
   unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
@@ -199,11 +203,31 @@ class AppState {
     this.toasts = this.toasts.filter((t) => t.id !== id);
   }
 
-  /** 토스트를 누르면 그 사인물의 대화를 연다 */
+  /** 토스트를 누르면 그 사인물·핀의 대화를 연다 */
   openFromToast(t: Toast) {
     this.dismissToast(t.id);
     this.view = 'board';
-    this.selectedId = t.objectId;
+    if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.selectObject(t.objectId);
+  }
+
+  selectObject(id: string | null) {
+    this.selectedId = id;
+    if (id) this.selectedPinId = null;
+  }
+
+  selectPin(id: string | null) {
+    this.selectedPinId = id;
+    if (id) this.selectedId = null;
+  }
+
+  /** 핀 만들기: viewer 는 서버 API 로, 그 외는 문서에 직접. 만든 핀을 선택한다 */
+  async createPin(photoId: string, x: number, y: number) {
+    const body = { photoId, x: Math.round(x), y: Math.round(y), author: this.nickname };
+    let id: string;
+    if (this.role === 'viewer' && this.room) id = (await postPin(this.room, this.invite, body)).pin.id;
+    else id = this.project.addPin(body);
+    this.tool = 'select';
+    this.selectPin(id);
   }
 
   private browserNotify(author: string, text: string) {

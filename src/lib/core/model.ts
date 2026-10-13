@@ -40,6 +40,20 @@ export interface SignObject {
   createdAt: number;
 }
 
+/** 사진 위 위치 코멘트(핀). 대화는 messages 에 objectId = 핀 id 로 */
+export interface Pin {
+  id: string;
+  photoId: string;
+  /** 사진 원본 px */
+  x: number;
+  y: number;
+  author: string;
+  createdAt: number;
+  resolved: boolean;
+  /** 사진 안에서 만든 순서 (표시용) */
+  number: number;
+}
+
 export interface Message {
   id: string;
   objectId: string;

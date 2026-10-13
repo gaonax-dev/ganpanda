@@ -70,3 +70,25 @@ describe('방 접속 권한 (WebSocket)', () => {
     expect((await json(`/api/rooms/${project.id}/messages?invite=${inv.token}`, { objectId: 'x', author: 'a', text: 'hi', kind: 'note' })).status).toBe(400);
   });
 });
+
+describe('위치 코멘트(핀) API — viewer 가 사진 위에 핀을 꽂는다', () => {
+  it('핀이 문서의 pins 에 추가되어 모두에게 전달된다', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const r = await json(`/api/rooms/${project.id}/pins?invite=${inv.token}`, { photoId: 'photo-1', x: 120.4, y: 340, author: '고객' });
+    expect(r.status).toBe(201);
+    const { pin } = await r.json<{ pin: { id: string } }>();
+    await until(() => o.doc.getMap('pins').has(pin.id));
+    const m = (o.doc.getMap('pins').get(pin.id) as { toJSON(): Record<string, unknown> }).toJSON();
+    expect(m).toMatchObject({ photoId: 'photo-1', x: 120.4, y: 340, author: '고객', resolved: false });
+    expect(typeof m.createdAt).toBe('number');
+    o.close();
+  });
+
+  it('자격 없으면 401, 좌표·사진이 없으면 400', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    expect((await json(`/api/rooms/${project.id}/pins`, { photoId: 'p', x: 1, y: 2, author: 'a' })).status).toBe(401);
+    expect((await json(`/api/rooms/${project.id}/pins?invite=${inv.token}`, { photoId: '', x: 1, y: 2, author: 'a' })).status).toBe(400);
+    expect((await json(`/api/rooms/${project.id}/pins?invite=${inv.token}`, { photoId: 'p', x: 'no', y: 2, author: 'a' })).status).toBe(400);
+  });
+});

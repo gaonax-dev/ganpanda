@@ -3,7 +3,7 @@
 
 export type Action =
   | 'zoomIn' | 'zoomOut' | 'zoomFit' | 'panHold'
-  | 'toolSelect' | 'toolRect' | 'toolEllipse'
+  | 'toolSelect' | 'toolRect' | 'toolEllipse' | 'toolPin'
   | 'deleteSelection';
 
 export type Keymap = Record<Action, string[]>;
@@ -26,6 +26,7 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'toolSelect', label: '선택 도구', group: '도구' },
   { id: 'toolRect', label: '사각 영역', group: '도구' },
   { id: 'toolEllipse', label: '원형 영역', group: '도구' },
+  { id: 'toolPin', label: '핀 (위치 코멘트)', group: '도구' },
   { id: 'deleteSelection', label: '선택한 사인물 삭제', group: '편집' },
 ];
 
@@ -39,6 +40,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   toolSelect: ['V'],
   toolRect: ['R'],
   toolEllipse: ['O'],
+  toolPin: ['P'],
   deleteSelection: ['Delete', 'Backspace'],
 };
 

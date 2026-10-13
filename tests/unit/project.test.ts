@@ -65,3 +65,41 @@ describe('프로젝트 문서 (Yjs)', () => {
     expect(a.messagesOf(oid)).toEqual(b.messagesOf(oid));
   });
 });
+
+describe('위치 코멘트(핀)', () => {
+  const pin = { photoId: 'p', x: 120, y: 340, author: '고객' };
+
+  it('추가·조회·이동·해결', () => {
+    const p = new Project();
+    const pid = p.addPhoto(photo);
+    const id = p.addPin({ ...pin, photoId: pid });
+    expect(p.pinsOf(pid)).toHaveLength(1);
+    expect(p.pin(id)).toMatchObject({ x: 120, y: 340, author: '고객', resolved: false });
+    expect(p.pin(id)!.number).toBe(1);
+    p.updatePin(id, { x: 200, resolved: true });
+    expect(p.pin(id)).toMatchObject({ x: 200, y: 340, resolved: true });
+  });
+
+  it('번호는 사진 안에서 만든 순서대로 1부터', () => {
+    const p = new Project();
+    const pid = p.addPhoto(photo);
+    const a = p.addPin({ ...pin, photoId: pid });
+    const b = p.addPin({ ...pin, photoId: pid });
+    expect(p.pin(a)!.number).toBe(1);
+    expect(p.pin(b)!.number).toBe(2);
+  });
+
+  it('핀을 지우면 그 핀의 대화도, 사진을 지우면 핀도 지워진다', () => {
+    const p = new Project();
+    const pid = p.addPhoto(photo);
+    const a = p.addPin({ ...pin, photoId: pid });
+    const b = p.addPin({ ...pin, photoId: pid });
+    p.addMessage(a, '고객', '여기 간판 자리요');
+    p.removePin(a);
+    expect(p.messagesOf(a)).toEqual([]);
+    expect(p.pinsOf(pid)).toHaveLength(1);
+    p.removePhoto(pid);
+    expect(p.allPins()).toEqual([]);
+    expect(p.messagesOf(b)).toEqual([]);
+  });
+});

@@ -139,6 +139,21 @@ export class Room extends DurableObject<Env> {
     return (ws.deserializeAttachment() as Attachment).role;
   }
 
+  /** 위치 코멘트(핀) 추가 (RPC, viewer 용). 앱의 Project.addPin 과 같은 구조 */
+  async addPin(photoId: string, x: number, y: number, author: string) {
+    const pins = this.doc.getMap<Y.Map<unknown>>('pins');
+    let number = 1;
+    for (const m of pins.values()) if (m.get('photoId') === photoId) number++;
+    const id = crypto.randomUUID();
+    const m = new Y.Map<unknown>();
+    const pin = { id, photoId, x, y, author, createdAt: Date.now(), resolved: false, number };
+    this.doc.transact(() => {
+      for (const [k, v] of Object.entries(pin)) m.set(k, v);
+      pins.set(id, m);
+    });
+    return pin;
+  }
+
   /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */
   async addMessage(objectId: string, author: string, text: string, kind: Message['kind']): Promise<Message> {
     const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now() };
