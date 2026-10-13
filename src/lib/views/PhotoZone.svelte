@@ -10,6 +10,7 @@
   let {
     photo, url, zoom, objects, measures, selectedId, tool, editable = true, unread = {},
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
+    segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete,
   }: {
     pins?: Pin[];
@@ -19,6 +20,13 @@
     onselectpin?: (id: string | null) => void;
     onmovepin?: (id: string, x: number, y: number) => void;
     onpinmoveend?: () => void;
+    /** 자동 분리: 사진 분석 상태·호버 윤곽·이벤트 */
+    segmentState?: 'embedding' | 'ready' | 'error';
+    hoverPolygon?: Pt[] | null;
+    onmagicenter?: () => void;
+    onmagichover?: (x: number, y: number) => void;
+    onmagicleave?: () => void;
+    onmagicclick?: () => void;
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
@@ -71,8 +79,19 @@
   }
   function pinUp() { if (pinDrag?.moved) onpinmoveend?.(); pinDrag = null; }
 
+  let magicTimer = 0;
+  function magicMove(e: PointerEvent) {
+    if (tool !== 'magic' || magicTimer) return;
+    magicTimer = window.setTimeout(() => {
+      magicTimer = 0;
+      const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
+      onmagichover?.(x, y);
+    }, 60);
+  }
+
   function bgDown(e: PointerEvent) {
     if (e.button !== 0) return;
+    if (tool === 'magic') { e.stopPropagation(); onmagicclick?.(); return; }
     if (tool === 'pin') {
       e.stopPropagation();
       const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
@@ -156,11 +175,14 @@
     viewBox="0 0 {photo.w} {photo.h}"
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
+    class:magicking={tool === 'magic'}
     data-bg={tool === 'select' ? '' : undefined}
     role="presentation"
     onpointerdown={bgDown}
-    onpointermove={move}
+    onpointermove={(e) => { move(e); magicMove(e); }}
     onpointerup={up}
+    onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
+    onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
     {#each objects as o (o.id)}
       {@const q = quadOf(o)}
@@ -175,6 +197,7 @@
           stroke-width={2 * u}
           role="button"
           tabindex="-1"
+          pointer-events={tool === 'magic' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
@@ -203,6 +226,12 @@
         {/if}
       </g>
     {/each}
+    {#if tool === 'magic' && hoverPolygon}
+      <polygon class="magic" data-testid="magic-preview" points={hoverPolygon.map((p) => p.join(',')).join(' ')} stroke-width={2 * u} />
+    {/if}
+    {#if tool === 'magic' && segmentState === 'embedding'}
+      <text class="status" data-testid="photo-ai-status" x={photo.w / 2} y={photo.h / 2} font-size={18 * u} text-anchor="middle" stroke-width={4 * u}>AI 가 사진을 분석하는 중…</text>
+    {/if}
     {#if draft}
       <polygon class="draft" points={outline(drawShape, quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
@@ -234,4 +263,7 @@
   .sign text .u { fill: var(--accent); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
+  .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
+  .status { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
+  svg.magicking { cursor: cell; }
 </style>

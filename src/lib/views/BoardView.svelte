@@ -7,6 +7,7 @@
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
+  import { SERVER_URL } from '../sync';
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
@@ -97,6 +98,7 @@
     if (!app.canEdit) return;
     if (action === 'undo') { e.preventDefault(); app.undo(); return; }
     if (action === 'redo') { e.preventDefault(); app.redo(); return; }
+    if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';
@@ -120,6 +122,12 @@
   }
 
   let dropping = $state(false);
+
+  // 자동 분리 도구를 고르면 모델·사진 분석을 미리 시작한다
+  $effect(() => {
+    if (app.tool === 'magic') for (const p of app.photos) app.prepareSegment(p.id);
+    else app.clearHoverSegment();
+  });
 
   // 내 커서를 다른 접속자에게 (world 좌표, 50ms 간격)
   let cursorTimer = 0;
@@ -171,6 +179,12 @@
         onselectpin={(id) => app.selectPin(id)}
         onmovepin={(id, x, y) => app.project.updatePin(id, { x, y })}
         onpinmoveend={() => app.editBoundary()}
+        segmentState={app.embeddedPhotos[p.id]}
+        hoverPolygon={app.hoverSegment?.photoId === p.id ? app.hoverSegment.polygon : null}
+        onmagicenter={() => app.prepareSegment(p.id)}
+        onmagichover={(x, y) => app.segmentAt(p.id, x, y)}
+        onmagicleave={() => app.clearHoverSegment()}
+        onmagicclick={() => app.createFromSegment()}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}
@@ -188,6 +202,12 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      {#if app.tool === 'magic' && app.segmentStatus !== 'ready'}
+        <div class="ai-status" data-testid="ai-status" data-status={app.segmentStatus}>
+          {#if app.segmentStatus === 'error'}AI 모델을 불러오지 못했습니다. {app.segmentError}
+          {:else}AI 모델 불러오는 중… (처음 한 번, 약 14MB){/if}
+        </div>
+      {/if}
       {#if app.ready && !app.photos.length && app.canEdit}
         <div class="empty">
           <p>건물 사진을 올려 시작하세요</p>
@@ -201,6 +221,9 @@
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍 핀</button>
+          {#if SERVER_URL}
+            <button data-testid="tool-magic" class:on={app.tool === 'magic'} title="자동 분리 · AI ({hint('toolMagic')})" onclick={() => (app.tool = 'magic')}>✨ 자동</button>
+          {/if}
           <span class="sep"></span>
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}>↶</button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}>↷</button>
@@ -239,6 +262,8 @@
   .tools button:hover, .tools .file:hover { background: var(--hover); }
   .tools button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
   .tools button:disabled { opacity: 0.35; cursor: default; }
+  .ai-status { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 13px; z-index: 4; }
+  .ai-status[data-status='error'] { border-color: var(--danger); }
   .readonly { color: var(--muted); font-size: 12px; padding: 7px 11px; }
   .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
   .zoom { color: var(--muted); font-size: 12px; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }

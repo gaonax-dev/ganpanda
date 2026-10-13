@@ -15,6 +15,7 @@
 | PUT | `/api/assets/:id` `?project=&session\|invite` | 에셋 업로드 (viewer 포함 — 대화 첨부용). 사용량은 프로젝트 소유 계정에 | 201 / 400 ID·해시 / 401·403 권한 / 413 25MB 초과 또는 **`{error:'storage_limit', limitBytes, usedBytes, sizeBytes}`** / 415 |
 | GET, HEAD | `/api/assets/:id` `?project=&session\|invite` | 에셋 다운로드·존재 확인 (viewer 포함, 소유 계정에 등록된 에셋만) | 200 / 403 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
+| GET, HEAD | `/api/models/*` | AI 모델 파일 (R2 `models/` 아래, 공개·`immutable` 캐시, 경로 탈출 400) | 200 / 404 |
 | POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
 | POST | `/api/auth/verify` `{token}` | 링크 검증 → 계정 생성(최초)·세션 발급 | 200 `{session, account}` / 404 없음 / 410 만료·사용됨 |
 | GET | `/api/me` | 내 계정 + 한도·사용량 (`Authorization: Bearer <세션>`) | 200 `{account, limits:{storageBytes, seats}, usage:{storageBytes, seats}}` / 401 |
