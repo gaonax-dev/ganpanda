@@ -28,6 +28,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 ## 배포 (서버)
 - 계정: Cloudflare (`npx wrangler whoami`). 명령: `cd server && npm run deploy`
 - 주소: **`https://sync.ganpanda.co.kr`** (커스텀 도메인) + 비상용 `https://ganpanda-sync.gaonax-dev.workers.dev` (`workers_dev: true`)
+- 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`. 2026-10-13 1차 전체(인증·프로젝트·한도·이메일·모델 제공) 배포 완료.
 - R2 버킷 `ganpanda-assets`는 첫 배포(2026-10-13) 때 자동 생성
 - 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장 프로브, 에셋 PUT 201 → GET 동일 바이트
 
@@ -37,13 +38,15 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - 주소: **`https://ganpanda.co.kr`**, `https://www.ganpanda.co.kr` + 비상용 `https://ganpanda.gaonax-dev.workers.dev`
 - 도메인 전파 전에는 workers.dev 서버 주소로 임시 빌드했었음 — 전파 뒤에는 `npm run deploy`(= `.env.production`의 `sync.ganpanda.co.kr`)로 배포.
 
-## AI 모델 파일 (R2)
-- `server/scripts/models.sh --local`(개발·E2E) / `--remote`(운영): SlimSAM 양자화 파일 4개를 R2 `models/slimsam/` 아래에 올립니다. 운영 업로드는 2026-10-13 완료.
-- 앱의 `npm run dev`/`build`는 `npm run ort`로 onnxruntime wasm 을 `public/ort/`에 복사합니다(커밋 안 함).
+## AI 모델·런타임 파일 (R2)
+- `server/scripts/models.sh --local`(개발·E2E) / `--remote`(운영): SlimSAM 양자화 파일 4개(`models/slimsam/`)와 onnxruntime-web 런타임 8개(`models/ort/`, `.mjs`는 `text/javascript`, `.wasm`은 `application/wasm`)를 R2 에 올립니다. 운영 업로드 2026-10-13 완료.
+- 런타임을 앱 정적 에셋으로 넣지 않는 이유: `asyncify.wasm`이 25.6MiB 로 Workers 정적 에셋 한도(25MiB)를 넘습니다. 워커는 `wasmPaths = <서버>/api/models/ort/`로 받습니다.
+- Vite 가 onnxruntime-web 의 `import.meta.url` 참조 때문에 wasm 을 `dist/assets/`에 내보내므로, `npm run build`가 끝에 `scripts/strip-ort.mjs`로 제거합니다(안 지우면 배포가 "Asset too large"로 실패).
 
 ## 이메일 발송 (Cloudflare Email Sending)
 - `wrangler.jsonc`의 `send_email: [{ name: "EMAIL" }]`. 발신 주소 `login@ganpanda.co.kr`.
-- **도메인 온보딩(한 번)**: 대시보드 → Compute & AI → Email Service → Email Sending → Onboard Domain → `ganpanda.co.kr` → Add records and onboard (SPF·DKIM 레코드 자동 추가). CLI(`wrangler email sending enable`)는 로그인 토큰에 `email_sending:write` 권한이 있어야 합니다(`npx wrangler login --scopes …`).
+- **요금제**: 불특정 주소로 보내려면 Workers Paid(월 $5, 월 3,000통 포함, 초과 1,000통당 $0.35). 2026-10-13 Paid 로 전환.
+- **도메인 온보딩(한 번, 완료)**: 대시보드 → Compute & AI → Email Service → Email Sending → Onboard Domain → `ganpanda.co.kr` → Add records and onboard. CLI(`wrangler email sending enable`)는 토큰에 `email_sending:write` 권한이 필요합니다. 온보딩 직후 첫 발송은 502 가 날 수 있고 잠시 뒤 정상(실제 겪음).
 - 로컬 `wrangler dev`는 기본이 시뮬레이션(콘솔 로그, 실제 발송 없음). 실제 발송을 테스트하려면 바인딩에 `remote: true`.
 - 운영 메일 한도·반송 관리 → Cloudflare 문서 Limits / Deliverability.
 
