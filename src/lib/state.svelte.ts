@@ -5,6 +5,9 @@ import { measurePhoto, type MeasureResult } from './core/measure';
 import type { SignObject } from './core/model';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
+import { SyncClient, type SyncStatus } from './sync';
+import { flushPendingUploads } from './assets';
+import type { Cursor, Peer } from './core/presence';
 
 export type ViewKind = 'board' | 'list' | 'uv';
 export type Tool = 'select' | 'rect' | 'ellipse';
@@ -22,6 +25,10 @@ class AppState {
   keymap = $state<Keymap>(mergeKeymap(parse(load('ganpanda.keymap'))));
   settingsOpen = $state(false);
   readonly isMac = isMacPlatform();
+  /** 동기화 서버 연결 상태와 다른 접속자 */
+  sync = $state<SyncStatus>('local');
+  peers = $state<Peer[]>([]);
+  private client: SyncClient;
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -39,10 +46,19 @@ class AppState {
     this.project.onChange(() => this.version++);
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
     persist.whenSynced.then(() => (this.ready = true));
+    this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p));
+    this.client.whenOnline(flushPendingUploads);
+    this.client.setName(this.nickname);
+  }
+
+  /** 사진 보드 위 내 커서 (world 좌표). null = 보드 밖 */
+  setCursor(c: Cursor | null) {
+    this.client.setCursor(c);
   }
 
   setNickname(n: string) {
     this.nickname = n;
+    this.client.setName(n);
     try { localStorage.setItem('ganpanda.nickname', n); } catch { /* 저장 불가 환경 */ }
   }
 

@@ -14,6 +14,8 @@ export class TestClient {
   awareness = new awarenessProtocol.Awareness(this.doc);
   ws!: WebSocket;
   received = 0;
+  /** y-websocket 처럼 다른 사람의 상태를 받으면 서버에 그대로 되돌려 보낸다 */
+  echo = false;
 
   static async connect(room: string, doc?: Y.Doc) {
     const c = new TestClient();
@@ -58,6 +60,7 @@ export class TestClient {
       if (encoding.length(enc) > 1) this.ws.send(encoding.toUint8Array(enc));
     } else if (type === MSG_AWARENESS) {
       awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(dec), this);
+      if (this.echo) this.ws.send(data);
     }
   }
 

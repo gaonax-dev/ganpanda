@@ -111,3 +111,66 @@ describe('접속자 표시 (awareness)', () => {
     b.close();
   });
 });
+
+describe('y-websocket 클라이언트 호환 경로', () => {
+  it('/api/rooms/:room (끝에 /ws 없이) 로도 접속된다', async () => {
+    const r = await exports.default.fetch(`http://sync/api/rooms/${room()}`, { headers: { Upgrade: 'websocket' } });
+    expect(r.status).toBe(101);
+    r.webSocket!.accept(); r.webSocket!.close();
+  });
+});
+
+describe('접속자 상태의 주인 추적 (y-websocket 은 남의 상태를 되돌려 보낸다)', () => {
+  const names = (c: TestClient) => [...c.awareness.getStates().values()].map((s) => s.name).filter(Boolean).sort();
+
+  it('되돌려 보낸(echo) 사람이 나가도 원래 주인은 남고, 나간 사람만 사라진다', async () => {
+    const id = room();
+    const a = await TestClient.connect(id);
+    a.setPresence({ name: 'A' });
+    const b = await TestClient.connect(id);
+    b.echo = true;
+    b.setPresence({ name: 'B' });
+    const c = await TestClient.connect(id);
+    c.echo = true;
+    c.setPresence({ name: 'C' });
+    await until(() => names(c).join() === 'A,B,C' && names(a).join() === 'A,B,C');
+    b.close();
+    await until(() => names(a).join() === 'A,C' && names(c).join() === 'A,C');
+    a.close(); c.close();
+  });
+
+  it('같은 clientID 로 다시 접속(재연결)한 뒤 나가면 사라진다', async () => {
+    const id = room();
+    const a = await TestClient.connect(id);
+    a.setPresence({ name: 'A' });
+    const watcher = await TestClient.connect(id);
+    await until(() => names(watcher).includes('A'));
+    // 재연결: 같은 doc(= 같은 clientID) 으로 새 소켓
+    const a2 = await TestClient.connect(id, a.doc);
+    a2.setPresence({ name: 'A' });
+    await new Promise((r) => setTimeout(r, 100));
+    a.close(); // 옛 소켓 종료 — A 는 새 소켓으로 살아 있음
+    await new Promise((r) => setTimeout(r, 100));
+    a2.setPresence({ name: 'A' });
+    await until(() => names(watcher).includes('A'));
+    a2.close();
+    await until(() => !names(watcher).includes('A'));
+    watcher.close();
+  });
+
+  it('나중에 온 사람은 살아 있는 접속자의 상태만 받는다', async () => {
+    const id = room();
+    const a = await TestClient.connect(id);
+    a.setPresence({ name: 'A' });
+    const b = await TestClient.connect(id);
+    b.setPresence({ name: 'B' });
+    await new Promise((r) => setTimeout(r, 100));
+    b.close();
+    await new Promise((r) => setTimeout(r, 100));
+    const c = await TestClient.connect(id);
+    await until(() => names(c).includes('A'));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(names(c)).toEqual(['A']);
+    a.close(); c.close();
+  });
+});

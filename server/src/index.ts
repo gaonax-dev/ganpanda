@@ -65,7 +65,7 @@ export default {
 
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
 
-    const room = pathname.match(/^\/api\/rooms\/([^/]+)\/ws$/);
+    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(?:\/ws)?$/); // y-websocket 은 /api/rooms/<room> 으로 접속
     if (room) {
       const name = decodeURIComponent(room[1]);
       if (!ROOM_RE.test(name)) return withCors(text('bad room', 400));

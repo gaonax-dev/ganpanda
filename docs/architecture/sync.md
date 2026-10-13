@@ -6,7 +6,14 @@
 ## 상태
 - 기기 저장: 구현됨 (`y-indexeddb`, `src/lib/assets.ts`)
 - 서버: 구현됨 (`server/`) → [../server/api.md](../server/api.md)
-- **앱 ↔ 서버 연결: 미구현 (1차 예정)**
+- 앱 ↔ 서버 연결: 구현됨 (`src/lib/sync.ts`, 1차 1-1)
+
+## 앱 연결 (`src/lib/sync.ts`)
+- 서버 주소: `VITE_SYNC_URL`. 없으면 개발 중에는 `http://localhost:8787`, 운영 빌드에서는 **서버 없이 로컬 모드**(`core/syncUrl.ts`).
+- 공식 `y-websocket` 클라이언트로 `${서버}/api/rooms/<room>`에 접속합니다. 끊기면 자동 재접속합니다.
+- 연결 상태 `app.sync`: `local`(서버 없음) / `connecting` / `online` / `offline`(재연결 중). 상단 바에 표시(`data-testid="sync-status"`).
+- 접속자 상태(awareness): `{ name, color, cursor? }`. 색은 이름으로 정해집니다(`core/presence.ts`). 같은 이름의 탭 여러 개는 한 사람으로 합쳐 상단 바에 표시하고, 커서는 탭마다 사진 보드에 보여 줍니다(world 좌표, 50ms 간격 전송).
+- 접속자 목록은 `name`이 없는(아직 상태를 보내지 않은) 접속을 제외합니다. 이름이 빈 문자열이면 "손님"으로 표시합니다.
 
 ## 방(room)
 - 프로젝트 하나 = 방 하나. URL `?room=<id>`로 지정하며, 없으면 `local-default`입니다.
@@ -23,4 +30,5 @@
 - 에셋 ID = 내용 SHA-256 앞 16바이트(32자 hex). 클라이언트와 서버가 같은 방식으로 계산합니다.
 - 기기에서는 IndexedDB(`ganpanda-assets`)에 둡니다.
 - 서버에서는 R2에 두고, 업로드할 때 해시를 검증합니다.
-- (1차 예정) 연결되면, 문서가 참조하지만 서버에 없는 에셋을 올립니다.
+- 업로드(`putAsset`): 기기에 저장한 뒤 서버에 `HEAD`로 있는지 확인하고 없으면 `PUT`. 실패하면 보관했다가 다시 연결될 때 재시도(`flushPendingUploads`).
+- 다운로드(`assetUrl`): 기기에 없으면 서버에서 받아 기기에 저장합니다.

@@ -12,7 +12,8 @@ ganpanda/
 │  ├─ lib/views/           화면 (사진 보드, 사인물 리스트, UV 뷰)
 │  ├─ lib/sim/             초기 3D 시뮬레이터 (보관, 4·5차에서 재사용)
 │  ├─ lib/state.svelte.ts  앱 전역 상태 (Yjs 문서 ↔ Svelte 반응성)
-│  └─ lib/assets.ts        이미지 에셋 저장 (IndexedDB)
+│  ├─ lib/sync.ts          동기화 서버 연결 (y-websocket, 접속자 상태)
+│  └─ lib/assets.ts        이미지 에셋 저장 (IndexedDB + 서버 R2)
 ├─ server/                 동기화 API 서버 (Cloudflare Worker + Durable Object + R2)
 ├─ tests/unit/             앱 단위 테스트 (Vitest)
 ├─ tests/e2e/              앱 E2E 테스트 (Playwright)
@@ -32,6 +33,8 @@ ganpanda/
 | `viewport.ts` | 무한 캔버스 뷰포트 계산 (이동, 확대, 맞춤) |
 | `wheel.ts` | 휠 입력 판별 (확대 vs 이동), 플랫폼 판별 |
 | `keymap.ts` | 단축키 조합 인식·기본값·충돌 검사 |
+| `presence.ts` | 접속자 색·목록 계산 |
+| `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |
 | `textShapes.ts` | 폰트 글리프 → 도형 (입체 글자용) |
@@ -40,7 +43,7 @@ ganpanda/
 1. 사용자 조작 → `app.project`(Yjs 문서) 변경
 2. Yjs `update` 이벤트 → `app.version` 증가 → `$derived` 값 재계산 → 화면 갱신
 3. Yjs 문서는 IndexedDB에 저장 (`y-indexeddb`, 방 이름 `ganpanda-<room>`)
-4. (1차 예정) 같은 문서를 동기화 서버와 WebSocket으로 주고받음 → [sync.md](sync.md)
+4. 같은 문서를 동기화 서버와 WebSocket으로 주고받음 (서버 주소가 있을 때) → [sync.md](sync.md)
 
 ## 관련 문서
 - [data-model.md](data-model.md), [coordinates.md](coordinates.md), [sync.md](sync.md), [../server/internals.md](../server/internals.md)

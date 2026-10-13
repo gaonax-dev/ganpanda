@@ -1,7 +1,7 @@
 :root {
   --bg: #0f1115; --panel: #171a21; --line: #2a2f3a; --text: #e7e9ee; --muted: #8b93a3; --input: #0f1218; --hover: #232835;
   --canvas: #101217; --dot: #2a2f3a; --accent: #ffcc00; --accent-ink: #1a1500; --blue: #2f8bff; --warn: #ffaa00; --danger: #ff5a52;
-  --dim: #7fd3ff; --chat-bg: #b2c7da; --chat-who: #4a5866;
+  --dim: #7fd3ff; --ok: #3ddc84; --chat-bg: #b2c7da; --chat-who: #4a5866;
   font-family: 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
   color: var(--text); background: var(--bg); color-scheme: dark;
 }

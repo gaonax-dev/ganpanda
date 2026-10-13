@@ -13,10 +13,15 @@
 - **Hibernation**: 접속이 있어도 메시지가 없으면 메모리에서 내려갈 수 있습니다. 다시 깨어나면 생성자가 SQLite에서 문서를 다시 읽습니다. 메모리에만 있는 상태에 의존하지 않습니다.
 
 ## 접속자 표시 (awareness)
-- 클라이언트가 보낸 마지막 awareness 메시지를 해당 WebSocket의 attachment에 보관합니다(2KB 제한 때문에 1,800바이트 이하만, `MAX_AWARENESS`). 메모리가 아니라 소켓에 붙어 있어 Hibernation 뒤에도 남습니다.
-- 새 접속자에게 다른 사람들의 보관된 상태를 보냅니다.
-- 연결이 끊기면 보관된 상태로 "퇴장" 메시지(같은 clientID, clock + 1, `null`)를 만들어 알립니다 (`awarenessRemoval`).
+- **주인 추적**: y-websocket 클라이언트는 다른 사람의 상태를 받으면 서버에 그대로 되돌려 보냅니다(echo). 그래서 "소켓이 보낸 상태 = 그 소켓의 상태"로 보면 안 됩니다. 서버는 SQLite `awareness` 테이블(client_id, sock, clock, state)에 **처음 보낸 소켓을 주인**으로 기록하고, 주인이 살아 있는 clientID를 다른 소켓이 보내면 무시합니다.
+- 소켓마다 접속 시 무작위 `sid`를 만들어 attachment와 WebSocket 태그에 둡니다. `getWebSockets(sid)`로 살아 있는지 확인합니다.
+- 주인 소켓이 죽었는데(재연결 등) 같은 clientID가 다른 소켓에서 오면 그 소켓이 새 주인이 됩니다.
+- 받아들인 항목만 다른 접속자에게 다시 보냅니다(echo 는 전달하지 않음).
+- 연결이 끊기면 그 소켓이 주인인 clientID 전부에 대해 퇴장(clock + 1, `null`)을 보내고 행을 지웁니다. 깨끗한 종료든 갑작스러운 끊김이든 서버가 처리합니다(로컬 wrangler dev 에서 1초 안에 확인).
+- 잠들었다 깨어나면(생성자) 이미 죽은 소켓의 행을 정리하고 남은 접속자에게 알립니다.
+- 새 접속자에게는 살아 있는 소켓의 상태만 보냅니다.
+- 상태 JSON 은 4KB(`MAX_STATE`)까지만 받습니다.
 
 ## 테스트 환경
 - `@cloudflare/vitest-plugin`(이전 이름 `vitest-pool-workers`)으로 실제 Workers 런타임에서 실행합니다.
-- 테스트용 클라이언트 `server/test/client.ts`: 이 런타임에서는 바이너리 메시지가 Blob으로 들어오므로, 순서를 지키며 ArrayBuffer로 바꿔 처리합니다. 실제 브라우저의 `y-websocket`은 ArrayBuffer로 받습니다.
+- 테스트용 클라이언트 `server/test/client.ts`: 이 런타임에서는 바이너리 메시지가 Blob으로 들어오므로, 순서를 지키며 ArrayBuffer로 바꿔 처리합니다. 실제 브라우저의 `y-websocket`은 ArrayBuffer로 받습니다. `echo = true`로 두면 y-websocket처럼 남의 상태를 되돌려 보내는 동작을 흉내 냅니다.
