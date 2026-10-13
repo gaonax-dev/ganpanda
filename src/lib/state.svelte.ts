@@ -3,6 +3,8 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import type { SignObject } from './core/model';
+import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
+import { isMacPlatform } from './core/wheel';
 
 export type ViewKind = 'board' | 'list' | 'uv';
 export type Tool = 'select' | 'rect' | 'ellipse';
@@ -16,6 +18,10 @@ class AppState {
   selectedId = $state<string | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
+  /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
+  keymap = $state<Keymap>(mergeKeymap(parse(load('ganpanda.keymap'))));
+  settingsOpen = $state(false);
+  readonly isMac = isMacPlatform();
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -40,12 +46,25 @@ class AppState {
     try { localStorage.setItem('ganpanda.nickname', n); } catch { /* 저장 불가 환경 */ }
   }
 
+  setKeymap(km: Keymap) {
+    this.keymap = km;
+    try { localStorage.setItem('ganpanda.keymap', JSON.stringify(km)); } catch { /* 저장 불가 환경 */ }
+  }
+
+  resetKeymap() {
+    this.setKeymap(structuredClone(DEFAULT_KEYMAP));
+  }
+
   /** 견적·전개도용 치수: 입력값 우선, 없으면 판독 추정값 */
   sizeOf(o: SignObject): { w: number; h: number; estimated: boolean } | null {
     if (o.widthMm && o.heightMm) return { w: o.widthMm, h: o.heightMm, estimated: false };
     const e = this.measures.get(o.id)?.estimate;
     return e ? { w: o.widthMm ?? e.widthMm, h: o.heightMm ?? e.heightMm, estimated: true } : null;
   }
+}
+
+function parse(s: string | null): unknown {
+  try { return s ? JSON.parse(s) : null; } catch { return null; }
 }
 
 function load(k: string) {

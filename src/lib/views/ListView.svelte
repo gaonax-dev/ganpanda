@@ -98,7 +98,7 @@
 </script>
 
 <div class="list-view">
-  <InfiniteCanvas bind:this={canvas} bind:viewport testid="list-canvas" onbackgrounddown={() => { app.selectedId = null; }}>
+  <InfiniteCanvas bind:this={canvas} bind:viewport testid="list-canvas" onfit={fit} onbackgrounddown={() => { app.selectedId = null; }}>
     {#each sized as { o, w, h, estimated } (o.id)}
       {@const pos = drag?.id === o.id ? { x: drag.sx, y: drag.sy } : placed.get(o.id)!}
       {@const photo = app.photos.find((p) => p.id === o.photoId)}
