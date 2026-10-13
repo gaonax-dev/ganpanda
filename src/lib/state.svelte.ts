@@ -12,6 +12,7 @@ import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, updateName, verifyToken, type Account, type Usage } from './auth';
 import { checkAccess, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
+import { createHistory } from './core/history';
 
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
@@ -66,6 +67,11 @@ class AppState {
   toasts = $state<Toast[]>([]);
   private readonly startedAt = Date.now();
   private knownMessageIds = new Set<string>();
+  /** 실행 취소 (내 편집만) */
+  private history = createHistory(this.project);
+  private historyVersion = $state(0);
+  canUndo = $derived.by(() => (this.historyVersion, this.canEdit && this.history.canUndo()));
+  canRedo = $derived.by(() => (this.historyVersion, this.canEdit && this.history.canRedo()));
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
@@ -89,6 +95,7 @@ class AppState {
 
   constructor() {
     this.project.onChange(() => this.version++);
+    this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
     this.room = url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
@@ -212,6 +219,11 @@ class AppState {
     if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.selectObject(t.objectId);
   }
 
+  undo() { if (this.canEdit) this.history.undo(); }
+  redo() { if (this.canEdit) this.history.redo(); }
+  /** 별개의 동작(추가·삭제·드래그 끝) 경계 — 이후 변경은 새 실행 취소 묶음 */
+  editBoundary() { this.history.stopCapturing(); }
+
   selectObject(id: string | null) {
     this.selectedId = id;
     if (id) this.selectedPinId = null;
@@ -227,7 +239,7 @@ class AppState {
     const body = { photoId, x: Math.round(x), y: Math.round(y), author: this.nickname };
     let id: string;
     if (this.role === 'viewer' && this.room) id = (await postPin(this.room, this.invite, body)).pin.id;
-    else id = this.project.addPin(body);
+    else { this.editBoundary(); id = this.project.addPin(body); this.editBoundary(); }
     this.tool = 'select';
     this.selectPin(id);
   }

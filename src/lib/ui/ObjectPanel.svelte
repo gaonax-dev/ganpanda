@@ -118,7 +118,7 @@
   </section>
 
   <footer>
-    {#if !ro}<button class="btn small danger" onclick={() => { app.project.removeObject(obj.id); app.selectedId = null; }}>사인물 삭제</button>{/if}
+    {#if !ro}<button class="btn small danger" onclick={() => { app.editBoundary(); app.project.removeObject(obj.id); app.editBoundary(); app.selectedId = null; }}>사인물 삭제</button>{/if}
   </footer>
 </aside>
 

@@ -9,7 +9,7 @@
 
   let {
     photo, url, zoom, objects, measures, selectedId, tool, editable = true, unread = {},
-    pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin,
+    pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete,
   }: {
     pins?: Pin[];
@@ -18,6 +18,7 @@
     oncreatepin?: (x: number, y: number) => void;
     onselectpin?: (id: string | null) => void;
     onmovepin?: (id: string, x: number, y: number) => void;
+    onpinmoveend?: () => void;
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
@@ -68,7 +69,7 @@
     pinDrag.moved = true;
     onmovepin?.(pinDrag.id, Math.round(x), Math.round(y));
   }
-  function pinUp() { pinDrag = null; }
+  function pinUp() { if (pinDrag?.moved) onpinmoveend?.(); pinDrag = null; }
 
   function bgDown(e: PointerEvent) {
     if (e.button !== 0) return;
