@@ -4,7 +4,8 @@
   import PhotoZone from './PhotoZone.svelte';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset } from '../assets';
-  import { fitRect, type Viewport } from '../core/viewport';
+  import { fitRect, toScreen, type Viewport } from '../core/viewport';
+  import { formatCombo, matchAction, type Action } from '../core/keymap';
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
@@ -71,21 +72,35 @@
   }
 
   function onkey(e: KeyboardEvent) {
+    if (app.settingsOpen || app.view !== 'board') return;
     const t = e.target as HTMLElement;
-    // 입력칸에서 Esc → 입력 종료 후 단축키 사용 가능
-    if (e.key === 'Escape' && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) { t.blur(); return; }
-    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return;
-    const k = e.key.toLowerCase();
-    if (k === 'v' || k === 'escape') app.tool = 'select';
-    else if (k === 'r') app.tool = 'rect';
-    else if (k === 'o') app.tool = 'ellipse';
-    else if ((k === 'delete' || k === 'backspace') && app.selectedId) {
+    const typing = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
+    // Esc 는 고정: 입력 중이면 입력 종료, 아니면 선택 도구
+    if (e.key === 'Escape') { if (typing) t.blur(); else app.tool = 'select'; return; }
+    if (typing) return;
+    const action = matchAction(app.keymap, e, app.isMac);
+    if (action === 'toolSelect') app.tool = 'select';
+    else if (action === 'toolRect') app.tool = 'rect';
+    else if (action === 'toolEllipse') app.tool = 'ellipse';
+    else if (action === 'deleteSelection' && app.selectedId) {
+      e.preventDefault();
       app.project.removeObject(app.selectedId);
       app.selectedId = null;
     }
   }
 
+  /** 키보드 확대 기준: 선택한 사인물의 화면상 중심 */
+  function zoomAnchor() {
+    const o = app.selected;
+    const p = o && app.photos.find((x) => x.id === o.photoId);
+    if (!o || !p) return null;
+    const s = p.width / p.w;
+    const cx = o.quad.reduce((a, q) => a + q[0], 0) / 4, cy = o.quad.reduce((a, q) => a + q[1], 0) / 4;
+    return toScreen(viewport, { x: p.x + cx * s, y: p.y + cy * s });
+  }
+
   let dropping = $state(false);
+  const hint = (a: Action) => app.keymap[a].map((c) => formatCombo(c, app.isMac)).join(', ') || '없음';
 </script>
 
 <svelte:window onkeydown={onkey} />
@@ -103,6 +118,8 @@
     bind:this={canvas}
     bind:viewport
     testid="board-canvas"
+    onfit={fitAll}
+    {zoomAnchor}
     onbackgrounddown={() => { app.selectedId = null; }}
   >
     {#each app.photos as p (p.id)}
@@ -131,13 +148,13 @@
         </div>
       {/if}
       <div class="tools" role="toolbar">
-        <button class:on={app.tool === 'select'} title="선택 (V)" onclick={() => (app.tool = 'select')}>↖ 선택</button>
-        <button class:on={app.tool === 'rect'} title="사각 영역 (R)" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
-        <button class:on={app.tool === 'ellipse'} title="원형 영역 (O)" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
+        <button class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖ 선택</button>
+        <button class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
+        <button class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
         <span class="sep"></span>
         <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
-        <button title="전체 보기" onclick={fitAll}>⤢</button>
-        <span class="zoom">{Math.round(viewport.zoom * 100)}%</span>
+        <button title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
+        <span class="zoom" data-testid="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
       </div>
     {/snippet}
   </InfiniteCanvas>

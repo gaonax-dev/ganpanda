@@ -4,6 +4,17 @@
   import ListView from './lib/views/ListView.svelte';
   import UvView from './lib/views/UvView.svelte';
   import ObjectPanel from './lib/ui/ObjectPanel.svelte';
+  import Settings from './lib/ui/Settings.svelte';
+
+  // 캔버스 밖에서도 브라우저 확대(Ctrl+휠·핀치)가 일어나지 않게 (xlpop 과 동일)
+  $effect(() => {
+    const block = (e: WheelEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+      else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault(); // 가로 스와이프 뒤로가기 방지
+    };
+    document.addEventListener('wheel', block, { passive: false });
+    return () => document.removeEventListener('wheel', block);
+  });
 
   const VIEWS: { id: ViewKind; label: string }[] = [
     { id: 'board', label: '사진 보드' },
@@ -26,6 +37,7 @@
       {/each}
     </div>
     <div class="right">
+      <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="sync" title="실시간 서버 연결은 다음 단계">● 로컬 저장</span>
       <button class="who" onclick={() => { const n = prompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>
         {app.nickname || '이름 설정'}
@@ -42,6 +54,7 @@
     {/if}
   </main>
 </div>
+{#if app.settingsOpen}<Settings />{/if}
 
 <style>
   .shell { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
