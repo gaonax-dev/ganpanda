@@ -12,7 +12,7 @@
 |---|---|---|---|
 | GET | `/api/health` | 상태 확인 | `{ "ok": true }` |
 | GET (WebSocket) | `/api/rooms/:room` (또는 `/ws`) `?session=`\|`?invite=&guest=` | 프로젝트 실시간 동기화 (y-websocket 호환) | 101 / 400 방 이름 / 401·403·404 권한 / **429 `{error:'seat_limit', used, limit}`** 동시접속 한도 / 426 |
-| PUT | `/api/assets/:id` `?project=&session\|invite` | 에셋 업로드 (owner·editor). 사용량은 프로젝트 소유 계정에 | 201 / 400 ID·해시 / 401·403 권한 / 413 25MB 초과 또는 **`{error:'storage_limit', limitBytes, usedBytes, sizeBytes}`** / 415 |
+| PUT | `/api/assets/:id` `?project=&session\|invite` | 에셋 업로드 (viewer 포함 — 대화 첨부용). 사용량은 프로젝트 소유 계정에 | 201 / 400 ID·해시 / 401·403 권한 / 413 25MB 초과 또는 **`{error:'storage_limit', limitBytes, usedBytes, sizeBytes}`** / 415 |
 | GET, HEAD | `/api/assets/:id` `?project=&session\|invite` | 에셋 다운로드·존재 확인 (viewer 포함, 소유 계정에 등록된 에셋만) | 200 / 403 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
 | POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
@@ -40,7 +40,7 @@
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
 | GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 | `{role, project, seats:{used, limit}}` / 401 / 403 / 404 |
-| POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록) | 201 / 400 / 401 / 403 |
+| POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind, attachments?}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록). 첨부는 최대 5개, 에셋 ID 32자·허용 형식만. 글이 없으면 첨부 필수 | 201 / 400 / 401 / 403 |
 | POST | `/api/rooms/:id/pins` (`?invite=` 또는 세션) `{photoId, x, y, author}` | 위치 코멘트(핀) 추가 (viewer 용) | 201 `{pin}` / 400 / 401 / 403 |
 
 - WebSocket `/api/rooms/:id`는 `?session=<세션>` 또는 `?invite=<토큰>`으로 자격을 넘깁니다(브라우저 WebSocket 은 헤더를 못 넣음). 등록 안 된 방 404, 자격 없음 401, 다른 프로젝트 토큰 403.

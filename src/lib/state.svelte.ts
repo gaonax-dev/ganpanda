@@ -2,7 +2,8 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
-import type { Message, SignObject } from './core/model';
+import type { Attachment, Message, SignObject } from './core/model';
+import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
@@ -193,9 +194,10 @@ class AppState {
       this.knownMessageIds.add(m.id);
       if (m.ts < this.startedAt) continue;
       if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' ? this.selectedId : null, hidden: document.hidden })) continue;
-      this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text: m.text }];
+      const text = m.text || describeAttachments(m.attachments ?? []);
+      this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text }];
       setTimeout(() => this.dismissToast(m.id), 8000);
-      this.browserNotify(m.author, m.text);
+      this.browserNotify(m.author, text);
     }
   }
 
@@ -256,11 +258,11 @@ class AppState {
   }
 
   /** 대화·코멘트: viewer 는 서버 API 로, 그 외는 문서에 직접 */
-  async sendMessage(objectId: string, text: string, kind: Message['kind']) {
+  async sendMessage(objectId: string, text: string, kind: Message['kind'], attachments: Attachment[] = []) {
     if (this.role === 'viewer' && this.room) {
-      await postMessage(this.room, this.invite, { objectId, author: this.nickname, text, kind });
+      await postMessage(this.room, this.invite, { objectId, author: this.nickname, text, kind, attachments });
     } else {
-      this.project.addMessage(objectId, this.nickname, text, kind);
+      this.project.addMessage(objectId, this.nickname, text, kind, attachments);
     }
   }
 

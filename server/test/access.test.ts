@@ -92,3 +92,24 @@ describe('위치 코멘트(핀) API — viewer 가 사진 위에 핀을 꽂는�
     expect((await json(`/api/rooms/${project.id}/pins?invite=${inv.token}`, { photoId: 'p', x: 'no', y: 2, author: 'a' })).status).toBe(400);
   });
 });
+
+describe('메시지 첨부 (viewer 대화 API)', () => {
+  const att = { assetId: 'a'.repeat(32), name: '현장.jpg', type: 'image/jpeg', size: 1234 };
+  it('첨부가 함께 기록되고, 첨부만 있는 메시지(글 없음)도 허용', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const r = await json(`/api/rooms/${project.id}/messages?invite=${inv.token}`, { objectId: 'obj-1', author: '고객', text: '', kind: 'chat', attachments: [att] });
+    expect(r.status).toBe(201);
+    await until(() => o.doc.getArray('messages').length === 1);
+    expect(o.doc.getArray('messages').get(0)).toMatchObject({ text: '', attachments: [att] });
+    o.close();
+  });
+
+  it('첨부 형식이 틀리거나 5개를 넘으면 400', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const q = `/api/rooms/${project.id}/messages?invite=${inv.token}`;
+    expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: [{ assetId: 'short', name: 'n', type: 'image/png', size: 1 }] })).status).toBe(400);
+    expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: Array(6).fill(att) })).status).toBe(400);
+    expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: [{ ...att, type: 'text/html' }] })).status).toBe(400);
+  });
+});
