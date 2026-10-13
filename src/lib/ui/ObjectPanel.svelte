@@ -36,7 +36,7 @@
 <aside class="panel" data-testid="object-panel">
   <header>
     <input class="title" value={obj.name} disabled={ro} onchange={(e) => update({ name: e.currentTarget.value || obj.name })} />
-    <button class="icon" title="닫기" onclick={() => (app.selectedId = null)}>✕</button>
+    <button class="icon" title="닫기" onclick={() => app.selectObject(null)}>✕</button>
   </header>
 
   <section>

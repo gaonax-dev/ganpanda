@@ -9,6 +9,7 @@
   import Home from './lib/ui/Home.svelte';
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
+  import PinPanel from './lib/ui/PinPanel.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -116,6 +117,8 @@
       {#if app.view === 'uv'}<div class="view"><UvView /></div>{/if}
       {#if app.selected && app.view === 'board'}
         {#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}
+      {:else if app.selectedPin && app.view === 'board'}
+        {#key app.selectedPin.id}<PinPanel pin={app.selectedPin} />{/key}
       {/if}
     {/if}
   </main>

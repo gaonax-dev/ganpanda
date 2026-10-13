@@ -34,4 +34,8 @@ export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api
 export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
+/** viewer 의 핀: 서버가 문서에 기록 */
+export const postPin = (room: string, invite: string | null, body: { photoId: string; x: number; y: number; author: string }) =>
+  call<{ pin: { id: string } }>(`/api/rooms/${room}/pins${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
+
 export const ROLE_LABEL: Record<Role, string> = { owner: '소유자', editor: '편집', viewer: '보기·대화' };

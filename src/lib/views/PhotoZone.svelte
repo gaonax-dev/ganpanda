@@ -1,15 +1,23 @@
 <!-- 사진 = 보드 위의 구역. 사인물 영역(사각·원형)을 그리고 편집한다. 좌표는 사진 원본 픽셀. -->
 <script lang="ts">
   import type { Pt } from '../core/homography';
-  import type { Photo, SignObject, ShapeKind } from '../core/model';
+  import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
+  import { colorFor } from '../core/presence';
   import type { MeasureResult } from '../core/measure';
   import { ellipseInQuad, quadFromDrag } from '../core/perspective';
   import type { Tool } from '../state.svelte';
 
   let {
     photo, url, zoom, objects, measures, selectedId, tool, editable = true, unread = {},
+    pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete,
   }: {
+    pins?: Pin[];
+    selectedPinId?: string | null;
+    /** 핀 도구로 사진을 눌렀을 때 (viewer 도 가능) */
+    oncreatepin?: (x: number, y: number) => void;
+    onselectpin?: (id: string | null) => void;
+    onmovepin?: (id: string, x: number, y: number) => void;
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
@@ -45,9 +53,32 @@
   const clamp = ([x, y]: Pt): Pt => [Math.max(0, Math.min(photo.w, x)), Math.max(0, Math.min(photo.h, y))];
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
+  let pinDrag: { id: string; moved: boolean } | null = null;
+  function pinDown(e: PointerEvent, pin: Pin) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onselectpin?.(pin.id);
+    if (!editable) return;
+    pinDrag = { id: pin.id, moved: false };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  function pinMove(e: PointerEvent) {
+    if (!pinDrag) return;
+    const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
+    pinDrag.moved = true;
+    onmovepin?.(pinDrag.id, Math.round(x), Math.round(y));
+  }
+  function pinUp() { pinDrag = null; }
+
   function bgDown(e: PointerEvent) {
     if (e.button !== 0) return;
-    if (tool === 'select') { onselect(null); return; } // 이벤트 전파 → 캔버스 이동
+    if (tool === 'pin') {
+      e.stopPropagation();
+      const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
+      oncreatepin?.(x, y);
+      return;
+    }
+    if (tool === 'select') { onselect(null); onselectpin?.(null); return; } // 이벤트 전파 → 캔버스 이동
     e.stopPropagation();
     const p = clamp(toPhoto(e.clientX, e.clientY));
     draft = { start: p, end: p };
@@ -123,6 +154,7 @@
   <svg
     viewBox="0 0 {photo.w} {photo.h}"
     class:drawing={tool !== 'select'}
+    class:pinning={tool === 'pin'}
     data-bg={tool === 'select' ? '' : undefined}
     role="presentation"
     onpointerdown={bgDown}
@@ -155,6 +187,21 @@
         {/if}
       </g>
     {/each}
+    {#each pins as pin (pin.id)}
+      {@const r = 11 * u}
+      <g class="pin" class:sel={pin.id === selectedPinId} class:resolved={pin.resolved} data-testid="pin" data-resolved={pin.resolved}
+        role="button" tabindex="-1" transform="translate({pin.x} {pin.y})"
+        onpointerdown={(e) => pinDown(e, pin)} onpointermove={pinMove} onpointerup={pinUp}>
+        <path d="M0 0 L{-r * 0.9} {-r * 1.6} A{r * 1.25} {r * 1.25} 0 1 1 {r * 0.9} {-r * 1.6} Z" fill={colorFor(pin.author)} stroke="#fff" stroke-width={1.5 * u} />
+        <text y={-r * 1.9} font-size={r * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{pin.number}</text>
+        {#if unread[pin.id]}
+          <g transform="translate({r * 1.6} {-r * 3.2})">
+            <circle r={r * 0.8} fill="var(--accent)" />
+            <text data-testid="pin-unread" font-size={r * 0.9} text-anchor="middle" dy={r * 0.32} fill="#1a1500" font-weight="800">{unread[pin.id]}</text>
+          </g>
+        {/if}
+      </g>
+    {/each}
     {#if draft}
       <polygon class="draft" points={outline(drawShape, quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
@@ -167,6 +214,11 @@
   .loading { display: grid; place-items: center; color: #999; }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   svg.drawing { cursor: crosshair; }
+  svg.pinning { cursor: copy; }
+  .pin { cursor: pointer; }
+  .pin.resolved { opacity: 0.4; }
+  .pin.sel path { stroke: var(--accent); }
+  .pin text { pointer-events: none; }
   .header {
     position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; height: 30px;
     display: flex; align-items: center; gap: 8px; padding: 0 2px; cursor: move; color: var(--muted); font-size: 13px;

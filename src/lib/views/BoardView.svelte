@@ -89,6 +89,7 @@
     if (e.key === 'Escape') { if (typing) t.blur(); else app.tool = 'select'; return; }
     if (typing) return;
     const action = matchAction(app.keymap, e, app.isMac);
+    if (action === 'toolPin') { app.tool = 'pin'; return; } // viewer 도 핀은 꽂을 수 있다
     if (!app.canEdit) return;
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
@@ -143,7 +144,7 @@
     testid="board-canvas"
     onfit={fitAll}
     {zoomAnchor}
-    onbackgrounddown={() => { app.selectedId = null; }}
+    onbackgrounddown={() => { app.selectObject(null); app.selectPin(null); }}
   >
     {#each app.photos as p (p.id)}
       <PhotoZone
@@ -153,12 +154,17 @@
         objects={app.objects.filter((o) => o.photoId === p.id)}
         measures={app.measures}
         selectedId={app.selectedId}
-        tool={app.canEdit ? app.tool : 'select'}
+        tool={app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         editable={app.canEdit}
         unread={app.unread}
+        pins={app.pins.filter((x) => x.photoId === p.id)}
+        selectedPinId={app.selectedPinId}
+        oncreatepin={(x, y) => app.createPin(p.id, x, y)}
+        onselectpin={(id) => app.selectPin(id)}
+        onmovepin={(id, x, y) => app.project.updatePin(id, { x, y })}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
-        onselect={(id) => (app.selectedId = id)}
+        onselect={(id) => app.selectObject(id)}
         onquad={(id, quad) => app.project.updateObject(id, { quad })}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) app.project.removePhoto(p.id); }}
@@ -185,9 +191,11 @@
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖ 선택</button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
+          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍 핀</button>
           <span class="sep"></span>
           <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
         {:else}
+          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>📍 핀</button>
           <span class="readonly">보기·대화만 가능</span>
         {/if}
         <button title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
