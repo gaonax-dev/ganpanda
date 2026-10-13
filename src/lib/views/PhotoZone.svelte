@@ -7,11 +7,13 @@
   import type { Tool } from '../state.svelte';
 
   let {
-    photo, url, zoom, objects, measures, selectedId, tool, editable = true,
+    photo, url, zoom, objects, measures, selectedId, tool, editable = true, unread = {},
     toPhoto, oncreate, onselect, onquad, onmove, ondelete,
   }: {
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
+    /** 사인물별 안 읽은 메시지 수 */
+    unread?: Record<string, number>;
     photo: Photo;
     url?: string;
     zoom: number;
@@ -143,7 +145,7 @@
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
-          {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
+          {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.id]} </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
         {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
@@ -176,6 +178,7 @@
   .sign.sel polygon { fill: rgba(255, 204, 0, 0.16); stroke: var(--accent); }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .sign text .w { fill: var(--warn); }
+  .sign text .u { fill: var(--accent); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
 </style>

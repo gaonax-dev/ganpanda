@@ -27,6 +27,7 @@
       app.setNickname(name.trim());
     }
     text = '';
+    app.requestNotifyPermission();
     app.sendMessage(objectId, t, kind).catch(() => { text = t; });
   }
 

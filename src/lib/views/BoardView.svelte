@@ -155,6 +155,7 @@
         selectedId={app.selectedId}
         tool={app.canEdit ? app.tool : 'select'}
         editable={app.canEdit}
+        unread={app.unread}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => (app.selectedId = id)}
