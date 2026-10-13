@@ -16,6 +16,7 @@ ganpanda/
 │  ├─ lib/auth.ts          계정 API 클라이언트 (세션 토큰)
 │  ├─ lib/projects.ts      프로젝트·초대·방 접근 API 클라이언트
 │  ├─ lib/segment/         AI 자동 분리 (워커 + 메인 스레드 래퍼)
+│  ├─ lib/design/          디자인 파일 → 페이지 이미지 (pdf.js)
 │  └─ lib/assets.ts        이미지 에셋 저장 (IndexedDB + 서버 R2)
 ├─ server/                 API 서버 (Cloudflare Worker + Durable Object + R2 + D1)
 ├─ tests/unit/             앱 단위 테스트 (Vitest)
@@ -43,6 +44,7 @@ ganpanda/
 | `attachments.ts` | 첨부 종류 판별·요약 |
 | `history.ts` | 실행 취소·다시 실행 (내 편집만) |
 | `mask.ts` | 분리 마스크 → 다각형, 후보 마스크 선택 |
+| `design.ts` | 디자인 영역 정규화, 소스 히스토리, 파일 종류 |
 | `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |

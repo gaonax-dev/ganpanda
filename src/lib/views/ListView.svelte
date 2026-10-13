@@ -9,6 +9,7 @@
   import { productById, sheetById } from '../core/catalog';
   import { quoteObject, won } from '../core/quote';
   import type { ExtraItem } from '../core/model';
+  import DesignFace from '../ui/DesignFace.svelte';
   import { fitRect, type Viewport } from '../core/viewport';
   import type { SignObject } from '../core/model';
 
@@ -126,6 +127,7 @@
             <img src={urls[photo.assetId]} alt="" draggable="false"
               style:width="{photo.w}px" style:height="{photo.h}px" style:transform={warp(o, w, h)} />
           {/if}
+          {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
         </div>
         <!-- 치수선과 사양 카드는 화면 크기 고정 -->
         <div class="dim top" style:transform="scale({inv})" style:width="{w * viewport.zoom}px">{fmt(w)}{estimated ? ' (추정)' : ''}</div>
@@ -208,6 +210,7 @@
   .face { position: absolute; inset: 0; overflow: hidden; background: #333; cursor: grab; outline: 1px solid rgba(255,255,255,0.25); }
   .face.sel { outline: 2px solid var(--accent); }
   .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
+  .design-on { position: absolute; inset: 0; }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .dim { color: var(--dim); font-size: 11px; }
   .dim.top { left: 0; bottom: 100%; transform-origin: 0 100%; text-align: center; border-bottom: 1px solid var(--dim); padding-bottom: 2px; margin-bottom: 4px; }

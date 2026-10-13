@@ -13,6 +13,7 @@
 | `photos` | `Y.Map<id, Y.Map>` | 사진(구역) |
 | `objects` | `Y.Map<id, Y.Map>` | 사인물 오브젝트 |
 | `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(핀) |
+| `sources` | `Y.Map<id, Y.Map>` | 디자인 소스(파일 + 페이지 이미지) → [uv-view.md](../features/uv-view.md) |
 | `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`) — [sign-list-quote.md](../features/sign-list-quote.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id) |
 
@@ -36,6 +37,8 @@
 | `sheetIds` | 시트 종류 (복수) |
 | `text?` | 간판 문구 (채널 글자수 자동 산출, 견적서 표기) |
 | `charCount?` | 채널 글자수 (수동, 문구보다 우선) |
+| `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
+| `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
 | `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |
 
 ### Pin

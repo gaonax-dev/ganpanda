@@ -1,4 +1,5 @@
 import type { Pt } from './homography';
+import type { DesignHistoryEntry, DesignRef, SourceKind } from './design';
 
 export type ShapeKind = 'rect' | 'ellipse' | 'polygon';
 
@@ -36,10 +37,30 @@ export interface SignObject {
   text?: string;
   /** 채널 글자수 (수동 입력, 문구보다 우선) */
   charCount?: number;
+  /** 입힌 디자인 (소스 페이지의 영역) */
+  design?: DesignRef;
+  /** 디자인 변경 이력 (최신이 앞) */
+  designHistory?: DesignHistoryEntry[];
   /** 리스트 뷰(전개도) 위 위치, mm */
   listX?: number;
   listY?: number;
   createdAt: number;
+}
+
+/** 디자인 소스: 올린 파일 하나. 페이지(아트보드)마다 변환된 이미지 에셋 */
+export interface SourcePage { assetId: string; w: number; h: number }
+export interface DesignSource {
+  id: string;
+  name: string;
+  kind: SourceKind;
+  /** 원본 파일 에셋 (히스토리·재변환용) */
+  fileAssetId: string;
+  pages: SourcePage[];
+  author: string;
+  createdAt: number;
+  /** UV 뷰 위 위치 (world) */
+  x?: number;
+  y?: number;
 }
 
 /** 사진 위 위치 코멘트(핀). 대화는 messages 에 objectId = 핀 id 로 */

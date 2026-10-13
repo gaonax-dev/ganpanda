@@ -4,7 +4,8 @@
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
   import type { MeasureResult } from '../core/measure';
-  import { ellipseInQuad, quadFromDrag } from '../core/perspective';
+  import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad } from '../core/perspective';
+  import DesignFace from '../ui/DesignFace.svelte';
   import type { Tool } from '../state.svelte';
 
   let {
@@ -168,6 +169,18 @@
   </div>
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
+    <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
+    <div class="designs" style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
+      {#each objects.filter((o) => o.design) as o (o.id)}
+        {@const q = quadOf(o)}
+        {@const c = o.design!.crop}
+        <div class="design" style:clip-path={o.shape === 'polygon' && o.polygon ? `polygon(${o.polygon.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : o.shape === 'ellipse' ? `polygon(${ellipseInQuad(q).map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
+          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()}>
+            <DesignFace design={o.design!} w={c.w} h={c.h} />
+          </div>
+        </div>
+      {/each}
+    </div>
   {:else}
     <div class="loading">불러오는 중…</div>
   {/if}
@@ -243,6 +256,9 @@
   img, .loading { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .loading { display: grid; place-items: center; color: #999; }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .designs { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+  .design { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .warp { position: absolute; left: 0; top: 0; transform-origin: 0 0; opacity: 0.95; }
   svg.drawing { cursor: crosshair; }
   svg.pinning { cursor: copy; }
   .pin { cursor: pointer; }
