@@ -21,9 +21,9 @@
 | 메인 스레드 | `src/lib/segment/segmenter.ts`(모델 로드·임베딩·분리 요청), `state.svelte.ts`(`prepareSegment`, `segmentAt`, `createFromSegment`) |
 
 ## 작업 존과 함께 (2026-10-13, 사용자 요청 "AI가 효과적으로 작업하기 위한 것")
-- 사진에 작업 존이 있으면 **존의 외곽 사각형(+16px 여유)만 잘라서** 분석합니다(`zoneBounds`). SAM 은 입력을 긴 변 1024px 로 줄이므로 벽면만 넣으면 해상도가 그 영역에 집중돼 작은 간판 자리도 더 정확히 잡힙니다.
+- 사진에 작업 존이 있으면 **존마다 외곽 사각형(+16px 여유)만 잘라서** 따로 분석합니다(`zoneBounds`, 키 `photoId#번호`). 마우스가 들어간 존(`zoneIndexAt`)의 분석 결과를 씁니다. SAM 은 입력을 긴 변 1024px 로 줄이므로 벽면만 넣으면 해상도가 그 영역에 집중돼 작은 간판 자리도 더 정확히 잡힙니다.
 - 분리 결과는 존 다각형 래스터(`rasterizePolygon`, 스캔라인)와 AND 해 **존 안으로만** 남깁니다(`clipMask`). 존 밖에 마우스를 올리면 미리보기가 없습니다.
-- 존을 바꾸면 그 사진은 다시 분석합니다(`embeddedZone` 키 비교 → `segmenter.forget`).
+- 존을 바꾸면 그 사진의 존 분석을 모두 버리고 다시 합니다(`embeddedZone` 키 비교 → `segmenter.forget`).
 - 워커에 넘기는 좌표는 범위 기준으로 바꾸고, 돌아온 윤곽은 사진 px 로 되돌립니다.
 
 ## 규칙

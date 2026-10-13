@@ -3,7 +3,7 @@
   import type { Pt } from '../core/homography';
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
-  import { midpoints } from '../core/zone';
+  import { midpoints, zonesOf } from '../core/zone';
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -30,13 +30,14 @@
     onmagichover?: (x: number, y: number) => void;
     onmagicleave?: () => void;
     onmagicclick?: () => void;
-    /** 작업 존: undefined = 선택 안 됨, null = 존만 선택, 숫자 = 꼭짓점 선택 */
-    zoneSel?: number | null;
+    /** 작업 존 선택: undefined = 없음, { zone, vertex(null = 존만) } */
+    zoneSel?: { zone: number; vertex: number | null };
     oncreatezone?: (zone: Pt[]) => void;
-    onselectzone?: (vertex: number | null) => void;
-    onmovezonevertex?: (index: number, p: Pt) => void;
+    /** zone = null 이면 선택 해제 */
+    onselectzone?: (zone: number | null, vertex: number | null) => void;
+    onmovezonevertex?: (zone: number, index: number, p: Pt) => void;
     onzonemoveend?: () => void;
-    onaddzonevertex?: (edge: number, p: Pt) => void;
+    onaddzonevertex?: (zone: number, edge: number, p: Pt) => void;
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
@@ -89,12 +90,11 @@
   }
   function pinUp() { if (pinDrag?.moved) onpinmoveend?.(); pinDrag = null; }
 
-  // ---- 작업 존 ----
-  const zone = $derived(photo.zone ?? null);
-  const zoneSelected = $derived(zoneSel !== undefined);
+  // ---- 작업 존 (여러 개) ----
+  const zones = $derived(zonesOf(photo));
   let zoneDraft: { start: Pt; end: Pt } | null = $state(null);
-  let zoneDrag: { index: number; moved: boolean } | null = null;
-  function zoneDown(e: PointerEvent) {
+  let zoneDrag: { zone: number; index: number; moved: boolean } | null = null;
+  function zoneDown(e: PointerEvent, zi: number) {
     if (e.button !== 0) return;
     e.stopPropagation();
     if (tool === 'zone' && editable) { // 존 도구로 존 위를 눌러도 새로 그린다
@@ -103,30 +103,30 @@
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       return;
     }
-    onselectzone?.(null);
+    onselectzone?.(zi, null);
   }
-  function zoneVertexDown(e: PointerEvent, i: number) {
+  function zoneVertexDown(e: PointerEvent, zi: number, i: number) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onselectzone?.(i);
+    onselectzone?.(zi, i);
     if (!editable) return;
-    zoneDrag = { index: i, moved: false };
+    zoneDrag = { zone: zi, index: i, moved: false };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   function zoneVertexMove(e: PointerEvent) {
     if (!zoneDrag) return;
     zoneDrag.moved = true;
     const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
-    onmovezonevertex?.(zoneDrag.index, [Math.round(x), Math.round(y)]);
+    onmovezonevertex?.(zoneDrag.zone, zoneDrag.index, [Math.round(x), Math.round(y)]);
   }
   function zoneVertexUp() { if (zoneDrag?.moved) onzonemoveend?.(); zoneDrag = null; }
-  function zoneMidDown(e: PointerEvent, edge: number, p: Pt) {
+  function zoneMidDown(e: PointerEvent, zi: number, edge: number, p: Pt) {
     if (e.button !== 0 || !editable) return;
     e.stopPropagation();
-    onaddzonevertex?.(edge, [Math.round(p[0]), Math.round(p[1])]);
+    onaddzonevertex?.(zi, edge, [Math.round(p[0]), Math.round(p[1])]);
   }
-  /** 존 밖을 어둡게: 사진 전체 사각형 + 존 구멍 (evenodd) */
-  const dimPath = $derived(zone ? `M0 0H${photo.w}V${photo.h}H0Z M${zone.map((p) => p.join(' ')).join(' L')}Z` : '');
+  /** 존 밖을 어둡게: 사진 전체 사각형 + 존 구멍들 (evenodd) */
+  const dimPath = $derived(zones.length ? `M0 0H${photo.w}V${photo.h}H0Z ` + zones.map((z) => `M${z.map((p) => p.join(' ')).join(' L')}Z`).join(' ') : '');
 
   let magicTimer = 0;
   function magicMove(e: PointerEvent) {
@@ -155,7 +155,7 @@
       oncreatepin?.(x, y);
       return;
     }
-    if (tool === 'select') { onselect(null); onselectpin?.(null); onselectzone?.(null); return; } // 이벤트 전파 → 캔버스 이동
+    if (tool === 'select') { onselect(null); onselectpin?.(null); onselectzone?.(null, null); return; } // 이벤트 전파 → 캔버스 이동
     e.stopPropagation();
     const p = clamp(toPhoto(e.clientX, e.clientY));
     draft = { start: p, end: p };
@@ -260,21 +260,24 @@
     onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
     onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
-    {#if zone}
+    {#if zones.length}
       <path class="zone-dim" d={dimPath} fill-rule="evenodd" />
-      <polygon class="zone" class:sel={zoneSelected} data-testid="zone-shape" points={zone.map((p) => p.join(',')).join(' ')}
-        stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" role="button" tabindex="-1"
-        pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' ? 'none' : 'auto'} onpointerdown={zoneDown} onpointermove={move} onpointerup={up} />
-      <text class="zone-label" x={zone[0][0]} y={zone[0][1] - 8 * u} font-size={12 * u} stroke-width={3 * u}>작업 존</text>
-      {#if zoneSelected && editable}
-        {#each midpoints(zone) as m, i (i)}
-          <rect data-testid="zone-mid" class="zone-mid" x={m[0] - 4 * u} y={m[1] - 4 * u} width={8 * u} height={8 * u} stroke-width={1.5 * u} role="button" tabindex="-1" onpointerdown={(e) => zoneMidDown(e, i, m)} />
-        {/each}
-        {#each zone as v, i (i)}
-          <circle data-testid="zone-vertex" class="zone-vertex" class:sel={zoneSel === i} cx={v[0]} cy={v[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
-            onpointerdown={(e) => zoneVertexDown(e, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
-        {/each}
-      {/if}
+      {#each zones as zone, zi (zi)}
+        {@const selected = zoneSel?.zone === zi}
+        <polygon class="zone" class:sel={selected} data-testid="zone-shape" points={zone.map((p) => p.join(',')).join(' ')}
+          stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" role="button" tabindex="-1"
+          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' ? 'none' : 'auto'} onpointerdown={(e) => zoneDown(e, zi)} onpointermove={move} onpointerup={up} />
+        <text class="zone-label" x={zone[0][0]} y={zone[0][1] - 8 * u} font-size={12 * u} stroke-width={3 * u}>작업 존{zones.length > 1 ? ` ${zi + 1}` : ''}</text>
+        {#if selected && editable}
+          {#each midpoints(zone) as m, i (i)}
+            <rect data-testid="zone-mid" class="zone-mid" x={m[0] - 4 * u} y={m[1] - 4 * u} width={8 * u} height={8 * u} stroke-width={1.5 * u} role="button" tabindex="-1" onpointerdown={(e) => zoneMidDown(e, zi, i, m)} />
+          {/each}
+          {#each zone as v, i (i)}
+            <circle data-testid="zone-vertex" class="zone-vertex" class:sel={zoneSel?.vertex === i} cx={v[0]} cy={v[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
+              onpointerdown={(e) => zoneVertexDown(e, zi, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
+          {/each}
+        {/if}
+      {/each}
     {/if}
     {#if zoneDraft}
       <polygon class="zone draft" points={quadFromDrag(zoneDraft.start, zoneDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" />

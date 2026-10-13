@@ -16,7 +16,9 @@ export interface Photo {
   x: number;
   y: number;
   width: number;
-  /** 작업 존: 실제 작업할 벽면 영역 (사진 px 다각형, 3점 이상) */
+  /** 작업 존들: 실제 작업할 벽면 영역 (사진 px 다각형, 3점 이상). AI 는 존 안만 분석 */
+  zones?: Pt[][];
+  /** @deprecated 옛 데이터 (존 하나). zonesOf() 로 읽는다 */
   zone?: Pt[];
 }
 
