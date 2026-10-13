@@ -13,11 +13,15 @@ import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout
 import { checkAccess, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
+import { Segmenter, type SegmentStatus } from './segment/segmenter';
+import { boundsOf } from './core/mask';
+import type { Pt } from './core/homography';
+import { assetUrl } from './assets';
 
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
-export type Tool = 'select' | 'rect' | 'ellipse' | 'pin';
+export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
@@ -67,6 +71,13 @@ class AppState {
   toasts = $state<Toast[]>([]);
   private readonly startedAt = Date.now();
   private knownMessageIds = new Set<string>();
+  /** AI 자동 분리 (SlimSAM): 모델 상태, 사진별 분석 상태, 호버 미리보기 */
+  private segmenter: Segmenter | null = null;
+  segmentStatus = $state<SegmentStatus>('idle');
+  segmentError = $state('');
+  embeddedPhotos = $state<Record<string, 'embedding' | 'ready' | 'error'>>({});
+  hoverSegment = $state<{ photoId: string; polygon: Pt[] } | null>(null);
+  private segmentSeq = 0;
   /** 실행 취소 (내 편집만) */
   private history = createHistory(this.project);
   private historyVersion = $state(0);
@@ -217,6 +228,47 @@ class AppState {
     this.dismissToast(t.id);
     this.view = 'board';
     if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.selectObject(t.objectId);
+  }
+
+  /** 자동 분리 도구 준비: 모델 로드 + 사진 분석 (사진당 한 번) */
+  async prepareSegment(photoId: string) {
+    if (!SERVER_URL) return;
+    if (!this.segmenter) this.segmenter = new Segmenter(SERVER_URL, (st, detail) => { this.segmentStatus = st; this.segmentError = detail ?? ''; });
+    if (this.embeddedPhotos[photoId]) return;
+    const photo = this.project.photo(photoId);
+    const url = photo && (await assetUrl(photo.assetId));
+    if (!url) return;
+    this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'embedding' };
+    try {
+      await this.segmenter.embed(photoId, url);
+      this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'ready' };
+    } catch {
+      this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'error' };
+    }
+  }
+
+  /** 호버 지점의 물체 윤곽 미리보기 (최신 요청만 반영) */
+  async segmentAt(photoId: string, x: number, y: number) {
+    if (!this.segmenter || this.embeddedPhotos[photoId] !== 'ready') return;
+    const seq = ++this.segmentSeq;
+    const r = await this.segmenter.segment(photoId, x, y);
+    if (seq !== this.segmentSeq) return;
+    this.hoverSegment = r ? { photoId, polygon: r.polygon } : null;
+  }
+
+  clearHoverSegment() { this.segmentSeq++; this.hoverSegment = null; }
+
+  /** 미리보기 윤곽을 다각형 사인물로 만든다 */
+  createFromSegment() {
+    const h = this.hoverSegment;
+    if (!h || !this.canEdit) return;
+    const b = boundsOf(h.polygon);
+    const quad: Pt[] = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+    this.editBoundary();
+    const id = this.project.addObject({ photoId: h.photoId, name: `사인물 ${this.objects.length + 1}`, shape: 'polygon', quad, polygon: h.polygon, sheetIds: [] });
+    this.editBoundary();
+    this.hoverSegment = null;
+    this.selectObject(id);
   }
 
   undo() { if (this.canEdit) this.history.undo(); }

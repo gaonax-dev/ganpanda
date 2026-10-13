@@ -37,6 +37,10 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - 주소: **`https://ganpanda.co.kr`**, `https://www.ganpanda.co.kr` + 비상용 `https://ganpanda.gaonax-dev.workers.dev`
 - 임시 조치: 도메인 전파 전에는 `VITE_SYNC_URL=https://ganpanda-sync.gaonax-dev.workers.dev npx vite build && npx wrangler deploy`로 올려 두었습니다. 전파 뒤 `npm run deploy`로 되돌립니다.
 
+## AI 모델 파일 (R2)
+- `server/scripts/models.sh --local`(개발·E2E) / `--remote`(운영): SlimSAM 양자화 파일 4개를 R2 `models/slimsam/` 아래에 올립니다. 운영 업로드는 2026-10-13 완료.
+- 앱의 `npm run dev`/`build`는 `npm run ort`로 onnxruntime wasm 을 `public/ort/`에 복사합니다(커밋 안 함).
+
 ## 도메인 `ganpanda.co.kr`
 - Cloudflare 영역에 추가됨. 커스텀 도메인(`routes[].custom_domain`)은 배포 시 DNS 레코드가 자동 생성됩니다.
 - **등록기관 네임서버를 Cloudflare 것으로 바꿔야 외부에서 접속됩니다.** 전파 확인: `dig +short NS ganpanda.co.kr`에 `*.ns.cloudflare.com`이 나오면 완료.

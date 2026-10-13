@@ -143,6 +143,24 @@ async function postPin(req: Request, env: Env, room: string): Promise<Response> 
   return json({ pin }, 201);
 }
 
+const MODEL_PATH_RE = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_.-]+)+$/;
+
+async function serveModel(req: Request, env: Env, rawPath: string): Promise<Response> {
+  let path: string;
+  try { path = decodeURIComponent(rawPath); } catch { return text('bad path', 400); }
+  if (!MODEL_PATH_RE.test(path) || path.includes('..')) return text('bad path', 400);
+  if (req.method !== 'GET' && req.method !== 'HEAD') return text('method not allowed', 405);
+  const obj = req.method === 'HEAD' ? await env.ASSETS.head('models/' + path) : await env.ASSETS.get('models/' + path);
+  if (!obj) return text('not found', 404);
+  const headers = new Headers({
+    'content-type': obj.httpMetadata?.contentType ?? 'application/octet-stream',
+    'content-length': String(obj.size),
+    'cache-control': 'public, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff',
+  });
+  return new Response(req.method === 'HEAD' ? null : (obj as R2ObjectBody).body, { headers });
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -177,6 +195,9 @@ export default {
       fwd.headers.set('x-owner', ownerId);
       return env.ROOM.getByName(name).fetch(fwd);
     }
+
+    // 모델 파일 (SlimSAM 등): 사용자 데이터가 아니므로 공개, 내용이 바뀌지 않으므로 장기 캐시
+    if (pathname.startsWith('/api/models/')) return withCors(await serveModel(req, env, pathname.slice('/api/models/'.length)));
 
     const asset = pathname.match(/^\/api\/assets\/([^/]+)$/);
     if (asset) return withCors(await handleAsset(req, env, asset[1], url));

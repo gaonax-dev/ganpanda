@@ -14,6 +14,8 @@ ganpanda/
 │  ├─ lib/state.svelte.ts  앱 전역 상태 (Yjs 문서 ↔ Svelte 반응성)
 │  ├─ lib/sync.ts          동기화 서버 연결 (y-websocket, 접속자 상태)
 │  ├─ lib/auth.ts          계정 API 클라이언트 (세션 토큰)
+│  ├─ lib/projects.ts      프로젝트·초대·방 접근 API 클라이언트
+│  ├─ lib/segment/         AI 자동 분리 (워커 + 메인 스레드 래퍼)
 │  └─ lib/assets.ts        이미지 에셋 저장 (IndexedDB + 서버 R2)
 ├─ server/                 API 서버 (Cloudflare Worker + Durable Object + R2 + D1)
 ├─ tests/unit/             앱 단위 테스트 (Vitest)
@@ -39,6 +41,7 @@ ganpanda/
 | `format.ts` | 용량 표시 |
 | `attachments.ts` | 첨부 종류 판별·요약 |
 | `history.ts` | 실행 취소·다시 실행 (내 편집만) |
+| `mask.ts` | 분리 마스크 → 다각형, 후보 마스크 선택 |
 | `syncUrl.ts` | 동기화 서버 주소 규칙 |
 | `model.ts` | 데이터 타입 (Photo, SignObject, Message) |
 | `project.ts` | Yjs 프로젝트 문서 조작 |
