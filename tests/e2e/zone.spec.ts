@@ -55,17 +55,24 @@ test('존 도구로 작업 존을 그리고, 변 중간 클릭으로 꼭짓점 �
   await guest.ctx.close();
 });
 
-test('존은 사진당 하나: 다시 그리면 교체되고, 존 밖을 누르면 선택이 풀린다', async ({ page, request }) => {
+test('존은 여러 개: 드래그할 때마다 추가되고, 존을 선택해 Delete 하면 그 존만 지워진다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.keyboard.press('z');
   await dragOnPhoto(page, [100, 100], [600, 400]);
   await page.keyboard.press('z');
   await dragOnPhoto(page, [700, 500], [1500, 900]);
-  await expect(page.getByTestId('zone-shape')).toHaveCount(1);
-  const pts = (await page.getByTestId('zone-shape').getAttribute('points'))!;
-  expect(pts.startsWith('700,500')).toBe(true);
+  await expect(page.getByTestId('zone-shape')).toHaveCount(2);
+  const second = (await page.getByTestId('zone-shape').nth(1).getAttribute('points'))!;
+  expect(second.startsWith('700,500')).toBe(true);
+  // 두 번째 존이 선택된 상태 → 핸들은 그 존 것만
+  await expect(page.getByTestId('zone-vertex')).toHaveCount(4);
   await page.keyboard.press('Escape');
-  await clickPhoto(page, 300, 200); // 존 밖(선택 도구)
+  await clickPhoto(page, 300, 200); // 첫 존 안쪽 클릭 → 첫 존 선택
+  await expect(page.getByTestId('zone-vertex')).toHaveCount(4);
+  await page.keyboard.press('Delete');
+  await expect(page.getByTestId('zone-shape')).toHaveCount(1);
+  expect((await page.getByTestId('zone-shape').getAttribute('points'))!.startsWith('700,500')).toBe(true);
+  await clickPhoto(page, 300, 200); // 존 밖(선택 도구) → 선택 해제
   await expect(page.getByTestId('zone-vertex')).toHaveCount(0);
 });

@@ -34,3 +34,16 @@ export function closestEdge(poly: Pt[], p: Pt, tolerance: number): { edge: numbe
   }
   return best;
 }
+
+import { pointInPolygon } from './perspective';
+
+/** 점이 들어간 존 번호 (겹치면 앞의 것). 없으면 -1 */
+export function zoneIndexAt(zones: Pt[][], p: Pt): number {
+  return zones.findIndex((z) => z.length >= 3 && pointInPolygon(p, z));
+}
+
+/** 사진의 존 목록 (옛 데이터 `zone` 하나도 읽는다) */
+export function zonesOf(photo: { zones?: Pt[][]; zone?: Pt[] }): Pt[][] {
+  if (photo.zones) return photo.zones;
+  return photo.zone ? [photo.zone] : [];
+}

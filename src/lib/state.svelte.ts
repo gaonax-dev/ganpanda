@@ -5,9 +5,8 @@ import { measurePhoto, type MeasureResult } from './core/measure';
 import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
-import { insertVertex, removeVertex } from './core/zone';
+import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
-import { pointInPolygon } from './core/perspective';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -46,8 +45,8 @@ class AppState {
   selectedId = $state<string | null>(null);
   /** 선택한 핀 (사인물 선택과 배타적) */
   selectedPinId = $state<string | null>(null);
-  /** 선택한 작업 존(사진 id)과 꼭짓점 번호 */
-  zoneSel = $state<{ photoId: string; vertex: number | null } | null>(null);
+  /** 선택한 작업 존(사진 id, 존 번호)과 꼭짓점 번호 */
+  zoneSel = $state<{ photoId: string; zone: number; vertex: number | null } | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
@@ -317,10 +316,12 @@ class AppState {
     if (!this.segmenter) this.segmenter = new Segmenter(SERVER_URL, (st, detail) => { this.segmentStatus = st; this.segmentError = detail ?? ''; });
     const photo = this.project.photo(photoId);
     if (!photo) return;
-    // 존이 바뀌었으면 이전 분석을 버린다
-    const zoneKey = JSON.stringify(photo.zone ?? null);
+    // 존이 바뀌었으면 이전 분석을 버린다 (존마다 따로 분석: 키 = photoId#번호)
+    const zones = zonesOf(photo).filter((z) => z.length >= 3);
+    const zoneKey = JSON.stringify(zones);
     if (this.embeddedPhotos[photoId] && this.embeddedZone.get(photoId) !== zoneKey) {
       this.segmenter.forget(photoId);
+      for (let i = 0; i < 64; i++) this.segmenter.forget(`${photoId}#${i}`);
       const { [photoId]: _, ...rest } = this.embeddedPhotos; this.embeddedPhotos = rest;
     }
     if (this.embeddedPhotos[photoId]) return;
@@ -329,14 +330,15 @@ class AppState {
     this.embeddedZone.set(photoId, zoneKey);
     this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'embedding' };
     try {
-      // 존이 있으면 존 외곽만 잘라 분석(해상도 집중), 결과는 존 안으로만
-      let opts: { region?: ReturnType<typeof zoneBounds>; clip?: Uint8Array } = {};
-      if (photo.zone && photo.zone.length >= 3) {
-        const region = zoneBounds(photo.zone, photo.w, photo.h, 16);
-        const local = photo.zone.map(([x, y]) => [x - region.x, y - region.y] as Pt);
-        opts = { region, clip: rasterizePolygon(local, region.w, region.h) };
+      if (!zones.length) await this.segmenter.embed(photoId, url);
+      else {
+        // 존마다 외곽만 잘라 분석(해상도 집중), 결과는 그 존 안으로만
+        for (let i = 0; i < zones.length; i++) {
+          const region = zoneBounds(zones[i], photo.w, photo.h, 16);
+          const local = zones[i].map(([x, y]) => [x - region.x, y - region.y] as Pt);
+          await this.segmenter.embed(`${photoId}#${i}`, url, { region, clip: rasterizePolygon(local, region.w, region.h) });
+        }
       }
-      await this.segmenter.embed(photoId, url, opts);
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'ready' };
     } catch {
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'error' };
@@ -346,10 +348,16 @@ class AppState {
   /** 호버 지점의 물체 윤곽 미리보기 (최신 요청만 반영) */
   async segmentAt(photoId: string, x: number, y: number) {
     if (!this.segmenter || this.embeddedPhotos[photoId] !== 'ready') return;
-    const zone = this.project.photo(photoId)?.zone;
-    if (zone && zone.length >= 3 && !pointInPolygon([x, y], zone)) { this.clearHoverSegment(); return; }
+    const photo = this.project.photo(photoId);
+    const zones = photo ? zonesOf(photo).filter((z) => z.length >= 3) : [];
+    let key = photoId;
+    if (zones.length) {
+      const zi = zoneIndexAt(zones, [x, y]);
+      if (zi < 0) { this.clearHoverSegment(); return; } // 존 밖
+      key = `${photoId}#${zi}`;
+    }
     const seq = ++this.segmentSeq;
-    const r = await this.segmenter.segment(photoId, x, y);
+    const r = await this.segmenter.segment(key, x, y);
     if (seq !== this.segmentSeq) return;
     this.hoverSegment = r ? { photoId, polygon: r.polygon } : null;
   }
@@ -384,50 +392,58 @@ class AppState {
     if (id) { this.selectedId = null; this.zoneSel = null; }
   }
 
-  selectZone(photoId: string | null, vertex: number | null = null) {
-    this.zoneSel = photoId ? { photoId, vertex } : null;
+  selectZone(photoId: string | null, zone = 0, vertex: number | null = null) {
+    this.zoneSel = photoId ? { photoId, zone, vertex } : null;
     if (photoId) { this.selectedId = null; this.selectedPinId = null; }
   }
 
-  // ---------- 작업 존 ----------
+  // ---------- 작업 존 (사진마다 여러 개) ----------
 
-  /** 존 만들기(사진당 하나, 다시 그리면 교체) */
-  setZone(photoId: string, zone: Pt[] | undefined) {
-    if (!this.canEdit) return;
-    this.editBoundary();
-    this.project.updatePhoto(photoId, { zone });
-    this.editBoundary();
-    this.selectZone(zone ? photoId : null);
+  private writeZones(photoId: string, zones: Pt[][], boundary = true) {
+    if (boundary) this.editBoundary();
+    this.project.updatePhoto(photoId, { zones, zone: undefined });
+    if (boundary) this.editBoundary();
   }
 
-  moveZoneVertex(photoId: string, index: number, p: Pt) {
-    const z = this.project.photo(photoId)?.zone;
-    if (!z || !this.canEdit) return;
-    this.project.updatePhoto(photoId, { zone: z.map((v, i) => (i === index ? p : v)) });
+  /** 존 추가 → 새 존을 선택 */
+  addZone(photoId: string, zone: Pt[]) {
+    const photo = this.project.photo(photoId);
+    if (!photo || !this.canEdit) return;
+    const zones = [...zonesOf(photo), zone];
+    this.writeZones(photoId, zones);
+    this.selectZone(photoId, zones.length - 1);
+  }
+
+  moveZoneVertex(photoId: string, zone: number, index: number, p: Pt) {
+    const photo = this.project.photo(photoId);
+    const zones = photo ? zonesOf(photo) : [];
+    if (!zones[zone] || !this.canEdit) return;
+    this.writeZones(photoId, zones.map((z, zi) => (zi === zone ? z.map((v, i) => (i === index ? p : v)) : z)), false);
   }
 
   /** 변 중간 클릭 → 꼭짓점 추가, 추가된 꼭짓점을 선택 */
-  addZoneVertex(photoId: string, edge: number, p: Pt) {
-    const z = this.project.photo(photoId)?.zone;
-    if (!z || !this.canEdit) return;
-    this.editBoundary();
-    this.project.updatePhoto(photoId, { zone: insertVertex(z, edge, p) });
-    this.editBoundary();
-    this.selectZone(photoId, edge + 1);
+  addZoneVertex(photoId: string, zone: number, edge: number, p: Pt) {
+    const photo = this.project.photo(photoId);
+    const zones = photo ? zonesOf(photo) : [];
+    if (!zones[zone] || !this.canEdit) return;
+    this.writeZones(photoId, zones.map((z, zi) => (zi === zone ? insertVertex(z, edge, p) : z)));
+    this.selectZone(photoId, zone, edge + 1);
   }
 
-  /** 선택한 꼭짓점 삭제 (3개 미만으로는 안 줄어듦) */
-  deleteZoneVertex(): boolean {
+  /** Delete: 꼭짓점이 선택돼 있으면 꼭짓점(3개 미만으로는 안 줄어듦), 아니면 존 자체를 지운다 */
+  deleteZoneSelection(): boolean {
     const s = this.zoneSel;
-    const z = s && this.project.photo(s.photoId)?.zone;
-    if (!s || s.vertex === null || !z || !this.canEdit) return false;
-    const next = removeVertex(z, s.vertex);
-    if (next !== z) {
-      this.editBoundary();
-      this.project.updatePhoto(s.photoId, { zone: next });
-      this.editBoundary();
+    const photo = s && this.project.photo(s.photoId);
+    const zones = photo ? zonesOf(photo) : [];
+    if (!s || !zones[s.zone] || !this.canEdit) return false;
+    if (s.vertex !== null) {
+      const next = removeVertex(zones[s.zone], s.vertex);
+      if (next !== zones[s.zone]) this.writeZones(s.photoId, zones.map((z, zi) => (zi === s.zone ? next : z)));
+      this.selectZone(s.photoId, s.zone, null);
+    } else {
+      this.writeZones(s.photoId, zones.filter((_, zi) => zi !== s.zone));
+      this.selectZone(null);
     }
-    this.selectZone(s.photoId, null);
     return true;
   }
 

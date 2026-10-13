@@ -100,7 +100,7 @@
     if (action === 'redo') { e.preventDefault(); app.redo(); return; }
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
-    if (action === 'deleteSelection' && app.zoneSel?.vertex !== null && app.zoneSel) { e.preventDefault(); app.deleteZoneVertex(); return; }
+    if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';
@@ -187,12 +187,12 @@
         onmagichover={(x, y) => app.segmentAt(p.id, x, y)}
         onmagicleave={() => app.clearHoverSegment()}
         onmagicclick={() => app.createFromSegment()}
-        zoneSel={app.zoneSel?.photoId === p.id ? app.zoneSel.vertex : undefined}
-        oncreatezone={(zone) => app.setZone(p.id, zone)}
-        onselectzone={(vertex) => app.selectZone(p.id, vertex)}
-        onmovezonevertex={(i, pt) => app.moveZoneVertex(p.id, i, pt)}
+        zoneSel={app.zoneSel?.photoId === p.id ? { zone: app.zoneSel.zone, vertex: app.zoneSel.vertex } : undefined}
+        oncreatezone={(zone) => app.addZone(p.id, zone)}
+        onselectzone={(zone, vertex) => (zone === null ? app.selectZone(null) : app.selectZone(p.id, zone, vertex))}
+        onmovezonevertex={(zone, i, pt) => app.moveZoneVertex(p.id, zone, i, pt)}
         onzonemoveend={() => app.editBoundary()}
-        onaddzonevertex={(edge, pt) => app.addZoneVertex(p.id, edge, pt)}
+        onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}

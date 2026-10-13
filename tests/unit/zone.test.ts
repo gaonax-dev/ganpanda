@@ -26,3 +26,20 @@ describe('작업 존 꼭짓점 편집', () => {
     expect(closestEdge(rect, [50, 25], 5)).toBeNull();
   });
 });
+
+import { zoneIndexAt, zonesOf } from '../../src/lib/core/zone';
+describe('여러 존', () => {
+  const a: Pt[] = [[0, 0], [100, 0], [100, 50], [0, 50]];
+  const b: Pt[] = [[200, 0], [300, 0], [300, 50], [200, 50]];
+  it('점이 들어간 존 번호 (없으면 -1, 겹치면 앞의 것)', () => {
+    expect(zoneIndexAt([a, b], [50, 25])).toBe(0);
+    expect(zoneIndexAt([a, b], [250, 25])).toBe(1);
+    expect(zoneIndexAt([a, b], [150, 25])).toBe(-1);
+    expect(zoneIndexAt([], [1, 1])).toBe(-1);
+  });
+  it('옛 데이터(zone 하나)도 zones 로 읽는다', () => {
+    expect(zonesOf({ zones: [a, b] })).toEqual([a, b]);
+    expect(zonesOf({ zone: a })).toEqual([a]);
+    expect(zonesOf({})).toEqual([]);
+  });
+});
