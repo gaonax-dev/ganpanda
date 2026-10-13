@@ -80,7 +80,7 @@
   <section>
     <h3>
       치수 (mm)
-      {#if m?.reference}<span class="badge" data-testid="reference-badge" title="이 사진의 다른 영역은 이 치수를 기준으로 추정합니다">기준 영역</span>{/if}
+      {#if m?.reference}<span class="badge" data-testid="reference-badge" title="이 사진의 다른 영역은 이 치수를 기준으로 추정합니다">{m.refAxes ? `기준 (${m.refAxes.map((a) => (a === 'h' ? '가로' : '세로')).join('·')})` : '기준 영역'}</span>{/if}
     </h3>
     <div class="grid2">
       <label>가로
@@ -100,6 +100,12 @@
         </label>
       {/if}
     </div>
+    {#if obj.widthMm && obj.heightMm && !ro}
+      <div class="refs">
+        <label class="check"><input type="checkbox" data-testid="ref-h" checked={!!obj.refH} onchange={(e) => update({ refH: e.currentTarget.checked || undefined })} /> 가로 기준 (위·아래 변 = {obj.widthMm.toLocaleString('ko-KR')}mm 확실)</label>
+        <label class="check"><input type="checkbox" data-testid="ref-v" checked={!!obj.refV} onchange={(e) => update({ refV: e.currentTarget.checked || undefined })} /> 세로 기준 (좌·우 변 = {obj.heightMm.toLocaleString('ko-KR')}mm 확실)</label>
+      </div>
+    {/if}
     {#each m?.warnings ?? [] as w, i (i)}
       <div class="warning" data-testid="measure-warning">
         <b>⚠ 실측 확인 필요</b>
@@ -147,6 +153,8 @@
   section { padding: 10px 14px; border-bottom: 1px solid var(--line); }
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
+  .refs { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .refs .check { font-size: 12px; }
   .badge { background: var(--blue); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
   select { margin-top: 8px; }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }

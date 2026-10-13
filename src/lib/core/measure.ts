@@ -1,5 +1,6 @@
 // 실측 판독: 사용자가 입력한 치수가 사진과 맞는지 검사 (규칙 기반, AI 없음)
 import { DEFAULT_FOCAL_RATIO, applyHomography, estimateWallHeight, solveHomography, type Pt } from './homography';
+import { measureQuad, type Calibration } from './calibration';
 
 /** 허용 오차 (12%) */
 export const TOLERANCE = 0.12;
@@ -7,7 +8,7 @@ export const TOLERANCE = 0.12;
 export interface Sized { quad: Pt[]; widthMm?: number; heightMm?: number }
 export interface Size { widthMm: number; heightMm: number }
 export interface MeasureWarning { kind: 'aspect' | 'scale'; message: string; expected: Size }
-export interface MeasureResult { warnings: MeasureWarning[]; estimate?: Size; reference?: true }
+export interface MeasureResult { warnings: MeasureWarning[]; estimate?: Size; reference?: true; /** 기준선으로 쓰인 축 */ refAxes?: ('h' | 'v')[] }
 
 const dev = (a: number, b: number) => Math.abs(a - b) / b;
 const mm = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}mm`;
@@ -44,8 +45,28 @@ export function isValidQuad(q: Pt[]): boolean {
  * 사진 한 장의 모든 영역 판독.
  * 기준 = 가로·세로가 모두 입력된 첫 영역(생성 순). 같은 벽면에 있다고 가정한다.
  */
-export function measurePhoto<T extends Sized & { id: string }>(objs: T[], imgW: number, imgH: number): Map<string, MeasureResult> {
+export function measurePhoto<T extends Sized & { id: string; refH?: boolean; refV?: boolean; quad: Pt[] }>(
+  objs: T[], imgW: number, imgH: number, calib?: Calibration | null,
+): Map<string, MeasureResult> {
   const out = new Map<string, MeasureResult>();
+  // 기준선 보정이 적용된 사진: 모든 영역을 기준선 축척으로 잰다
+  if (calib) {
+    for (const o of objs) {
+      const r: MeasureResult = { warnings: [] };
+      if (!isValidQuad(o.quad)) { out.set(o.id, r); continue; }
+      const est = measureQuad(calib, o.quad);
+      r.estimate = est;
+      const axes: ('h' | 'v')[] = [];
+      if (o.refH) axes.push('h');
+      if (o.refV) axes.push('v');
+      if (axes.length) { r.reference = true; r.refAxes = axes; }
+      const badW = !o.refH && o.widthMm && dev(o.widthMm, est.widthMm) > TOLERANCE;
+      const badH = !o.refV && o.heightMm && dev(o.heightMm, est.heightMm) > TOLERANCE;
+      if (badW || badH) r.warnings.push({ kind: 'scale', message: `기준선 기준 약 ${mm(est.widthMm)} × ${mm(est.heightMm)}로 보입니다.`, expected: est });
+      out.set(o.id, r);
+    }
+    return out;
+  }
   // 찌그러진(행렬 계산 불가) 영역은 기준이 될 수 없다
   const ref = objs.find((o) => hasSize(o) && isValidQuad(o.quad)) as (T & Size) | undefined;
   for (const o of objs) {

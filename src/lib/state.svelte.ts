@@ -7,6 +7,7 @@ import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
+import { calibrate, refsFromObjects, snapEdge, type Calibration, type RefLine } from './core/calibration';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -104,14 +105,38 @@ class AppState {
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
   objects = $derived.by(() => (this.version, this.project.allObjects()));
   selected = $derived.by(() => (this.version, this.selectedId ? this.project.object(this.selectedId) ?? null : null));
-  /** 사진별 실측 판독 결과 */
-  measures = $derived.by(() => {
-    const out = new Map<string, MeasureResult>();
+  /** 사진별 기준선 구성 키 (사인물 id·변·치수·좌표) — 바뀌면 다시 평가·적용 */
+  refsKeys = $derived.by(() => {
+    const out = new Map<string, string>();
     for (const p of this.photos) {
-      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h)) out.set(id, r);
+      const refs = refsFromObjects(this.objects.filter((o) => o.photoId === p.id));
+      out.set(p.id, refs.length ? JSON.stringify(refs.map((r) => [r.objectId, r.edge, r.mm, r.a, r.b])) : '');
     }
     return out;
   });
+  /** 적용된 보정 (키가 현재 구성과 같을 때만) */
+  calibrations = $derived.by(() => {
+    const out = new Map<string, Calibration>();
+    for (const p of this.photos) {
+      const key = this.refsKeys.get(p.id);
+      if (key && p.calib?.key === key) {
+        const c = calibrate(refsFromObjects(this.objects.filter((o) => o.photoId === p.id)));
+        if (c) out.set(p.id, c);
+      }
+    }
+    return out;
+  });
+  /** 사진별 실측 판독 결과 (기준선 보정이 적용된 사진은 그 축척으로) */
+  measures = $derived.by(() => {
+    const out = new Map<string, MeasureResult>();
+    for (const p of this.photos) {
+      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, this.calibrations.get(p.id))) out.set(id, r);
+    }
+    return out;
+  });
+  /** AI 평가 결과 (저장하지 않음) */
+  calibEvals = $state<Record<string, { key: string; refs: (RefLine & { offset: number; confidence: number; deviation: number })[]; warnings: string[]; snapped: Record<string, Pt[]> }>>({});
+  calibBusy = $state(false);
   pins = $derived.by(() => (this.version, this.project.allPins()));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
@@ -185,6 +210,71 @@ class AppState {
     this.applyAccount(me?.account ?? null);
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
+  }
+
+  /** 기준선 상태: none / unevaluated / evaluated / applied / stale */
+  calibStatus(photoId: string): 'none' | 'unevaluated' | 'evaluated' | 'applied' | 'stale' {
+    const key = this.refsKeys.get(photoId);
+    if (!key) return 'none';
+    const photo = this.photos.find((p) => p.id === photoId);
+    if (photo?.calib?.key === key) return 'applied';
+    if (this.calibEvals[photoId]?.key === key) return 'evaluated';
+    return photo?.calib ? 'stale' : 'unevaluated';
+  }
+
+  /** AI 평가: 각 기준선을 사진 모서리에 붙여 보정하고, 보정된 기준으로 축척 모순을 점검 */
+  async evaluateCalibration(photoId: string) {
+    const photo = this.project.photo(photoId);
+    if (!photo || !this.canEdit) return;
+    this.calibBusy = true;
+    try {
+      const objs = this.project.objectsOf(photoId);
+      const refs = refsFromObjects(objs);
+      const key = this.refsKeys.get(photoId) ?? '';
+      const gray = await this.grayOf(photo.assetId, photo.w, photo.h);
+      // 변마다 보정 → 꼭짓점 이동 (한 꼭짓점은 두 변의 이동을 합친다)
+      const shift: Record<string, [number, number][]> = {};
+      const results = refs.map((r) => {
+        const snap = gray ? snapEdge(gray, r, 8) : { a: r.a, b: r.b, offset: 0, confidence: 0 };
+        const dx = snap.a[0] - r.a[0], dy = snap.a[1] - r.a[1];
+        const o = objs.find((x) => x.id === r.objectId)!;
+        const sh = (shift[o.id] ??= o.quad.map(() => [0, 0]));
+        const idx = r.edge === 'top' ? [0, 1] : r.edge === 'bottom' ? [3, 2] : r.edge === 'left' ? [0, 3] : [1, 2];
+        for (const i of idx) { sh[i][0] += dx; sh[i][1] += dy; }
+        return { ...r, offset: Math.round(snap.offset), confidence: snap.confidence };
+      });
+      const snapped: Record<string, Pt[]> = {};
+      for (const o of objs) if (shift[o.id]) snapped[o.id] = o.quad.map((p, i) => [Math.round(p[0] + shift[o.id][i][0]), Math.round(p[1] + shift[o.id][i][1])] as Pt);
+      const c = calibrate(refsFromObjects(objs.map((o) => (snapped[o.id] ? { ...o, quad: snapped[o.id] } : o))));
+      const withDev = results.map((r) => ({ ...r, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
+      this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs: withDev, warnings: c?.warnings ?? ['기준을 계산할 수 없습니다.'], snapped } };
+    } finally { this.calibBusy = false; }
+  }
+
+  /** 전체 적용: 보정된 사각 영역을 저장하고 이 구성을 적용된 기준으로 기록 */
+  applyCalibration(photoId: string) {
+    const ev = this.calibEvals[photoId];
+    if (!ev || !this.canEdit) return;
+    this.editBoundary();
+    for (const [id, quad] of Object.entries(ev.snapped)) this.project.updateObject(id, { quad });
+    const key = JSON.stringify(refsFromObjects(this.project.objectsOf(photoId)).map((r) => [r.objectId, r.edge, r.mm, r.a, r.b]));
+    this.project.updatePhoto(photoId, { calib: { key, at: Date.now() } });
+    this.editBoundary();
+  }
+
+  /** 사진의 회색조 (긴 변 1600px 이하로 줄이지 않고 원본 크기 — 좌표가 사진 px 이므로) */
+  private async grayOf(assetId: string, w: number, h: number): Promise<{ data: Uint8ClampedArray; width: number; height: number } | null> {
+    const url = await assetUrl(assetId);
+    if (!url) return null;
+    const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    const gray = new Uint8ClampedArray(w * h);
+    for (let i = 0; i < w * h; i++) gray[i] = (data[i * 4] * 299 + data[i * 4 + 1] * 587 + data[i * 4 + 2] * 114) / 1000;
+    return { data: gray, width: w, height: h };
   }
 
   /** 디자인 파일 → 페이지 이미지 → 소스 등록 (편집 권한) */
@@ -536,3 +626,5 @@ function save(k: string, v: string) {
 }
 
 export const app = new AppState();
+// 개발·E2E 전용 훅 (운영 빌드에는 없음)
+if (import.meta.env.DEV) (window as unknown as { __ganpanda: AppState }).__ganpanda = app;

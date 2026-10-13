@@ -20,6 +20,8 @@ export interface Photo {
   zones?: Pt[][];
   /** @deprecated 옛 데이터 (존 하나). zonesOf() 로 읽는다 */
   zone?: Pt[];
+  /** 적용된 실측 기준 (기준선 구성의 키). 구성이 바뀌면 다시 평가·적용해야 한다 */
+  calib?: { key: string; at: number };
 }
 
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */
@@ -42,6 +44,9 @@ export interface SignObject {
   text?: string;
   /** 채널 글자수 (수동 입력, 문구보다 우선) */
   charCount?: number;
+  /** 실측 기준선: 이 사인물의 가로(위·아래 변) / 세로(좌·우 변)를 기준으로 쓴다 */
+  refH?: boolean;
+  refV?: boolean;
   /** 입체 간판 설정 (채널: 두께·색·자간) */
   letter3d?: Letter3D;
   /** 입힌 디자인 (소스 페이지의 영역) */
