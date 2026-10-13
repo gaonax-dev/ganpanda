@@ -1,5 +1,6 @@
 import type { Pt } from './homography';
 import type { DesignHistoryEntry, DesignRef, SourceKind } from './design';
+import type { Letter3D } from './letter3d';
 
 export type ShapeKind = 'rect' | 'ellipse' | 'polygon';
 
@@ -37,6 +38,8 @@ export interface SignObject {
   text?: string;
   /** 채널 글자수 (수동 입력, 문구보다 우선) */
   charCount?: number;
+  /** 입체 간판 설정 (채널: 두께·색·자간) */
+  letter3d?: Letter3D;
   /** 입힌 디자인 (소스 페이지의 영역) */
   design?: DesignRef;
   /** 디자인 변경 이력 (최신이 앞) */

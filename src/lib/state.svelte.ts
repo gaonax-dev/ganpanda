@@ -70,6 +70,7 @@ class AppState {
   /** 계정 기본 단가표 (/api/me) */
   accountPrices = $state<unknown>(null);
   pricesOpen = $state(false);
+  letter3dOpen = $state(false);
   quoteSheetOpen = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);
