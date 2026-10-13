@@ -23,10 +23,10 @@
   </header>
   {#if app.canEdit}
     <div class="actions">
-      <button class="btn small" class:on={pin.resolved} data-testid="pin-resolve" onclick={() => app.project.updatePin(pin.id, { resolved: !pin.resolved })}>
+      <button class="btn small" class:on={pin.resolved} data-testid="pin-resolve" onclick={() => { app.editBoundary(); app.project.updatePin(pin.id, { resolved: !pin.resolved }); app.editBoundary(); }}>
         {pin.resolved ? '✓ 해결됨 · 다시 열기' : '해결로 표시'}
       </button>
-      <button class="btn small danger" data-testid="pin-delete" onclick={() => { app.project.removePin(pin.id); app.selectPin(null); }}>삭제</button>
+      <button class="btn small danger" data-testid="pin-delete" onclick={() => { app.editBoundary(); app.project.removePin(pin.id); app.editBoundary(); app.selectPin(null); }}>삭제</button>
     </div>
   {:else if pin.resolved}
     <div class="actions"><span class="resolved">✓ 해결됨</span></div>

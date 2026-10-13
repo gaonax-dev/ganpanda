@@ -58,7 +58,9 @@
       const width = 1200;
       // 기존 사진 오른쪽에 이어 붙이기
       const right = app.photos.reduce((m, p) => Math.max(m, p.x + p.width + 120), 0);
+      app.editBoundary();
       app.project.addPhoto({ name: f.name, assetId, w, h, x: right + i * 40, y: 0, width });
+      app.editBoundary();
       i++;
     }
     fitted = false;
@@ -76,7 +78,9 @@
 
   function create(photoId: string, shape: ShapeKind, quad: Pt[]) {
     const n = app.objects.length + 1;
+    app.editBoundary();
     const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape, quad, sheetIds: [] });
+    app.editBoundary();
     app.selectedId = id;
     app.tool = 'select';
   }
@@ -91,12 +95,16 @@
     const action = matchAction(app.keymap, e, app.isMac);
     if (action === 'toolPin') { app.tool = 'pin'; return; } // viewer 도 핀은 꽂을 수 있다
     if (!app.canEdit) return;
+    if (action === 'undo') { e.preventDefault(); app.undo(); return; }
+    if (action === 'redo') { e.preventDefault(); app.redo(); return; }
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';
     else if (action === 'deleteSelection' && app.selectedId) {
       e.preventDefault();
+      app.editBoundary();
       app.project.removeObject(app.selectedId);
+      app.editBoundary();
       app.selectedId = null;
     }
   }
@@ -162,12 +170,13 @@
         oncreatepin={(x, y) => app.createPin(p.id, x, y)}
         onselectpin={(id) => app.selectPin(id)}
         onmovepin={(id, x, y) => app.project.updatePin(id, { x, y })}
+        onpinmoveend={() => app.editBoundary()}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}
-        onquad={(id, quad) => app.project.updateObject(id, { quad })}
+        onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
-        ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) app.project.removePhoto(p.id); }}
+        ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
       />
     {/each}
     {#each app.peers as p (p.name)}
@@ -192,6 +201,9 @@
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍 핀</button>
+          <span class="sep"></span>
+          <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}>↶</button>
+          <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}>↷</button>
           <span class="sep"></span>
           <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
         {:else}
@@ -226,6 +238,7 @@
   }
   .tools button:hover, .tools .file:hover { background: var(--hover); }
   .tools button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .tools button:disabled { opacity: 0.35; cursor: default; }
   .readonly { color: var(--muted); font-size: 12px; padding: 7px 11px; }
   .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
   .zoom { color: var(--muted); font-size: 12px; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }

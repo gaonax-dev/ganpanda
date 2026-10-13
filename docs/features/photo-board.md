@@ -16,13 +16,18 @@
 ## 화면 조작과 단축키
 마우스 휠 = 확대·축소, 트랙패드 스크롤 = 이동 등 xlpop과 같은 조작을 씁니다. 단축키(기본 V·R·O, ⌘/Ctrl + = − 0, 스페이스)는 설정에서 바꿀 수 있습니다. → [shortcuts.md](shortcuts.md)
 
+## 실행 취소·다시 실행 (1-4a, `src/lib/core/history.ts`)
+- Yjs `UndoManager`로 **내 편집만** 되돌립니다(원격 변경은 다른 origin 이라 추적되지 않음). 대상은 사진·사인물·핀이며 대화는 제외합니다.
+- 500ms 안의 연속 변경(드래그, 숫자 입력)은 한 묶음. 사진·영역·핀 추가, 삭제, 해결 표시, 드래그 끝은 `app.editBoundary()`로 항상 새 묶음이 됩니다(그렇지 않으면 빠르게 이어진 "사진 추가 + 영역 그리기"가 한 번에 취소됨 — E2E 로 확인된 문제).
+- 도구 막대 ↶ ↷ 버튼, 단축키 → [shortcuts.md](shortcuts.md). 입력칸에 커서가 있으면 브라우저의 글자 되돌리기가 그대로 동작합니다.
+
 ## 관련 코드
 - `src/lib/views/BoardView.svelte`, `src/lib/views/PhotoZone.svelte`
 - `src/lib/ui/ObjectPanel.svelte` (오브젝트 패널)
 - `src/lib/core/perspective.ts` (`quadFromDrag`, `ellipseInQuad`)
 
 ## 관련 테스트
-- `tests/e2e/board.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`
+- `tests/e2e/board.spec.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
 
 ## 남은 일
 - SAM 호버 영역 분리 (다각형 오브젝트), 터치 조작 최적화, 사진 확대경(모서리 정밀 지정)
