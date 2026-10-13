@@ -18,7 +18,10 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - 앱의 `VITE_SYNC_URL`(`.env`, 예시는 `.env.example`)에 서버 주소를 넣고 빌드합니다. 비우면 개발 중에는 `http://localhost:8787`, 운영 빌드에서는 서버 없이 로컬 모드로 동작합니다.
 - E2E(`npm run e2e`)는 `wrangler dev`를 자동으로 띄웁니다.
 
-## 배포 (아직 안 함)
-- Cloudflare 계정이 필요합니다: `npx wrangler login` → `npm run deploy`
-- R2 버킷은 배포할 때 자동 생성되거나, `npx wrangler r2 bucket create ganpanda-assets`로 만듭니다.
-- **인증이 붙기 전에는 공개 배포하지 않습니다** → [api.md](api.md)
+## 배포
+- 계정: Cloudflare (`npx wrangler whoami`로 확인). 배포 명령: `cd server && npm run deploy`
+- **현재 배포 주소**: `https://ganpanda-sync.gaonax-dev.workers.dev` (2026-10-13 첫 배포, R2 버킷 `ganpanda-assets` 자동 생성)
+- 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장(`scratchpad` 프로브), 에셋 PUT 201 → GET 동일 바이트
+- 앱에서 쓰려면 `.env`에 `VITE_SYNC_URL=https://ganpanda-sync.gaonax-dev.workers.dev`
+- 서비스 도메인이 정해지면 `wrangler.jsonc`에 `routes`를 추가해 `sync.<도메인>` 같은 주소로 바꿉니다.
+- **주의**: 인증(1-2)이 붙기 전까지는 방 ID만 알면 누구나 접속할 수 있습니다. 주소를 외부에 공유하지 않습니다 → [api.md](api.md)
