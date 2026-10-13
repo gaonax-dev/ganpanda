@@ -9,9 +9,16 @@ npm test         # Workers 런타임 테스트
 npm run types    # wrangler.jsonc 변경 후 타입 재생성
 ```
 
+## D1 (계정 데이터)
+- 데이터베이스 `ganpanda` (id `071b8dc9-…`), 마이그레이션 `server/migrations/`.
+- 로컬: `npx wrangler d1 migrations apply ganpanda --local` (E2E 는 자동). 운영: `npx wrangler d1 migrations apply ganpanda --remote` 를 배포 전에 실행.
+- 테스트는 `vitest.config.ts` 에서 마이그레이션을 읽어 `test/setup.ts` 로 적용합니다.
+
 ## 설정 (`server/wrangler.jsonc`)
 - Durable Object 바인딩 `ROOM` → 클래스 `Room` (마이그레이션 `v1`, SQLite)
 - R2 바인딩 `ASSETS` → 버킷 `ganpanda-assets`
+- D1 바인딩 `DB` → `ganpanda`, `vars.APP_URL` = 매직링크가 가리킬 앱 주소
+- `.dev.vars`(커밋 안 함): `AUTH_DEV_LINK=1`, `APP_URL=http://localhost:5173`
 - `observability.enabled = true`
 
 ## 앱에서 서버 지정

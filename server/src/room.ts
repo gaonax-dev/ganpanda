@@ -16,7 +16,7 @@ const MAX_STATE = 4096;
 const LOAD = Symbol('load');
 
 interface Attachment { sid: string }
-interface AwRow { client_id: number; sock: string; clock: number; state: string }
+type AwRow = { client_id: number; sock: string; clock: number; state: string };
 
 export class Room extends DurableObject<Env> {
   private doc = new Y.Doc({ gc: true });

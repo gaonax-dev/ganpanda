@@ -15,6 +15,11 @@
 | PUT | `/api/assets/:id` | 에셋 업로드 | 201 / 400 ID 형식·해시 불일치 / 413 25MB 초과 / 415 형식 불가 |
 | GET, HEAD | `/api/assets/:id` | 에셋 다운로드·존재 확인 | 200 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
+| POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
+| POST | `/api/auth/verify` `{token}` | 링크 검증 → 계정 생성(최초)·세션 발급 | 200 `{session, account}` / 404 없음 / 410 만료·사용됨 |
+| GET | `/api/me` | 내 계정 (`Authorization: Bearer <세션>`) | 200 `{account}` / 401 |
+| PATCH | `/api/me` `{name}` | 표시 이름 변경 (40자) | 200 / 401 |
+| POST | `/api/auth/logout` | 세션 삭제 | 204 / 401 |
 
 ## 규칙
 - 방 이름: `^[A-Za-z0-9_-]{6,64}$`
@@ -23,9 +28,15 @@
 - 다운로드 응답: `cache-control: immutable`(내용이 바뀌지 않으므로), `nosniff`, `content-security-policy: … sandbox` (SVG·PDF 안의 스크립트 실행 방지)
 - WebSocket 메시지 형식 → [../architecture/sync.md](../architecture/sync.md)
 
+## 인증 (1-2a)
+- 세션은 90일 Bearer 토큰. 서버에는 SHA-256 해시만 저장(`sessions.token_hash`). 매직링크 토큰도 해시만 저장.
+- 이메일은 소문자·공백 제거 후 저장. 계정 `plan` 기본값 `free`.
+- `AUTH_DEV_LINK=1`(`.dev.vars`, 테스트 바인딩)이면 이메일 대신 응답에 링크를 넣습니다. 운영에는 설정하지 않습니다.
+- 이메일 발송은 도메인 인증 뒤 Cloudflare Email 로 연결 예정. 그전에는 503.
+
 ## 계획 (미구현)
-- 계정(카카오·구글·이메일), 프로젝트 생성·초대, 요금제 한도 → [../product/pricing.md](../product/pricing.md)
+- 카카오·구글 로그인(1-2d), 프로젝트 소유·초대 권한(1-2b), 요금제 한도(1-2c) → [../product/pricing.md](../product/pricing.md)
 - 지금은 방 ID와 에셋 ID만 알면 누구나 접근할 수 있습니다. **인증 도입 전에는 공개 배포에 쓰지 않습니다.**
 
 ## 관련 테스트
-- `server/test/sync.test.ts`, `server/test/assets.test.ts`
+- `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`

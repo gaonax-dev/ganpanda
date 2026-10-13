@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { exports } from 'cloudflare:workers';
 
 async function idOf(bytes: Uint8Array) {
-  const d = await crypto.subtle.digest('SHA-256', bytes);
+  const d = await crypto.subtle.digest('SHA-256', bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
   return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);

@@ -1,5 +1,7 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
+import { handleAuth } from './auth';
+import { text } from './http';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{6,64}$/;
 const ASSET_RE = /^[0-9a-f]{32}$/;
@@ -10,8 +12,8 @@ const ASSET_TYPES = new Set([
 
 const CORS: Record<string, string> = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, HEAD, PUT, OPTIONS',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-methods': 'GET, HEAD, PUT, POST, PATCH, DELETE, OPTIONS',
+  'access-control-allow-headers': 'content-type, authorization',
   'access-control-max-age': '86400',
 };
 
@@ -22,7 +24,6 @@ function withCors(res: Response): Response {
   return out;
 }
 
-const text = (body: string, status: number) => new Response(body, { status });
 
 /** 에셋 ID = 내용 SHA-256 앞 16바이트(hex) — 클라이언트 IndexedDB 키와 동일 */
 async function assetId(bytes: ArrayBuffer): Promise<string> {
@@ -64,6 +65,7 @@ export default {
     const { pathname } = new URL(req.url);
 
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
+    if (pathname.startsWith('/api/auth/') || pathname === '/api/me') return withCors(await handleAuth(req, env, pathname));
 
     const room = pathname.match(/^\/api\/rooms\/([^/]+?)(?:\/ws)?$/); // y-websocket 은 /api/rooms/<room> 으로 접속
     if (room) {
