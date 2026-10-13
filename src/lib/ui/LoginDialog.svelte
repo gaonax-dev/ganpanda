@@ -1,7 +1,12 @@
 <!-- 이메일 매직링크 로그인 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { describeAuthError, requestLink, verifyToken } from '../auth';
+  import { describeAuthError, fetchProviders, requestLink, socialStartUrl, verifyToken, type SocialProvider } from '../auth';
+
+  const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
+  let providers = $state<SocialProvider[]>([]);
+  $effect(() => { fetchProviders().then((p) => (providers = p)); });
+  const next = location.pathname + location.search;
 
   let email = $state('');
   let sent = $state<string | null>(null);
@@ -41,6 +46,14 @@
       {/if}
       <button class="btn small" onclick={() => (sent = null)}>다른 이메일로</button>
     {:else}
+      {#if providers.length}
+        <div class="social">
+          {#each providers as p (p)}
+            <a class="btn social-{p}" data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>
+          {/each}
+        </div>
+        <div class="or"><span>또는 이메일로</span></div>
+      {/if}
       <!-- 브라우저 기본 검증 대신 앱이 같은 문구로 안내 -->
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
         <label>이메일
@@ -60,6 +73,13 @@
   header { display: flex; align-items: center; justify-content: space-between; }
   h2 { margin: 0; font-size: 16px; }
   form { display: flex; flex-direction: column; gap: 10px; }
+  .social { display: flex; flex-direction: column; gap: 8px; }
+  .social .btn { text-decoration: none; justify-content: center; font-weight: 700; }
+  .social-kakao { background: #fee500; color: #191919; border-color: #fee500; }
+  .social-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
+  .social-apple { background: #000; color: #fff; border-color: #000; }
+  .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   .error { color: var(--danger); font-size: 13px; margin: 0; }
   p { margin: 0; font-size: 13px; line-height: 1.5; }
 </style>

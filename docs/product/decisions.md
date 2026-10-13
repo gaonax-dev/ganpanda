@@ -27,3 +27,4 @@
 | 2026-10-13 | 앱 호스팅은 Cloudflare Pages 대신 Workers 정적 에셋 | Pages 프로젝트 삭제. 서버와 도구 통일, Pages는 유지보수 모드 |
 | 2026-10-13 | 초대받은 viewer(고객)도 대화 첨부용 파일을 올릴 수 있고, 용량은 소유자 계정에 합산 | 현장 사진 공유가 핵심 소통이므로. 사용자 확인 대기 |
 | 2026-10-13 | Cloudflare Workers Paid(월 $5) 전환, 이메일 발송은 Cloudflare Email Sending | 운영 규모에서 어차피 필요한 플랜이고 메일(월 3,000통)이 포함됨 |
+| 2026-10-13 | 소셜 로그인에 Apple 포함 (카카오·Google·Apple), 서버가 OAuth 전 과정 처리 후 `/login#session=`으로 전달 | 사용자에게 Apple 개발자 계정과 xlpop 구현이 이미 있음. 웹·Tauri 공통 흐름 |
