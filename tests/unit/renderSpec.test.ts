@@ -31,8 +31,10 @@ describe('실사 합성 사양 (사인물 → 3D 간판)', () => {
     expect(s.kind).toBe('lightbox');
     expect(s.depthMm).toBeLessThanOrEqual(5);
   });
-  it('분류가 없으면 그리지 않는다', () => {
-    expect(renderSpecOf(obj({}), place)).toBeNull();
+  it('분류가 없어도 회색 판으로 자리를 보여 준다', () => {
+    const s = renderSpecOf(obj({}), place)!;
+    expect(s.kind).toBe('lightbox'); expect(s.lighting).toBe('none'); expect(s.faceColor).toBe('#9aa0a6');
+    expect(s.widthMm).toBe(9000); expect(s.heightMm).toBe(1000);
   });
   it('입체 설정의 색을 쓴다', () => {
     const s = renderSpecOf(obj({ productId: 'board-acp', letter3d: { depthMm: 60, faceColor: '#123456', sideColor: '#abcdef', letterSpacing: 0 } }), place)!;

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, openInvited, openOwnedProject } from './helpers';
+import { apiCreateInvite, makePhoto, openInvited, openOwnedProject } from './helpers';
 
 /** 합성 건물 사진 + 파사드 띠 영역(9000×1000, 전광 채널 "간판다") */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -70,6 +70,24 @@ test('실사 보기: 사진 속 제자리에 입체 글자를 합성하고, 야�
   expect(lum(nightSky.px)).toBeLessThan(lum(daySky.px) * 0.5);
   await dlg.getByTestId('close-render').click();
   await expect(dlg).toHaveCount(0);
+});
+
+test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 나온다', async ({ page, request }) => {
+  await setup(page, request);
+  const flat = await makePhoto(page);
+  await page.getByTestId('photo-input').setInputFiles({ name: '측면.png', mimeType: 'image/png', buffer: flat });
+  await expect(page.getByTestId('photo-zone')).toHaveCount(2);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const side = app.project.allPhotos()[1].id;
+    // 분류·문구 없이 치수만 (3D 벽면은 이 사인물로 잡힘)
+    app.project.addObject({ photoId: side, name: '옆 간판', shape: 'rect', quad: [[300, 650], [1100, 650], [1100, 850], [300, 850]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
+  });
+  await expect(page.getByTestId('render-open').nth(1)).toHaveAttribute('data-status', 'ok');
+  await page.getByTestId('render-open').nth(1).click();
+  await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
+  await expect(page.getByTestId('render-status')).toHaveCount(0);
+  await page.getByTestId('close-render').click();
 });
 
 test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도 실사 보기를 열 수 있다', async ({ page, request, browser }) => {
