@@ -121,7 +121,7 @@
   <aside class="side">
     <h2>사인물</h2>
     <ul>
-      {#each app.objects as o (o.id)}
+      {#each app.signs as o (o.id)}
         <li><button data-testid="uv-object" class:on={o.id === app.uvObjectId} onclick={() => (app.uvObjectId = o.id)}>
           <span>{o.name}</span>{#if o.design}<small>{sourceName(o.design.sourceId)}</small>{:else}<small class="none">디자인 없음</small>{/if}
         </button></li>

@@ -301,7 +301,7 @@
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
-          {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.id]} </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
+          {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
         {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
@@ -364,6 +364,7 @@
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }
+  .sign text .l { fill: var(--blue); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }

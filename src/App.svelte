@@ -60,7 +60,7 @@
           {v.label}
           {#if v.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
           {#if v.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
-          {#if v.id === 'list' && app.objects.length}<span class="n">{app.objects.length}</span>{/if}
+          {#if v.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
         </button>
       {/each}
     </div>

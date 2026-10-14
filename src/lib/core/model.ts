@@ -56,6 +56,8 @@ export interface SignObject {
   /** 리스트 뷰(전개도) 위 위치, mm */
   listX?: number;
   listY?: number;
+  /** 다른 사진의 같은 사인물(원본 id). 규격은 원본에서 읽고 위치만 자기 것 → core/link.ts */
+  sameAs?: string;
   createdAt: number;
 }
 

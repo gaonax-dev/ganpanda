@@ -12,6 +12,7 @@ import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
+import { resolveLinks } from './core/link';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -109,8 +110,11 @@ class AppState {
   canRedo = $derived.by(() => (this.historyVersion, this.canEdit && this.history.canRedo()));
 
   photos = $derived.by(() => (this.version, this.project.allPhotos()));
-  objects = $derived.by(() => (this.version, this.project.allObjects()));
-  selected = $derived.by(() => (this.version, this.selectedId ? this.project.object(this.selectedId) ?? null : null));
+  /** 모든 영역 (연결된 영역은 원본 규격 + 자기 위치로 풀어서) */
+  objects = $derived.by(() => (this.version, resolveLinks(this.project.allObjects())));
+  /** 사인물 = 원본만 (리스트·견적·UV 대상). 연결된 영역은 제외 */
+  signs = $derived(this.objects.filter((o) => !o.sameAs));
+  selected = $derived.by(() => (this.selectedId ? this.objects.find((o) => o.id === this.selectedId) ?? null : null));
   /** 사진별 기준선 구성 키 (사인물 id·변·치수·좌표) — 바뀌면 다시 평가·적용 */
   refsKeys = $derived.by(() => {
     const out = new Map<string, string>();
@@ -154,7 +158,7 @@ class AppState {
   /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
   prices = $derived<PriceTable>(mergePrices(this.settings.prices ?? this.accountPrices));
   quote = $derived(quoteProject(
-    this.objects.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : []; }),
+    this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : []; }),
     this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));

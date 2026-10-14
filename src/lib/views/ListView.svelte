@@ -21,12 +21,12 @@
 
   /** 치수가 확정(입력 또는 추정)된 사인물만 전개도에 배치 */
   const sized = $derived(
-    app.objects.flatMap((o) => {
+    app.signs.flatMap((o) => {
       const s = app.sizeOf(o);
       return s ? [{ o, ...s }] : [];
     }),
   );
-  const pending = $derived(app.objects.filter((o) => !app.sizeOf(o)));
+  const pending = $derived(app.signs.filter((o) => !app.sizeOf(o)));
   const placed = $derived(layoutList(sized.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
   // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
   const quote = $derived(app.quote);
