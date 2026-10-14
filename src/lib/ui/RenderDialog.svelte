@@ -103,7 +103,8 @@
       built.push(b);
     }
     count = built.length;
-    status = '';
+    const skipped = os.length - count;
+    status = skipped ? `사인물 ${os.length}개 중 ${count}개 표시 (${skipped}개는 영역이 찌그러져 그릴 수 없음)` : '';
     v.invalidate();
   }
 
