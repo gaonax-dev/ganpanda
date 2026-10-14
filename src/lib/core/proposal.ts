@@ -100,7 +100,7 @@ export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { 
     if (!categoryOf(o)) out.push(`"${o.name}"의 분류(간판·스카시·시트)가 없습니다.`);
     if (!sizeOf(o)) out.push(`"${o.name}"의 치수가 없습니다 (입력 또는 원근 맞추기로 추정).`);
   }
-  const photoIds = new Set(signs.map((o) => o.photoId));
+  const photoIds = new Set(signs.map((o) => o.photoId).filter(Boolean)); // 보드 직접 사인물('')은 사진이 없다
   for (const id of photoIds) if (!threeDOk(id)) out.push('사인물이 있는 사진의 3D(원근)가 준비되지 않았습니다. [원근 맞추기]를 하거나 치수를 넣으세요.');
   return [...new Set(out)];
 }

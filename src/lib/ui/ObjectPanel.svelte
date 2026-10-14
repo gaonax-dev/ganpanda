@@ -16,7 +16,7 @@
   /** 연결 대상 후보: 다른 사인물(원본)들 */
   const linkTargets = $derived(app.signs.filter((s) => s.id !== obj.id && s.id !== obj.sameAs));
   const copies = $derived(copiesOf(obj.sameAs ?? obj.id, app.objects));
-  const photoName = (id: string) => app.photos.find((p) => p.id === id)?.name ?? '';
+  const photoName = (id: string) => (id ? app.photos.find((p) => p.id === id)?.name ?? '' : '보드');
   const shownIn = $derived([obj.sameAs ?? obj.id, ...copies.map((c) => c.id)].map((id) => app.objects.find((o) => o.id === id)).filter((o): o is SignObject => !!o && o.id !== obj.id));
 
   const category = $derived(categoryOf(obj));
