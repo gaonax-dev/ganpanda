@@ -133,7 +133,8 @@
       {#if app.view === 'uv'}<div class="view"><UvView /></div>{/if}
       {#if app.selected && app.view === 'board'}
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
-        {#if app.compact && !app.panelOpen}{#key app.selected.id}<QuickBar obj={app.selected} />{/key}
+        <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
+        {#if app.compact && !app.panelOpen}<QuickBar obj={app.selected} />
         {:else}{#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}{/if}
       {:else if app.selectedPin && app.view === 'board'}
         {#key app.selectedPin.id}<PinPanel pin={app.selectedPin} />{/key}
