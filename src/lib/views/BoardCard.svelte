@@ -29,11 +29,14 @@
     {/if}
     {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
   </div>
+  <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
+  {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
     <b>{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
-    {#if standalone}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
+    {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
+  {/if}
 </div>
 
 <style>
