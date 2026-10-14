@@ -112,7 +112,14 @@
     return [Math.round(Math.max(0, Math.min(photo.w, (e.clientX - r.left) / scale))), Math.round(Math.max(0, Math.min(photo.h, (e.clientY - r.top) / scale)))];
   };
   function setHandle(key: string, p: Pt) {
-    if (key === 'o') { set({ origin: p }); return; }
+    if (key === 'o') {
+      // 원점(피봇)을 옮기면 기준 길이 끝점도 같은 만큼 따라간다 (2026-10-14 사용자) — 축 위로는 풀이 때 다시 붙는다
+      const d: Pt = [p[0] - draft.origin[0], p[1] - draft.origin[1]];
+      const r = draft.ref;
+      const end: Pt | undefined = r && 'point' in r ? [r.point[0] + d[0], r.point[1] + d[1]] : r && 'from' in r ? [r.to[0] + d[0], r.to[1] + d[1]] : undefined;
+      set({ origin: p, ...(r && end && ('point' in r || 'from' in r) ? { ref: { axis: r.axis, point: end, mm: r.mm } } : {}) });
+      return;
+    }
     if (key === 'r') { set({ ref: { axis: refAxis, point: sol ? snapToAxis(sol, refAxis, p) : p, mm: refMm || 1000 } }); return; }
     const axis = key[0] as Axis, i = Number(key[1]), end = key[2] as 'a' | 'b';
     const lines = linesOf(axis);

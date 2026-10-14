@@ -115,6 +115,7 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   // fSpy 식: 원점을 끌면 카메라 위치가 실시간으로 바뀌고, 화각이 표시된다
   await expect(dlg.getByTestId('camera-fov')).toContainText('화각');
   const posBefore = await dlg.getByTestId('camera-position').textContent();
+  const refBefore = await page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { ref: { point: [number, number] } } } }).__ganpanda.cameraDraft.ref.point);
   const oh = dlg.locator('[data-testid="camera-handle"][data-key="o"]');
   const ob = (await oh.boundingBox())!;
   await page.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2);
@@ -122,6 +123,9 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await page.mouse.move(ob.x + ob.width / 2 + 60 * scale, ob.y + ob.height / 2, { steps: 4 });
   await page.mouse.up();
   await expect(dlg.getByTestId('camera-position')).not.toHaveText(posBefore!);
+  // 기준 길이 끝점은 피봇과 같이 이동
+  const refAfter = await page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { ref: { point: [number, number] } } } }).__ganpanda.cameraDraft.ref.point);
+  expect(Math.abs(refAfter[0] - (refBefore[0] + 60))).toBeLessThanOrEqual(3);
   // 축 선택·리버스: 첫 쌍을 −X 로 하면 거울상 경고, 둘째 쌍은 자동으로 Y 유지
   await dlg.getByTestId('camera-axis-1').selectOption('-x');
   await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+z');
