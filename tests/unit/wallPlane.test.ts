@@ -27,7 +27,7 @@ const pr = (x: number, y: number): Pt => projectPoint(P, [x, y, 0]);
 const camera = calibrationOf(solveCamera({
   x: [{ a: pr(1000, 2500), b: pr(5000, 2500) }, { a: pr(0, 0), b: pr(6000, 0) }],
   y: [{ a: pr(5500, 0), b: pr(5500, 2100) }, { a: pr(1000, 2500), b: pr(1000, 3400) }],
-  origin: pr(0, 0), ref: { axis: 'x', point: pr(4000, 0), mm: 4000 },
+  origin: pr(0, 0), ref: { axis: 'x', from: pr(1000, 0), to: pr(5000, 0), mm: 4000 },
 }, imgW, imgH)!);
 const band = obj('band', rectOn(P, 0, 3600, 6000, 600)); // 치수 없음 → 벽면에서 추정
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b) / Math.max(1, Math.abs(b))).toBeLessThan(tol);

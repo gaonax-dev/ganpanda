@@ -5,7 +5,7 @@
   import { assetUrl } from '../assets';
   import type { Pt } from '../core/homography';
   import type { Photo } from '../core/model';
-  import { refLineOf, snapToAxis, type Axis, type AxisDir, type CameraSetup, type Line } from '../core/camera';
+  import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, snapToAxis, type Axis, type AxisDir, type CameraSetup, type Line } from '../core/camera';
   import { projectVisible, type CameraPose } from '../core/homography';
 
   let { photo }: { photo: Photo } = $props();
@@ -65,8 +65,11 @@
   /** 핸들 키: "x0a" = x 축 0번 선의 a 끝점, "o" = 원점, "ra"/"rb" = 기준 길이 끝점 */
   // 선 쌍 그리기 색: 첫 쌍(데이터 키 x) 노랑, 둘째 쌍(키 y) 파랑, 셋째 쌍(키 z) 초록 — 축 이름은 아래 DIRS 지정으로
   const AXES: { axis: Axis; label: string; cls: string }[] = [{ axis: 'x', label: '첫 쌍', cls: 'ax' }, { axis: 'y', label: '둘째 쌍', cls: 'ay' }, { axis: 'z', label: '셋째 쌍', cls: 'az' }];
+  /** 선 쌍의 색 = 지정된 월드 축 색 (기준선과 중심선이 같은 색이 되게, 2026-10-14 사용자) */
+  const pairWorld = $derived(pairAxes(draft));
+  const pairColor = (pair: Axis) => AXIS_COLOR[pairWorld[pair === 'x' ? 0 : pair === 'y' ? 1 : 2]];
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 가로·세로·높이 관례: X 가로, Y 세로(깊이), Z 높이. 'auto' = +X 가로, +Z 높이 */
-  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X 가로 (오른쪽)' }, { id: '-x', label: '−X 가로 (왼쪽)' }, { id: '+y', label: '+Y 세로 (안쪽)' }, { id: '-y', label: '−Y 세로 (앞쪽)' }, { id: '+z', label: '+Z 높이 (위)' }, { id: '-z', label: '−Z 높이 (아래)' }];
+  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X 가로 (오른쪽) 빨강' }, { id: '-x', label: '−X 가로 (왼쪽) 빨강' }, { id: '+y', label: '+Y 세로 (안쪽) 초록' }, { id: '-y', label: '−Y 세로 (앞쪽) 초록' }, { id: '+z', label: '+Z 높이 (위) 파랑' }, { id: '-z', label: '−Z 높이 (아래) 파랑' }];
   /** 같은 축을 피해 다른 축으로: 가로↔높이, 세로면 (첫째) 가로 / (둘째) 높이 */
   const other = (a: AxisDir, which: 'first' | 'second'): AxisDir => (a[1] === 'x' ? '+z' : a[1] === 'z' ? '+x' : which === 'first' ? '+x' : '+z');
   const AXIS_NAME = { x: '가로 X', y: '세로 Y', z: '높이 Z' } as const;
@@ -81,17 +84,35 @@
     set({ axes: next });
   }
   const m = (mm: number) => (mm / 1000).toFixed(2);
-  /** 기준 길이 (fSpy 방식): 원점에서 뻗는 축 하나 + 축 위 점까지의 실측 거리. 옛 형식이면 축 형식으로 바꿔서 편집 */
-  const refAxis = $derived<'x' | 'y' | 'z'>(draft.ref && 'point' in draft.ref ? draft.ref.axis : 'x');
+  /** 기준 길이 (fSpy 와 같게): 원점을 지나는 축 하나 위를 미끄러지는 핸들 두 개(from, to)와 그 사이 실측 거리. 옛 형식은 편집하는 순간 이 형식으로 */
+  const refAxis = $derived<'x' | 'y' | 'z'>(draft.ref && ('from' in draft.ref || 'point' in draft.ref) ? draft.ref.axis : 'x');
   const refMm = $derived(draft.ref?.mm ?? 0);
   const refLine = $derived(refLineOf(draft, false, sol ?? undefined));
   const REF_AXIS_LABEL = { x: 'X 가로', y: 'Y 세로 (깊이)', z: 'Z 높이' } as const;
-  function setRefAxis(axis: 'x' | 'y' | 'z') {
-    const cur = draft.ref && 'point' in draft.ref ? draft.ref.point : [draft.origin[0] + photo.w * 0.15, draft.origin[1]] as Pt;
-    const point = sol ? snapToAxis(sol, axis, cur) : cur;
-    set({ ref: { axis, point, mm: refMm || 1000 } });
+  /** 현재 핸들 두 개 (없으면 원점에서 축 방향으로 떨어진 기본 위치) */
+  function refEnds(axis: 'x' | 'y' | 'z'): [Pt, Pt] {
+    const r = draft.ref;
+    let a: Pt, b: Pt;
+    if (r && 'from' in r) { a = r.from; b = r.to; }
+    else if (r && 'point' in r) { a = draft.origin; b = r.point; }
+    else {
+      const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt);
+      const L = Math.min(photo.w, photo.h);
+      a = [draft.origin[0] + dir[0] * L * 0.1, draft.origin[1] + dir[1] * L * 0.1];
+      b = [draft.origin[0] + dir[0] * L * 0.35, draft.origin[1] + dir[1] * L * 0.35];
+    }
+    return sol ? [snapToAxis(sol, axis, a), snapToAxis(sol, axis, b)] : [a, b];
   }
-  const setRefMm = (mm: number) => { const point = draft.ref && 'point' in draft.ref ? draft.ref.point : ([draft.origin[0] + photo.w * 0.15, draft.origin[1]] as Pt); set({ ref: { axis: refAxis, point, mm: Math.max(1, mm || 1) } }); };
+  function setRefAxis(axis: 'x' | 'y' | 'z') {
+    const r = draft.ref;
+    // 축을 바꾸면 핸들은 원점 기준 같은 거리만큼 새 축 위에 놓는다
+    const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt);
+    const L = Math.min(photo.w, photo.h);
+    const from: Pt = [draft.origin[0] + dir[0] * L * 0.1, draft.origin[1] + dir[1] * L * 0.1];
+    const to: Pt = [draft.origin[0] + dir[0] * L * 0.35, draft.origin[1] + dir[1] * L * 0.35];
+    set({ ref: { axis, from, to, mm: r?.mm || 1000 } });
+  }
+  const setRefMm = (mm: number) => { const [from, to] = refEnds(refAxis); set({ ref: { axis: refAxis, from, to, mm: Math.max(1, mm || 1) } }); };
   const linesOf = (axis: Axis): [Line, Line] | undefined => (axis === 'x' ? draft.x : axis === 'y' ? draft.y : draft.z);
   const toPhoto = (e: PointerEvent): Pt => {
     const r = svg.getBoundingClientRect();
@@ -99,7 +120,7 @@
   };
   function setHandle(key: string, p: Pt) {
     if (key === 'o') { set({ origin: p }); return; }
-    if (key === 'r') { set({ ref: { axis: refAxis, point: sol ? snapToAxis(sol, refAxis, p) : p, mm: refMm || 1000 } }); return; }
+    if (key === 'ra' || key === 'rb') { const [from, to] = refEnds(refAxis); const q = sol ? snapToAxis(sol, refAxis, p) : p; set({ ref: { axis: refAxis, from: key === 'ra' ? q : from, to: key === 'rb' ? q : to, mm: refMm || 1000 } }); return; }
     const axis = key[0] as Axis, i = Number(key[1]), end = key[2] as 'a' | 'b';
     const lines = linesOf(axis);
     if (!lines) return;
@@ -147,7 +168,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="사진 원근 맞추기" data-testid="camera-dialog">
     <header>
       <h2>사진 원근 맞추기 · {photo.name}</h2>
-      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개(노랑)·높이 선 2개(파랑)</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다. 정밀하게 맞출 땐 <b>Shift</b> 를 누른 채 끌면 돋보기.</small>
+      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개(X 빨강)·높이 선 2개(Z 파랑)</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다. 정밀하게 맞출 땐 <b>Shift</b> 를 누른 채 끌면 돋보기.</small>
       <button class="icon" data-testid="close-camera" title="닫기" onclick={close}>✕</button>
     </header>
     <div class="body">
@@ -172,10 +193,10 @@
                 {@const lines = linesOf(ax.axis)}
                 {#if lines}
                   {#each lines as l, i (i)}
-                    <line class="axis {ax.cls}" data-testid="camera-line" data-key="{ax.axis}{i}" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={3 / scale} />
+                    <line class="axis {ax.cls}" data-testid="camera-line" data-key="{ax.axis}{i}" style:stroke={pairColor(ax.axis)} x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={3 / scale} />
                     {#each ['a', 'b'] as end (end)}
                       {@const p = l[end as 'a' | 'b']}
-                      <circle data-testid="camera-handle" data-key="{ax.axis}{i}{end}" class="handle {ax.cls}" class:on={drag?.key === `${ax.axis}${i}${end}`} cx={p[0]} cy={p[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, `${ax.axis}${i}${end}`)} />
+                      <circle data-testid="camera-handle" data-key="{ax.axis}{i}{end}" class="handle {ax.cls}" style:stroke={pairColor(ax.axis)} class:on={drag?.key === `${ax.axis}${i}${end}`} cx={p[0]} cy={p[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, `${ax.axis}${i}${end}`)} />
                     {/each}
                   {/each}
                 {/if}
@@ -183,7 +204,8 @@
               {#if refLine}
                 <line class="axis ref" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={4 / scale} pointer-events="none" />
                 <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 10 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
-                <circle data-testid="camera-handle" data-key="r" class="handle ref" class:on={drag?.key === 'r'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'r')} />
+                <circle data-testid="camera-handle" data-key="ra" class="handle ref" class:on={drag?.key === 'ra'} cx={refLine.a[0]} cy={refLine.a[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'ra')} />
+                <circle data-testid="camera-handle" data-key="rb" class="handle ref" class:on={drag?.key === 'rb'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rb')} />
               {/if}
               <g class="origin" transform="translate({draft.origin[0]} {draft.origin[1]})">
                 <line x1={-14 / scale} x2={14 / scale} y1="0" y2="0" stroke-width={2 / scale} /><line y1={-14 / scale} y2={14 / scale} x1="0" x2="0" stroke-width={2 / scale} />
@@ -208,7 +230,7 @@
           {#if proposeFailed}<p class="warn" data-testid="camera-propose-failed">뚜렷한 직선을 찾지 못했습니다. 선을 직접 놓으세요.</p>{/if}
         </section>
         <section>
-          <h3>기준 길이 <span class="legend ref">■</span></h3>
+          <h3>기준 길이 <span class="legend" style:color={REF_COLOR}>■</span></h3>
           <div class="row">
             <select data-testid="camera-ref-axis" value={refAxis} disabled={ro} onchange={(e) => setRefAxis(e.currentTarget.value as 'x' | 'y' | 'z')}>
               {#each Object.entries(REF_AXIS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}
@@ -216,17 +238,17 @@
             <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={refMm || ''} placeholder="실측 거리" disabled={ro} oninput={(e) => setRefMm(Number(e.currentTarget.value))} />
             <span>mm</span>
           </div>
-          <p class="hint">원점에서 뻗는 축(X 가로·Y 세로·Z 높이) 하나를 고르면 빨간 핸들이 그 축 위에서만 움직입니다. 핸들을 실측한 지점(문 반대쪽 틀, 창 위 모서리 등)에 놓고 원점부터의 거리를 넣으세요.</p>
+          <p class="hint">fSpy 와 같습니다: 원점을 지나는 축(X 가로·Y 세로·Z 높이) 하나를 고르면 빨간 핸들 두 개가 그 축 위에서만 미끄러집니다. 두 핸들을 실측한 구간의 양 끝(문 왼쪽 틀 → 오른쪽 틀, 바닥 → 창 위 등)에 놓고 그 사이 거리를 넣으세요. 원점에서 시작하지 않아도 됩니다.</p>
         </section>
         <section>
-          <h3>축 선 <span class="legend ax">■</span> 첫 쌍 <span class="legend ay">■</span> 둘째 쌍 <span class="legend az">■</span> 셋째 쌍</h3>
+          <h3>축 선 <span class="legend" style:color={pairColor('x')}>■</span> 첫 쌍 <span class="legend" style:color={pairColor('y')}>■</span> 둘째 쌍 <span class="legend" style:color={pairColor('z')}>■</span> 셋째 쌍 — 색은 축(X 빨강·Y 초록·Z 파랑)을 따릅니다</h3>
           <div class="row">
-            <label class="opt"><span class="legend ax">■</span> 첫 쌍
+            <label class="opt"><span class="legend" style:color={pairColor('x')}>■</span> 첫 쌍
               <select data-testid="camera-axis-1" value={draft.axes?.first ?? 'auto'} disabled={ro} onchange={(e) => setAxis('first', e.currentTarget.value)}>
                 <option value="auto">자동 (+X 가로)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
               </select>
             </label>
-            <label class="opt"><span class="legend ay">■</span> 둘째 쌍
+            <label class="opt"><span class="legend" style:color={pairColor('y')}>■</span> 둘째 쌍
               <select data-testid="camera-axis-2" value={draft.axes?.second ?? 'auto'} disabled={ro} onchange={(e) => setAxis('second', e.currentTarget.value)}>
                 <option value="auto">자동 (+Z 높이)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
               </select>
@@ -274,16 +296,15 @@
   .stage { position: relative; }
   .stage img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
-  .axis.ax { stroke: var(--accent); } .axis.ay { stroke: var(--blue); } .axis.az { stroke: #3ddc84; }
-  .axis.ref { stroke: #ff4d4d; }
-  .reflabel { fill: #ff8080; }
+  .axis.ref { stroke: #ff4dd2; }
+  .reflabel { fill: #ff8ae6; }
   .handle { fill: #fff; cursor: grab; }
-  .handle.ax { stroke: var(--accent); } .handle.ay { stroke: var(--blue); } .handle.az { stroke: #3ddc84; } .handle.ref { stroke: #ff4d4d; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
+  .handle.ref { stroke: #ff4dd2; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
   .handle.on { fill: var(--accent); cursor: grabbing; }
   .origin line { stroke: #fff; }
   .overlay .g { stroke: rgba(255,255,255,0.45); }
   .overlay .cube { stroke: rgba(255,255,255,0.9); }
-  .overlay .axx { stroke: #ff4d4d; } .overlay .axy { stroke: #3ddc84; } .overlay .axz { stroke: #4da3ff; }
+  .overlay .axx { stroke: #ff4d4d; } .overlay .axy { stroke: #3ddc84; } .overlay .axz { stroke: #4da3ff; } /* = AXIS_COLOR */
   .overlay .lx { fill: #ff4d4d; } .overlay .ly { fill: #3ddc84; } .overlay .lz { fill: #4da3ff; }
   .opt { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); flex: 1; }
   text { fill: #fff; stroke: rgba(0,0,0,0.75); paint-order: stroke; font-weight: 700; pointer-events: none; }
@@ -292,7 +313,7 @@
   aside { border-left: 1px solid var(--line); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
   section { display: flex; flex-direction: column; gap: 6px; }
   h3 { margin: 0; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
-  .legend.ax { color: var(--accent); } .legend.ay { color: var(--blue); } .legend.az { color: #3ddc84; } .legend.ref { color: #ff4d4d; }
+  .legend { font-size: 12px; }
   .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .row input[type='number'] { width: 90px; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 6px; }

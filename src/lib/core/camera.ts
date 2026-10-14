@@ -18,10 +18,11 @@ export interface CameraSetup {
   /** 벽 위 (0,0) 이 되는 사진 점 */
   origin: Pt;
   /**
-   * 축척 = 기준 길이 (fSpy 방식, 2026-10-14 사용자: "기준포인트 선 중에 하나를 선택"): **원점에서 뻗는 축(X 가로 / Y 세로 / Z 높이) 하나**를 고르고,
-   * 그 축 위의 점(사진 px, 축 선 위로 붙여 씀)까지의 실제 거리(mm)를 넣는다. (옛 형식 {line} / {a,b,axis} 도 읽는다)
+   * 축척 = 기준 길이 (fSpy 와 같게, 2026-10-14 사용자): **원점을 지나는 축(X 가로 / Y 세로 / Z 높이) 하나**를 고르면
+   * 그 축 선 위를 미끄러지는 **핸들 두 개**(from, to — 사진 px, 축 선 위로 붙여 씀)가 생기고, 둘 사이의 실제 거리(mm)를 넣는다.
+   * 원점에서 시작할 필요가 없다 (문 왼쪽 틀 → 오른쪽 틀처럼 축 위 아무 구간). (옛 형식 {point} / {line} / {a,b,axis} 도 읽는다)
    */
-  ref?: { axis: 'x' | 'y' | 'z'; point: Pt; mm: number } | { line: RefLineKey; mm: number } | { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
+  ref?: { axis: 'x' | 'y' | 'z'; from: Pt; to: Pt; mm: number } | { axis: 'x' | 'y' | 'z'; point: Pt; mm: number } | { line: RefLineKey; mm: number } | { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
   /** 주점: 사진 중앙(기본) / 제3 소실점의 수심 (z 축 필요) */
   principal?: 'center' | 'third';
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
@@ -29,12 +30,27 @@ export interface CameraSetup {
   axes?: { first: AxisDir; second: AxisDir };
 }
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
+/** 월드 축 색 (fSpy 와 같이 X 빨강 · Y 초록 · Z 파랑). 축 선 쌍·원점 축·3D 뷰 모두 같은 색 */
+export const AXIS_COLOR: Record<'x' | 'y' | 'z', string> = { x: '#ff4d4d', y: '#3ddc84', z: '#4da3ff' };
+/** 기준 길이(축척) 색 — 축 색과 겹치지 않게 자홍 */
+export const REF_COLOR = '#ff4dd2';
+/** 선 쌍(첫·둘째·셋째)이 어느 월드 축인가 (지정 없으면 가로 X·높이 Z·남은 세로 Y) */
+export function pairAxes(setup: Pick<CameraSetup, 'axes'>): ['x' | 'y' | 'z', 'x' | 'y' | 'z', 'x' | 'y' | 'z'] {
+  let a = (setup.axes?.first[1] ?? 'x') as 'x' | 'y' | 'z', b = (setup.axes?.second[1] ?? 'z') as 'x' | 'y' | 'z';
+  if (a === b) { a = 'x'; b = 'z'; }
+  const c = (['x', 'y', 'z'] as const).find((k) => k !== a && k !== b)!;
+  return [a, b, c];
+}
 export type RefLineKey = 'x0' | 'x1' | 'y0' | 'y1';
 
 /** 기준 길이 표시용 선분: 축 형식이면 원점→(축 위로 붙인) 점, 선 형식이면 그 축 선 */
 export function refLineOf(setup: CameraSetup, swapped = false, sol?: CameraSolution): { a: Pt; b: Pt; axis: 'x' | 'y' } | null {
   const r = setup.ref;
   if (!r) return null;
+  if ('from' in r) {
+    const a = sol ? snapToAxis(sol, r.axis, r.from) : r.from, b = sol ? snapToAxis(sol, r.axis, r.to) : r.to;
+    return { a, b, axis: r.axis === 'z' ? 'y' : 'x' };
+  }
   if ('point' in r) {
     const b = sol ? snapToAxis(sol, r.axis, r.point) : r.point;
     return { a: setup.origin, b, axis: r.axis === 'z' ? 'y' : 'x' };
@@ -198,19 +214,22 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
     return [v[0] / n, v[1] / n];
   };
   const axisImageDir = { x: axisDir(cols.x), y: axisDir(cols.y), z: axisDir(cols.z) };
-  if (setup.ref && 'point' in setup.ref && setup.ref.mm > 0) {
-    // 축 위 점 P = o3 + λ·d 가 사진의 point 에 투영되도록 λ 를 푼다 (s=1 단위) → s = mm / |λ|
-    const d = cols[setup.ref.axis];
-    const dir = axisImageDir[setup.ref.axis];
-    const t = ((setup.ref.point[0] - originPx[0]) * dir[0] + (setup.ref.point[1] - originPx[1]) * dir[1]);
+  /** 축 위 점 P = o3 + λ·d 가 사진의 p(축 선 위로 붙임)에 투영되도록 λ 를 푼다 (s=1 단위) */
+  const lambdaOf = (axis: 'x' | 'y' | 'z', p: Pt): number => {
+    const d = cols[axis], dir = axisImageDir[axis];
+    const t = (p[0] - originPx[0]) * dir[0] + (p[1] - originPx[1]) * dir[1];
     const target: Pt = [originPx[0] + dir[0] * t, originPx[1] + dir[1] * t];
     const useX = Math.abs(dir[0]) >= Math.abs(dir[1]);
     const u = useX ? target[0] - pp[0] : target[1] - pp[1];
     const oi = useX ? o3[0] : o3[1], di = useX ? d[0] : d[1];
     const den = d[2] * u - f * di;
-    const lambda = Math.abs(den) > 1e-12 ? (f * oi - o3[2] * u) / den : 0;
-    const L1 = Math.abs(lambda);
-    if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 점이 원점과 겹칩니다. 축을 따라 떨어뜨리세요.');
+    return Math.abs(den) > 1e-12 ? (f * oi - o3[2] * u) / den : 0;
+  };
+  if (setup.ref && ('from' in setup.ref || 'point' in setup.ref) && setup.ref.mm > 0) {
+    const r = setup.ref;
+    const la = 'from' in r ? lambdaOf(r.axis, r.from) : 0, lb = lambdaOf(r.axis, 'from' in r ? r.to : r.point);
+    const L1 = Math.abs(lb - la); // 두 핸들 사이 거리 (s=1 단위) → s = mm / L1
+    if (L1 > 1e-9) s = r.mm / L1; else warnings.push('기준 길이의 두 핸들이 겹칩니다. 축을 따라 떨어뜨리세요.');
   } else {
     const refL = refLineOf(setup, wallAxes[0] !== axesUsed.first);
     if (refL && setup.ref && setup.ref.mm > 0) {

@@ -30,7 +30,7 @@ function setupOf(pr: (q: V3) => Pt, withZ = false): CameraSetup {
     ...(withZ ? { z: [seg(pr, [0, 0, 0], [0, 0, -3000]), seg(pr, [0, 2500, 0], [0, 2500, -3000])] } : {}),
     origin: pr([0, 0, 0]),
     // 기준 길이 (fSpy 방식) = 원점에서 X 축을 따라 2000mm 떨어진 점
-    ref: { axis: 'x', point: pr([2000, 0, 0]), mm: 2000 },
+    ref: { axis: 'x', from: pr([1000, 0, 0]), to: pr([3000, 0, 0]), mm: 2000 },
   };
 }
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b) / Math.max(1, Math.abs(b))).toBeLessThan(tol);
@@ -58,15 +58,15 @@ describe('카메라 솔버 (축 선 두 쌍 + 원점 + 기준 길이)', () => {
 
   it('기준 길이 축이 높이(Z)·세로(Y)여도 되고, 축에서 벗어난 점은 축 위로 붙여 쓴다. 옛 형식 {line}/{a,b,axis} 도 읽는다', () => {
     const st = setupOf(proj);
-    st.ref = { axis: 'z', point: proj([0, 1500, 0]), mm: 1500 }; // 합성의 위 방향 = 높이 Z
+    st.ref = { axis: 'z', from: proj([0, 500, 0]), to: proj([0, 2000, 0]), mm: 1500 }; // 합성의 위 방향 = 높이 Z, 원점에서 떨어진 구간
     const s0 = solveCamera(st, imgW, imgH)!;
     const p0 = applyHomography(s0.Hinv, proj([2500, 1200, 0]));
     near(p0[0], 2500, 0.01); near(p0[1], 1200, 0.01);
-    const off = proj([0, 1500, 0]); st.ref = { axis: 'z', point: [off[0] + 40, off[1]], mm: 1500 }; // 축에서 40px 벗어남 → 축 위로 붙임
+    const off = proj([0, 1500, 0]); st.ref = { axis: 'z', point: [off[0] + 40, off[1]], mm: 1500 }; // 옛 한 점 형식(원점부터) + 축에서 40px 벗어남 → 축 위로 붙임
     const s1 = solveCamera(st, imgW, imgH)!;
     const p1 = applyHomography(s1.Hinv, proj([2500, 1200, 0]));
     near(p1[0], 2500, 0.02); near(p1[1], 1200, 0.02);
-    st.ref = { axis: 'y', point: proj([0, 0, -1200]), mm: 1200 }; // 세로(깊이) 축
+    st.ref = { axis: 'y', from: proj([0, 0, -300]), to: proj([0, 0, -1500]), mm: 1200 }; // 세로(깊이) 축, 뒤집힌 순서도 가능
     const s2 = solveCamera(st, imgW, imgH)!;
     near(s2.cameraPos[2], 8000, 0.01);
     st.ref = { line: 'x0', mm: 6000 };
@@ -165,7 +165,7 @@ describe('축 선택·리버스와 카메라 위치·화각', () => {
   it('원점을 옮기면 카메라 위치가 그만큼 반대로 움직인다 (화각은 그대로)', () => {
     const a = solveCamera(setupOf(proj), imgW, imgH)!;
     const st = setupOf(proj); st.origin = proj([2000, 1000, 0]);
-    st.ref = { axis: 'x', point: proj([4000, 1000, 0]), mm: 2000 }; // 기준 거리는 원점 기준이므로 같이 옮긴다
+    st.ref = { axis: 'x', from: proj([3000, 1000, 0]), to: proj([5000, 1000, 0]), mm: 2000 }; // 핸들은 새 원점의 축 위에
     const b = solveCamera(st, imgW, imgH)!;
     near(b.cameraPos[0], 1000, 0.02); near(b.cameraPos[1], 800, 0.02); near(b.cameraPos[2], 8000, 0.02);
     near(b.fov.h, a.fov.h, 0.001);
@@ -194,7 +194,7 @@ describe('세로 Y(깊이) 축 지정 (옆면 벽: 깊이 선 + 높이 선)', ()
     const full = setupOf(proj, true);
     // 깊이 선(z 방향)을 첫 쌍으로, 세로 선을 둘째 쌍으로. 기준 길이는 깊이 방향 1m
     // 기준 길이 = 첫 쌍(깊이) 선 1: [0,0,0]→[0,0,−3000] = 3000mm
-    const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { axis: 'y', point: proj([0, 0, -3000]), mm: 3000 } };
+    const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { axis: 'y', from: proj([0, 0, -500]), to: proj([0, 0, -3000]), mm: 2500 } };
     const tryDir = (first: '+y' | '-y') => solveCamera({ ...base, axes: { first, second: '+z' } }, imgW, imgH)!;
     // 사진에서 깊이 선의 부호는 모르므로 둘 중 거울상 경고가 없는 쪽이 맞는 것
     const sols = [tryDir('+y'), tryDir('-y')];

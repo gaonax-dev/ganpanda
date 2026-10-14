@@ -4,7 +4,7 @@
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
-  import { refLineOf, solveCamera } from '../core/camera';
+  import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -299,12 +299,13 @@
     {/if}
     {#if photo.camera}
       {@const refL = refLineOf(photo.camera, false, solveCamera(photo.camera, photo.w, photo.h) ?? undefined)}
+      {@const pw = pairAxes(photo.camera)}
       <!-- 원근 설정(축 선·원점·기준 길이)을 옅게 보여 준다: 이 사진에 설정이 있다는 표시 -->
       <g class="camera" data-testid="camera-overlay" pointer-events="none">
-        {#each photo.camera.x as l, i (i)}<line class="cx" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
-        {#each photo.camera.y as l, i (i)}<line class="cy" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
-        {#each photo.camera.z ?? [] as l, i (i)}<line class="cz" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
-        {#if refL}<line class="cr" x1={refL.a[0]} y1={refL.a[1]} x2={refL.b[0]} y2={refL.b[1]} stroke-width={2 * u} />{/if}
+        {#each photo.camera.x as l, i (i)}<line class="cl" style:stroke={AXIS_COLOR[pw[0]]} x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#each photo.camera.y as l, i (i)}<line class="cl" style:stroke={AXIS_COLOR[pw[1]]} x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#each photo.camera.z ?? [] as l, i (i)}<line class="cl" style:stroke={AXIS_COLOR[pw[2]]} x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#if refL}<line class="cr" style:stroke={REF_COLOR} x1={refL.a[0]} y1={refL.a[1]} x2={refL.b[0]} y2={refL.b[1]} stroke-width={2 * u} />{/if}
         <circle class="co" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={5 * u} stroke-width={1.5 * u} />
       </g>
     {/if}
@@ -396,7 +397,7 @@
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }
   .camera { opacity: 0.55; }
-  .camera .cx { stroke: var(--accent); stroke-dasharray: 6 4; } .camera .cy { stroke: var(--blue); stroke-dasharray: 6 4; } .camera .cz { stroke: #3ddc84; stroke-dasharray: 6 4; } .camera .cr { stroke: #ff4d4d; }
+  .camera .cl { stroke-dasharray: 6 4; }
   .camera .co { fill: none; stroke: #fff; }
   .header .cam.set, .header .x.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
