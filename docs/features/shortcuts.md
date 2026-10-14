@@ -18,7 +18,7 @@
 
 - 마우스 휠 판별: `wheelDeltaY`가 ±120의 배수이고 가로 이동이 없으면 마우스 휠로 봅니다.
 - 배율: `1 − deltaY × 감도`. 감도는 픽셀 단위 0.005, 줄 단위 0.1입니다. Windows에서는 핀치(|deltaY| < 50) ×2(`PINCH_ZOOM_SENSITIVITY`), 마우스 휠 ×0.2(`WHEEL_ZOOM_SENSITIVITY`)를 곱합니다.
-- 브라우저 자체 확대(Ctrl+휠, ⌘ +/−/0)와 가로 스와이프 뒤로가기는 막습니다.
+- 브라우저 자체 확대(Ctrl+휠, ⌘ +/−/0)와 가로 스와이프 뒤로가기는 막습니다: `window` 캡처 단계 휠 리스너(가로 우세·Ctrl 이면 preventDefault) + CSS `overscroll-behavior: none`(html·body) / `contain`(모든 스크롤 영역). 2026-10-15 사용자 제보(창을 휴대폰 폭으로 줄였다 돌아온 뒤 두 손가락 이동에 페이지 이동)로 CSS 차단을 추가.
 
 ## 키보드 기본값 (`DEFAULT_KEYMAP`, `src/lib/core/keymap.ts`)
 | 동작 | 기본 키 |

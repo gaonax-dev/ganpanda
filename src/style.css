@@ -7,6 +7,10 @@
 }
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }
+/* 트랙패드 가로 스와이프가 브라우저 뒤로·앞으로 가기로 번지지 않게 — 루트와 모든 스크롤 영역(패널·도구 막대·창)에서 스크롤 연쇄 차단
+   (2026-10-15 사용자: 창을 휴대폰 폭으로 줄였다 돌아오면 두 손가락 이동에 페이지 이동이 생김. 휠 preventDefault 만으로는 부족한 경우가 있어 CSS 로도 막음) */
+html, body { overscroll-behavior: none; }
+* { overscroll-behavior: contain; }
 body, #app { height: 100dvh; }
 input[type=text], input[type=number], input:not([type]), select {
   background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px;
