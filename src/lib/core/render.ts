@@ -12,6 +12,7 @@ const BOARD_LOOK: Record<string, { faceColor: string; depthMm: number }> = {
   'board-acrylic': { faceColor: '#f8fafc', depthMm: 100 },
   'board-galva': { faceColor: '#3a3f44', depthMm: 100 },
   'board-flex': { faceColor: '#fff8e6', depthMm: 150 },
+  'board-protrude': { faceColor: '#fff8e6', depthMm: 150 }, // 그린 면(옆에서 보이는 면)에 상자로. 벽에 수직인 돌출 방향 표현은 후속
 };
 const SHEET_LOOK = { faceColor: '#ffffff', depthMm: 2 };
 /** 분류 전: 자리만 보이는 회색 판 */
@@ -36,7 +37,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: l?.depthMm ?? look.depthMm,
-    lighting: o.productId === 'board-flex' ? 'front' : 'none',
+    lighting: o.productId === 'board-flex' || o.productId === 'board-protrude' ? 'front' : 'none',
     faceColor: l?.faceColor ?? look.faceColor,
     sideColor: l?.sideColor ?? '#6b7075',
   };

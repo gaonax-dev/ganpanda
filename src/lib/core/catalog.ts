@@ -12,6 +12,7 @@ export const CATALOG: Product[] = [
   { id: 'board-acp', category: 'board', name: '알루미늄 복합판 간판', unit: 'm2' },
   { id: 'board-foamex', category: 'board', name: '포맥스 간판', unit: 'm2' },
   { id: 'board-acrylic', category: 'board', name: '아크릴 간판', unit: 'm2' },
+  { id: 'board-protrude', category: 'board', name: '돌출 간판', unit: 'm2' }, // 벽에 수직으로 튀어나온 양면 간판 (2026-10-15). 단가는 양면 기준 ㎡
   { id: 'ch-front', category: 'channel', name: '채널 간판 (전광)', unit: 'charCm' },
   { id: 'ch-halo', category: 'channel', name: '채널 간판 (후광)', unit: 'charCm' },
   { id: 'ch-both', category: 'channel', name: '채널 간판 (전후광)', unit: 'charCm' },

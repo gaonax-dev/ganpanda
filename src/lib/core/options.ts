@@ -36,6 +36,14 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   'board-foamex': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   'board-acp': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   'board-acrylic': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
+  // 돌출 간판: 양면이 기본. 몸체가 갈바 도색일 때만 컬러코드. 브라켓(벽 고정 철물) 포함 여부
+  'board-protrude': [
+    sel('sides', '면', ['양면', '단면']),
+    sel('body', '몸체', ['갈바 도색', '후렉스', '아크릴']),
+    sel('light', '내부 조명', ['LED', '비조명']),
+    ...paint('paint', '도색', (opts) => (opts.body ?? '갈바 도색') === '갈바 도색'),
+    sel('bracket', '브라켓', ['기본 브라켓 포함', '별도 제작', '기존 브라켓 사용']),
+  ],
   ...Object.fromEntries(['ch-front', 'ch-halo', 'ch-both', 'ch-galva'].map((id) => [id, [
     sel('chType', '채널 종류', ['캡', '오싸이', '일체형']),
     sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], isLit),
