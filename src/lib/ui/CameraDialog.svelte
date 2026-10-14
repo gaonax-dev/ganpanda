@@ -84,10 +84,10 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); }} />
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="카메라 설정" data-testid="camera-dialog">
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="사진 원근 맞추기" data-testid="camera-dialog">
     <header>
-      <h2>카메라 설정 · {photo.name}</h2>
-      <small>벽의 확실한 직선(줄눈·창틀·문틀)에 가로 선 2개·세로 선 2개를 맞추고, 원점과 실측한 기준 길이를 놓으세요.</small>
+      <h2>사진 원근 맞추기 · {photo.name}</h2>
+      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개·세로 선 2개</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다.</small>
       <button class="icon" data-testid="close-camera" title="닫기" onclick={close}>✕</button>
     </header>
     <div class="body">
@@ -170,6 +170,7 @@
           <div class="actions">
             <button class="btn small primary" data-testid="camera-apply" disabled={!sol} onclick={() => app.applyCamera()}>적용</button>
             <button class="btn small" onclick={close}>취소</button>
+            {#if photo.camera}<button class="btn small danger" data-testid="camera-clear" onclick={() => app.clearCamera(photo.id)}>설정 지우기</button>{/if}
           </div>
         {/if}
       </aside>

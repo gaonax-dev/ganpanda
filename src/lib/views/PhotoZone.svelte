@@ -14,7 +14,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender,
+    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -58,6 +58,9 @@
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
     onrender?: () => void;
+    /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
+    oncamera?: () => void;
+    cameraSet?: boolean;
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
@@ -232,6 +235,9 @@
   >
     <span class="name">{photo.name}</span>
     <span class="count">사인물 {objects.length}</span>
+    {#if oncamera}
+      <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
+    {/if}
     {#if onrender && objects.length}<button class="x" data-testid="render-open" title="실사 보기 (사진 속 합성)" onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>🎞 실사</button>{/if}
     {#if editable}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
@@ -287,6 +293,16 @@
     {/if}
     {#if zoneDraft}
       <polygon class="zone draft" points={quadFromDrag(zoneDraft.start, zoneDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" />
+    {/if}
+    {#if photo.camera}
+      <!-- 원근 설정(축 선·원점·기준 길이)을 옅게 보여 준다: 이 사진에 설정이 있다는 표시 -->
+      <g class="camera" data-testid="camera-overlay" pointer-events="none">
+        {#each photo.camera.x as l, i (i)}<line class="cx" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#each photo.camera.y as l, i (i)}<line class="cy" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#each photo.camera.z ?? [] as l, i (i)}<line class="cz" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
+        {#if photo.camera.ref}<line class="cr" x1={photo.camera.ref.a[0]} y1={photo.camera.ref.a[1]} x2={photo.camera.ref.b[0]} y2={photo.camera.ref.b[1]} stroke-width={2 * u} />{/if}
+        <circle class="co" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={5 * u} stroke-width={1.5 * u} />
+      </g>
     {/if}
     {#each objects as o (o.id)}
       {@const q = quadOf(o)}
@@ -366,6 +382,7 @@
   }
   .header .name { color: var(--text); font-weight: 600; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
+  .header .x ~ .x { margin-left: 6px; }
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: rgba(255, 204, 0, 0.16); stroke: var(--accent); }
@@ -374,6 +391,10 @@
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }
+  .camera { opacity: 0.55; }
+  .camera .cx { stroke: var(--accent); stroke-dasharray: 6 4; } .camera .cy { stroke: var(--blue); stroke-dasharray: 6 4; } .camera .cz { stroke: #3ddc84; stroke-dasharray: 6 4; } .camera .cr { stroke: #ff4d4d; }
+  .camera .co { fill: none; stroke: #fff; }
+  .header .cam.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }

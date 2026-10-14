@@ -8,12 +8,6 @@
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
   import { SERVER_URL } from '../sync';
-  import CameraPanel from '../ui/CameraPanel.svelte';
-  /** 카메라 패널을 보여 줄 사진: 선택한 사인물의 사진, 없으면 첫 사진 */
-  const cameraPhoto = $derived.by(() => {
-    const sel = app.selected && app.photos.find((p) => p.id === app.selected!.photoId);
-    return sel ?? app.photos[0] ?? null;
-  });
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
@@ -207,6 +201,8 @@
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}
+        oncamera={() => app.openCamera(p.id)}
+        cameraSet={app.cameras.has(p.id)}
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
       />
     {/each}
@@ -219,7 +215,6 @@
       {/each}
     {/each}
     {#snippet overlay()}
-      {#if cameraPhoto}{#key cameraPhoto.id}<CameraPanel photo={cameraPhoto} />{/key}{/if}
       {#if app.tool === 'magic' && app.segmentStatus !== 'ready'}
         <div class="ai-status" data-testid="ai-status" data-status={app.segmentStatus}>
           {#if app.segmentStatus === 'error'}AI 모델을 불러오지 못했습니다. {app.segmentError}

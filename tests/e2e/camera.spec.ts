@@ -25,7 +25,8 @@ const wallToPx = (page: import('@playwright/test').Page, pts: Pt[]) => page.eval
 test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 치수 추정이 10% 안, 실사 보기에 쓰인다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
-  await expect(page.getByTestId('camera-status')).toHaveAttribute('data-status', 'none');
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'none');
+  await expect(page.getByTestId('camera-overlay')).toHaveCount(0);
   // 치수 없는 창문 영역만 있음 → 카메라 없이는 추정 불가
   const winId = await page.evaluate(async () => {
     const path = '/src/lib/sim/sample.ts';
@@ -56,7 +57,8 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await expect(dlg.getByTestId('camera-result')).toContainText('초점거리');
   await dlg.getByTestId('camera-apply').click();
   await expect(dlg).toHaveCount(0);
-  await expect(page.getByTestId('camera-status')).toHaveAttribute('data-status', 'set');
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  await expect(page.getByTestId('camera-overlay')).toHaveCount(1); // 사진 위에 원근 선이 보인다
 
   // 창문 추정 1500×850 의 10% 안
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), winId);
@@ -67,14 +69,17 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   expect(Math.abs(h - 850) / 850).toBeLessThan(0.1);
   await page.getByTestId('close-object-settings').click();
 
-  // 실사 보기가 카메라를 쓴다
+  // 실사 보기가 카메라를 쓴다 (패널이 사진 머리 바를 가리지 않게 선택 해제)
+  await page.evaluate(() => (window as unknown as { __ganpanda: { selectObject(id: string | null): void } }).__ganpanda.selectObject(null));
   await page.getByTestId('render-open').click();
   await expect(page.getByTestId('render-dialog')).toContainText('카메라 설정');
   await page.getByTestId('close-render').click();
 
   // 지우기 → 설정 없음, 추정도 사라짐
+  await page.getByTestId('camera-open').click();
   await page.getByTestId('camera-clear').click();
-  await expect(page.getByTestId('camera-status')).toHaveAttribute('data-status', 'none');
+  await expect(page.getByTestId('camera-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'none');
 });
 
 test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평행하면 경고한다', async ({ page, request }) => {
