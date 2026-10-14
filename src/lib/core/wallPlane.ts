@@ -86,6 +86,37 @@ export function placeOnWall(plane: WallPlane, o: { quad: Pt[] }): Placement {
   };
 }
 
+/**
+ * 벽면 호모그래피에 **정확히** 맞는 3×4 투영 행렬 (row-major 12개): 사진 px(동차) = P · [X Y Z 1].
+ * 핀홀 카메라로 분해하면(poseOfPlane) 손으로 그린 영역처럼 핀홀과 맞지 않는 H 에서는 멀리 있는 사인물이 제자리에서 벗어난다.
+ * 그래서 X·Y·평행이동 열은 H 그대로 쓰고(z=0 평면은 오차 0), Z 열만 추정 카메라(K)로 만든 r₃ 로 채운다 (AR 마커 방식).
+ * 2026-10-14 사용자: "사진 위의 사인물 크기는 사용자가 그린 사인물에 맞물리면 된다"
+ */
+export function projectionFromPlane(plane: WallPlane, imgW: number, imgH: number): number[] {
+  const H = plane.H;
+  const pose = poseOfPlane(plane, imgW, imgH);
+  const f = pose.f, cx = imgW / 2, cy = imgH / 2;
+  const h1: V3 = [H[0], H[3], H[6]], h2: V3 = [H[1], H[4], H[7]], h3: V3 = [H[2], H[5], H[8]];
+  const Kinv = (v: V3): V3 => [(v[0] - cx * v[2]) / f, (v[1] - cy * v[2]) / f, v[2]];
+  const r1 = Kinv(h1), r2 = Kinv(h2);
+  const n1 = Math.hypot(...r1) || 1, n2 = Math.hypot(...r2) || 1;
+  const lambda = (n1 + n2) / 2;
+  const u1: V3 = [r1[0] / n1, r1[1] / n1, r1[2] / n1], u2: V3 = [r2[0] / n2, r2[1] / n2, r2[2] / n2];
+  let r3: V3 = [(u1[1] * u2[2] - u1[2] * u2[1]) * lambda, (u1[2] * u2[0] - u1[0] * u2[2]) * lambda, (u1[0] * u2[1] - u1[1] * u2[0]) * lambda];
+  // +Z 는 벽 밖(카메라 쪽): 깊이(3행)가 Z 와 함께 줄어야 한다. 원점의 깊이 h3[2] 와 같은 부호를 기준으로
+  if (r3[2] * h3[2] > 0) r3 = [-r3[0], -r3[1], -r3[2]];
+  const p3: V3 = [f * r3[0] + cx * r3[2], f * r3[1] + cy * r3[2], r3[2]];
+  return [h1[0], h2[0], p3[0], h3[0], h1[1], h2[1], p3[1], h3[1], h1[2], h2[2], p3[2], h3[2]];
+}
+type V3 = [number, number, number];
+
+/** 3×4 투영으로 점을 사진 px 로 (검증용). 깊이가 0 이하면 null */
+export function projectP(P: number[], p: [number, number, number]): Pt | null {
+  const w = P[8] * p[0] + P[9] * p[1] + P[10] * p[2] + P[11];
+  if (!(w > 1e-9)) return null;
+  return [(P[0] * p[0] + P[1] * p[1] + P[2] * p[2] + P[3]) / w, (P[4] * p[0] + P[5] * p[1] + P[6] * p[2] + P[7]) / w];
+}
+
 /** 벽면 → 핀홀 카메라 포즈 (벽면 mm 좌표가 그대로 월드 좌표) */
 export function poseOfPlane(plane: WallPlane, imgW: number, imgH: number, span = 4000): CameraPose {
   const wall: Pt[] = [[0, span], [span, span], [span, 0], [0, 0]];

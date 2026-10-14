@@ -57,6 +57,7 @@ export interface ChannelGeometry {
 export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
   const text = spec.text.trim() || ' ';
   const shapes = textToShapes(font, text, spec.letterSpacing);
+  if (!shapes.length) throw new Error('글자 윤곽이 없습니다 (폰트에 없는 글자·공백만)');
   const geometry = new THREE.ExtrudeGeometry(shapes, { depth: spec.depthMm, bevelEnabled: false, curveSegments: 6 });
   geometry.computeBoundingBox();
   const bb = geometry.boundingBox!.clone(); // translate/scale 이 boundingBox 를 갱신하므로 복사

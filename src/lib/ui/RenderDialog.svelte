@@ -8,7 +8,7 @@
   import type { Photo, SignObject } from '../core/model';
   import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
-  import { placeOnWall, poseOfPlane, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, poseOfPlane, projectionFromPlane, wallPlaneOf } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
   import { buildChannel, buildLightbox, type BuiltSign, type FaceImage } from '../sim/signs';
 
@@ -86,7 +86,7 @@
     const placed = os.map((o) => ({ o, at: placeOnWall(p, o) }));
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
-    v.applyPose(poseOfPlane(p, photo.w, photo.h), maxX, maxY);
+    v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림
     const items = await Promise.all(placed.map(async ({ o, at }) => {
       const spec = renderSpecOf(o, at);
       if (!spec) return null;
@@ -94,9 +94,17 @@
       return { spec, face };
     }));
     if (my !== token) return;
+    // 사인물 하나가 실패해도(폰트에 없는 글자, 찌그러진 영역 등) 나머지는 계속 그린다 (2026-10-14: 뒤에 만든 사인물이 안 보이던 원인)
+    const notes: string[] = [];
     for (const it of items) {
       if (!it) continue;
-      const b = it.spec.kind === 'channel' ? buildChannel(it.spec, font) : buildLightbox(it.spec, 'Pretendard, sans-serif', it.face);
+      let b: BuiltSign;
+      try {
+        b = it.spec.kind === 'channel' ? buildChannel(it.spec, font) : buildLightbox(it.spec, 'Pretendard, sans-serif', it.face);
+      } catch (e) {
+        try { b = buildLightbox({ ...it.spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 입체 글자를 만들 수 없어 상자로 표시 (${e instanceof Error ? e.message : e})`); }
+        catch { notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 그릴 수 없음`); continue; }
+      }
       b.group.position.set(it.spec.x, it.spec.y, 0);
       if (it.spec.kind === 'channel') b.group.scale.setScalar(fitScale(b.measured.widthMm, it.spec.widthMm)); // 그린 영역 폭에 맞춤
       b.setNight(night);
@@ -105,7 +113,7 @@
     }
     count = built.length;
     const skipped = os.length - count;
-    status = skipped ? `사인물 ${os.length}개 중 ${count}개 표시 (${skipped}개는 영역이 찌그러져 그릴 수 없음)` : '';
+    status = [skipped ? `사인물 ${os.length}개 중 ${count}개 표시 (${skipped}개는 영역이 찌그러져 그릴 수 없음)` : '', ...notes].filter(Boolean).join(' · ');
     v.invalidate();
   }
 

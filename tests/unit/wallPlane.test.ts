@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { calibrationOf, solveCamera } from '../../src/lib/core/camera';
 import { applyHomography, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
 import type { SignObject } from '../../src/lib/core/model';
-import { placeOnWall, poseOfPlane, wallPlaneOf } from '../../src/lib/core/wallPlane';
+import { placeOnWall, poseOfPlane, projectP, projectionFromPlane, wallPlaneOf } from '../../src/lib/core/wallPlane';
 
 // 합성 카메라 (calibration.test 와 같은 모델)
 const imgW = 4000, imgH = 3000, f = 3000;
@@ -77,5 +77,60 @@ describe('벽면 좌표계 (실사 합성용)', () => {
       expect(Math.abs(px[0] - band.quad[i][0])).toBeLessThan(imgW * 0.01);
     });
     near(cam.f, f, 0.05); // 초점거리도 복원
+  });
+});
+
+describe('호모그래피에 정확히 맞는 투영 (손으로 그린 영역에도 사인물이 제자리에)', () => {
+  it('핀홀과 맞지 않는 사각형이라도 벽면(z=0) 위 점은 H 와 1e-6 안에서 같고, 먼 사인물도 제자리', () => {
+    // 손으로 찍은 듯한 사각형 (핀홀로 재현되지 않는 왜곡)
+    const hand = obj('hand', [[300, 400], [1300, 350], [1250, 700], [280, 740]], { widthMm: 5000, heightMm: 1500 });
+    const far = obj('far', [[1400, 200], [1900, 180], [1900, 320], [1400, 330]]);
+    const plane = wallPlaneOf([hand, far], null)!;
+    const P = projectionFromPlane(plane, imgW, imgH);
+    const pl = placeOnWall(plane, far);
+    const corners: [number, number][] = [[pl.cx - pl.w / 2, pl.cy + pl.h / 2], [pl.cx + pl.w / 2, pl.cy + pl.h / 2], [pl.cx + pl.w / 2, pl.cy - pl.h / 2], [pl.cx - pl.w / 2, pl.cy - pl.h / 2]];
+    for (const [i, c] of corners.entries()) {
+      const viaH = applyHomography(plane.H, c), viaP = projectP(P, [c[0], c[1], 0])!;
+      expect(Math.abs(viaP[0] - viaH[0])).toBeLessThan(1e-6);
+      expect(Math.abs(viaP[1] - viaH[1])).toBeLessThan(1e-6);
+      // 핀홀 분해는 이 사각형에서 어긋난다 (그래서 투영을 따로 둔다)
+      void i;
+    }
+    const pinhole = poseOfPlane(plane, imgW, imgH);
+    const [u] = projectPoint(pinhole, [corners[0][0], corners[0][1], 0]), [tu] = applyHomography(plane.H, corners[0]);
+    expect(Math.abs(u - tu)).toBeGreaterThan(1); // 핀홀로는 안 맞는 경우임을 확인
+  });
+  it('+Z(벽 밖) 는 카메라 쪽: 깊이가 줄고 투영이 유한하다', () => {
+    const P2 = pose(0.45, -0.1, [3000, 2000, 8000]);
+    const sign2 = obj('s', rectOn(P2, 1000, 2500, 4000, 900), { widthMm: 4000, heightMm: 900 });
+    const plane = wallPlaneOf([sign2], null)!;
+    const P = projectionFromPlane(plane, imgW, imgH);
+    const depth = (p: [number, number, number]) => P[8] * p[0] + P[9] * p[1] + P[10] * p[2] + P[11];
+    expect(depth([2000, 450, 300])).toBeLessThan(depth([2000, 450, 0]));
+    expect(projectP(P, [2000, 450, 300])).not.toBeNull();
+    // 핀홀과 맞는 사진에서는 Z 가 있어도 복원 포즈와 거의 같다
+    // 벽면 원점은 기준 사인물의 좌하단(월드 1000,2500) → 벽면 (2000,450,300) = 월드 (3000,2950,300)
+    const [u, v] = projectP(P, [2000, 450, 300])!, [tu, tv] = projectPoint(P2, [3000, 2950, 300]);
+    expect(Math.hypot(u - tu, v - tv)).toBeLessThan(3);
+  });
+});
+
+describe('3×4 투영 → 클립 행렬 (뷰어와 같은 식)', () => {
+  it('벽면 점들이 near~far 안(z_ndc −1~1)에 들어오고 x,y 는 사진 좌표와 같다', () => {
+    const P2 = pose(0.45, -0.1, [3000, 2000, 8000]);
+    const sign2 = obj('s', rectOn(P2, 1000, 2500, 4000, 900), { widthMm: 4000, heightMm: 900 });
+    const plane = wallPlaneOf([sign2], null)!;
+    const P = projectionFromPlane(plane, imgW, imgH);
+    const depths = [[0, 0], [4000, 0], [4000, 900], [0, 900]].map(([x, y]) => P[8] * x + P[9] * y + P[11]);
+    const dmin = Math.max(1e-6, Math.min(...depths) * 0.2), dmax = Math.max(...depths) * 5;
+    const a = (dmax + dmin) / (dmax - dmin), b = (-2 * dmax * dmin) / (dmax - dmin);
+    for (const p of [[0, 0, 0], [4000, 900, 0], [2000, 450, 300], [2000, 450, -300]] as [number, number, number][]) {
+      const w = P[8] * p[0] + P[9] * p[1] + P[10] * p[2] + P[11];
+      const zndc = a + b / w;
+      expect(zndc).toBeGreaterThan(-1); expect(zndc).toBeLessThan(1);
+      const x = (P[0] * p[0] + P[1] * p[1] + P[2] * p[2] + P[3]) / w, y = (P[4] * p[0] + P[5] * p[1] + P[6] * p[2] + P[7]) / w;
+      const [tu, tv] = projectPoint(P2, [p[0] + 1000, p[1] + 2500, p[2]]);
+      expect(Math.abs(x - tu)).toBeLessThan(3); expect(Math.abs(y - tv)).toBeLessThan(3);
+    }
   });
 });
