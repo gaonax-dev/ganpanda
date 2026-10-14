@@ -118,6 +118,14 @@ export function recoverPose(
   return { f, R, t, imgW, imgH };
 }
 
+/** 벽 좌표 → 이미지 픽셀, 카메라 뒤(깊이 ≤ 0)면 null — 3D 오버레이용 */
+export function projectVisible(pose: CameraPose, p: V3): Pt | null {
+  const { R, t } = pose;
+  const z = R[6] * p[0] + R[7] * p[1] + R[8] * p[2] + t[2];
+  if (z <= 1e-6) return null;
+  return projectPoint(pose, p);
+}
+
 /** 검증/테스트용: 벽 좌표(mm, z=벽에서 튀어나온 거리) → 이미지 픽셀 */
 export function projectPoint(pose: CameraPose, p: V3): Pt {
   const { R, t, f, imgW, imgH } = pose;

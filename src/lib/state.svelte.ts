@@ -14,6 +14,7 @@ import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
+import { wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -231,6 +232,11 @@ class AppState {
   }
 
   // ---------- 카메라 설정 (사진별, 사인물과 무관) ----------
+
+  /** 이 사진에 3D 벽면을 만들 수 있나: 원근 설정이 있거나 치수를 입력한 사인물이 있으면 */
+  threeDOk(photoId: string) {
+    return this.cameras.has(photoId) || !!wallPlaneOf(this.objects.filter((o) => o.photoId === photoId), null);
+  }
 
   /** 설정 창 열기: 저장된 설정이 있으면 그것, 없으면 사진 크기 기준 기본 배치로 시작 */
   openCamera(photoId: string) {

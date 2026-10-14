@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type Line } from '../../src/lib/core/camera';
+import { pointsTo, type Segment } from '../../src/lib/core/lines';
 import { measureQuad } from '../../src/lib/core/calibration';
 import { applyHomography, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
 
@@ -104,8 +105,6 @@ function raster(pr: (q: V3) => Pt, w: number, h: number) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (const [poly, v] of shapes) if (inside([x + 0.5, y + 0.5], poly)) data[y * w + x] = v;
   return { data, width: w, height: h };
 }
-const angleOf = (l: Line) => Math.atan2(l.b[1] - l.a[1], l.b[0] - l.a[0]);
-const angleDiff = (a: number, b: number) => { let d = Math.abs(a - b) % Math.PI; return Math.min(d, Math.PI - d); };
 
 describe('축 선 자동 제안', () => {
   const W = 400, H = 300;
@@ -113,13 +112,16 @@ describe('축 선 자동 제안', () => {
   const small = (q: V3): Pt => { const [u, v] = projectPoint(S, q); return [(u * W) / imgW, (v * H) / imgH]; };
   const img = raster(small, W, H);
 
-  it('가로 선 2개는 벽의 가로 방향, 세로 선 2개는 세로 방향과 5° 안이고 서로 떨어져 있다', () => {
+  it('가로 선 2개는 가로 소실점을, 세로 선 2개는 세로 소실점을 향하고(1.5°) 서로 떨어져 있다', () => {
     const p = proposeAxisLines(img)!;
     expect(p).not.toBeNull();
-    const hx = angleOf({ a: small([0, 2000, 0]), b: small([6000, 2000, 0]) });
-    const vy = angleOf({ a: small([500, 400, 0]), b: small([500, 1400, 0]) });
-    for (const l of p.x) expect(angleDiff(angleOf(l), hx)).toBeLessThan((5 * Math.PI) / 180);
-    for (const l of p.y) expect(angleDiff(angleOf(l), vy)).toBeLessThan((5 * Math.PI) / 180);
+    const l3 = (a: Pt, b: Pt): V3 => [a[1] - b[1], b[0] - a[0], a[0] * b[1] - a[1] * b[0]];
+    const x3 = (u: V3, v: V3): V3 => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const vxT = x3(l3(small([0, 2000, 0]), small([6000, 2000, 0])), l3(small([0, 0, 0]), small([6000, 0, 0])));
+    const vyT = x3(l3(small([500, 400, 0]), small([500, 1400, 0])), l3(small([5500, 400, 0]), small([5500, 1400, 0])));
+    const seg = (s: Line): Segment => ({ a: s.a, b: s.b, length: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]), strength: 1 });
+    for (const l of p.x) expect(pointsTo(seg(l), vxT, 1.5 * Math.PI / 180)).toBe(true);
+    for (const l of p.y) expect(pointsTo(seg(l), vyT, 1.5 * Math.PI / 180)).toBe(true);
     const midY = (l: Line) => (l.a[1] + l.b[1]) / 2, midX = (l: Line) => (l.a[0] + l.b[0]) / 2;
     expect(Math.abs(midY(p.x[0]) - midY(p.x[1]))).toBeGreaterThan(H * 0.15);
     expect(Math.abs(midX(p.y[0]) - midX(p.y[1]))).toBeGreaterThan(W * 0.15);

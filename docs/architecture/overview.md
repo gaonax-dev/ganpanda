@@ -31,10 +31,11 @@ ganpanda/
 | `homography.ts` | 4점 호모그래피, 카메라 포즈 복원, 초점거리·벽 높이 추정 |
 | `perspective.ts` | 사각 영역 ↔ 정면 직사각형 변환, CSS `matrix3d`, 원근 속 타원, 다각형 면적 |
 | `measure.ts` | 실측 판독 (기준선 보정 또는 자동 기준, 추정, 경고) |
-| `camera.ts` | 사진별 카메라 설정 솔버(축 선 두 쌍·원점·기준 길이 → 초점거리·회전·위치·벽면), 축 선 자동 제안(허프), 모서리 붙이기 |
+| `camera.ts` | 사진별 카메라 설정 솔버(축 선 두 쌍·원점·기준 길이 → 초점거리·회전·위치·벽면), 축 선 자동 제안(`lines.ts`), 모서리 붙이기 |
+| `lines.ts` | 선분 검출(LSD 식)·동일선 병합·RANSAC 소실점·축 선 제안 |
 | `calibration.ts` | 벽면 보정 결과(`Calibration`)로 사각 영역 측정, 모서리 붙이기(`snapEdge`) |
 | `wallPlane.ts` | 실사 합성용 벽면 좌표계 (px ↔ mm, 카메라 포즈) |
-| `render.ts` | 사인물 → 3D 간판 사양 (실사 보기) |
+| `render.ts` | 사인물 → 3D 간판 사양 (3D 뷰) |
 | `catalog.ts` | 간판·스카시 종류·시트 종류 (이름·단위), 분류 간판/스카시/시트 (`categoryOf`) |
 | `options.ts` | 주문 사양 옵션 스키마 (종류별 필드·조건부·요약) |
 | `order.ts` | 주문 정보 형식, 주문 JSON |

@@ -149,6 +149,15 @@ export class Viewer {
       [[0, 0], [w, 0], [w, h], [0, h], [0, 0]].map(([x, y]) => new THREE.Vector3(x, y, 0)),
     );
     this.grid.add(new THREE.Line(border, new THREE.LineBasicMaterial({ color: 0xffcc00 })));
+    // 원점 축 (X 빨강, Y 초록, Z 파랑 = 벽 밖) 과 1m 정육면체: 카메라가 맞는지 눈으로 확인
+    const axis = (to: [number, number, number], color: number) => {
+      const g2 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(...to)]);
+      this.grid.add(new THREE.Line(g2, new THREE.LineBasicMaterial({ color, linewidth: 2 })));
+    };
+    axis([step, 0, 0], 0xff4d4d); axis([0, step, 0], 0x3ddc84); axis([0, 0, step], 0x4da3ff);
+    const cube = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(step, step, step)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }));
+    cube.position.set(step / 2, step / 2, step / 2);
+    this.grid.add(cube);
   }
 
   showGrid(v: boolean) { this.grid.visible = v; this.invalidate(); }
