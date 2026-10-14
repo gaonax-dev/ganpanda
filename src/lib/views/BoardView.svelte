@@ -31,6 +31,16 @@
     fitAll();
   });
 
+  // 리스트에서 사진에 올린 뒤: 그 사진을 화면에 맞춘다
+  $effect(() => {
+    const r = app.reveal;
+    if (!r) return;
+    const p = app.photos.find((x) => x.id === r.photoId);
+    if (!p || !canvas) return;
+    const { w, h } = canvas.size();
+    viewport = fitRect({ x: p.x, y: p.y - 40, w: p.width, h: p.width * (p.h / p.w) + 40 }, w, h, 40);
+  });
+
   function fitAll() {
     if (!app.photos.length) return;
     const xs = app.photos.flatMap((p) => [p.x, p.x + p.width]);

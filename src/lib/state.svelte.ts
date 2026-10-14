@@ -106,6 +106,8 @@ class AppState {
   notice = $state('');
   /** 새 배포가 있음 (오래 열어 둔 탭) → 새로고침 안내 */
   updateAvailable = $state(false);
+  /** 보드가 이 사진을 화면에 맞추라는 요청 (리스트에서 사진에 올린 뒤) */
+  reveal = $state<{ photoId: string; n: number } | null>(null);
   /** 사인물별 내가 마지막으로 본 메시지 시각 (기기 저장) */
   seen = $state<SeenMap>({});
   /** 새 메시지 토스트 (최근 것이 뒤) */
@@ -533,6 +535,32 @@ class AppState {
     const left = (o: SignObject) => Math.min(...o.quad.map((p) => p[0]));
     const top = (o: SignObject) => Math.min(...o.quad.map((p) => p[1]));
     return this.objects.filter((o) => o.photoId === photoId).sort((a, b) => left(a) - left(b) || top(a) - top(b));
+  }
+
+  /**
+   * 리스트의 사인물을 사진 보드에 올린다 (2026-10-15 사용자: "사인물 리스트의 사인물을 사진 보드에 올릴 수 있나?"):
+   * 그 사진 가운데에 같은 사인물(sameAs 연결)로 새 영역을 만들고 선택한 뒤 보드로 간다. 비율은 치수(또는 원본 영역)에서, 폭은 사진의 40%
+   */
+  placeOnPhoto(signId: string, photoId: string): string | null {
+    if (!this.canEdit) return null;
+    const master = this.objects.find((o) => o.id === signId);
+    const photo = this.photos.find((p) => p.id === photoId);
+    if (!master || !photo) return null;
+    const root = master.sameAs ?? master.id;
+    const sz = this.sizeOf(master);
+    const bb = (q: Pt[]) => ({ w: Math.max(...q.map((p) => p[0])) - Math.min(...q.map((p) => p[0])), h: Math.max(...q.map((p) => p[1])) - Math.min(...q.map((p) => p[1])) });
+    const ratio = sz ? sz.h / sz.w : (() => { const b = bb(master.quad); return b.w > 0 ? b.h / b.w : 0.3; })();
+    const w = photo.w * 0.4, h = Math.min(photo.h * 0.8, w * ratio);
+    const x0 = (photo.w - w) / 2, y0 = (photo.h - h) / 2;
+    const quad: Pt[] = [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]];
+    this.editBoundary();
+    const id = this.project.addObject({ photoId, name: master.name, shape: 'rect', quad, sheetIds: [] });
+    this.project.linkObject(id, root);
+    this.editBoundary();
+    this.view = 'board';
+    this.selectObject(id);
+    this.reveal = { photoId, n: (this.reveal?.n ?? 0) + 1 };
+    return id;
   }
 
   selectObject(id: string | null) {

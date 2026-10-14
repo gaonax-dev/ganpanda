@@ -1,6 +1,36 @@
 import { expect, test } from '@playwright/test';
 import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
+test('리스트의 사인물을 [사진에 올리기]로 다른 사진에 같은 사인물로 올린다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('r');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await page.getByTestId('width-mm').fill('4000');
+  await page.getByTestId('height-mm').fill('1000');
+  await page.keyboard.press('Escape');
+  // 두 번째 사진
+  await page.getByTestId('photo-input').setInputFiles({ name: '측면.png', mimeType: 'image/png', buffer: await makePhoto(page) });
+  await expect(page.getByTestId('photo-zone')).toHaveCount(2);
+  await page.getByTestId('view-list').click();
+  const place = page.getByTestId('place-on-photo');
+  await expect(place).toBeVisible();
+  const second = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { id: string; name: string }[] } }).__ganpanda.photos.find((p) => p.name === '측면.png')!.id);
+  await place.selectOption(second);
+  // 보드로 돌아와 새 영역이 선택되고, 같은 사인물로 연결되어 있다
+  await expect(page.getByTestId('view-board')).toHaveClass(/on/);
+  await expect(page.getByTestId('link-info')).toContainText('2곳');
+  await expect(page.getByTestId('sign-linked')).toHaveCount(1);
+  const objs = await page.evaluate(() => (window as unknown as { __ganpanda: { objects: { photoId: string; sameAs?: string; widthMm?: number }[] } }).__ganpanda.objects);
+  expect(objs).toHaveLength(2);
+  expect(objs.find((o) => o.photoId === second)!.widthMm).toBe(4000); // 규격 공유
+  // 리스트(견적)에는 여전히 하나
+  await page.getByTestId('view-list').click();
+  await expect(page.getByTestId('list-card')).toHaveCount(1);
+});
+
 test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성창, 견적·리스트에는 하나만, 해제하면 독립', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page); // 정면
