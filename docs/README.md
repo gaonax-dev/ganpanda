@@ -28,7 +28,7 @@
 - features
   - [photo-board.md](features/photo-board.md) — 사진 보드, 영역 그리기
   - [shortcuts.md](features/shortcuts.md) — 화면 조작(xlpop과 동일)과 단축키 설정
-  - [measurement.md](features/measurement.md) — 실측 판독과 경고 규칙
+  - [measurement.md](features/measurement.md) — 카메라 설정(축 선·원점·기준 길이), 실측 판독과 경고 규칙
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴

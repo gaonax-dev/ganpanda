@@ -119,6 +119,8 @@ export class Viewer {
     view.invert().decompose(this.camera.position, this.camera.quaternion, this.camera.scale);
     this.camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(imgH / 2 / f));
     this.camera.aspect = imgW / imgH;
+    // 주점이 중앙이 아니면(크롭 사진) 광축 중심의 가상 프레임에서 보이는 영역만 그린다
+    if (pose.pp) this.camera.setViewOffset(imgW, imgH, imgW / 2 - pose.pp[0], imgH / 2 - pose.pp[1], imgW, imgH); else this.camera.clearViewOffset();
     const dist = this.camera.position.length() + Math.max(wallW, wallH) * 4;
     this.camera.near = 10;
     this.camera.far = dist * 4;

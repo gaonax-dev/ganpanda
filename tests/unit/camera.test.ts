@@ -1,0 +1,137 @@
+import { describe, expect, it } from 'vitest';
+import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type Line } from '../../src/lib/core/camera';
+import { measureQuad } from '../../src/lib/core/calibration';
+import { applyHomography, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
+
+// 합성 핀홀 카메라 (homography.test 와 같은 모델). 주점은 (cx, cy)
+const imgW = 4000, imgH = 3000, f = 3000;
+type V3 = [number, number, number];
+function truth(yaw: number, pitch: number, C: number[]): CameraPose {
+  const base = [1, 0, 0, 0, -1, 0, 0, 0, -1];
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const Ry = [cy, 0, sy, 0, 1, 0, -sy, 0, cy], Rx = [1, 0, 0, 0, cp, -sp, 0, sp, cp];
+  const mul = (a: number[], b: number[]) => { const r = new Array(9).fill(0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) r[i * 3 + j] += a[i * 3 + k] * b[k * 3 + j]; return r; };
+  const R = mul(Rx, mul(Ry, base));
+  const t = [0, 1, 2].map((i) => -(R[i * 3] * C[0] + R[i * 3 + 1] * C[1] + R[i * 3 + 2] * C[2])) as V3;
+  return { f, R, t, imgW, imgH };
+}
+/** 주점이 (cx,cy) 가 아닌 카메라 (크롭 사진): 투영 후 평행 이동 */
+const shifted = (p: CameraPose, dx: number, dy: number) => (q: V3): Pt => { const [u, v] = projectPoint(p, q); return [u + dx, v + dy]; };
+const P = truth(0.5, -0.2, [3000, 1800, 8000]);
+const proj = (q: V3) => projectPoint(P, q);
+const seg = (pr: (q: V3) => Pt, a: V3, b: V3): Line => ({ a: pr(a), b: pr(b) });
+
+/** 벽 위 선들: 가로 2개(y=0, y=3000), 세로 2개(x=0, x=6000), 깊이 2개(옆면 벽, x=0 평면에서 z 방향) */
+function setupOf(pr: (q: V3) => Pt, withZ = false): CameraSetup {
+  return {
+    x: [seg(pr, [0, 0, 0], [6000, 0, 0]), seg(pr, [500, 3000, 0], [6500, 3000, 0])],
+    y: [seg(pr, [0, 0, 0], [0, 3000, 0]), seg(pr, [6000, 200, 0], [6000, 2800, 0])],
+    ...(withZ ? { z: [seg(pr, [0, 0, 0], [0, 0, -3000]), seg(pr, [0, 2500, 0], [0, 2500, -3000])] } : {}),
+    origin: pr([0, 0, 0]),
+    ref: { a: pr([1000, 500, 0]), b: pr([1900, 500, 0]), axis: 'x', mm: 900 },
+  };
+}
+const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b) / Math.max(1, Math.abs(b))).toBeLessThan(tol);
+
+describe('카메라 솔버 (축 선 두 쌍 + 원점 + 기준 길이)', () => {
+  it('초점거리·회전·위치를 복원해 벽 위 점이 사진의 제자리에 투영된다 (1px 안)', () => {
+    const s = solveCamera(setupOf(proj), imgW, imgH)!;
+    expect(s).not.toBeNull();
+    near(s.f, f, 0.01);
+    for (const q of [[0, 0, 0], [6000, 3000, 0], [2500, 1200, 0], [4000, 2000, 300]] as V3[]) {
+      const [u, v] = projectPoint(s.pose, q), [tu, tv] = proj(q);
+      expect(Math.abs(u - tu)).toBeLessThan(1); expect(Math.abs(v - tv)).toBeLessThan(1);
+    }
+    expect(s.warnings).toEqual([]);
+  });
+
+  it('벽면 호모그래피: 사진 px → 벽 mm 가 원점 기준으로 맞고, 기준 길이로 축척이 정해진다', () => {
+    const s = solveCamera(setupOf(proj), imgW, imgH)!;
+    const p = applyHomography(s.Hinv, proj([2500, 1200, 0]));
+    near(p[0], 2500, 0.01); near(p[1], 1200, 0.01);
+    const c = calibrationOf(s);
+    const m = measureQuad(c, [proj([600, 2000, 0]), proj([2100, 2000, 0]), proj([2100, 1150, 0]), proj([600, 1150, 0])]);
+    near(m.widthMm, 1500, 0.01); near(m.heightMm, 850, 0.01);
+  });
+
+  it('기준 길이가 세로 축이어도 된다', () => {
+    const st = setupOf(proj);
+    st.ref = { a: proj([1000, 200, 0]), b: proj([1000, 2300, 0]), axis: 'y', mm: 2100 };
+    const s = solveCamera(st, imgW, imgH)!;
+    const p = applyHomography(s.Hinv, proj([6000, 3000, 0]));
+    near(p[0], 6000, 0.01); near(p[1], 3000, 0.01);
+  });
+
+  it('크롭 사진: 깊이(Z) 축 선이 있으면 제3 소실점의 수심으로 주점을 찾아 정확해진다', () => {
+    const pr = shifted(P, -600, 350);
+    const centerOnly = solveCamera(setupOf(pr), imgW, imgH)!;
+    const third = solveCamera({ ...setupOf(pr, true), principal: 'third' }, imgW, imgH)!;
+    near(third.pp[0], imgW / 2 - 600, 0.01); near(third.pp[1], imgH / 2 + 350, 0.01);
+    near(third.f, f, 0.01);
+    const q: V3 = [6000, 3000, 0];
+    const [u, v] = projectPoint(third.pose, q), [tu, tv] = pr(q);
+    expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
+    const [cu, cv] = projectPoint(centerOnly.pose, q);
+    expect(Math.hypot(cu - tu, cv - tv)).toBeGreaterThan(5); // 중앙 가정은 어긋난다
+  });
+
+  it('정면 사진(소실점이 무한원점)은 기본 초점거리로 대신하고 안내한다', () => {
+    const F = truth(0, 0, [3000, 1500, 10000]);
+    const s = solveCamera(setupOf((q) => projectPoint(F, q)), imgW, imgH)!;
+    expect(s).not.toBeNull();
+    expect(s.warnings.some((w) => w.includes('초점'))).toBe(true);
+    // 정면이면 평면 위 치수는 초점거리와 무관하게 맞는다
+    const p = applyHomography(s.Hinv, projectPoint(F, [2500, 1200, 0]));
+    near(p[0], 2500, 0.01); near(p[1], 1200, 0.01);
+  });
+
+  it('축 선 쌍이 거의 평행하거나 기준 길이가 없으면 경고', () => {
+    const st = setupOf(proj);
+    st.x = [st.x[0], { a: [st.x[0].a[0], st.x[0].a[1] + 1], b: [st.x[0].b[0], st.x[0].b[1] + 1] }];
+    const s = solveCamera({ ...st, ref: undefined }, imgW, imgH)!;
+    expect(s.warnings.some((w) => w.includes('평행'))).toBe(true);
+    expect(s.warnings.some((w) => w.includes('기준 길이'))).toBe(true);
+  });
+});
+
+// ---------- 자동 제안 (AI): 합성 회색조 사진에서 가로·세로 선 후보 ----------
+/** 작은 합성 사진: 벽(밝음) 안에 어두운 띠와 창 두 개 — 모두 벽 평면 위 직사각형 */
+function raster(pr: (q: V3) => Pt, w: number, h: number) {
+  const data = new Uint8ClampedArray(w * h).fill(90); // 하늘·바닥 어두움
+  const inside = (pt: Pt, poly: Pt[]) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (yi > pt[1] !== yj > pt[1] && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
+  const rect = (x: number, y: number, rw: number, rh: number): Pt[] => [pr([x, y, 0]), pr([x + rw, y, 0]), pr([x + rw, y + rh, 0]), pr([x, y + rh, 0])];
+  const shapes: [Pt[], number][] = [[rect(0, 0, 6000, 3000), 210], [rect(0, 2000, 6000, 600), 60], [rect(500, 400, 1200, 1000), 40], [rect(4300, 400, 1200, 1000), 40]];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (const [poly, v] of shapes) if (inside([x + 0.5, y + 0.5], poly)) data[y * w + x] = v;
+  return { data, width: w, height: h };
+}
+const angleOf = (l: Line) => Math.atan2(l.b[1] - l.a[1], l.b[0] - l.a[0]);
+const angleDiff = (a: number, b: number) => { let d = Math.abs(a - b) % Math.PI; return Math.min(d, Math.PI - d); };
+
+describe('축 선 자동 제안', () => {
+  const W = 400, H = 300;
+  const S = truth(0.4, -0.15, [3000, 1500, 9000]);
+  const small = (q: V3): Pt => { const [u, v] = projectPoint(S, q); return [(u * W) / imgW, (v * H) / imgH]; };
+  const img = raster(small, W, H);
+
+  it('가로 선 2개는 벽의 가로 방향, 세로 선 2개는 세로 방향과 5° 안이고 서로 떨어져 있다', () => {
+    const p = proposeAxisLines(img)!;
+    expect(p).not.toBeNull();
+    const hx = angleOf({ a: small([0, 2000, 0]), b: small([6000, 2000, 0]) });
+    const vy = angleOf({ a: small([500, 400, 0]), b: small([500, 1400, 0]) });
+    for (const l of p.x) expect(angleDiff(angleOf(l), hx)).toBeLessThan((5 * Math.PI) / 180);
+    for (const l of p.y) expect(angleDiff(angleOf(l), vy)).toBeLessThan((5 * Math.PI) / 180);
+    const midY = (l: Line) => (l.a[1] + l.b[1]) / 2, midX = (l: Line) => (l.a[0] + l.b[0]) / 2;
+    expect(Math.abs(midY(p.x[0]) - midY(p.x[1]))).toBeGreaterThan(H * 0.15);
+    expect(Math.abs(midX(p.y[0]) - midX(p.y[1]))).toBeGreaterThan(W * 0.15);
+    // 제안된 선으로 카메라를 풀면 초점거리가 10% 안
+    const s = solveCamera({ ...p, origin: small([0, 0, 0]), ref: { a: small([500, 400, 0]), b: small([1700, 400, 0]), axis: 'x', mm: 1200 } }, W, H)!;
+    near(s.f, (f * W) / imgW, 0.1);
+  });
+
+  it('끝점을 사진 모서리에 붙인다 (3px 어긋난 선 → 1px 안)', () => {
+    const off: CameraSetup = { x: [{ a: [small([0, 2000, 0])[0], small([0, 2000, 0])[1] + 3], b: [small([6000, 2000, 0])[0], small([6000, 2000, 0])[1] + 3] }, { a: small([0, 2600, 0]), b: small([6000, 2600, 0]) }], y: [{ a: small([500, 400, 0]), b: small([500, 1400, 0]) }, { a: small([5500, 400, 0]), b: small([5500, 1400, 0]) }], origin: small([0, 0, 0]) };
+    const snapped = snapSetup(img, off);
+    const trueY = (small([0, 2000, 0])[1] + small([6000, 2000, 0])[1]) / 2;
+    expect(Math.abs((snapped.x[0].a[1] + snapped.x[0].b[1]) / 2 - trueY)).toBeLessThan(1.5);
+  });
+});

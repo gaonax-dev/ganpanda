@@ -8,7 +8,7 @@ export const TOLERANCE = 0.12;
 export interface Sized { quad: Pt[]; widthMm?: number; heightMm?: number }
 export interface Size { widthMm: number; heightMm: number }
 export interface MeasureWarning { kind: 'aspect' | 'scale'; message: string; expected: Size }
-export interface MeasureResult { warnings: MeasureWarning[]; estimate?: Size; reference?: true; /** 기준선으로 쓰인 축 */ refAxes?: ('h' | 'v')[] }
+export interface MeasureResult { warnings: MeasureWarning[]; estimate?: Size; /** 자동 기준(치수 입력 첫 영역) */ reference?: true }
 
 const dev = (a: number, b: number) => Math.abs(a - b) / b;
 const mm = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}mm`;
@@ -45,24 +45,20 @@ export function isValidQuad(q: Pt[]): boolean {
  * 사진 한 장의 모든 영역 판독.
  * 기준 = 가로·세로가 모두 입력된 첫 영역(생성 순). 같은 벽면에 있다고 가정한다.
  */
-export function measurePhoto<T extends Sized & { id: string; refH?: boolean; refV?: boolean; quad: Pt[] }>(
+export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
   objs: T[], imgW: number, imgH: number, calib?: Calibration | null,
 ): Map<string, MeasureResult> {
   const out = new Map<string, MeasureResult>();
-  // 기준선 보정이 적용된 사진: 모든 영역을 기준선 축척으로 잰다
+  // 카메라 설정이 있는 사진: 모든 영역을 그 벽면으로 잰다
   if (calib) {
     for (const o of objs) {
       const r: MeasureResult = { warnings: [] };
       if (!isValidQuad(o.quad)) { out.set(o.id, r); continue; }
       const est = measureQuad(calib, o.quad);
       r.estimate = est;
-      const axes: ('h' | 'v')[] = [];
-      if (o.refH) axes.push('h');
-      if (o.refV) axes.push('v');
-      if (axes.length) { r.reference = true; r.refAxes = axes; }
-      const badW = !o.refH && o.widthMm && dev(o.widthMm, est.widthMm) > TOLERANCE;
-      const badH = !o.refV && o.heightMm && dev(o.heightMm, est.heightMm) > TOLERANCE;
-      if (badW || badH) r.warnings.push({ kind: 'scale', message: `기준선 기준 약 ${mm(est.widthMm)} × ${mm(est.heightMm)}로 보입니다.`, expected: est });
+      const badW = o.widthMm && dev(o.widthMm, est.widthMm) > TOLERANCE;
+      const badH = o.heightMm && dev(o.heightMm, est.heightMm) > TOLERANCE;
+      if (badW || badH) r.warnings.push({ kind: 'scale', message: `카메라 설정 기준 약 ${mm(est.widthMm)} × ${mm(est.heightMm)}로 보입니다.`, expected: est });
       out.set(o.id, r);
     }
     return out;

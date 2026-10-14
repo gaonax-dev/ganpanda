@@ -14,7 +14,7 @@
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import Letter3DDialog from './lib/ui/Letter3DDialog.svelte';
   import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
-  import CalibEditDialog from './lib/ui/CalibEditDialog.svelte';
+  import CameraDialog from './lib/ui/CameraDialog.svelte';
   import RenderDialog from './lib/ui/RenderDialog.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
@@ -141,7 +141,7 @@
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
-{#if app.calibEditPhoto}{#key app.calibEditPhoto.id}<CalibEditDialog photo={app.calibEditPhoto} />{/key}{/if}
+{#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}<CameraDialog photo={app.cameraPhoto} />{/key}{/if}
 {#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
 {#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}<RenderDialog photo={rp} />{/key}{/if}{/if}
 {#if app.letter3dOpen && app.selected}{#key app.selected.id}<Letter3DDialog obj={app.selected} />{/key}{/if}

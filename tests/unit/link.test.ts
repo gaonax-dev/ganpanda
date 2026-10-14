@@ -32,11 +32,11 @@ describe('여러 사진의 같은 사인물 (sameAs 연결)', () => {
   it('연결된 영역의 규격을 고치면 원본이 바뀌고, 위치·기준 체크는 자기 것만 바뀐다', () => {
     const { p, master, copy } = setup();
     p.linkObject(copy, master);
-    p.updateObject(copy, { widthMm: 4200, text: '간판다 카페', refV: true, quad });
+    p.updateObject(copy, { widthMm: 4200, text: '간판다 카페', polygon: quad, quad });
     expect(p.object(master)!.widthMm).toBe(4200);
     expect(p.object(master)!.text).toBe('간판다 카페');
-    expect(p.object(master)!.refV).toBeUndefined();
-    expect(p.object(copy)!.refV).toBe(true);
+    expect(p.object(master)!.polygon).toBeUndefined();
+    expect(p.object(copy)!.polygon).toEqual(quad);
     expect(p.object(copy)!.quad).toEqual(quad);
   });
 

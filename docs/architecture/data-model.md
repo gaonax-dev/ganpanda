@@ -24,6 +24,8 @@
 | `assetId` | 이미지 에셋 ID (내용 SHA-256 앞 16바이트 hex) |
 | `w`, `h` | 원본 픽셀 크기 |
 | `x`, `y`, `width` | 사진 보드(world) 위 위치와 표시 폭 |
+| `zones?` | 작업 존 다각형들 (사진 px) |
+| `camera?` | **카메라 설정** `{x, y, z?, origin, ref?, principal?}` — 축 선 두 쌍·원점·기준 길이 → 벽면 평면 (`core/camera.ts`). 사인물과 무관 → [../features/measurement.md](../features/measurement.md) |
 
 ### SignObject
 | 필드 | 설명 |
@@ -38,7 +40,6 @@
 | `sheetIds` | 시트 종류 (복수) |
 | `text?` | 간판 문구 (채널 글자수 자동 산출, 견적서 표기) |
 | `charCount?` | 채널 글자수 (수동, 문구보다 우선) |
-| `refH?`, `refV?` | 실측 기준선: 가로(위·아래 변) / 세로(좌·우 변) |
 | `letter3d?` | 입체 설정 `{depthMm, faceColor, sideColor, letterSpacing}` |
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
@@ -59,7 +60,7 @@
 - **대화는 공유 `Y.Array` 하나**. 오브젝트별 배열을 따로 만들면, 두 사람이 동시에 첫 메시지를 보낼 때 배열이 두 번 생성되어 한쪽 메시지가 사라집니다. (테스트로 확인된 버그)
 - 사진을 지우면 그 사진의 오브젝트·핀과 대화도 함께 지웁니다 (`removePhoto`). 사인물·핀을 지우면 그 대화도 지웁니다.
 - 오브젝트 정렬: `createdAt`, 같으면 `id`.
-- **같은 사인물 연결** (`sameAs`, 2026-10-14): 규격 필드(`SPEC_FIELDS` = name·productId·sheetIds·widthMm·heightMm·text·charCount·letter3d·design·designHistory·listX·listY)는 원본에서 읽고, 위치 필드(photoId·quad·shape·polygon·refH·refV)는 자기 것. `updateObject` 가 규격 변경을 원본으로 보냅니다. 연결된 영역에 연결하면 그 원본으로(사슬 없음). 해제하면 그 시점 규격을 복사해 독립. 원본을 지우면 첫 연결 영역이 승계(규격·대화·나머지 연결). 원본이 없는 연결은 독립 영역으로 봅니다(`resolveLinks`). 대화는 원본 id 로만 쌓입니다.
+- **같은 사인물 연결** (`sameAs`, 2026-10-14): 규격 필드(`SPEC_FIELDS` = name·productId·sheetIds·widthMm·heightMm·text·charCount·letter3d·design·designHistory·listX·listY)는 원본에서 읽고, 위치 필드(photoId·quad·shape·polygon)는 자기 것. `updateObject` 가 규격 변경을 원본으로 보냅니다. 연결된 영역에 연결하면 그 원본으로(사슬 없음). 해제하면 그 시점 규격을 복사해 독립. 원본을 지우면 첫 연결 영역이 승계(규격·대화·나머지 연결). 원본이 없는 연결은 독립 영역으로 봅니다(`resolveLinks`). 대화는 원본 id 로만 쌓입니다.
 - 이미지 바이트는 문서에 넣지 않습니다. 문서에는 `assetId`만 두고, 바이트는 에셋 저장소에 둡니다.
 
 ## 관련 테스트

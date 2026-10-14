@@ -8,12 +8,11 @@
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
   import { SERVER_URL } from '../sync';
-  import CalibPanel from '../ui/CalibPanel.svelte';
-  /** 기준선 패널을 보여 줄 사진: 선택한 사인물의 사진, 없으면 기준이 있는 첫 사진 */
-  const calibPhoto = $derived.by(() => {
+  import CameraPanel from '../ui/CameraPanel.svelte';
+  /** 카메라 패널을 보여 줄 사진: 선택한 사인물의 사진, 없으면 첫 사진 */
+  const cameraPhoto = $derived.by(() => {
     const sel = app.selected && app.photos.find((p) => p.id === app.selected!.photoId);
-    if (sel && app.refsKeys.get(sel.id)) return sel;
-    return app.photos.find((p) => !!app.refsKeys.get(p.id)) ?? null;
+    return sel ?? app.photos[0] ?? null;
   });
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
@@ -95,7 +94,7 @@
   }
 
   function onkey(e: KeyboardEvent) {
-    if (app.settingsOpen || app.renderPhotoId || app.objectSettingsOpen || app.calibEditPhotoId || app.view !== 'board') return;
+    if (app.settingsOpen || app.renderPhotoId || app.objectSettingsOpen || app.cameraPhotoId || app.view !== 'board') return;
     const t = e.target as HTMLElement;
     const typing = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
     // Esc 는 고정: 입력 중이면 입력 종료, 아니면 선택 도구
@@ -220,7 +219,7 @@
       {/each}
     {/each}
     {#snippet overlay()}
-      {#if calibPhoto}{#key calibPhoto.id}<CalibPanel photo={calibPhoto} />{/key}{/if}
+      {#if cameraPhoto}{#key cameraPhoto.id}<CameraPanel photo={cameraPhoto} />{/key}{/if}
       {#if app.tool === 'magic' && app.segmentStatus !== 'ready'}
         <div class="ai-status" data-testid="ai-status" data-status={app.segmentStatus}>
           {#if app.segmentStatus === 'error'}AI 모델을 불러오지 못했습니다. {app.segmentError}

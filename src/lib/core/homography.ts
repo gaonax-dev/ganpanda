@@ -93,6 +93,8 @@ export interface CameraPose {
   t: V3;
   imgW: number;
   imgH: number;
+  /** 주점 (사진 px). 없으면 사진 중앙 */
+  pp?: Pt;
 }
 
 export function recoverPose(
@@ -119,8 +121,9 @@ export function recoverPose(
 /** 검증/테스트용: 벽 좌표(mm, z=벽에서 튀어나온 거리) → 이미지 픽셀 */
 export function projectPoint(pose: CameraPose, p: V3): Pt {
   const { R, t, f, imgW, imgH } = pose;
+  const [cx, cy] = pose.pp ?? [imgW / 2, imgH / 2];
   const x = R[0] * p[0] + R[1] * p[1] + R[2] * p[2] + t[0];
   const y = R[3] * p[0] + R[4] * p[1] + R[5] * p[2] + t[1];
   const z = R[6] * p[0] + R[7] * p[1] + R[8] * p[2] + t[2];
-  return [(f * x) / z + imgW / 2, (f * y) / z + imgH / 2];
+  return [(f * x) / z + cx, (f * y) / z + cy];
 }
