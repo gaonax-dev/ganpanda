@@ -94,6 +94,36 @@ test('폰트에 없는 글자(이모지)만 있는 채널 사인물이 있어도
   await page.getByTestId('close-render').click();
 });
 
+test('카메라가 벽과 어긋나 있어도(기본 설정 그대로 적용) 사인물은 그린 자리에 놓인다', async ({ page, request }) => {
+  await setup(page, request);
+  // 기본 원근(평행선)을 손대지 않고 적용 → 실제 벽과 맞지 않는 카메라
+  await page.getByTestId('camera-open').click();
+  await page.getByTestId('camera-apply').click();
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  // 원근이 있는 사다리꼴로 흰 박스를 그린다 (2층 창 자리)
+  const center = await page.evaluate(async () => {
+    const path = '/src/lib/sim/sample.ts';
+    const { SAMPLE } = await import(/* @vite-ignore */ path);
+    const hp = '/src/lib/core/homography.ts';
+    const { applyHomography, solveHomography } = await import(/* @vite-ignore */ hp);
+    const H = solveHomography([[0, SAMPLE.wallH], [SAMPLE.wallW, SAMPLE.wallH], [SAMPLE.wallW, 0], [0, 0]], SAMPLE.corners);
+    const rect = (x: number, y: number, w: number, h: number) => [[x, y + h], [x + w, y + h], [x + w, y], [x, y]].map((p) => applyHomography(H, p as [number, number]));
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.project.allPhotos()[0].id;
+    app.project.addObject({ photoId, name: '흰 박스', shape: 'rect', quad: rect(5500, 4950, 2400, 850), sheetIds: [], productId: 'board-foamex' });
+    return applyHomography(H, [6700, 5375]) as [number, number];
+  });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('2', { timeout: 20_000 });
+  await page.getByTestId('render-save').click();
+  const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
+  await expect.poll(() => page.evaluate(hook)).toMatch(/^data:image\/png/);
+  const px = await samplePixels(page, await page.evaluate(hook), center, 6);
+  const lum = px.px.reduce((s, [r, g, b]) => s + r + g + b, 0) / px.px.length / 3;
+  expect(lum).toBeGreaterThan(200); // 그린 자리(창문 = 어두운 파랑)가 흰 박스로 덮여 있다
+  await page.getByTestId('close-render').click();
+});
+
 test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 나온다', async ({ page, request }) => {
   await setup(page, request);
   const flat = await makePhoto(page);
