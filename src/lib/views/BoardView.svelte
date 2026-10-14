@@ -95,7 +95,7 @@
   }
 
   function onkey(e: KeyboardEvent) {
-    if (app.settingsOpen || app.renderPhotoId || app.objectSettingsOpen || app.view !== 'board') return;
+    if (app.settingsOpen || app.renderPhotoId || app.objectSettingsOpen || app.calibEditPhotoId || app.view !== 'board') return;
     const t = e.target as HTMLElement;
     const typing = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable;
     // Esc 는 고정: 입력 중이면 입력 종료, 아니면 선택 도구

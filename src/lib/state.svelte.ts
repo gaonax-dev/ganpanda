@@ -153,8 +153,11 @@ class AppState {
     return out;
   });
   /** AI 평가 결과 (저장하지 않음) */
-  calibEvals = $state<Record<string, { key: string; refs: (RefLine & { offset: number; confidence: number; deviation: number })[]; warnings: string[]; snapped: Record<string, Pt[]> }>>({});
+  calibEvals = $state<Record<string, { key: string; refs: (RefLine & { offset: number; confidence: number; deviation: number; manual?: boolean })[]; warnings: string[]; snapped: Record<string, Pt[]> }>>({});
   calibBusy = $state(false);
+  /** 기준선 직접 조정 창 (사진 id) */
+  calibEditPhotoId = $state<string | null>(null);
+  calibEditPhoto = $derived(this.calibEditPhotoId ? this.photos.find((p) => p.id === this.calibEditPhotoId) ?? null : null);
   pins = $derived.by(() => (this.version, this.project.allPins()));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
@@ -268,6 +271,41 @@ class AppState {
       const withDev = results.map((r) => ({ ...r, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
       this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs: withDev, warnings: c?.warnings ?? ['기준을 계산할 수 없습니다.'], snapped } };
     } finally { this.calibBusy = false; }
+  }
+
+  /** 직접 조정 창용: 평가가 없거나 낡았으면 현재 영역 그대로(보정 0)로 평가 항목을 만든다 */
+  ensureCalibEval(photoId: string) {
+    const key = this.refsKeys.get(photoId) ?? '';
+    if (this.calibEvals[photoId]?.key === key) return;
+    const objs = this.project.objectsOf(photoId);
+    const photo = this.project.photo(photoId);
+    const c = photo ? calibrate(refsFromObjects(objs), { edges: edgesFromObjects(objs), imgW: photo.w, imgH: photo.h }) : null;
+    const refs = refsFromObjects(objs).map((r) => ({ ...r, offset: 0, confidence: 0, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
+    this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs, warnings: c?.warnings ?? [], snapped: {} } };
+  }
+
+  /** 사람이 꼭짓점을 직접 옮김 (AI 가 잡은 선을 수정). 닿는 기준선은 '직접 조정'으로 표시하고 편차를 다시 계산 */
+  setCalibVertex(photoId: string, objectId: string, index: number, p: Pt) {
+    if (!this.canEdit) return;
+    this.ensureCalibEval(photoId);
+    const ev = this.calibEvals[photoId];
+    const photo = this.project.photo(photoId);
+    const objs = this.project.objectsOf(photoId);
+    const o = objs.find((x) => x.id === objectId);
+    if (!ev || !photo || !o) return;
+    const quad = (ev.snapped[objectId] ?? o.quad).map((q) => [...q] as Pt);
+    quad[index] = [Math.round(p[0]), Math.round(p[1])];
+    const snapped = { ...ev.snapped, [objectId]: quad };
+    const snappedObjs = objs.map((x) => (snapped[x.id] ? { ...x, quad: snapped[x.id] } : x));
+    const c = calibrate(refsFromObjects(snappedObjs), { edges: edgesFromObjects(snappedObjs), imgW: photo.w, imgH: photo.h });
+    const touched = index === 0 ? ['top', 'left'] : index === 1 ? ['top', 'right'] : index === 2 ? ['bottom', 'right'] : ['bottom', 'left'];
+    const fresh = refsFromObjects(snappedObjs);
+    const refs = ev.refs.map((r) => {
+      const now = fresh.find((f) => f.objectId === r.objectId && f.edge === r.edge);
+      const manual = r.manual || (r.objectId === objectId && touched.includes(r.edge));
+      return { ...r, ...(now ? { a: now.a, b: now.b } : {}), manual, deviation: c?.perRef.find((x) => x.objectId === r.objectId && x.edge === r.edge)?.deviation ?? 0 };
+    });
+    this.calibEvals = { ...this.calibEvals, [photoId]: { ...ev, refs, warnings: c?.warnings ?? [], snapped } };
   }
 
   /** 전체 적용: 보정된 사각 영역을 저장하고 이 구성을 적용된 기준으로 기록 */

@@ -22,7 +22,7 @@
       {#each ev.refs as r (r.objectId + r.edge)}
         <li data-testid="calib-ref" class:bad={Math.abs(r.deviation) > 0.1 || r.confidence < 0.2}>
           <span>{nameOf(r.objectId)} · {LABEL[r.edge]} ({r.kind === 'h' ? '가로' : '세로'})</span>
-          <small>{r.confidence >= 0.2 ? `모서리 보정 ${r.offset > 0 ? '+' : ''}${r.offset}px` : '모서리 못 찾음'} · 편차 {(r.deviation * 100).toFixed(1)}%</small>
+          <small>{r.manual ? '직접 조정' : r.confidence >= 0.2 ? `모서리 보정 ${r.offset > 0 ? '+' : ''}${r.offset}px` : '모서리 못 찾음'} · 편차 {(r.deviation * 100).toFixed(1)}%</small>
         </li>
       {/each}
     </ul>
@@ -31,6 +31,7 @@
   {#if app.canEdit}
     <div class="actions">
       <button class="btn small" data-testid="calib-eval" disabled={status === 'none' || app.calibBusy} onclick={() => app.evaluateCalibration(photo.id)}>{app.calibBusy ? '평가 중…' : 'AI 평가'}</button>
+      <button class="btn small" data-testid="calib-edit" disabled={status === 'none'} title="AI 가 잡은 선을 창에서 직접 끌어 고칩니다" onclick={() => { app.ensureCalibEval(photo.id); app.calibEditPhotoId = photo.id; }}>선 직접 조정</button>
       <button class="btn small primary" data-testid="calib-apply" disabled={status !== 'evaluated'} onclick={() => app.applyCalibration(photo.id)}>전체 적용</button>
     </div>
   {/if}
