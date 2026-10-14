@@ -2,6 +2,7 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
+import { newVersionAvailable } from './core/version';
 import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -103,6 +104,8 @@ class AppState {
   seatLimit = $state<{ used: number; limit: number } | null>(null);
   /** 화면 상단 알림 (용량 초과 등) */
   notice = $state('');
+  /** 새 배포가 있음 (오래 열어 둔 탭) → 새로고침 안내 */
+  updateAvailable = $state(false);
   /** 사인물별 내가 마지막으로 본 메시지 시각 (기기 저장) */
   seen = $state<SeenMap>({});
   /** 새 메시지 토스트 (최근 것이 뒤) */
@@ -703,3 +706,15 @@ export function defaultCameraSetup(w: number, h: number): CameraSetup {
 
 if (import.meta.env.DEV) (window as unknown as { __ganpanda: AppState }).__ganpanda = app;
 if (typeof matchMedia === 'function') { const mq = matchMedia('(max-width: 720px)'); mq.addEventListener('change', (e) => { app.compact = e.matches; }); }
+// 새 배포 감지: 탭이 다시 보일 때(최대 1분에 한 번) 서버 index.html 의 번들과 비교
+if (typeof document !== 'undefined' && !import.meta.env.DEV) {
+  let last = 0;
+  const check = async () => {
+    if (document.visibilityState !== 'visible' || Date.now() - last < 60_000 || app.updateAvailable) return;
+    last = Date.now();
+    if (await newVersionAvailable(document, () => fetch('/', { cache: 'no-store' }).then((r) => r.text()))) app.updateAvailable = true;
+  };
+  document.addEventListener('visibilitychange', check);
+  window.addEventListener('focus', check);
+  setTimeout(check, 30_000);
+}

@@ -116,6 +116,9 @@
         동시접속 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 접속 중 — 자리가 나면 자동으로 연결됩니다. 더 많은 인원이 필요하면 요금제를 올려 주세요.
       </div>
     {/if}
+    {#if app.updateAvailable}
+      <div class="banner warn" data-testid="update-available">새 버전이 배포되었습니다. 새로고침하면 최신 기능이 적용됩니다. <button class="btn small primary" onclick={() => location.reload()}>새로고침</button><button class="icon" onclick={() => (app.updateAvailable = false)}>✕</button></div>
+    {/if}
     {#if app.notice}
       <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
     {/if}

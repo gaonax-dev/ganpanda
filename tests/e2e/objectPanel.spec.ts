@@ -35,6 +35,12 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await dlg.getByTestId('height-mm').fill('500');
   await expect(panel.getByTestId('object-summary')).toContainText('돔보 컷팅');
   await expect(panel.getByTestId('object-summary')).toContainText('1,000×500');
+  await page.keyboard.press('Escape');
+  // 이름을 치고 바로 보드 빈 곳을 눌러 패널이 닫혀도 이름이 남는다 (입력 즉시 저장)
+  await panel.getByTestId('object-name').fill('출입문 시트');
+  await page.getByTestId('board-canvas').click({ position: { x: 20, y: 20 } });
+  await expect(panel).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { name: string }[] } }).__ganpanda.objects[0].name)).toBe('출입문 시트');
   // 창은 보드 조작을 막지 않는다: 다른 사인물을 그리면 창이 그 사인물로 바뀐다
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);

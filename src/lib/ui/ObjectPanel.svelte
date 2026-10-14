@@ -56,7 +56,8 @@
 
 <aside class="panel" data-testid="object-panel">
   <header>
-    <input class="title" value={obj.name} disabled={ro} onchange={(e) => update({ name: e.currentTarget.value || obj.name })} />
+    <!-- 입력 즉시 저장: 바깥을 눌러 패널이 닫히면 change 가 오지 않아 이름이 사라졌음 (2026-10-15 사용자: "웹에서 사인물 이름 변경" 안 됨) -->
+    <input class="title" data-testid="object-name" value={obj.name} disabled={ro} oninput={(e) => { const v = e.currentTarget.value.trim(); if (v) update({ name: v }); }} />
     <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
 
