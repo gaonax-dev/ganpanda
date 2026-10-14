@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 test('채널 간판에 문구를 넣으면 입체 보기로 3D 글자를 보고, 폰트 기준 폭을 치수에 넣을 수 있다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-sign').click();
+  await pickCategory(page, 'sign');
   await openObjectSettings(page);
   await page.getByTestId('product-select').selectOption('ch-halo');
   await expect(page.getByTestId('open-letter3d')).toHaveCount(0); // 문구·높이 전에는 없음

@@ -126,6 +126,12 @@
               placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
               oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
           </label>
+          {#if product && !isChannel}
+            <label>두께
+              <input data-testid="depth-mm" type="number" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="보드 두께·돌출 깊이"
+                oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
+            </label>
+          {/if}
           {#if isChannel}
             <label>글자수
               <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}

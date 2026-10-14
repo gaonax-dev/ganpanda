@@ -36,7 +36,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
-    depthMm: l?.depthMm ?? look.depthMm,
+    depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본
     lighting: o.productId === 'board-flex' || o.productId === 'board-protrude' ? 'front' : 'none',
     faceColor: l?.faceColor ?? look.faceColor,
     sideColor: l?.sideColor ?? '#6b7075',

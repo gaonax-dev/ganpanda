@@ -49,3 +49,12 @@ describe('입체 글자를 그린 영역 폭에 맞춤', () => {
     expect(fitScale(0, 9000)).toBe(1);
   });
 });
+
+describe('두께 (2026-10-15 사용자: "두께가 필요해")', () => {
+  it('보드 사인물의 두께(depthMm)를 넣으면 3D 상자 깊이가 그 값, 없으면 종류 기본값', () => {
+    const s = renderSpecOf(obj({ productId: 'board-protrude', widthMm: 600, heightMm: 900, depthMm: 200 }), place)!;
+    expect(s.depthMm).toBe(200);
+    const d = renderSpecOf(obj({ productId: 'board-galva', widthMm: 600, heightMm: 900 }), place)!;
+    expect(d.depthMm).toBe(100);
+  });
+});

@@ -44,7 +44,7 @@ export function canonicalContent(signs: SignObject[], sizeOf: SizeOf, quote: Quo
     const sz = sizeOf(o);
     return {
       id: o.id, name: o.name, p: o.productId ?? null, s: [...o.sheetIds].sort(), opt: o.options ?? {}, t: o.text ?? null,
-      w: sz ? Math.round(sz.w) : null, h: sz ? Math.round(sz.h) : null, corner: o.corner ?? null,
+      w: sz ? Math.round(sz.w) : null, h: sz ? Math.round(sz.h) : null, dp: o.depthMm ?? null, corner: o.corner ?? null,
       d: o.design ? `${o.design.sourceId}/${o.design.page}/${o.design.crop.x},${o.design.crop.y},${o.design.crop.w},${o.design.crop.h}` : null,
       amt: quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0),
     };

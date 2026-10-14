@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·주문서·JSON 에 반영된다', async ({ page, request }) => {
   await openOwnedProject(page, request, '한울상사');
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-sign').click();
+  await pickCategory(page, 'sign');
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('3000');
   await page.getByTestId('height-mm').fill('600');

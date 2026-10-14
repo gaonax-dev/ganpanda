@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성창, 견적·리스트에는 하나만, 해제하면 독립', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page); // 정면
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-sign').click();
+  await pickCategory(page, 'sign');
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
