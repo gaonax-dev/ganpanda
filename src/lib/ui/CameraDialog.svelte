@@ -84,35 +84,28 @@
     set({ axes: next });
   }
   const m = (mm: number) => (mm / 1000).toFixed(2);
-  /** 기준 길이 (fSpy 와 같게): 원점을 지나는 축 하나 위를 미끄러지는 핸들 두 개(from, to)와 그 사이 실측 거리. 옛 형식은 편집하는 순간 이 형식으로 */
+  /**
+   * 기준 길이 (2026-10-14 사용자: "중심선들 중에 하나 선택하고 그 선 안에서 길이 변경하고 기준길이 넣는다"):
+   * 원점에서 뻗는 중심선(X/Y/Z) 하나를 **사진에서 눌러** 고르면 그 선의 끝 핸들이 선 위에서만 움직이고(= 선 길이 변경),
+   * 그 선의 실제 길이(mm)를 넣는다. 고르지 않은 두 중심선은 1m 길이로 그려진다. 옛 형식(from/to, 선 선택)은 편집하는 순간 이 형식으로
+   */
   const refAxis = $derived<'x' | 'y' | 'z'>(draft.ref && ('from' in draft.ref || 'point' in draft.ref) ? draft.ref.axis : 'x');
   const refMm = $derived(draft.ref?.mm ?? 0);
   const refLine = $derived(refLineOf(draft, false, sol ?? undefined));
-  const REF_AXIS_LABEL = { x: 'X 가로', y: 'Y 세로 (깊이)', z: 'Z 높이' } as const;
-  /** 현재 핸들 두 개 (없으면 원점에서 축 방향으로 떨어진 기본 위치) */
-  function refEnds(axis: 'x' | 'y' | 'z'): [Pt, Pt] {
+  const REF_AXIS_LABEL = { x: 'X 가로 (빨강)', y: 'Y 세로 (초록)', z: 'Z 높이 (파랑)' } as const;
+  /** 고른 중심선의 끝점 (없으면 원점에서 축 방향으로 떨어진 기본 위치) */
+  function refEnd(axis: 'x' | 'y' | 'z'): Pt {
     const r = draft.ref;
-    let a: Pt, b: Pt;
-    if (r && 'from' in r) { a = r.from; b = r.to; }
-    else if (r && 'point' in r) { a = draft.origin; b = r.point; }
-    else {
-      const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt);
-      const L = Math.min(photo.w, photo.h);
-      a = [draft.origin[0] + dir[0] * L * 0.1, draft.origin[1] + dir[1] * L * 0.1];
-      b = [draft.origin[0] + dir[0] * L * 0.35, draft.origin[1] + dir[1] * L * 0.35];
-    }
-    return sol ? [snapToAxis(sol, axis, a), snapToAxis(sol, axis, b)] : [a, b];
+    let b: Pt;
+    if (r && 'point' in r && r.axis === axis) b = r.point;
+    else if (r && 'from' in r && r.axis === axis) b = r.to;
+    else { const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt); const L = Math.min(photo.w, photo.h); b = [draft.origin[0] + dir[0] * L * 0.3, draft.origin[1] + dir[1] * L * 0.3]; }
+    return sol ? snapToAxis(sol, axis, b) : b;
   }
-  function setRefAxis(axis: 'x' | 'y' | 'z') {
-    const r = draft.ref;
-    // 축을 바꾸면 핸들은 원점 기준 같은 거리만큼 새 축 위에 놓는다
-    const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt);
-    const L = Math.min(photo.w, photo.h);
-    const from: Pt = [draft.origin[0] + dir[0] * L * 0.1, draft.origin[1] + dir[1] * L * 0.1];
-    const to: Pt = [draft.origin[0] + dir[0] * L * 0.35, draft.origin[1] + dir[1] * L * 0.35];
-    set({ ref: { axis, from, to, mm: r?.mm || 1000 } });
-  }
-  const setRefMm = (mm: number) => { const [from, to] = refEnds(refAxis); set({ ref: { axis: refAxis, from, to, mm: Math.max(1, mm || 1) } }); };
+  function setRefAxis(axis: 'x' | 'y' | 'z') { set({ ref: { axis, point: refEnd(axis), mm: draft.ref?.mm || 1000 } }); }
+  const setRefMm = (mm: number) => set({ ref: { axis: refAxis, point: refEnd(refAxis), mm: Math.max(1, mm || 1) } });
+  /** 중심선 끝 (고른 축은 핸들까지, 나머지는 1m) */
+  const centerEnd = (axis: 'x' | 'y' | 'z'): Pt | null => (axis === refAxis && refLine ? refLine.b : overlay?.axes[axis]?.b ?? null);
   const linesOf = (axis: Axis): [Line, Line] | undefined => (axis === 'x' ? draft.x : axis === 'y' ? draft.y : draft.z);
   const toPhoto = (e: PointerEvent): Pt => {
     const r = svg.getBoundingClientRect();
@@ -120,7 +113,7 @@
   };
   function setHandle(key: string, p: Pt) {
     if (key === 'o') { set({ origin: p }); return; }
-    if (key === 'ra' || key === 'rb') { const [from, to] = refEnds(refAxis); const q = sol ? snapToAxis(sol, refAxis, p) : p; set({ ref: { axis: refAxis, from: key === 'ra' ? q : from, to: key === 'rb' ? q : to, mm: refMm || 1000 } }); return; }
+    if (key === 'r') { set({ ref: { axis: refAxis, point: sol ? snapToAxis(sol, refAxis, p) : p, mm: refMm || 1000 } }); return; }
     const axis = key[0] as Axis, i = Number(key[1]), end = key[2] as 'a' | 'b';
     const lines = linesOf(axis);
     if (!lines) return;
@@ -181,13 +174,19 @@
                 <g class="overlay" data-testid="camera-3d" pointer-events="none">
                   {#each overlay.grid as s, i (i)}<line class="g" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1 / scale} />{/each}
                   {#each overlay.cube as s, i (i)}<line class="cube" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1.5 / scale} />{/each}
-                  {#if overlay.axes.x}<line class="axx" x1={overlay.axes.x.a[0]} y1={overlay.axes.x.a[1]} x2={overlay.axes.x.b[0]} y2={overlay.axes.x.b[1]} stroke-width={3 / scale} />{/if}
-                  {#if overlay.axes.y}<line class="axy" x1={overlay.axes.y.a[0]} y1={overlay.axes.y.a[1]} x2={overlay.axes.y.b[0]} y2={overlay.axes.y.b[1]} stroke-width={3 / scale} />{/if}
-                  {#if overlay.axes.z}<line class="axz" x1={overlay.axes.z.a[0]} y1={overlay.axes.z.a[1]} x2={overlay.axes.z.b[0]} y2={overlay.axes.z.b[1]} stroke-width={3 / scale} />{/if}
-                  {#if overlay.axes.x}<text class="lx" x={overlay.axes.x.b[0]} y={overlay.axes.x.b[1]} font-size={14 / scale} stroke-width={3 / scale}>X</text>{/if}
-                  {#if overlay.axes.y}<text class="ly" x={overlay.axes.y.b[0]} y={overlay.axes.y.b[1]} font-size={14 / scale} stroke-width={3 / scale}>Y</text>{/if}
-                  {#if overlay.axes.z}<text class="lz" x={overlay.axes.z.b[0]} y={overlay.axes.z.b[1]} font-size={14 / scale} stroke-width={3 / scale}>Z</text>{/if}
                 </g>
+              {/if}
+              <!-- 중심선 (원점 축 X·Y·Z): 누르면 기준 길이 축이 된다. 고른 축은 핸들까지 늘어나고 자홍 테두리 -->
+              {#if sol}
+                {#each (['x', 'y', 'z'] as const) as axis (axis)}
+                  {@const end = centerEnd(axis)}
+                  {#if end}
+                    {#if axis === refAxis}<line class="refglow" x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={11 / scale} pointer-events="none" />{/if}
+                    <line class="center" data-testid="camera-center-line" data-axis={axis} class:isref={axis === refAxis} style:stroke={AXIS_COLOR[axis]} x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={(axis === refAxis ? 4 : 3) / scale} role="button" tabindex="-1" onpointerdown={(e) => { if (!ro) { e.stopPropagation(); setRefAxis(axis); } }} />
+                    <line class="centerhit" x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={14 / scale} role="button" tabindex="-1" onpointerdown={(e) => { if (!ro) { e.stopPropagation(); setRefAxis(axis); } }} />
+                    <text class="axlabel" style:fill={AXIS_COLOR[axis]} x={end[0]} y={end[1] - 8 / scale} font-size={14 / scale} stroke-width={3 / scale}>{axis.toUpperCase()}</text>
+                  {/if}
+                {/each}
               {/if}
               {#each AXES as ax (ax.axis)}
                 {@const lines = linesOf(ax.axis)}
@@ -201,11 +200,9 @@
                   {/each}
                 {/if}
               {/each}
-              {#if refLine}
-                <line class="axis ref" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={4 / scale} pointer-events="none" />
-                <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 10 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
-                <circle data-testid="camera-handle" data-key="ra" class="handle ref" class:on={drag?.key === 'ra'} cx={refLine.a[0]} cy={refLine.a[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'ra')} />
-                <circle data-testid="camera-handle" data-key="rb" class="handle ref" class:on={drag?.key === 'rb'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rb')} />
+              {#if refLine && sol}
+                <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 12 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
+                <circle data-testid="camera-handle" data-key="r" class="handle ref" class:on={drag?.key === 'r'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'r')} />
               {/if}
               <g class="origin" transform="translate({draft.origin[0]} {draft.origin[1]})">
                 <line x1={-14 / scale} x2={14 / scale} y1="0" y2="0" stroke-width={2 / scale} /><line y1={-14 / scale} y2={14 / scale} x1="0" x2="0" stroke-width={2 / scale} />
@@ -238,7 +235,7 @@
             <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={refMm || ''} placeholder="실측 거리" disabled={ro} oninput={(e) => setRefMm(Number(e.currentTarget.value))} />
             <span>mm</span>
           </div>
-          <p class="hint">fSpy 와 같습니다: 원점을 지나는 축(X 가로·Y 세로·Z 높이) 하나를 고르면 빨간 핸들 두 개가 그 축 위에서만 미끄러집니다. 두 핸들을 실측한 구간의 양 끝(문 왼쪽 틀 → 오른쪽 틀, 바닥 → 창 위 등)에 놓고 그 사이 거리를 넣으세요. 원점에서 시작하지 않아도 됩니다.</p>
+          <p class="hint">원점에서 뻗는 <b>중심선(X·Y·Z) 중 하나를 사진에서 누르세요.</b> 고른 중심선은 자홍으로 빛나고, 끝의 핸들을 그 선 위에서 끌어 길이를 바꾼 뒤 그 길이의 실측값(mm)을 넣습니다. 원점을 실측 구간의 한쪽 끝(문틀·벽 모서리)에 두면 됩니다.</p>
         </section>
         <section>
           <h3>축 선 <span class="legend" style:color={pairColor('x')}>■</span> 첫 쌍 <span class="legend" style:color={pairColor('y')}>■</span> 둘째 쌍 <span class="legend" style:color={pairColor('z')}>■</span> 셋째 쌍 — 색은 축(X 빨강·Y 초록·Z 파랑)을 따릅니다</h3>
@@ -296,16 +293,17 @@
   .stage { position: relative; }
   .stage img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
-  .axis.ref { stroke: #ff4dd2; }
   .reflabel { fill: #ff8ae6; }
+  .center { cursor: pointer; }
+  .centerhit { stroke: transparent; cursor: pointer; }
+  .refglow { stroke: rgba(255, 77, 210, 0.5); }
+  .axlabel { font-weight: 700; }
   .handle { fill: #fff; cursor: grab; }
   .handle.ref { stroke: #ff4dd2; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
   .handle.on { fill: var(--accent); cursor: grabbing; }
   .origin line { stroke: #fff; }
   .overlay .g { stroke: rgba(255,255,255,0.45); }
   .overlay .cube { stroke: rgba(255,255,255,0.9); }
-  .overlay .axx { stroke: #ff4d4d; } .overlay .axy { stroke: #3ddc84; } .overlay .axz { stroke: #4da3ff; } /* = AXIS_COLOR */
-  .overlay .lx { fill: #ff4d4d; } .overlay .ly { fill: #3ddc84; } .overlay .lz { fill: #4da3ff; }
   .opt { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); flex: 1; }
   text { fill: #fff; stroke: rgba(0,0,0,0.75); paint-order: stroke; font-weight: 700; pointer-events: none; }
   .loupe { position: absolute; width: 180px; height: 180px; border: 2px solid var(--accent); border-radius: 50%; background: #000; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }

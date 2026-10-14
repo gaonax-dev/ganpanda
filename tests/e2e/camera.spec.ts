@@ -42,28 +42,30 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await page.getByTestId('camera-open').click();
   const dlg = page.getByTestId('camera-dialog');
   await expect(dlg).toBeVisible();
-  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 2); // 축 선 끝점 8 + 원점 + 기준 핸들 2
+  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 1); // 축 선 끝점 8 + 원점 + 기준 중심선 끝 핸들
   // 사진의 직선에서 자동 제안 → 선이 바뀐다
   const before = await page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft));
   await dlg.getByTestId('camera-propose').click();
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft)), { timeout: 15_000 }).not.toBe(before);
 
   // 정확한 값으로: 띠 위·아래(가로), 문 좌·우(세로), 원점 = 벽 좌하단, 기준 = 문 폭 1000
-  const [bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0], [0, 0]]);
-  await page.evaluate(({ bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin }) => {
+  const [bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0], [0, 0], [9000, 0]]);
+  await page.evaluate(({ bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR }) => {
     const app = (window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda;
-    // 기준 길이 (fSpy 와 같게) = X 축 위 두 핸들 사이 거리
-    app.cameraDraft = { x: [{ a: bandTL, b: bandTR }, { a: bandBL, b: bandBR }], y: [{ a: doorTL, b: doorBL }, { a: doorTR, b: doorBR }], origin, ref: { axis: 'x', from: doorBL, to: doorBR, mm: 1000 }, principal: 'center' }; // 문 왼쪽 틀 → 오른쪽 틀 1000mm (원점에서 떨어진 구간)
-  }, { bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin });
+    // 기준 길이 = 중심선 하나(X)의 길이
+    app.cameraDraft = { x: [{ a: bandTL, b: bandTR }, { a: bandBL, b: bandBR }], y: [{ a: doorTL, b: doorBL }, { a: doorTR, b: doorBR }], origin, ref: { axis: 'x', point: wallBR, mm: 9000 }, principal: 'center' }; // X 중심선 길이 = 원점(벽 좌하단)부터 벽 우하단까지 9000mm
+  }, { bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR });
   await expect(dlg.getByTestId('camera-result')).toContainText('초점거리');
   await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('x');
-  await expect(dlg.locator('[data-testid="camera-handle"][data-key="ra"]')).toHaveCount(1); // 빨간 기준 핸들 두 개가 X 축 위에
-  await expect(dlg.locator('[data-testid="camera-handle"][data-key="rb"]')).toHaveCount(1);
-  // 축을 높이로 바꾸면 핸들이 Z 축 위로 옮겨가고, 다시 X 로 돌려 문 폭 구간으로
-  await dlg.getByTestId('camera-ref-axis').selectOption('z');
-  await expect(dlg.locator('[data-testid="camera-handle"][data-key="rb"]')).toHaveCount(1);
-  await dlg.getByTestId('camera-ref-axis').selectOption('x');
-  await page.evaluate(({ doorBL, doorBR }) => { const app = (window as unknown as { __ganpanda: { cameraDraft: { ref: unknown } } }).__ganpanda; app.cameraDraft = { ...app.cameraDraft, ref: { axis: 'x', from: doorBL, to: doorBR, mm: 1000 } }; }, { doorBL, doorBR });
+  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="x"]')).toHaveClass(/isref/); // X 중심선이 기준
+  await expect(dlg.locator('[data-testid="camera-handle"][data-key="r"]')).toHaveCount(1); // 그 끝의 핸들
+  // 사진에서 Z 중심선을 누르면 기준 축이 Z 로, 다시 X 중심선을 누르면 X 로
+  await dlg.locator('[data-testid="camera-center-line"][data-axis="z"]').dispatchEvent('pointerdown', { bubbles: true, pointerId: 1 });
+  await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('z');
+  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="z"]')).toHaveClass(/isref/);
+  await dlg.locator('[data-testid="camera-center-line"][data-axis="x"]').dispatchEvent('pointerdown', { bubbles: true, pointerId: 1 });
+  await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('x');
+  await page.evaluate((wallBR) => { const app = (window as unknown as { __ganpanda: { cameraDraft: { ref: unknown } } }).__ganpanda; app.cameraDraft = { ...app.cameraDraft, ref: { axis: 'x', point: wallBR, mm: 9000 } }; }, wallBR);
   await expect(dlg.getByTestId('camera-3d')).toBeVisible(); // fSpy 처럼 3D 격자·축이 사진에 겹쳐 보인다
   await dlg.getByTestId('camera-apply').click();
   await expect(dlg).toHaveCount(0);
