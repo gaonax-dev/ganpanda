@@ -5,7 +5,7 @@
   import { assetUrl } from '../assets';
   import type { Pt } from '../core/homography';
   import type { Photo } from '../core/model';
-  import type { Axis, AxisDir, CameraSetup, Line } from '../core/camera';
+  import { refLineOf, type Axis, type AxisDir, type CameraSetup, type Line, type RefLineKey } from '../core/camera';
   import { projectVisible, type CameraPose } from '../core/homography';
 
   let { photo }: { photo: Photo } = $props();
@@ -79,6 +79,12 @@
     set({ axes: next });
   }
   const m = (mm: number) => (mm / 1000).toFixed(2);
+  /** 기준 길이로 고른 선 (키) 과 그 끝점 */
+  const refKey = $derived<RefLineKey | null>(draft.ref && 'line' in draft.ref ? draft.ref.line : null);
+  const refLine = $derived(refLineOf(draft));
+  const refMm = $derived(draft.ref?.mm ?? 0);
+  const REF_LABEL: Record<RefLineKey, string> = { x0: '첫 쌍 · 선 1 (노랑)', x1: '첫 쌍 · 선 2 (노랑)', y0: '둘째 쌍 · 선 1 (파랑)', y1: '둘째 쌍 · 선 2 (파랑)' };
+  const pickRef = (line: RefLineKey) => { if (!ro) set({ ref: { line, mm: refMm || 1000 } }); };
   const linesOf = (axis: Axis): [Line, Line] | undefined => (axis === 'x' ? draft.x : axis === 'y' ? draft.y : draft.z);
   const toPhoto = (e: PointerEvent): Pt => {
     const r = svg.getBoundingClientRect();
@@ -86,7 +92,6 @@
   };
   function setHandle(key: string, p: Pt) {
     if (key === 'o') { set({ origin: p }); return; }
-    if (key === 'ra' || key === 'rb') { if (draft.ref) set({ ref: { ...draft.ref, [key === 'ra' ? 'a' : 'b']: p } }); return; }
     const axis = key[0] as Axis, i = Number(key[1]), end = key[2] as 'a' | 'b';
     const lines = linesOf(axis);
     if (!lines) return;
@@ -156,7 +161,7 @@
                 {@const lines = linesOf(ax.axis)}
                 {#if lines}
                   {#each lines as l, i (i)}
-                    <line class="axis {ax.cls}" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={3 / scale} />
+                    <line class="axis {ax.cls}" class:isref={refKey === `${ax.axis}${i}`} data-testid="camera-line" data-key="{ax.axis}{i}" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={(refKey === `${ax.axis}${i}` ? 6 : 3) / scale} role="button" tabindex="-1" onpointerdown={(e) => { if (ax.axis !== 'z') { e.stopPropagation(); pickRef(`${ax.axis}${i}` as RefLineKey); } }} />
                     {#each ['a', 'b'] as end (end)}
                       {@const p = l[end as 'a' | 'b']}
                       <circle data-testid="camera-handle" data-key="{ax.axis}{i}{end}" class="handle {ax.cls}" class:on={drag?.key === `${ax.axis}${i}${end}`} cx={p[0]} cy={p[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, `${ax.axis}${i}${end}`)} />
@@ -164,13 +169,9 @@
                   {/each}
                 {/if}
               {/each}
-              {#if draft.ref}
-                <line class="axis ref" x1={draft.ref.a[0]} y1={draft.ref.a[1]} x2={draft.ref.b[0]} y2={draft.ref.b[1]} stroke-width={3 / scale} />
-                <text x={(draft.ref.a[0] + draft.ref.b[0]) / 2} y={(draft.ref.a[1] + draft.ref.b[1]) / 2 - 10 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(draft.ref.mm)}mm</text>
-                {#each ['ra', 'rb'] as key (key)}
-                  {@const p = key === 'ra' ? draft.ref.a : draft.ref.b}
-                  <circle data-testid="camera-handle" data-key={key} class="handle ref" class:on={drag?.key === key} cx={p[0]} cy={p[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, key)} />
-                {/each}
+              {#if refLine}
+                <line class="axis refglow" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={10 / scale} pointer-events="none" />
+                <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 10 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
               {/if}
               <g class="origin" transform="translate({draft.origin[0]} {draft.origin[1]})">
                 <line x1={-14 / scale} x2={14 / scale} y1="0" y2="0" stroke-width={2 / scale} /><line y1={-14 / scale} y2={14 / scale} x1="0" x2="0" stroke-width={2 / scale} />
@@ -196,16 +197,15 @@
         </section>
         <section>
           <h3>기준 길이 <span class="legend ref">■</span></h3>
-          {#if draft.ref}
-            <div class="row">
-              <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={draft.ref.mm} disabled={ro} oninput={(e) => set({ ref: { ...draft.ref!, mm: Math.max(1, Number(e.currentTarget.value) || 1) } })} />
-              <span>mm</span>
-              <select data-testid="camera-ref-axis" value={draft.ref.axis} disabled={ro} onchange={(e) => set({ ref: { ...draft.ref!, axis: e.currentTarget.value as 'x' | 'y' } })}>
-                <option value="x">가로 방향</option><option value="y">높이 방향</option>
-              </select>
-            </div>
-            <p class="hint">빨간 선을 실측한 곳(문 폭, 창 높이 등)에 맞추고 길이를 넣으세요. 벽면의 가로 또는 높이 방향을 따라 놓아야 합니다.</p>
-          {/if}
+          <div class="row">
+            <select data-testid="camera-ref-line" value={refKey ?? ''} disabled={ro} onchange={(e) => { const v = e.currentTarget.value as RefLineKey | ''; if (v) pickRef(v); }}>
+              {#if !refKey}<option value="">선을 고르세요</option>{/if}
+              {#each Object.entries(REF_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}
+            </select>
+            <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={refMm || ''} placeholder="실제 길이" disabled={ro || !refKey} oninput={(e) => { if (refKey) set({ ref: { line: refKey, mm: Math.max(1, Number(e.currentTarget.value) || 1) } }); }} />
+            <span>mm</span>
+          </div>
+          <p class="hint">축 선 중 실측한 것(문 폭·창 높이·간판 띠 길이)을 사진에서 눌러 고르고, 그 선의 실제 길이를 넣으세요. 고른 선은 빨갛게 빛나고 길이가 표시됩니다. 선의 두 끝점이 실측한 구간과 맞아야 합니다.</p>
         </section>
         <section>
           <h3>축 선 <span class="legend ax">■</span> 첫 쌍 <span class="legend ay">■</span> 둘째 쌍 <span class="legend az">■</span> 셋째 쌍</h3>
@@ -263,7 +263,11 @@
   .stage { position: relative; }
   .stage img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
-  .axis.ax { stroke: var(--accent); } .axis.ay { stroke: var(--blue); } .axis.az { stroke: #3ddc84; } .axis.ref { stroke: #ff4d4d; }
+  .axis.ax { stroke: var(--accent); } .axis.ay { stroke: var(--blue); } .axis.az { stroke: #3ddc84; }
+  .axis.ax, .axis.ay { cursor: pointer; }
+  .axis.refglow { stroke: rgba(255, 77, 77, 0.45); }
+  .axis.isref { stroke: #ff4d4d; }
+  .reflabel { fill: #ff8080; }
   .handle { fill: #fff; cursor: grab; }
   .handle.ax { stroke: var(--accent); } .handle.ay { stroke: var(--blue); } .handle.az { stroke: #3ddc84; } .handle.ref { stroke: #ff4d4d; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
   .handle.on { fill: var(--accent); cursor: grabbing; }

@@ -662,7 +662,7 @@ export function defaultCameraSetup(w: number, h: number): CameraSetup {
     x: [{ a: [w * 0.2, h * 0.3], b: [w * 0.8, h * 0.3] }, { a: [w * 0.2, h * 0.7], b: [w * 0.8, h * 0.7] }],
     y: [{ a: [w * 0.25, h * 0.2], b: [w * 0.25, h * 0.8] }, { a: [w * 0.75, h * 0.2], b: [w * 0.75, h * 0.8] }],
     origin: [w * 0.25, h * 0.7],
-    ref: { a: [w * 0.3, h * 0.78], b: [w * 0.5, h * 0.78], axis: 'x', mm: 1000 },
+    ref: { line: 'x1', mm: 1000 },
     principal: 'center',
   };
 }

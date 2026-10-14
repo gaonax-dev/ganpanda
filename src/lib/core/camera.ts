@@ -17,8 +17,11 @@ export interface CameraSetup {
   z?: [Line, Line];
   /** 벽 위 (0,0) 이 되는 사진 점 */
   origin: Pt;
-  /** 축척: 축을 따라 놓인 선 하나의 실제 길이 */
-  ref?: { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
+  /**
+   * 축척 = 기준 길이: **축 선 중 하나를 골라** 실제 길이(mm)를 넣는다 (2026-10-14 사용자: "기준길이는 기준선 중에 하나를 선택하고 길이를 입력").
+   * `line` = 첫 쌍 'x0'/'x1', 둘째 쌍 'y0'/'y1'. (옛 형식 {a,b,axis} 도 읽는다)
+   */
+  ref?: { line: RefLineKey; mm: number } | { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
   /** 주점: 사진 중앙(기본) / 제3 소실점의 수심 (z 축 필요) */
   principal?: 'center' | 'third';
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
@@ -26,6 +29,20 @@ export interface CameraSetup {
   axes?: { first: AxisDir; second: AxisDir };
 }
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
+export type RefLineKey = 'x0' | 'x1' | 'y0' | 'y1';
+
+/** 기준 길이로 고른 선의 끝점과 벽면 축 (첫 쌍 = u 가로, 둘째 쌍 = v 높이; 높이가 첫 쌍이면 반대) */
+export function refLineOf(setup: CameraSetup, swapped = false): { a: Pt; b: Pt; axis: 'x' | 'y' } | null {
+  const r = setup.ref;
+  if (!r) return null;
+  if ('line' in r) {
+    const pair = r.line[0] === 'x' ? setup.x : setup.y, l = pair[Number(r.line[1])];
+    if (!l) return null;
+    const firstIsU = !swapped;
+    return { a: l.a, b: l.b, axis: (r.line[0] === 'x') === firstIsU ? 'x' : 'y' };
+  }
+  return { a: r.a, b: r.b, axis: r.axis };
+}
 export interface CameraSolution {
   f: number;
   /** 주점 (사진 px) */
@@ -152,12 +169,13 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   let s = 1000;
   const H1 = Hof(poseAt(1)), H1inv = invert3(H1);
   if (!H1inv) return null;
-  if (setup.ref && setup.ref.mm > 0) {
+  const refL = refLineOf(setup, wallAxes[0] !== axesUsed.first);
+  if (refL && setup.ref && setup.ref.mm > 0) {
     const toWall = (p: Pt): Pt => { const w = H1inv[6] * p[0] + H1inv[7] * p[1] + H1inv[8]; return [(H1inv[0] * p[0] + H1inv[1] * p[1] + H1inv[2]) / w, (H1inv[3] * p[0] + H1inv[4] * p[1] + H1inv[5]) / w]; };
-    const a = toWall(setup.ref.a), b = toWall(setup.ref.b);
-    const L1 = setup.ref.axis === 'x' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
+    const a = toWall(refL.a), b = toWall(refL.b);
+    const L1 = refL.axis === 'x' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
     if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 선이 너무 짧습니다.');
-  } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 축 하나를 따라 실측한 선을 넣으세요.');
+  } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 축 선 중 실측한 것을 고르고 길이를 넣으세요.');
   const pose = poseAt(s);
   const H = Hof(pose);
   const Hinv = invert3(H);

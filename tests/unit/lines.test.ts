@@ -84,7 +84,7 @@ describe('선분 검출 (LSD 식)', () => {
     for (const s of p.y) expect(pointsTo(seg(s), vyT, 1.5 * DEG)).toBe(true);
     expect(Math.abs((p.x[0].a[1] + p.x[0].b[1]) / 2 - (p.x[1].a[1] + p.x[1].b[1]) / 2)).toBeGreaterThan(H * 0.1);
     expect(Math.abs((p.y[0].a[0] + p.y[0].b[0]) / 2 - (p.y[1].a[0] + p.y[1].b[0]) / 2)).toBeGreaterThan(W * 0.1);
-    const sol = solveCamera({ x: [p.x[0], p.x[1]], y: [p.y[0], p.y[1]], origin: small([0, 0, 0]), ref: { a: small([4000, 0, 0]), b: small([5000, 0, 0]), axis: 'x', mm: 1000 } }, W, H)!;
+    const sol = solveCamera({ x: [p.x[0], p.x[1]], y: [p.y[0], p.y[1]], origin: small([0, 0, 0]), ref: { line: 'x0', mm: 9000 } }, W, H)!;
     expect(Math.abs(sol.f - (f * W) / imgW) / ((f * W) / imgW)).toBeLessThan(0.05);
   });
 });

@@ -42,7 +42,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await page.getByTestId('camera-open').click();
   const dlg = page.getByTestId('camera-dialog');
   await expect(dlg).toBeVisible();
-  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 2);
+  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1);
   // 사진의 직선에서 자동 제안 → 선이 바뀐다
   const before = await page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft));
   await dlg.getByTestId('camera-propose').click();
@@ -52,9 +52,15 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   const [bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0], [0, 0]]);
   await page.evaluate(({ bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin }) => {
     const app = (window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda;
-    app.cameraDraft = { x: [{ a: bandTL, b: bandTR }, { a: bandBL, b: bandBR }], y: [{ a: doorTL, b: doorBL }, { a: doorTR, b: doorBR }], origin, ref: { a: doorBL, b: doorBR, axis: 'x', mm: 1000 }, principal: 'center' };
+    app.cameraDraft = { x: [{ a: bandTL, b: bandTR }, { a: bandBL, b: bandBR }], y: [{ a: doorTL, b: doorBL }, { a: doorTR, b: doorBR }], origin, ref: { line: 'y0', mm: 2900 }, principal: 'center' }; // 기준 길이 = 둘째 쌍 선 1 (문 왼쪽, 2900mm)
   }, { bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin });
   await expect(dlg.getByTestId('camera-result')).toContainText('초점거리');
+  await expect(dlg.getByTestId('camera-ref-line')).toHaveValue('y0');
+  // 사진에서 다른 축 선을 누르면 그 선이 기준 길이가 된다
+  await dlg.locator('[data-testid="camera-line"][data-key="x0"]').dispatchEvent('pointerdown', { bubbles: true, pointerId: 1 });
+  await expect(dlg.getByTestId('camera-ref-line')).toHaveValue('x0');
+  await dlg.getByTestId('camera-ref-mm').fill('9000');
+  await expect(dlg.locator('[data-testid="camera-line"][data-key="x0"]')).toHaveClass(/isref/);
   await expect(dlg.getByTestId('camera-3d')).toBeVisible(); // fSpy 처럼 3D 격자·축이 사진에 겹쳐 보인다
   await dlg.getByTestId('camera-apply').click();
   await expect(dlg).toHaveCount(0);
@@ -117,9 +123,9 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await expect(dlg.getByTestId('camera-warning').filter({ hasText: '거울상' })).toHaveCount(1);
   await dlg.getByTestId('camera-axis-1').selectOption('+z');
   await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
-  await dlg.getByTestId('camera-axis-1').selectOption('+y'); // 세로(깊이) = 옆면 벽
-  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+z');
-  await dlg.getByTestId('camera-axis-2').selectOption('+x');
+  await dlg.getByTestId('camera-axis-1').selectOption('+y'); // 세로(깊이): 다른 축(+X)과 겹치지 않으니 둘째는 그대로
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
+  await dlg.getByTestId('camera-axis-2').selectOption('+z'); // 옆면 벽 = 세로 + 높이
   await expect(dlg.getByTestId('camera-warning').filter({ hasText: '같은 축' })).toHaveCount(0);
   await dlg.getByTestId('camera-ref-mm').fill('900');
   await page.keyboard.press('Escape');

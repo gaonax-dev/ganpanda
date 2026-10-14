@@ -4,6 +4,7 @@
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
+  import { refLineOf } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -297,12 +298,13 @@
       <polygon class="zone draft" points={quadFromDrag(zoneDraft.start, zoneDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" />
     {/if}
     {#if photo.camera}
+      {@const refL = refLineOf(photo.camera)}
       <!-- 원근 설정(축 선·원점·기준 길이)을 옅게 보여 준다: 이 사진에 설정이 있다는 표시 -->
       <g class="camera" data-testid="camera-overlay" pointer-events="none">
         {#each photo.camera.x as l, i (i)}<line class="cx" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
         {#each photo.camera.y as l, i (i)}<line class="cy" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
         {#each photo.camera.z ?? [] as l, i (i)}<line class="cz" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}
-        {#if photo.camera.ref}<line class="cr" x1={photo.camera.ref.a[0]} y1={photo.camera.ref.a[1]} x2={photo.camera.ref.b[0]} y2={photo.camera.ref.b[1]} stroke-width={2 * u} />{/if}
+        {#if refL}<line class="cr" x1={refL.a[0]} y1={refL.a[1]} x2={refL.b[0]} y2={refL.b[1]} stroke-width={2 * u} />{/if}
         <circle class="co" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={5 * u} stroke-width={1.5 * u} />
       </g>
     {/if}

@@ -29,7 +29,8 @@ function setupOf(pr: (q: V3) => Pt, withZ = false): CameraSetup {
     y: [seg(pr, [0, 0, 0], [0, 3000, 0]), seg(pr, [6000, 200, 0], [6000, 2800, 0])],
     ...(withZ ? { z: [seg(pr, [0, 0, 0], [0, 0, -3000]), seg(pr, [0, 2500, 0], [0, 2500, -3000])] } : {}),
     origin: pr([0, 0, 0]),
-    ref: { a: pr([1000, 500, 0]), b: pr([1900, 500, 0]), axis: 'x', mm: 900 },
+    // 기준 길이 = 둘째 쌍 선 2 (x=6000 세로선, 200~2800 = 2600mm)
+    ref: { line: 'y1', mm: 2600 },
   };
 }
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b) / Math.max(1, Math.abs(b))).toBeLessThan(tol);
@@ -55,8 +56,12 @@ describe('카메라 솔버 (축 선 두 쌍 + 원점 + 기준 길이)', () => {
     near(m.widthMm, 1500, 0.01); near(m.heightMm, 850, 0.01);
   });
 
-  it('기준 길이가 세로 축이어도 된다', () => {
+  it('기준 길이로 첫 쌍(가로) 선을 골라도 된다 — 옛 형식 {a,b,axis} 도 읽는다', () => {
     const st = setupOf(proj);
+    st.ref = { line: 'x0', mm: 6000 };
+    const s0 = solveCamera(st, imgW, imgH)!;
+    const p0 = applyHomography(s0.Hinv, proj([2500, 1200, 0]));
+    near(p0[0], 2500, 0.01); near(p0[1], 1200, 0.01);
     st.ref = { a: proj([1000, 200, 0]), b: proj([1000, 2300, 0]), axis: 'y', mm: 2100 };
     const s = solveCamera(st, imgW, imgH)!;
     const p = applyHomography(s.Hinv, proj([6000, 3000, 0]));
@@ -148,14 +153,15 @@ describe('축 선택·리버스와 카메라 위치·화각', () => {
   });
   it('원점을 옮기면 카메라 위치가 그만큼 반대로 움직인다 (화각은 그대로)', () => {
     const a = solveCamera(setupOf(proj), imgW, imgH)!;
-    const st = setupOf(proj); st.origin = proj([2000, 1000, 0]); st.ref = { a: proj([3000, 1500, 0]), b: proj([3900, 1500, 0]), axis: 'x', mm: 900 };
+    const st = setupOf(proj); st.origin = proj([2000, 1000, 0]);
     const b = solveCamera(st, imgW, imgH)!;
     near(b.cameraPos[0], 1000, 0.02); near(b.cameraPos[1], 800, 0.02); near(b.cameraPos[2], 8000, 0.02);
     near(b.fov.h, a.fov.h, 0.001);
   });
   it('선 쌍 축 지정: 첫 쌍을 +Y, 둘째 쌍을 +X 로 바꿔 넣어도 같은 카메라', () => {
     const st = setupOf(proj);
-    const swapped: CameraSetup = { ...st, x: st.y, y: st.x, axes: { first: '+z', second: '+x' } };
+    // 쌍을 바꿨으니 기준 길이도 같은 선(원래 둘째 쌍 선 2 = 이제 첫 쌍 선 2)으로
+    const swapped: CameraSetup = { ...st, x: st.y, y: st.x, axes: { first: '+z', second: '+x' }, ref: { line: 'x1', mm: 2600 } };
     const s = solveCamera(swapped, imgW, imgH)!;
     const q: V3 = [2500, 1200, 300];
     const [u, v] = projectPoint(s.pose, q), [tu, tv] = proj(q);
@@ -175,7 +181,8 @@ describe('세로 Y(깊이) 축 지정 (옆면 벽: 깊이 선 + 높이 선)', ()
   it('첫 쌍을 ±Y, 둘째 쌍을 +Z 로 두면 옆면 벽(x=0 평면)이 벽면이 되고, 월드 축이 실제와 맞는다', () => {
     const full = setupOf(proj, true);
     // 깊이 선(z 방향)을 첫 쌍으로, 세로 선을 둘째 쌍으로. 기준 길이는 깊이 방향 1m
-    const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { a: proj([0, 500, 0]), b: proj([0, 500, -1000]), axis: 'x', mm: 1000 } };
+    // 기준 길이 = 첫 쌍(깊이) 선 1: [0,0,0]→[0,0,−3000] = 3000mm
+    const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { line: 'x0', mm: 3000 } };
     const tryDir = (first: '+y' | '-y') => solveCamera({ ...base, axes: { first, second: '+z' } }, imgW, imgH)!;
     // 사진에서 깊이 선의 부호는 모르므로 둘 중 거울상 경고가 없는 쪽이 맞는 것
     const sols = [tryDir('+y'), tryDir('-y')];

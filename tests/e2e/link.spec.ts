@@ -31,7 +31,7 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
 
   // 같은 속성창: 이름·규격이 원본 것
   await expect(page.getByTestId('link-info')).toContainText('2곳');
-  await expect(page.getByTestId('object-summary')).toContainText('전광 채널');
+  await expect(page.getByTestId('object-summary')).toContainText('채널 간판 (전광)');
   await expect(page.getByTestId('object-summary')).toContainText('4,000×1,000');
   await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveValue('4000');
@@ -48,7 +48,7 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
   // 리스트·견적에는 하나만
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-card')).toHaveCount(1);
-  await expect(page.getByTestId('list-card')).toContainText('전광 채널');
+  await expect(page.getByTestId('list-card')).toContainText('채널 간판 (전광)');
   await page.getByTestId('view-board').click();
 
   // 원본 쪽 대화와 같은 대화를 본다
