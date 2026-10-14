@@ -5,7 +5,7 @@
   import { assetUrl } from '../assets';
   import { layoutList } from '../core/layout';
   import { faceClip, faceWarp } from '../core/cardFace';
-  import { productById, sheetById } from '../core/catalog';
+  import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won } from '../core/quote';
   import type { ExtraItem } from '../core/model';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -97,7 +97,9 @@
     {#each sized as { o, w, h, estimated } (o.id)}
       {@const pos = drag?.id === o.id ? { x: drag.sx, y: drag.sy } : placed.get(o.id)!}
       {@const photo = app.photos.find((p) => p.id === o.photoId)}
-      {@const prod = productById(o.productId)}
+      {@const parts = signParts(o)}
+      {@const prod = productById(parts.bodyId)}
+      {@const chan = CHANNEL_OPTIONS.find((c) => c.id === parts.channelId)?.label}
       {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0)}
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
@@ -122,7 +124,7 @@
         <div class="spec" style:transform="scale({inv})">
           <b>{o.name}</b>
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
-          <span class="muted">{[prod?.name, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
+          <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
           <span class="price">{won(amount)}</span>
           {#if app.canEdit && app.photos.length}
             <!-- 사진 보드에 올리기: 사진이 하나면 바로, 여럿이면 고른다 (같은 사인물로 연결) -->

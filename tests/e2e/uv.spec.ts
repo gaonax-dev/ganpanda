@@ -76,7 +76,7 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
 
   // 사진 보드와 전개도에 디자인이 보인다
   await page.getByTestId('view-board').click();
-  await expect(page.getByTestId('design-image')).toHaveCount(1);
+  await expect(page.getByTestId('photo-zone').getByTestId('design-image')).toHaveCount(1); // 사진 위 (보드 평면도 카드에도 한 번 더 보인다)
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-design')).toHaveCount(1);
 

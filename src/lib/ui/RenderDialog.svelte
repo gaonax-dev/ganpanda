@@ -10,7 +10,7 @@
   import { loadFont } from '../core/textShapes';
   import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
-  import { buildChannel, buildLightbox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
+  import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
   let { photo }: { photo: Photo } = $props();
   let host: HTMLDivElement;
@@ -103,7 +103,7 @@
       if (!it) continue;
       let b: BuiltSign;
       try {
-        b = it.spec.kind === 'channel' ? buildChannel(it.spec, font) : buildLightbox(it.spec, 'Pretendard, sans-serif', it.face);
+        b = buildSign(it.spec, font, 'Pretendard, sans-serif', it.face);
       } catch (e) {
         try { b = buildLightbox({ ...it.spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 입체 글자를 만들 수 없어 상자로 표시 (${e instanceof Error ? e.message : e})`); }
         catch { notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 그릴 수 없음`); continue; }

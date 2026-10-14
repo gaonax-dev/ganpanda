@@ -4,7 +4,7 @@ import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
 import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
-import { buildChannel, buildLightbox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
+import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
@@ -43,7 +43,7 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
       if (!spec) continue;
       const face = spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
       let b: BuiltSign;
-      try { b = spec.kind === 'channel' ? buildChannel(spec, font) : buildLightbox(spec, 'Pretendard, sans-serif', face); }
+      try { b = buildSign(spec, font, 'Pretendard, sans-serif', face); }
       catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
       const corners = quadOnWall(own, o) as [number, number][];
       warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);

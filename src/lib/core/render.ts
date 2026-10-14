@@ -1,6 +1,6 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
-import { categoryOf, productById } from './catalog';
-import { DEFAULT_LETTER3D, lightingOf } from './letter3d';
+import { categoryOf, productById, signParts } from './catalog';
+import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
 import type { Placement } from './wallPlane';
 import type { SignSpec } from '../sim/types';
@@ -13,6 +13,7 @@ const BOARD_LOOK: Record<string, { faceColor: string; depthMm: number }> = {
   'board-galva': { faceColor: '#3a3f44', depthMm: 100 },
   'board-flex': { faceColor: '#fff8e6', depthMm: 150 },
   'board-protrude': { faceColor: '#fff8e6', depthMm: 150 }, // 그린 면(옆에서 보이는 면)에 상자로. 벽에 수직인 돌출 방향 표현은 후속
+  'body-none': { faceColor: '#9aa0a6', depthMm: 20 },
 };
 const SHEET_LOOK = { faceColor: '#ffffff', depthMm: 2 };
 /** 분류 전: 자리만 보이는 회색 판 */
@@ -25,20 +26,25 @@ export const fitScale = (measuredW: number, placementW: number) => (measuredW > 
 export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   // 분류가 없어도 자리를 보여 준다 (회색 얇은 판) — 사진마다 그린 사인물이 3D 에서 빠지지 않게 (2026-10-14 사용자: "4개 사진에서 3D 사인물이 1개 사진에서만 나온다")
   const cat = categoryOf(o);
-  const product = productById(o.productId);
+  const { bodyId, channelId } = signParts(o); // 간판 = 몸통 + 채널 옵션
+  const product = productById(bodyId);
   const l = o.letter3d;
   const text = (o.text ?? '').trim();
   const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111' };
-  if (product?.category === 'channel' && text) {
-    const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
-    return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: d.depthMm, lighting: lightingOf(o.productId), faceColor: d.faceColor, sideColor: d.sideColor };
+  const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
+  // 몸통 없음 + 채널 + 문구 = 입체 글자만 (글자 높이 = 그린 영역 세로)
+  if (bodyId === 'body-none' && channelId && text) {
+    return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor };
   }
   const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+  // 몸통 + 채널 + 문구 = 상자 위에 입체 글자. 글자 높이는 옵션(없으면 영역 세로의 60%)
+  const letters = channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing } : undefined;
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본
-    lighting: o.productId === 'board-flex' || o.productId === 'board-protrude' ? 'front' : 'none',
-    faceColor: l?.faceColor ?? look.faceColor,
-    sideColor: l?.sideColor ?? '#6b7075',
+    lighting: bodyId === 'board-flex' || bodyId === 'board-protrude' ? 'front' : 'none',
+    faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
+    sideColor: letters ? '#6b7075' : l?.sideColor ?? '#6b7075',
+    ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
   };
 }

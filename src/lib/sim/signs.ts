@@ -81,6 +81,30 @@ export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
   };
 }
 
+/**
+ * 사양대로 만든다: 채널 = 입체 글자, 박스 = 상자, 박스 + letters = 상자 앞면 위에 입체 글자(간판 몸통 + 채널 옵션).
+ * 글자는 박스 폭의 90% 안에 맞추고 가운데에 놓는다
+ */
+export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage): BuiltSign {
+  if (spec.kind === 'channel') return buildChannel(spec, font);
+  const box = buildLightbox(spec, fontFamily, face);
+  const L = spec.letters;
+  if (!L || !L.text.trim()) return box;
+  let letters: BuiltSign;
+  try { letters = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, widthMm: spec.widthMm, depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
+  catch { return box; } // 글자를 만들 수 없으면(폰트에 없는 글자) 상자만
+  const k = Math.min(1, (spec.widthMm * 0.9) / Math.max(1, letters.measured.widthMm), (spec.heightMm * 0.9) / L.heightMm);
+  letters.group.scale.setScalar(k);
+  letters.group.position.set(0, 0, spec.depthMm); // 상자 앞면 위
+  box.group.add(letters.group);
+  return {
+    group: box.group,
+    measured: box.measured,
+    setNight(night) { box.setNight(night); letters.setNight(night); },
+    dispose() { box.dispose(); letters.dispose(); },
+  };
+}
+
 export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   const group = new THREE.Group();
   const { geometry: geo, measured, shapes, center, scale: k } = channelGeometry(spec, font);

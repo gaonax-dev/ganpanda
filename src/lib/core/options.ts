@@ -1,7 +1,7 @@
 // 주문 사양 옵션 스키마 (2026-10-14 사용자 요청: 사인물 통합 주문): 종류마다 옵션을 데이터로 두고 설정 창이 폼을 그린다.
 // 새 품목·옵션은 여기에 한 줄 추가. 값은 SignObject.options (키 → 값) 에 저장되고, 조합 규칙은 `when` 으로.
 import type { SignObject } from './model';
-import { productById } from './catalog';
+import { CHANNEL_NONE, CHANNEL_OPTIONS, productById } from './catalog';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -27,7 +27,16 @@ const paint = (prefix: string, label: string, when?: OptionField['when']): Optio
   txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', when),
 ];
 const SIDES = sel('sides', '면', ['단면', '양면']);
-const isLit = (_o: Options, o: SignObject) => o.productId !== 'ch-galva';
+/** 채널 옵션 (모든 간판 몸통에): 없음 또는 채널 종류. 고르면 세부 옵션이 따라온다 */
+const hasChannel = (opts: Options) => !!opts.channel && opts.channel !== CHANNEL_NONE;
+const isLit = (_opts: Options, o: SignObject) => o.productId !== 'ch-galva';
+const CHANNEL_FIELDS: OptionField[] = [
+  sel('channel', '채널 (입체 글자)', [CHANNEL_NONE, ...CHANNEL_OPTIONS.map((c) => c.label)]),
+  sel('chType', '채널 종류', ['캡', '오싸이', '일체형'], hasChannel),
+  sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], (opts) => hasChannel(opts) && opts.channel !== CHANNEL_OPTIONS[3].label),
+  ...paint('body', '알루미늄·측면·프레임 도색', hasChannel),
+  txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이', hasChannel),
+];
 
 /** 제품별 옵션 (주문 사양) */
 export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
@@ -37,6 +46,7 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   'board-acp': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   'board-acrylic': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   // 돌출 간판: 양면이 기본. 몸체가 갈바 도색일 때만 컬러코드. 브라켓(벽 고정 철물) 포함 여부
+  'body-none': [],
   'board-protrude': [
     sel('sides', '면', ['양면', '단면']),
     sel('body', '몸체', ['갈바 도색', '후렉스', '아크릴']),
@@ -44,10 +54,12 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     ...paint('paint', '도색', (opts) => (opts.body ?? '갈바 도색') === '갈바 도색'),
     sel('bracket', '브라켓', ['기본 브라켓 포함', '별도 제작', '기존 브라켓 사용']),
   ],
+  // 옛 데이터(채널 제품이 종류): 채널 세부 옵션만
   ...Object.fromEntries(['ch-front', 'ch-halo', 'ch-both', 'ch-galva'].map((id) => [id, [
     sel('chType', '채널 종류', ['캡', '오싸이', '일체형']),
     sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], isLit),
     ...paint('body', '알루미늄·측면·프레임 도색'),
+    txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이'),
   ]])),
   'ch-rubber': [sel('thickness', '두께', ['10T', '20T', '30T', '50T']), sel('front', '전면판 종류', ['시트 부착', '아크릴 전면판', '없음']), txt('frontColor', '전면 색상', '예: 백색, RAL 3020', (opts) => opts.front !== '없음')],
   'sc-titan': [sel('color', '색상', ['골드', '실버', '로즈골드', '블랙', '브론즈']), sel('finish', '표면 마감', ['헤어라인(무광)', '미러(유광)'])],
@@ -71,7 +83,8 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const groups: OptionGroup[] = [];
   const p = productById(o.productId);
   if (p) {
-    const fs = vis(PRODUCT_OPTIONS[p.id] ?? []);
+    // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
+    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(p.category === 'board' ? CHANNEL_FIELDS : [])]);
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }

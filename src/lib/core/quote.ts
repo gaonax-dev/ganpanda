@@ -1,5 +1,5 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
-import { productById, sheetById } from './catalog';
+import { CHANNEL_OPTIONS, productById, sheetById, signParts } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
 import { polygonArea, quadToRect } from './perspective';
@@ -56,18 +56,28 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     if (amount < prices.minimum) { amount = prices.minimum; detail += ` · 최소 ${fmt(prices.minimum)}원 적용`; }
     lines.push({ objectId: o.id, label, detail, amount });
   };
-  const p = productById(o.productId);
-  if (p) {
-    const label = `${o.name} · ${p.name}`;
-    const unit = prices.products[p.id] ?? 0;
+  // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
+  const { bodyId, channelId } = signParts(o);
+  const body = productById(bodyId);
+  if (body && body.unit === 'm2') {
+    const label = `${o.name} · ${body.name}`;
+    const unit = prices.products[body.id] ?? 0;
     if (!sized) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else if (p.unit === 'm2') {
+    else {
       const m2 = (o.widthMm! * o.heightMm!) / 1e6;
       finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit);
-    } else {
+    }
+  }
+  if (channelId) {
+    const ch = productById(channelId)!;
+    const label = `${o.name} · ${CHANNEL_OPTIONS.find((c) => c.id === channelId)?.label ?? ch.name}`;
+    const unit = prices.products[channelId] ?? 0;
+    const chH = Number(o.options?.chHeight) || o.heightMm; // 글자 높이: 옵션, 없으면 간판 높이
+    if (!chH) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
+    else {
       const n = charCountOf(o);
       if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
-      else finish(label, `${n}자 × 높이 ${fmt(o.heightMm!)}mm × ${fmt(unit)}원/자·cm`, n * (o.heightMm! / 10) * unit);
+      else finish(label, `${n}자 × 높이 ${fmt(chH)}mm × ${fmt(unit)}원/자·cm`, n * (chH / 10) * unit);
     }
   }
   for (const id of o.sheetIds) {
