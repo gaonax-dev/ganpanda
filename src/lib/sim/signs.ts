@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { Font } from 'opentype.js';
 import type { Measured, SignSpec } from './types';
 import { shapesToPath2D, textToShapes } from '../core/textShapes';
+import { solveHomography } from '../core/homography';
 
 /** 후광 채널의 벽 이격(스페이서) 거리 */
 const HALO_STANDOFF = 35;
@@ -151,6 +152,31 @@ export function lightboxGeometry(w: number, h: number, d: number, corner = 0): T
   const g = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 8 });
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * 만든 사인물(중심 원점, 가로 w × 세로 h 의 직사각형 기준)을 벽면 위 **임의의 사각형**(TL,TR,BR,BL, mm)에 맞춘다.
+ * 평면 안 호모그래피를 모든 정점의 x,y 에 적용(z 는 그대로) — 카메라가 벽과 조금 어긋나 있어도 사인물은 사용자가 그린 자리에 그대로 놓인다
+ * (2026-10-14 사용자: "사진 위의 사인물 크기는 사용자가 그린 사인물에 맞물리면 된다"). scale 은 먼저 곱한다(글자 폭 맞춤)
+ */
+export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [number, number][], scale = 1) {
+  const H = solveHomography([[-w / 2, h / 2], [w / 2, h / 2], [w / 2, -h / 2], [-w / 2, -h / 2]], corners);
+  group.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const g = mesh.geometry as THREE.BufferGeometry;
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i) * scale, y = pos.getY(i) * scale;
+      const d = H[6] * x + H[7] * y + H[8];
+      pos.setXY(i, (H[0] * x + H[1] * y + H[2]) / d, (H[3] * x + H[4] * y + H[5]) / d);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    g.computeBoundingBox(); g.computeBoundingSphere();
+  });
+  group.position.set(0, 0, 0);
+  group.scale.setScalar(1);
 }
 
 /** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */

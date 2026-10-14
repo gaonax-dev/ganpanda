@@ -75,6 +75,11 @@ export function wallPlaneOf(objs: SignObject[], calib?: Calibration | null): Wal
   return Hinv ? { H, Hinv, source: 'drawn', referenceId: drawn.id } : null;
 }
 
+/** 사진 위 사각 영역의 네 꼭짓점(TL,TR,BR,BL) → 벽면 mm (일반 사각형 그대로 — 사인물을 그린 자리에 정확히 맞출 때) */
+export function quadOnWall(plane: WallPlane, o: { quad: Pt[] }): Pt[] {
+  return o.quad.map((p) => applyHomography(plane.Hinv, p));
+}
+
 /** 사진 위 사각 영역 → 벽면 mm 위치·크기 (위·아래 변 평균 = 가로, 좌·우 변 평균 = 세로) */
 export function placeOnWall(plane: WallPlane, o: { quad: Pt[] }): Placement {
   const [tl, tr, br, bl] = o.quad.map((p) => applyHomography(plane.Hinv, p));

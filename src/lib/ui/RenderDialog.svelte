@@ -8,9 +8,9 @@
   import type { Photo, SignObject } from '../core/model';
   import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
-  import { placeOnWall, poseOfPlane, projectionFromPlane, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
-  import { buildChannel, buildLightbox, type BuiltSign, type FaceImage } from '../sim/signs';
+  import { buildChannel, buildLightbox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
   let { photo }: { photo: Photo } = $props();
   let host: HTMLDivElement;
@@ -83,15 +83,15 @@
     clear();
     if (!p) { status = '이 사진은 아직 3D 를 만들 수 없습니다. 사인물 영역을 하나 그리거나 [원근 맞추기]를 하세요.'; count = 0; v.invalidate(); return; }
     status = '합성 중…';
-    const placed = os.map((o) => ({ o, at: placeOnWall(p, o) }));
+    const placed = os.map((o) => ({ o, at: placeOnWall(p, o), corners: quadOnWall(p, o) as [number, number][] }));
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림
-    const items = await Promise.all(placed.map(async ({ o, at }) => {
+    const items = await Promise.all(placed.map(async ({ o, at, corners }) => {
       const spec = renderSpecOf(o, at);
       if (!spec) return null;
       const face = spec.kind === 'lightbox' ? await faceOf(o) : undefined;
-      return { spec, face };
+      return { spec, face, corners };
     }));
     if (my !== token) return;
     // 사인물 하나가 실패해도(폰트에 없는 글자, 찌그러진 영역 등) 나머지는 계속 그린다 (2026-10-14: 뒤에 만든 사인물이 안 보이던 원인)
@@ -105,8 +105,8 @@
         try { b = buildLightbox({ ...it.spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 입체 글자를 만들 수 없어 상자로 표시 (${e instanceof Error ? e.message : e})`); }
         catch { notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 그릴 수 없음`); continue; }
       }
-      b.group.position.set(it.spec.x, it.spec.y, 0);
-      if (it.spec.kind === 'channel') b.group.scale.setScalar(fitScale(b.measured.widthMm, it.spec.widthMm)); // 그린 영역 폭에 맞춤
+      // 그린 사각형에 정확히 맞춘다 (카메라가 벽과 어긋나도). 글자는 먼저 영역 폭에 맞춤
+      warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1);
       b.setNight(night);
       v.signsRoot.add(b.group);
       built.push(b);
