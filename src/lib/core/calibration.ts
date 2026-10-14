@@ -7,6 +7,8 @@ export interface Calibration {
   sx: number; sy: number;
   /** true = H 가 이미 벽 mm 좌표(원점·방향 포함) — 카메라 설정에서 온 것. 벽면 좌표계를 다시 잡지 않는다 */
   metric?: boolean;
+  /** 카메라 설정에서 온 보정이면 풀린 카메라 포즈 (3D 는 이걸 그대로 써서 원근 창의 격자·상자와 똑같이 보인다) */
+  pose?: import('./homography').CameraPose;
   /** (옛 기준선 방식의 흔적) 기준별 편차 — 카메라 설정에서는 비어 있다 */
   perRef: { objectId: string; edge: 'top' | 'bottom' | 'left' | 'right'; kind: 'h' | 'v'; deviation: number }[];
   warnings: string[];

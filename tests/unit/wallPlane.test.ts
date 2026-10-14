@@ -134,3 +134,15 @@ describe('3×4 투영 → 클립 행렬 (뷰어와 같은 식)', () => {
     }
   });
 });
+
+describe('카메라 설정에서 온 벽면은 원근 창과 같은 투영을 쓴다', () => {
+  it('벽 밖(Z>0) 점도 풀린 카메라의 투영과 1e-6 안에서 같다 (원근 창의 상자 = 3D 뷰의 상자)', () => {
+    const plane = wallPlaneOf([sign, door, band], camera)!;
+    expect(plane.pose).toBeDefined();
+    const P = projectionFromPlane(plane, imgW, imgH);
+    for (const q of [[0, 0, 0], [1000, 0, 1000], [1000, 1000, 1000], [2500, 1200, 300]] as [number, number, number][]) {
+      const a = projectP(P, q)!, b = projectPoint(plane.pose!, q);
+      expect(Math.abs(a[0] - b[0])).toBeLessThan(1e-6); expect(Math.abs(a[1] - b[1])).toBeLessThan(1e-6);
+    }
+  });
+});

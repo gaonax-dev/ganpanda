@@ -252,7 +252,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */
 export function calibrationOf(s: CameraSolution): Calibration {
-  return { H: s.Hinv, sx: 1, sy: 1, metric: true, perRef: [], warnings: s.warnings };
+  return { H: s.Hinv, sx: 1, sy: 1, metric: true, pose: s.pose, perRef: [], warnings: s.warnings };
 }
 
 // ---------- 자동 제안 (AI): 선분 검출 + RANSAC 소실점 (lines.ts) ----------
