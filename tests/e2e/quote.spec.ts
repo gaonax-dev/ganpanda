@@ -94,7 +94,7 @@ test('견적서 인쇄 화면', async ({ page, request }) => {
   await page.getByTestId('open-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toBeVisible();
   await expect(page.getByTestId('quote-sheet')).toContainText('행복 미용실');
-  await expect(page.getByTestId('quote-sheet')).toContainText('알루미늄 복합판');
+  await expect(page.getByTestId('quote-sheet')).toContainText('알루미늄 복합판 간판');
   await expect(page.getByTestId('quote-sheet')).toContainText('합계');
   await page.getByTestId('close-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toHaveCount(0);

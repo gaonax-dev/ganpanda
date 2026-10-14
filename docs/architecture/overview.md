@@ -35,7 +35,9 @@ ganpanda/
 | `calibration.ts` | 벽면 보정 결과(`Calibration`)로 사각 영역 측정, 모서리 붙이기(`snapEdge`) |
 | `wallPlane.ts` | 실사 합성용 벽면 좌표계 (px ↔ mm, 카메라 포즈) |
 | `render.ts` | 사인물 → 3D 간판 사양 (실사 보기) |
-| `catalog.ts` | 간판 종류·시트 종류 (이름·단위), 분류 간판/스카시/시트 (`categoryOf`) |
+| `catalog.ts` | 간판·스카시 종류·시트 종류 (이름·단위), 분류 간판/스카시/시트 (`categoryOf`) |
+| `options.ts` | 주문 사양 옵션 스키마 (종류별 필드·조건부·요약) |
+| `order.ts` | 주문 정보 형식, 주문 JSON |
 | `pricing.ts` | 단가표(기본값·합치기) |
 | `quote.ts` | 오브젝트·프로젝트 견적 (단가표·설치비·추가 항목·부가세) |
 | `layout.ts` | 전개도 자동 배치 |

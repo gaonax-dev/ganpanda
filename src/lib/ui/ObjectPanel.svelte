@@ -4,6 +4,7 @@
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import { copiesOf } from '../core/link';
   import { quoteObject, won } from '../core/quote';
+  import { describeOptions } from '../core/options';
   import type { SignObject } from '../core/model';
   import Chat from './Chat.svelte';
 
@@ -29,6 +30,7 @@
     const product = productById(obj.productId);
     if (product) parts.push(product.name);
     else if (obj.sheetIds.length) parts.push(obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', '));
+    parts.push(...describeOptions(obj));
     if (size) parts.push(`${fmt(size.w)}×${fmt(size.h)}mm${size.estimated ? ' (추정)' : ''}`);
     if (total) parts.push(won(total));
     return parts;

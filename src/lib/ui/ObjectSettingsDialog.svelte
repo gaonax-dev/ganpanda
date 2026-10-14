@@ -3,6 +3,7 @@
   import { app } from '../state.svelte';
   import { CATEGORY_GROUPS, SHEETS, categoryOf, productById, productsOf } from '../core/catalog';
   import { charCountOf, quoteObject, won } from '../core/quote';
+  import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
   import type { SignObject } from '../core/model';
 
@@ -24,6 +25,11 @@
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
   const close = () => (app.objectSettingsOpen = false);
 
+  const optionGroups = $derived(optionGroupsFor(obj));
+  function setOption(f: OptionField, v: string | boolean) {
+    const next = { ...normalizeOptions(obj), [f.key]: v };
+    update({ options: normalizeOptions({ ...obj, options: next }) });
+  }
   function toggleSheet(id: string) {
     const has = obj.sheetIds.includes(id);
     update({ sheetIds: has ? obj.sheetIds.filter((s) => s !== id) : [...obj.sheetIds, id] });
@@ -64,6 +70,30 @@
           <p class="hint">0 = 사각형, 50 = 원·알약. 사각형이 기본이라 디자인(UV)이 그대로 입혀지고 모서리만 깎입니다.</p>
         </section>
       {/if}
+
+      {#each optionGroups as g (g.title)}
+        <section data-testid="option-group">
+          <h3>{g.title}</h3>
+          <div class="opts">
+            {#each g.fields as f (f.key)}
+              {@const v = optionValue(f, obj.options ?? {})}
+              {#if f.kind === 'select'}
+                <label class="opt">{f.label}
+                  <select data-testid="option-{f.key}" value={v} disabled={ro} onchange={(e) => setOption(f, e.currentTarget.value)}>
+                    {#each f.values ?? [] as o2 (o2.id)}<option value={o2.id}>{o2.label}</option>{/each}
+                  </select>
+                </label>
+              {:else if f.kind === 'toggle'}
+                <label class="check"><input type="checkbox" data-testid="option-{f.key}" checked={v === true} disabled={ro} onchange={(e) => setOption(f, e.currentTarget.checked)} /> {f.label}</label>
+              {:else}
+                <label class="opt">{f.label}
+                  <input data-testid="option-{f.key}" value={String(v)} placeholder={f.placeholder} disabled={ro} oninput={(e) => setOption(f, e.currentTarget.value)} />
+                </label>
+              {/if}
+            {/each}
+          </div>
+        </section>
+      {/each}
 
       <section>
         <h3>시트</h3>
@@ -118,6 +148,11 @@
         {/if}
       </section>
 
+      <section>
+        <h3>요청사항</h3>
+        <textarea data-testid="sign-note" rows="2" value={obj.note ?? ''} placeholder="이 사인물의 배선 위치, 특수 가공, 현장 조건 등" disabled={ro} oninput={(e) => update({ note: e.currentTarget.value || undefined })}></textarea>
+      </section>
+
       {#if lines.length}
         <section data-testid="object-price">
           <h3>예상 금액{#if size?.estimated}<span class="est">추정 {fmt(size.w)}×{fmt(size.h)} 기준</span>{/if}</h3>
@@ -147,6 +182,10 @@
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
   .cat { color: var(--text); font-weight: 700; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .opt { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .check { font-size: 12px; display: flex; align-items: center; gap: 6px; grid-column: 1 / -1; }
+  textarea { width: 100%; box-sizing: border-box; }
   .slider { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .slider input { width: 100%; }
   .badge { background: var(--blue); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }

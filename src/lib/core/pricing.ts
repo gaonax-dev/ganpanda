@@ -24,7 +24,7 @@ export const DEFAULT_PRICES: PriceTable = {
   version: 1,
   products: {
     'board-foamex': 45000, 'board-acp': 85000, 'board-acrylic': 120000, 'board-galva': 70000, 'board-flex': 250000,
-    'ch-front': 3200, 'ch-halo': 3800, 'ch-galva': 2600, 'ch-scashi': 1200, 'ch-rubber': 900,
+    'ch-front': 3200, 'ch-halo': 3800, 'ch-both': 4500, 'ch-galva': 2600, 'ch-rubber': 900, 'sc-titan': 2800, 'ch-scashi': 1200,
   },
   sheets: { 'sh-cut': 35000, 'sh-print': 30000, 'sh-reflect': 55000, 'sh-frost': 40000, 'sh-trans': 38000, 'sh-perf': 45000 },
   install: 250000,

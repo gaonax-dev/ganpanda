@@ -14,7 +14,7 @@
 | `objects` | `Y.Map<id, Y.Map>` | 사인물 오브젝트 |
 | `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(핀) |
 | `sources` | `Y.Map<id, Y.Map>` | 디자인 소스(파일 + 페이지 이미지) → [uv-view.md](../features/uv-view.md) |
-| `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`) — [sign-list-quote.md](../features/sign-list-quote.md) |
+| `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`), 주문 정보(`order`) — [sign-list-quote.md](../features/sign-list-quote.md), [order.md](../features/order.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id) |
 
 ### Photo
@@ -44,6 +44,8 @@
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
 | `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |
+| `options?` | 주문 사양 옵션 (`core/options.ts` 스키마 키 → 값). 규격 필드 → [../features/order.md](../features/order.md) |
+| `note?` | 사인물별 요청사항 (규격 필드) |
 | `sameAs?` | **다른 사진의 같은 사인물**(원본 id). 연결된 영역은 규격을 원본에서 읽고 위치만 자기 것 → `core/link.ts` |
 
 ### Pin
@@ -60,7 +62,7 @@
 - **대화는 공유 `Y.Array` 하나**. 오브젝트별 배열을 따로 만들면, 두 사람이 동시에 첫 메시지를 보낼 때 배열이 두 번 생성되어 한쪽 메시지가 사라집니다. (테스트로 확인된 버그)
 - 사진을 지우면 그 사진의 오브젝트·핀과 대화도 함께 지웁니다 (`removePhoto`). 사인물·핀을 지우면 그 대화도 지웁니다.
 - 오브젝트 정렬: `createdAt`, 같으면 `id`.
-- **같은 사인물 연결** (`sameAs`, 2026-10-14): 규격 필드(`SPEC_FIELDS` = name·productId·sheetIds·widthMm·heightMm·text·charCount·letter3d·design·designHistory·listX·listY)는 원본에서 읽고, 위치 필드(photoId·quad·shape·polygon)는 자기 것. `updateObject` 가 규격 변경을 원본으로 보냅니다. 연결된 영역에 연결하면 그 원본으로(사슬 없음). 해제하면 그 시점 규격을 복사해 독립. 원본을 지우면 첫 연결 영역이 승계(규격·대화·나머지 연결). 원본이 없는 연결은 독립 영역으로 봅니다(`resolveLinks`). 대화는 원본 id 로만 쌓입니다.
+- **같은 사인물 연결** (`sameAs`, 2026-10-14): 규격 필드(`SPEC_FIELDS` = name·productId·sheetIds·widthMm·heightMm·text·charCount·letter3d·design·designHistory·listX·listY·corner·options·note)는 원본에서 읽고, 위치 필드(photoId·quad·shape·polygon)는 자기 것. `updateObject` 가 규격 변경을 원본으로 보냅니다. 연결된 영역에 연결하면 그 원본으로(사슬 없음). 해제하면 그 시점 규격을 복사해 독립. 원본을 지우면 첫 연결 영역이 승계(규격·대화·나머지 연결). 원본이 없는 연결은 독립 영역으로 봅니다(`resolveLinks`). 대화는 원본 id 로만 쌓입니다.
 - 이미지 바이트는 문서에 넣지 않습니다. 문서에는 `assetId`만 두고, 바이트는 에셋 저장소에 둡니다.
 
 ## 관련 테스트
