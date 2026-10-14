@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, productsOf, sheetById } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, categoryOf, groupOfProduct, productsOf, productById, sheetById } from '../core/catalog';
   import type { SignObject } from '../core/model';
 
   let { obj }: { obj: SignObject } = $props();
@@ -31,18 +31,30 @@
 
   /** 종류 셀렉터 값: 제품 id, 시트면 'sheet:<id>', 없으면 '' */
   const kind = $derived(obj.productId ? obj.productId : obj.sheetIds.length ? `sheet:${obj.sheetIds[0]}` : '');
+  /** 분류(간판/스카시/시트)가 바뀌는 선택은 확인을 거친다 (패널과 같은 규칙) */
+  let pendingKind: string | null = $state(null);
+  const groupOfKind = (v: string) => (v.startsWith('sheet:') ? 'sheet' : groupOfProduct(v));
   function setKind(v: string) {
     if (!v) return;
-    if (v.startsWith('sheet:')) update({ productId: undefined, sheetIds: [v.slice(6)] });
-    else update({ productId: v });
+    const cur = categoryOf(obj);
+    if (cur !== null && groupOfKind(v) !== cur) { pendingKind = v; return; }
+    applyKind(v);
   }
-  const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
+  function applyKind(v: string) {
+    const changed = categoryOf(obj) !== groupOfKind(v);
+    if (v.startsWith('sheet:')) update({ productId: undefined, sheetIds: [v.slice(6)], ...(changed ? { options: undefined } : {}) });
+    else update({ productId: v, ...(changed ? { options: undefined } : {}) });
+    pendingKind = null;
+  }
+  const kindName = (v: string) => (v.startsWith('sheet:') ? sheetById(v.slice(6))?.name : productById(v)?.name) ?? v;
+  const isBoard = $derived(productById(obj.productId)?.category === 'board');
+  const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}${obj.depthMm ? `×${fmt(obj.depthMm)}` : ''}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
   const kindLabel = (g: string) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? g;
 </script>
 
 <div class="quick" data-testid="quick-bar">
   <div class="row">
-    <select class="kind" data-testid="quick-kind" value={kind} disabled={ro} onchange={(e) => setKind(e.currentTarget.value)}>
+    <select class="kind" data-testid="quick-kind" value={pendingKind ?? kind} disabled={ro} onchange={(e) => setKind(e.currentTarget.value)}>
       <option value="" disabled>종류 선택</option>
       <optgroup label={kindLabel('sign')}>{#each productsOf('sign') as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</optgroup>
       <optgroup label={kindLabel('scashi')}>{#each productsOf('scashi') as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</optgroup>
@@ -52,6 +64,13 @@
     <button class="btn small val" class:on={editing === 'size'} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
     <button class="btn small primary" data-testid="quick-panel-open" onclick={() => (app.panelOpen = true)}>상세정보</button>
   </div>
+  {#if pendingKind}
+    <div class="row confirm" data-testid="category-confirm">
+      <p>분류가 바뀝니다 (→ {kindName(pendingKind)}). 종류·옵션이 초기화되고 모두에게 적용됩니다.</p>
+      <button class="btn small primary" data-testid="category-confirm-ok" onclick={() => applyKind(pendingKind!)}>바꾸기</button>
+      <button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pendingKind = null)}>취소</button>
+    </div>
+  {/if}
   {#if editing === 'name'}
     <form class="row edit" data-testid="quick-name-edit" onsubmit={(e) => { e.preventDefault(); saveName(); }}>
       <!-- svelte-ignore a11y_autofocus -->
@@ -68,6 +87,11 @@
       <span>×</span>
       <input data-testid="quick-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
         placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '세로'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
+      {#if isBoard}
+        <span>×</span>
+        <input data-testid="quick-depth" type="number" inputmode="decimal" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="두께"
+          oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
+      {/if}
       <span>mm</span>
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
     </div>
@@ -89,5 +113,7 @@
   .edit input[type='number'] { text-align: right; }
   .edit small, .edit span { color: var(--muted); font-size: 11px; white-space: nowrap; }
   .hint { color: var(--muted); font-size: 11px; }
+  .confirm { flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); font-size: 12px; }
+  .confirm p { margin: 0; flex-basis: 100%; line-height: 1.4; }
   .icon { padding: 4px 6px; font-size: 18px; line-height: 1; }
 </style>

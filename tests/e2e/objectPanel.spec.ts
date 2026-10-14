@@ -8,17 +8,24 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await dragOnPhoto(page, [400, 200], [800, 300]);
   const panel = page.getByTestId('object-panel');
   await expect(panel).toBeVisible();
-  await expect(panel.getByTestId('category-sign')).toBeVisible();
-  await expect(panel.getByTestId('category-scashi')).toBeVisible();
-  await expect(panel.getByTestId('category-sheet')).toBeVisible();
+  // 분류는 셀렉터로 (버튼이 바로 바꾸면 여러 사람이 쓸 때 실수가 남) — 처음 선택은 바로
+  const cat = panel.getByTestId('category-select');
+  await expect(cat).toBeVisible();
+  await expect(cat).toHaveValue('');
   await expect(page.getByTestId('width-mm')).toHaveCount(0); // 세부 항목은 패널에 없음
   await expect(page.getByTestId('chat-input')).toBeVisible(); // 대화는 패널에
 
   // 스카시 → 기본 제품이 스카시, 요약에 표시
-  await panel.getByTestId('category-scashi').click();
+  await cat.selectOption('scashi');
+  await expect(panel.getByTestId('category-confirm')).toHaveCount(0);
   await expect(panel.getByTestId('object-summary')).toContainText('스카시');
-  // 시트 → 시트 분류, 설정 창에서 시트 종류 고름
-  await panel.getByTestId('category-sheet').click();
+  // 이미 분류가 있으면 변경은 확인 창을 거친다: 취소하면 그대로, 바꾸기면 적용
+  await cat.selectOption('sheet');
+  await expect(panel.getByTestId('category-confirm')).toBeVisible();
+  await panel.getByTestId('category-confirm-cancel').click();
+  await expect(panel.getByTestId('object-summary')).toContainText('스카시');
+  await cat.selectOption('sheet');
+  await panel.getByTestId('category-confirm-ok').click();
   await expect(panel.getByTestId('object-summary')).not.toContainText('스카시');
   await page.getByTestId('object-settings-open').click();
   const dlg = page.getByTestId('object-settings');

@@ -38,3 +38,19 @@ describe('주문서 JSON', () => {
     expect(json.created_at).toBe('2026-10-14T00:00:00.000Z');
   });
 });
+
+describe('두께는 주문 JSON 과 연결 규격에 포함된다', async () => {
+  const { SPEC_FIELDS } = await import('../../src/lib/core/link');
+  const { contentHash } = await import('../../src/lib/core/proposal');
+  it('depthMm 은 규격 필드(연결된 사인물이 공유)', () => {
+    expect(SPEC_FIELDS).toContain('depthMm');
+  });
+  it('size.depth_mm 로 나가고, 두께가 바뀌면 승인 해시가 달라진다', () => {
+    const o = obj({ id: 'a', name: '돌출', productId: 'board-protrude', widthMm: 600, heightMm: 900, depthMm: 150 });
+    const sizeOf = (x: SignObject) => (x.widthMm && x.heightMm ? { w: x.widthMm, h: x.heightMm, estimated: false } : null);
+    const quote = { lines: [], extras: [], installFee: 0, subtotal: 0, vat: 0, total: 0 } as unknown as Parameters<typeof orderJson>[0]['quote'];
+    const json = orderJson({ projectName: 'x', signs: [o], sizeOf, sources: [], quote, order: {}, now: new Date('2026-10-15T00:00:00Z') });
+    expect(json.items[0].size).toEqual({ width_mm: 600, height_mm: 900, depth_mm: 150, estimated: false });
+    expect(contentHash([o], sizeOf, quote)).not.toBe(contentHash([{ ...o, depthMm: 200 }], sizeOf, quote));
+  });
+});

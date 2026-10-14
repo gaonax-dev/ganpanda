@@ -90,8 +90,18 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   // 종류 셀렉터: 제품 → productId, 시트 → sheetIds
   await page.getByTestId('quick-kind').selectOption('ch-front');
   await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBe('ch-front');
+  // 분류가 바뀌는 선택(간판 → 시트)은 확인을 거친다
   await page.getByTestId('quick-kind').selectOption('sheet:sh-cut');
+  await expect(page.getByTestId('category-confirm')).toBeVisible();
+  await page.getByTestId('category-confirm-ok').click();
   await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.sheetIds).toEqual(['sh-cut']);
+  // 보드 종류로 돌리면 사이즈 입력 줄에 두께가 생긴다
+  await page.getByTestId('quick-kind').selectOption('board-protrude');
+  await page.getByTestId('category-confirm-ok').click();
+  await page.getByTestId('quick-size').click();
+  await page.getByTestId('quick-depth').fill('150');
+  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.depthMm).toBe(150);
+  await page.getByTestId('quick-size').click(); // 닫기
   // [이름] → 간단 입력
   await page.getByTestId('quick-name').click();
   await page.getByTestId('quick-name-input').fill('출입문 시트');
@@ -102,7 +112,7 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   await page.getByTestId('quick-width').fill('3000');
   await page.getByTestId('quick-height').fill('600');
   await expect.poll(async () => (await objs()).find((o) => o.name === '출입문 시트')?.widthMm).toBe(3000);
-  await expect(page.getByTestId('quick-size')).toHaveText('3,000×600');
+  await expect(page.getByTestId('quick-size')).toHaveText('3,000×600×150');
   await page.getByTestId('quick-next').click();
   await expect(page.getByTestId('quick-name')).toHaveText('둘째');
   await page.getByTestId('quick-width').fill('2500');

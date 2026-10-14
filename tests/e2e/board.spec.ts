@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -73,7 +73,7 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
   await uploadPhoto(page);
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await page.getByTestId('category-sign').click();
+  await pickCategory(page, 'sign');
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');

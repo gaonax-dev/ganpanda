@@ -31,7 +31,7 @@
     if (product) parts.push(product.name);
     else if (obj.sheetIds.length) parts.push(obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', '));
     parts.push(...describeOptions(obj));
-    if (size) parts.push(`${fmt(size.w)}×${fmt(size.h)}mm${size.estimated ? ' (추정)' : ''}`);
+    if (size) parts.push(`${fmt(size.w)}×${fmt(size.h)}${obj.depthMm ? `×${fmt(obj.depthMm)}` : ''}mm${size.estimated ? ' (추정)' : ''}`);
     if (total) parts.push(won(total));
     return parts;
   });
@@ -39,11 +39,19 @@
   const ro = $derived(!app.canEdit);
   const update = (patch: Partial<SignObject>) => { if (app.canEdit) app.project.updateObject(obj.id, patch); };
 
-  function setCategory(g: Group) {
-    if (g === category) return;
-    // 시트는 제품 없이 시트만, 나머지는 분류의 기본 제품으로 시작
-    update({ productId: defaultProductFor(g) });
+  /** 분류 바꾸기 확인 중 (2026-10-15 사용자: 여러 사람이 쓰니 처음 고른 뒤의 변경은 안내 창을 거친다) */
+  let pending: Group | null = $state(null);
+  function pickCategory(g: Group | '') {
+    if (!g || g === category) return;
+    if (category === null) { apply(g); return; } // 처음 선택은 바로
+    pending = g;
   }
+  function apply(g: Group) {
+    // 시트는 제품 없이 시트만, 나머지는 분류의 기본 제품으로 시작. 옵션은 종류가 바뀌므로 비운다
+    update({ productId: defaultProductFor(g), options: undefined });
+    pending = null;
+  }
+  const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
 </script>
 
 <aside class="panel" data-testid="object-panel">
@@ -71,11 +79,18 @@
   {/if}
 
   <section>
-    <div class="seg">
-      {#each CATEGORY_GROUPS as g (g.id)}
-        <button data-testid="category-{g.id}" class:on={category === g.id} disabled={ro} title={g.hint} onclick={() => setCategory(g.id)}>{g.label}</button>
-      {/each}
-    </div>
+    <label class="cat">분류
+      <select data-testid="category-select" value={pending ?? category ?? ''} disabled={ro} onchange={(e) => pickCategory(e.currentTarget.value as Group | '')}>
+        <option value="" disabled>분류 선택</option>
+        {#each CATEGORY_GROUPS as g (g.id)}<option value={g.id} title={g.hint}>{g.label}</option>{/each}
+      </select>
+    </label>
+    {#if pending}
+      <div class="confirm" data-testid="category-confirm" role="alertdialog">
+        <p>분류를 <b>{label(category)} → {label(pending)}</b> 로 바꾸면 종류·옵션이 초기화되고 함께 보는 모든 사람에게 적용됩니다. 바꿀까요?</p>
+        <div class="row"><button class="btn small primary" data-testid="category-confirm-ok" onclick={() => apply(pending!)}>바꾸기</button><button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pending = null)}>취소</button></div>
+      </div>
+    {/if}
     <div class="row">
       <p class="summary" data-testid="object-summary">
         {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
@@ -105,6 +120,11 @@
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .summary { flex: 1; margin: 0; font-size: 12px; color: var(--text); line-height: 1.4; }
   .hint { color: var(--muted); }
+  .cat { flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
+  .cat select { flex: 1; }
+  .confirm { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); font-size: 12px; }
+  .confirm p { margin: 0 0 6px; line-height: 1.4; }
+  .confirm .row { margin-top: 0; }
   .link { background: rgba(47, 139, 255, 0.08); }
   .link .row { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
   .linked { margin: 0 0 6px; font-size: 12px; color: var(--blue); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

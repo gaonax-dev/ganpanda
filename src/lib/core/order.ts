@@ -27,7 +27,7 @@ export interface OrderItem {
   sheets: string[];
   options: Record<string, string | boolean>;
   option_summary: string[];
-  size?: { width_mm: number; height_mm: number; estimated: boolean };
+  size?: { width_mm: number; height_mm: number; depth_mm?: number; estimated: boolean };
   text?: string;
   design_file?: string;
   amount: number;
@@ -70,7 +70,7 @@ export function orderJson(args: {
       sheets: o.sheetIds.map((id) => sheetById(id)?.name ?? id),
       options: effectiveOptions(o),
       option_summary: describeOptions(o, { defaults: true }),
-      ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), estimated: sz.estimated } } : {}),
+      ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), ...(o.depthMm ? { depth_mm: Math.round(o.depthMm) } : {}), estimated: sz.estimated } } : {}),
       ...(o.text ? { text: o.text } : {}),
       ...(src ? { design_file: `${src.name} (${o.design!.page + 1}쪽)` } : {}),
       amount: quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0),

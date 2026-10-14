@@ -78,7 +78,7 @@
           {#if p && o.sheetIds.length} · {o.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')}{/if}
           {#each describeOptions(o, { defaults: true }) as d, i (i)} · {d}{/each}
         </div>
-        <div class="spec">{sz ? `${fmt(sz.w)} × ${fmt(sz.h)} mm${sz.estimated ? ' (사진 기준 추정)' : ''}` : '치수 미정'}{#if o.text} · “{o.text}”{/if}</div>
+        <div class="spec">{sz ? `${fmt(sz.w)} × ${fmt(sz.h)}${o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm${sz.estimated ? ' (사진 기준 추정)' : ''}` : '치수 미정'}{#if o.text} · “{o.text}”{/if}</div>
         <button class="btn small" data-testid="proposal-ask" onclick={() => (openChat = openChat === o.id ? null : o.id)}>{openChat === o.id ? '질문 닫기' : `질문하기${unread ? ` (${unread})` : ''}`}</button>
         {#if openChat === o.id}<div class="chat"><Chat objectId={o.id} /></div>{/if}
       </article>

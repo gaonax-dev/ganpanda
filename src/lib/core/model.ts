@@ -39,6 +39,8 @@ export interface SignObject {
   corner?: number;
   widthMm?: number;
   heightMm?: number;
+  /** 보드 두께·돌출 깊이 (mm). 채널 글자 두께는 letter3d.depthMm (2026-10-15 사용자: "두께가 필요해") */
+  depthMm?: number;
   /** 보드/채널 제품 */
   productId?: string;
   /** 시트 (복수 선택) */
