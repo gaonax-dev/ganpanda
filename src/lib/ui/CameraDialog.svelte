@@ -1,5 +1,5 @@
 <!-- 카메라 설정 창 (fSpy 방식, 자체 구현): 가로 X 선 2개(노랑)·세로 Y 선 2개(파랑)·선택 깊이 Z 선 2개(초록), 원점(흰 십자), 기준 길이(빨강 + mm).
-     AI 자동 제안 → 사람이 끌어 제어 → 적용. 끌 때 3배 돋보기 -->
+     AI 자동 제안 → 사람이 끌어 제어 → 적용. 돋보기는 Shift 를 누른 동안만 (2026-10-14 사용자: 기본 끌기엔 필요 없음) -->
 <script lang="ts">
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
@@ -17,6 +17,8 @@
   let drag: { key: string; pointerId: number } | null = $state(null);
   let loupe: HTMLCanvasElement | undefined = $state(undefined);
   let loupeAt = $state<Pt | null>(null);
+  /** Shift 를 누른 동안만 돋보기 */
+  let shift = $state(false);
   let proposeFailed = $state(false);
   const LOUPE = 3;
 
@@ -103,17 +105,20 @@
     e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     drag = { key, pointerId: e.pointerId };
+    shift = e.shiftKey;
     loupeAt = toPhoto(e); drawLoupe();
   }
   function move(e: PointerEvent) {
     if (!drag) return;
     const p = toPhoto(e);
     setHandle(drag.key, p);
+    shift = e.shiftKey;
     loupeAt = p; drawLoupe();
   }
   function up() { drag = null; loupeAt = null; }
+  $effect(() => { if (shift && loupeAt && loupe) drawLoupe(); });
   function drawLoupe() {
-    if (!loupe || !img || !loupeAt) return;
+    if (!loupe || !img || !loupeAt || !shift) return;
     const ctx = loupe.getContext('2d')!;
     const size = loupe.width, half = size / 2 / LOUPE;
     ctx.imageSmoothingEnabled = false;
@@ -130,13 +135,13 @@
   async function propose() { proposeFailed = !(await app.proposeCamera()); }
 </script>
 
-<svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); }} />
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); if (e.key === 'Shift') { shift = true; drawLoupe(); } }} onkeyup={(e) => { if (e.key === 'Shift') shift = false; }} />
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="사진 원근 맞추기" data-testid="camera-dialog">
     <header>
       <h2>사진 원근 맞추기 · {photo.name}</h2>
-      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개(노랑)·높이 선 2개(파랑)</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다.</small>
+      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개(노랑)·높이 선 2개(파랑)</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다. 정밀하게 맞출 땐 <b>Shift</b> 를 누른 채 끌면 돋보기.</small>
       <button class="icon" data-testid="close-camera" title="닫기" onclick={close}>✕</button>
     </header>
     <div class="body">
@@ -178,7 +183,7 @@
                 <circle data-testid="camera-handle" data-key="o" class="handle origin" class:on={drag?.key === 'o'} r={8 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'o')} />
               </g>
             </svg>
-            {#if loupeAt}
+            {#if loupeAt && shift}
               <canvas bind:this={loupe} class="loupe" width="180" height="180" style:left="{Math.min(photo.w * scale - 190, loupeAt[0] * scale + 20)}px" style:top="{Math.max(10, loupeAt[1] * scale - 200)}px"></canvas>
             {/if}
           </div>

@@ -131,3 +131,22 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);
 });
+
+test('돋보기는 Shift 를 누른 동안만 보인다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await page.getByTestId('camera-open').click();
+  const dlg = page.getByTestId('camera-dialog');
+  const h = dlg.locator('[data-testid="camera-handle"][data-key="x0a"]');
+  const b = (await h.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 15, b.y + b.height / 2 + 5, { steps: 3 });
+  await expect(dlg.locator('canvas.loupe')).toHaveCount(0); // 보통 끌기: 돋보기 없음
+  await page.keyboard.down('Shift');
+  await page.mouse.move(b.x + b.width / 2 + 25, b.y + b.height / 2 + 8, { steps: 3 });
+  await expect(dlg.locator('canvas.loupe')).toHaveCount(1); // Shift: 돋보기
+  await page.keyboard.up('Shift');
+  await expect(dlg.locator('canvas.loupe')).toHaveCount(0);
+  await page.mouse.up();
+});

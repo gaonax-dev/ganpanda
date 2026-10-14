@@ -57,7 +57,7 @@ fSpy 는 GPL v3 입니다. 간판다는 fSpy 코드를 한 줄도 쓰지 않고 
 
 ## 화면
 - **사진마다** 이름 바에 **[📐 원근 맞추기]**(없음) / **[📐 원근 맞춤 ✓]**(설정됨, `camera-open`, `data-status`). 설정된 사진에는 축 선·원점·기준 길이가 옅게 겹쳐 보여(`camera-overlay`) 어느 사진에 설정이 있는지 바로 알 수 있습니다. (2026-10-14 사용자 피드백: 떠 있는 패널은 어느 사진 것인지, 무엇을 하라는 것인지 이해하기 어려웠음 → 사진 위로 이동, "카메라 설정" 대신 "사진 원근 맞추기")
-- **원근 맞추기 창**(`CameraDialog.svelte`, `app.cameraPhotoId`/`cameraDraft`): 머리말에 "이 사진에서 치수를 재고 실사를 합성하려면…" 한 줄 설명. [설정 지우기](`camera-clear`)는 창 안에. 사진 위에 첫 쌍(노랑)·둘째 쌍(파랑)·셋째 쌍(초록, 체크로 추가)·원점(흰 십자). **기준 길이**는 축 선을 사진에서 누르거나(`camera-line`, `data-key`) 목록(`camera-ref-line`)에서 골라 길이(`camera-ref-mm`)를 넣습니다 — 고른 선은 빨갛게 빛나고(`isref`) 길이가 표시됩니다. 모든 끝점(`camera-handle`, `data-key` = `x0a`…, `o`)을 끌 수 있고 3배 돋보기가 뜹니다. [축 선 자동 제안](`camera-propose`) → AI 가 선을 놓고 끝점을 붙임, [모서리에 붙이기](`camera-snap`). "결과"에 초점거리·주점·경고가 실시간. [적용]은 `Photo.camera` 저장(⌘Z), Esc·취소는 버림. 처음 열면 사진 크기 기준 기본 배치(`defaultCameraSetup`)로 시작합니다.
+- **원근 맞추기 창**(`CameraDialog.svelte`, `app.cameraPhotoId`/`cameraDraft`): 머리말에 "이 사진에서 치수를 재고 실사를 합성하려면…" 한 줄 설명. [설정 지우기](`camera-clear`)는 창 안에. 사진 위에 첫 쌍(노랑)·둘째 쌍(파랑)·셋째 쌍(초록, 체크로 추가)·원점(흰 십자). **기준 길이**는 축 선을 사진에서 누르거나(`camera-line`, `data-key`) 목록(`camera-ref-line`)에서 골라 길이(`camera-ref-mm`)를 넣습니다 — 고른 선은 빨갛게 빛나고(`isref`) 길이가 표시됩니다. 모든 끝점(`camera-handle`, `data-key` = `x0a`…, `o`)을 끌 수 있고, **Shift 를 누른 동안만** 3배 돋보기가 뜹니다(2026-10-14 사용자: 보통 끌기엔 불필요). [축 선 자동 제안](`camera-propose`) → AI 가 선을 놓고 끝점을 붙임, [모서리에 붙이기](`camera-snap`). "결과"에 초점거리·주점·경고가 실시간. [적용]은 `Photo.camera` 저장(⌘Z), Esc·취소는 버림. 처음 열면 사진 크기 기준 기본 배치(`defaultCameraSetup`)로 시작합니다.
 - 사인물 설정 창에서 치수 입력칸의 placeholder 가 카메라 기준 추정값(≈)입니다. 어긋나면 "카메라 설정 기준 약 W × H 로 보입니다" 경고와 [추정값 적용].
 
 ## 측정 (`measure.ts`)
