@@ -1,7 +1,7 @@
 <!-- 오브젝트별 대화창 (카톡형) + 코멘트 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import type { Attachment, Message } from '../core/model';
+  import type { Attachment } from '../core/model';
   import { ATTACH_ACCEPT, ATTACH_MAX } from '../core/attachments';
   import { formatBytes } from '../core/format';
   import { putAsset, StorageLimitError } from '../assets';
@@ -9,7 +9,7 @@
 
   let { objectId }: { objectId: string } = $props();
   let text = $state('');
-  let kind = $state<Message['kind']>('chat');
+  let kind = $state<'chat' | 'comment'>('chat');
   let list: HTMLDivElement;
   /** 보내기 전 첨부 */
   let pending = $state<Attachment[]>([]);

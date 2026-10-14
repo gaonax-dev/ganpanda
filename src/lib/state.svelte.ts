@@ -2,7 +2,7 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
-import type { Attachment, ExtraItem, Message, ProjectSettings, SignObject } from './core/model';
+import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
@@ -14,6 +14,7 @@ import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
+import { approvalState, contentHash, snapshotOf } from './core/proposal';
 import { wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -22,7 +23,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyToken, type Account, type Usage } from './auth';
-import { checkAccess, postMessage, postPin, type Role } from './projects';
+import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
@@ -88,6 +89,10 @@ class AppState {
   quoteSheetOpen = $state(false);
   /** 주문 정보 창 */
   orderOpen = $state(false);
+  /** 제안 보내기 창 (제작자) */
+  proposalOpen = $state(false);
+  /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
+  proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);
   /** 화면 상단 알림 (용량 초과 등) */
@@ -171,6 +176,10 @@ class AppState {
     this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
+  /** 승인 대상 내용의 해시 (사인물 규격·치수·디자인·금액) */
+  contentHash = $derived(contentHash(this.signs, (o) => this.sizeOf(o), this.quote));
+  /** 최신 승인과 현재 내용의 관계 */
+  approval = $derived(approvalState(this.settings.approvals, this.contentHash));
   unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
@@ -184,9 +193,10 @@ class AppState {
     this.room = url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
+    this.proposalMode = url.searchParams.get('proposal') === '1';
     if (this.room && inviteParam) {
       save(`ganpanda.invite.${this.room}`, inviteParam);
-      history.replaceState(null, '', `/?room=${this.room}`); // 주소에서 토큰 제거
+      history.replaceState(null, '', `/?room=${this.room}${this.proposalMode ? '&proposal=1' : ''}`); // 주소에서 토큰 제거
     }
     this.init();
   }
@@ -340,6 +350,14 @@ class AppState {
   }
 
   /** 단가표·설치비·추가 항목 수정 (편집 권한) */
+  /** 제안 승인 ([이걸로 할게요]): 현재 내용 스냅샷 + 해시 + 이름을 서버가 문서에 기록 */
+  async approve(by: string) {
+    if (!this.room) throw new Error('방이 없습니다');
+    this.setNickname(by);
+    const snapshot = snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources);
+    await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: this.contentHash, snapshot, proposalId: this.settings.proposal?.id });
+  }
+
   updateSettings(patch: Partial<ProjectSettings>) {
     if (this.canEdit) this.project.updateSettings(patch);
   }
@@ -410,7 +428,7 @@ class AppState {
       if (this.knownMessageIds.has(m.id)) continue;
       this.knownMessageIds.add(m.id);
       if (m.ts < this.startedAt) continue;
-      if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' ? this.selectedId : null, hidden: document.hidden })) continue;
+      if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' && !this.proposalMode ? this.selectedId : null, hidden: document.hidden })) continue;
       const text = m.text || describeAttachments(m.attachments ?? []);
       this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text }];
       setTimeout(() => this.dismissToast(m.id), 8000);
@@ -603,7 +621,7 @@ class AppState {
   }
 
   /** 대화·코멘트: viewer 는 서버 API 로, 그 외는 문서에 직접 */
-  async sendMessage(objectId: string, text: string, kind: Message['kind'], attachments: Attachment[] = []) {
+  async sendMessage(objectId: string, text: string, kind: 'chat' | 'comment', attachments: Attachment[] = []) {
     if (this.role === 'viewer' && this.room) {
       await postMessage(this.room, this.invite, { objectId, author: this.nickname, text, kind, attachments });
     } else {

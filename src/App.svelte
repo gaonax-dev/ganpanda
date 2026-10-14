@@ -17,6 +17,8 @@
   import CameraDialog from './lib/ui/CameraDialog.svelte';
   import RenderDialog from './lib/ui/RenderDialog.svelte';
   import OrderDialog from './lib/ui/OrderDialog.svelte';
+  import ProposalDialog from './lib/ui/ProposalDialog.svelte';
+  import ProposalView from './lib/ui/ProposalView.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -49,14 +51,17 @@
 </script>
 
 <div class="shell">
-  <nav class="top">
+  <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->
+  <nav class="top" class:hidden={app.proposalMode && !app.canEdit} data-testid="top-nav">
     <a class="logo" href="/" data-testid="go-projects">간판다</a>
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>초대 링크</button>{/if}
+      {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>제안 보내기</button>{/if}
+      {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? `✅ 승인됨 · ${app.approval.approval.by}` : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
-    <div class="views" class:hidden={!app.room || app.access.status !== 'ok'}>
+    <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode}>
       {#each VIEWS as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
           {v.label}
@@ -117,6 +122,8 @@
       <Home />
     {:else if app.access.status === 'denied'}
       <AccessDenied />
+    {:else if app.access.status === 'ok' && app.proposalMode}
+      <div class="proposal"><ProposalView /></div>
     {:else if app.access.status === 'ok'}
       <!-- 뷰는 전환해도 캔버스 위치를 유지하도록 숨김 처리 -->
       <div class="view" hidden={app.view !== 'board'}><BoardView /></div>
@@ -143,16 +150,23 @@
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
 {#if app.orderOpen}<OrderDialog />{/if}
+{#if app.proposalOpen}<ProposalDialog />{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}<CameraDialog photo={app.cameraPhoto} />{/key}{/if}
 {#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
 {#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}<RenderDialog photo={rp} />{/key}{/if}{/if}
 {#if app.letter3dOpen && app.selected}{#key app.selected.id}<Letter3DDialog obj={app.selected} />{/key}{/if}
 
 <style>
-  .shell { display: grid; grid-template-rows: 48px auto 1fr; height: 100%; }
+  .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
+  .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
+  .approval[data-status='changed'] { color: var(--warn); }
+  .shell { display: grid; grid-template-rows: auto auto 1fr; height: 100%; overflow-x: hidden; }
+  /* 상단 바를 숨겨도 행 배치가 밀리지 않게 행을 고정 */
+  .top { grid-row: 1; } .banners { grid-row: 2; } main { grid-row: 3; }
+  .top.hidden { display: none; }
   .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; }
   .banner.warn { background: rgba(255, 170, 0, 0.14); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); }
-  .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
   .project { font-weight: 600; font-size: 14px; }
   .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }

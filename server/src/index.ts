@@ -134,6 +134,48 @@ async function postMessage(req: Request, env: Env, room: string, _role: Role): P
   return json({ message: msg }, 201);
 }
 
+/** 제안 승인 (viewer·editor·owner 모두). 이름·해시·스냅샷을 문서에 기록 */
+async function postApproval(req: Request, env: Env, room: string): Promise<Response> {
+  if (req.method !== 'POST') return text('method not allowed', 405);
+  const b = await readJson<{ by?: string; hash?: string; snapshot?: unknown; proposalId?: string }>(req);
+  const by = typeof b?.by === 'string' ? b.by.trim().slice(0, 40) : '';
+  const hash = typeof b?.hash === 'string' ? b.hash.trim().slice(0, 64) : '';
+  if (!by || !hash || !b?.snapshot || typeof b.snapshot !== 'object') return text('bad approval', 400);
+  if (JSON.stringify(b.snapshot).length > 200_000) return text('snapshot too large', 413);
+  const approval = await env.ROOM.getByName(room).addApproval(by, hash, b.snapshot, typeof b.proposalId === 'string' ? b.proposalId : undefined);
+  return json({ approval }, 201);
+}
+
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/**
+ * 제안 링크 랜딩: 카카오톡·문자 미리보기(OG)를 위해 서버가 HTML 을 돌려주고, 사람은 앱의 제안 페이지로 넘어간다.
+ * 토큰이 틀리면 404 (프로젝트 존재도 알리지 않음)
+ */
+async function proposalLanding(req: Request, env: Env, projectId: string, token: string, image: boolean, url: URL): Promise<Response> {
+  if (!ROOM_RE.test(projectId)) return text('not found', 404);
+  const access = await resolveAccess(req, env, projectId, token);
+  if (typeof access === 'number') return text('not found', 404);
+  if (image) {
+    const id = await env.ROOM.getByName(projectId).proposalImageAsset();
+    const obj = id ? await env.ASSETS.get(id) : null;
+    if (!obj) return text('not found', 404);
+    return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType ?? 'image/png', 'cache-control': 'public, max-age=600' } });
+  }
+  const app = `${env.APP_URL.replace(/\/+$/, '')}/?room=${projectId}&invite=${token}&proposal=1`;
+  const name = esc(access.project.name);
+  const imgUrl = `${url.origin}/p/${projectId}/${token}/image.png`;
+  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${name} 간판 제안</title>
+<meta property="og:type" content="website"><meta property="og:title" content="${name} 간판 제안">
+<meta property="og:description" content="가게 사진 위에 간판이 이렇게 달립니다 — 치수·금액을 확인하고 승인해 주세요.">
+<meta property="og:image" content="${imgUrl}"><meta property="og:url" content="${url.origin}/p/${projectId}/${token}">
+<meta http-equiv="refresh" content="0;url=${app}">
+<style>body{font-family:sans-serif;background:#0f1115;color:#eee;display:grid;place-items:center;height:100vh;margin:0}a{color:#ffcc00}</style></head>
+<body><p>제안 페이지로 이동합니다… <a href="${app}">열리지 않으면 여기를 누르세요</a></p><script>location.replace(${JSON.stringify(app)})</script></body></html>`;
+  return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
 /** viewer 가 사진 위에 핀을 꽂는다 (문서 편집 권한 없이) */
 async function postPin(req: Request, env: Env, room: string): Promise<Response> {
   if (req.method !== 'POST') return text('method not allowed', 405);
@@ -176,7 +218,11 @@ export default {
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
     // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)
-    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages|\/pins)?$/);
+    // 제안 링크 랜딩 (OG 미리보기) — 토큰이 자격
+    const landing = pathname.match(/^\/p\/([^/]+)\/([^/]+?)(\/image\.png)?$/);
+    if (landing) return withCors(await proposalLanding(req, env, decodeURIComponent(landing[1]), decodeURIComponent(landing[2]), !!landing[3], url));
+
+    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages|\/pins|\/approvals)?$/);
     if (room) {
       const name = decodeURIComponent(room[1]);
       if (!ROOM_RE.test(name)) return withCors(text('bad room', 400));
@@ -185,6 +231,7 @@ export default {
       if (typeof access === 'number') return withCors(text('no access', access));
       if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
       if (room[2] === '/pins') return withCors(await postPin(req, env, name));
+      if (room[2] === '/approvals') return withCors(await postApproval(req, env, name));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));
       // 동시접속 좌석: 사람 = 계정 ID 또는 손님 브라우저 ID (없으면 소켓마다 1석)
       const sid = crypto.randomUUID();
