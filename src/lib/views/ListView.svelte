@@ -4,14 +4,12 @@
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import { layoutList } from '../core/layout';
-  import { cssMatrix3d, quadToRect } from '../core/perspective';
-  import { applyHomography } from '../core/homography';
+  import { faceClip, faceWarp } from '../core/cardFace';
   import { productById, sheetById } from '../core/catalog';
   import { quoteObject, won } from '../core/quote';
   import type { ExtraItem } from '../core/model';
   import DesignFace from '../ui/DesignFace.svelte';
   import { fitRect, type Viewport } from '../core/viewport';
-  import type { SignObject } from '../core/model';
 
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
   let canvas: InfiniteCanvas;
@@ -55,20 +53,7 @@
     viewport = fitRect({ x: x - 400, y: y - 600, w: w + 800, h: h + 1600 }, s.w - 360, s.h, 40);
   }
 
-  function warp(o: SignObject, w: number, h: number) {
-    try { return cssMatrix3d(quadToRect(o.quad, w, h)); } catch { return 'none'; }
-  }
-
-  function clip(o: SignObject, w: number, h: number) {
-    if (o.shape === 'ellipse') return 'ellipse(50% 50% at 50% 50%)';
-    if (o.shape === 'rect' && o.corner) return `inset(0 round ${Math.min(0.5, o.corner) * Math.min(w, h)}px)`;
-    if (o.shape === 'polygon' && o.polygon) {
-      let H: number[];
-      try { H = quadToRect(o.quad, w, h); } catch { return 'none'; }
-      return `polygon(${o.polygon.map((p) => applyHomography(H, p)).map(([x, y]) => `${x}px ${y}px`).join(',')})`;
-    }
-    return 'none';
-  }
+  const warp = faceWarp, clip = faceClip;
 
   function down(e: PointerEvent, id: string) {
     if (e.button !== 0) return;

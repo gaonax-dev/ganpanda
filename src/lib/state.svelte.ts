@@ -532,8 +532,8 @@ class AppState {
 
   /** 한 사진의 사인물을 **왼쪽부터** 순서대로 (휴대폰 빠른 막대의 이전/다음, 머리글 탭 → 첫 사인물). Y.Map 순서는 안정적이지 않으므로 위치로 정렬 */
   photoSigns(photoId: string): SignObject[] {
-    const left = (o: SignObject) => Math.min(...o.quad.map((p) => p[0]));
-    const top = (o: SignObject) => Math.min(...o.quad.map((p) => p[1]));
+    const left = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[0])) : o.boardX ?? 0);
+    const top = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[1])) : o.boardY ?? 0);
     return this.objects.filter((o) => o.photoId === photoId).sort((a, b) => left(a) - left(b) || top(a) - top(b));
   }
 
@@ -549,7 +549,7 @@ class AppState {
     const root = master.sameAs ?? master.id;
     const sz = this.sizeOf(master);
     const bb = (q: Pt[]) => ({ w: Math.max(...q.map((p) => p[0])) - Math.min(...q.map((p) => p[0])), h: Math.max(...q.map((p) => p[1])) - Math.min(...q.map((p) => p[1])) });
-    const ratio = sz ? sz.h / sz.w : (() => { const b = bb(master.quad); return b.w > 0 ? b.h / b.w : 0.3; })();
+    const ratio = sz ? sz.h / sz.w : (() => { if (master.quad.length < 4) return 0.3; const b = bb(master.quad); return b.w > 0 ? b.h / b.w : 0.3; })();
     const w = photo.w * 0.4, h = Math.min(photo.h * 0.8, w * ratio);
     const x0 = (photo.w - w) / 2, y0 = (photo.h - h) / 2;
     const quad: Pt[] = [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]];
@@ -562,6 +562,20 @@ class AppState {
     this.reveal = { photoId, n: (this.reveal?.n ?? 0) + 1 };
     return id;
   }
+
+  /** 보드 빈 곳에 사인물 만들기 (사진 없이): 끌어 그린 크기가 치수가 되고 바로 생성된다 */
+  createStandalone(boardX: number, boardY: number, size: { widthMm: number; heightMm: number }): string | null {
+    if (!this.canEdit) return null;
+    const n = this.signs.length + 1;
+    this.editBoundary();
+    const id = this.project.addObject({ photoId: '', name: `사인물 ${n}`, shape: 'rect', quad: [], sheetIds: [], boardX: Math.round(boardX), boardY: Math.round(boardY), ...size });
+    this.editBoundary();
+    this.selectObject(id);
+    this.tool = 'select';
+    return id;
+  }
+  /** 사진 없는 사인물(보드 직접 생성) */
+  standalone = $derived(this.objects.filter((o) => !o.photoId));
 
   selectObject(id: string | null) {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }

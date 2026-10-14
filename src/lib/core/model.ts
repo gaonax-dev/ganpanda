@@ -28,6 +28,7 @@ export interface Photo {
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */
 export interface SignObject {
   id: string;
+  /** 사진 id. '' = 사진 없이 보드에 직접 만든 사인물(평면도 카드만, quad 는 빈 배열) — 나중에 사진의 영역이 이것과 연결(sameAs)된다 */
   photoId: string;
   name: string;
   shape: ShapeKind;
@@ -58,6 +59,9 @@ export interface SignObject {
   /** 리스트 뷰(전개도) 위 위치, mm */
   listX?: number;
   listY?: number;
+  /** 보드에 직접 만든 사인물의 보드(world px) 위치 */
+  boardX?: number;
+  boardY?: number;
   /** 주문 사양 옵션 (core/options.ts 스키마의 키 → 값) */
   options?: Record<string, string | boolean>;
   /** 사인물별 요청사항 (배선 위치, 특수 가공 등) */

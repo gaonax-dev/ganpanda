@@ -2,6 +2,8 @@
 <script lang="ts">
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
+  import BoardCard from './BoardCard.svelte';
+  import { BOARD_PX_PER_MM, cardsUnderPhoto, mmFromBoardRect } from '../core/boardCards';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { formatBytes } from '../core/format';
@@ -136,6 +138,40 @@
 
   let dropping = $state(false);
 
+  // ---------- 평면도 카드 (사진 아래: 치수를 직접 입력한 사인물, 생성 순) ----------
+  const cardsOf = (p: typeof app.photos[number]) => cardsUnderPhoto(p, app.photoSigns(p.id).filter((o) => o.widthMm && o.heightMm).map((o) => ({ id: o.id, w: o.widthMm!, h: o.heightMm! })));
+
+  // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
+  let draft: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
+  function backgroundDown(_e: PointerEvent, world: { x: number; y: number }) {
+    app.selectObject(null); app.selectPin(null); app.selectZone(null);
+    if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false;
+    draft = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
+    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); draft = { ...draft!, x1: w.x, y1: w.y }; };
+    const up = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      const d = draft!; draft = null;
+      const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+      if (w < 8 || h < 8) return;
+      app.createStandalone(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), mmFromBoardRect(w, h));
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    return true;
+  }
+  // 보드 사인물 끌어 옮기기
+  let cardDrag: { id: string; dx: number; dy: number } | null = null;
+  function cardDown(e: PointerEvent, o: typeof app.objects[number]) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    app.selectObject(o.id);
+    if (!app.canEdit) return;
+    const w = canvas.clientToWorld(e.clientX, e.clientY);
+    cardDrag = { id: o.id, dx: w.x - (o.boardX ?? 0), dy: w.y - (o.boardY ?? 0) };
+    const move = (ev: PointerEvent) => { if (!cardDrag) return; const p = canvas.clientToWorld(ev.clientX, ev.clientY); app.project.updateObject(cardDrag.id, { boardX: Math.round(p.x - cardDrag.dx), boardY: Math.round(p.y - cardDrag.dy) }); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
+
   // 자동 분리 도구를 고르면 모델·사진 분석을 미리 시작한다
   $effect(() => {
     if (app.tool === 'magic') for (const p of app.photos) app.prepareSegment(p.id);
@@ -173,7 +209,8 @@
     testid="board-canvas"
     onfit={fitAll}
     {zoomAnchor}
-    onbackgrounddown={() => { app.selectObject(null); app.selectPin(null); app.selectZone(null); }}
+    onbackgrounddown={backgroundDown}
+    cursor={app.canEdit && (app.tool === 'rect' || app.tool === 'ellipse') ? 'crosshair' : 'default'}
   >
     {#each app.photos as p (p.id)}
       <PhotoZone
@@ -219,6 +256,21 @@
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
       />
     {/each}
+    <!-- 사진 아래 평면도 카드: 치수를 직접 입력한 사인물 (2026-10-15 사용자 시나리오) -->
+    {#each app.photos as p (p.id)}
+      {@const cards = cardsOf(p)}
+      {#each app.photoSigns(p.id) as o (o.id)}
+        {@const c = cards.placed.get(o.id)}
+        {#if c}<BoardCard {o} x={c.x} y={c.y} w={c.w} h={c.h} photo={p} url={urls[p.assetId]} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} linked={!!o.sameAs || app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => { e.stopPropagation(); app.selectObject(o.id); }} />{/if}
+      {/each}
+    {/each}
+    <!-- 보드에 직접 만든 사인물 (사진 없음): 치수 × 0.1px/mm, 끌어 옮김 -->
+    {#each app.standalone as o (o.id)}
+      <BoardCard {o} x={o.boardX ?? 0} y={o.boardY ?? 0} w={(o.widthMm ?? 1000) * BOARD_PX_PER_MM} h={(o.heightMm ?? 500) * BOARD_PX_PER_MM} zoom={viewport.zoom} selected={app.selectedId === o.id} standalone linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+    {/each}
+    {#if draft}
+      <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
+    {/if}
     {#each app.peers as p (p.name)}
       {#each p.cursors as c, i (i)}
         <div class="cursor" data-testid="peer-cursor" style:left="{c.x}px" style:top="{c.y}px" style:transform="scale({1 / viewport.zoom})" style:--c={p.color}>
@@ -272,6 +324,7 @@
   .cursor { position: absolute; transform-origin: 0 0; pointer-events: none; display: flex; align-items: flex-start; gap: 2px; z-index: 3; }
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
+  .draft { position: absolute; border: 1px dashed var(--accent); background: rgba(255, 204, 0, 0.08); pointer-events: none; }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
     color: var(--muted); pointer-events: none;

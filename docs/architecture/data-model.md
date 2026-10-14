@@ -30,7 +30,7 @@
 ### SignObject
 | 필드 | 설명 |
 |---|---|
-| `id`, `photoId`, `name`, `createdAt` | |
+| `id`, `photoId`, `name`, `createdAt` | `photoId: ''` = 사진 없이 보드에 직접 만든 사인물(2026-10-15, `quad: []`) |
 | `shape` | `rect` / `ellipse`(옛 형식, 새 원형은 rect + corner) / `polygon` |
 | `quad` | 외곽 사각 영역 4점 (좌상, 우상, 우하, 좌하), **사진 원본 px**. 원근 반영 |
 | `polygon?` | `shape = polygon`일 때 윤곽 (사진 px) |
@@ -44,6 +44,8 @@
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
 | `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |
+| `boardX?`, `boardY?` | 보드에 직접 만든 사인물의 보드(world px) 위치 |
+| `depthMm?` | 보드 두께·돌출 깊이 (규격 필드) |
 | `options?` | 주문 사양 옵션 (`core/options.ts` 스키마 키 → 값). 규격 필드 → [../features/order.md](../features/order.md) |
 | `note?` | 사인물별 요청사항 (규격 필드) |
 | `sameAs?` | **다른 사진의 같은 사인물**(원본 id). 연결된 영역은 규격을 원본에서 읽고 위치만 자기 것 → `core/link.ts` |
