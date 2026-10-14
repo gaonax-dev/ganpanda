@@ -7,18 +7,18 @@ const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((
 
 describe('주문 사양 옵션 스키마', () => {
   it('후렉스 간판: 단면/양면 + 내부 조명', () => {
-    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light']);
+    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'channel']); // 채널은 모든 몸통의 옵션
   });
   it('갈바 간판: 돌출/일체형 + 간접조명 + 도색 컬러코드(체계+코드)', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['form', 'indirect', 'paintSystem', 'paintCode']);
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['form', 'indirect', 'paintSystem', 'paintCode', 'channel']);
   });
   it('채널: 채널 종류 + LED 색 + 몸체 도색. 갈바 에폭시 채널(비조명)은 LED 색이 없다', () => {
-    expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'bodyCode']);
+    expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'bodyCode', 'chHeight']); // 옛 데이터(채널 제품이 종류)
     expect(keys(obj({ productId: 'ch-galva' }))).not.toContain('ledColor');
   });
   it('조건부: 복합판 마감이 도색일 때만 컬러코드', () => {
-    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'finish']);
-    expect(keys(obj({ productId: 'board-acp', options: { finish: '도색' } }))).toEqual(['sides', 'finish', 'paintSystem', 'paintCode']);
+    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'finish', 'channel']);
+    expect(keys(obj({ productId: 'board-acp', options: { finish: '도색' } }))).toEqual(['sides', 'finish', 'paintSystem', 'paintCode', 'channel']);
   });
   it('스카시: 재질별 옵션 + 공통 시공 보조 부속품', () => {
     const rubber = optionGroupsFor(obj({ productId: 'ch-rubber' }));
@@ -62,7 +62,7 @@ describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다
   });
   it('옵션: 면(양면 기본) · 몸체(갈바 도색/후렉스/아크릴) · 내부 조명 · 갈바 도색일 때만 컬러코드 · 브라켓', () => {
     const o = obj({ productId: 'board-protrude' });
-    expect(keys(o)).toEqual(['sides', 'body', 'light', 'paintSystem', 'paintCode', 'bracket']);
+    expect(keys(o)).toEqual(['sides', 'body', 'light', 'paintSystem', 'paintCode', 'bracket', 'channel']);
     const [g] = optionGroupsFor(o);
     expect(g.fields.find((f) => f.key === 'sides')!.values![0].id).toBe('양면');
     expect(keys(obj({ productId: 'board-protrude', options: { body: '후렉스' } }))).not.toContain('paintCode');

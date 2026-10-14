@@ -20,12 +20,20 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
-  await page.getByTestId('product-select').selectOption('ch-front');
+  await page.getByTestId('product-select').selectOption('body-none');
+  await page.getByTestId('option-channel').selectOption('전광 채널');
   await page.getByTestId('sign-text').fill('간판다 카페');
   await expect(page.getByTestId('char-count')).toHaveAttribute('placeholder', /5/);
   await page.getByTestId('height-mm').fill('600');
   await page.getByTestId('width-mm').fill('3000');
   await expect(page.getByTestId('object-price')).toContainText('5자');
+  // 몸통(갈바) + 채널 조합 → 견적 두 줄 (㎡ + 자·cm)
+  await page.getByTestId('product-select').selectOption('board-galva');
+  await expect(page.getByTestId('option-channel')).toHaveValue('전광 채널');
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('view-list').click();
+  await expect(page.locator('.line').filter({ hasText: '갈바 간판' })).toHaveCount(1);
+  await expect(page.locator('.line').filter({ hasText: '전광 채널' })).toHaveCount(1);
 });
 
 test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객도 같은 단가를 본다', async ({ page, request, browser }) => {

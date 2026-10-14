@@ -1,7 +1,7 @@
 <!-- 사인물 세부 설정 창: 종류·시트·문구·치수·기준선·금액 상세·삭제 (패널의 [설정]) -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, categoryOf, productById, productsOf } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS } from '../core/catalog';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -16,8 +16,10 @@
   const size = $derived(app.sizeOf(obj));
   const lines = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices));
   const autoChars = $derived(charCountOf({ text: obj.text }));
-  const isChannel = $derived(product?.category === 'channel');
+  /** 채널(입체 글자)이 있는가: 채널 옵션 또는 옛 채널 제품 */
+  const isChannel = $derived(!!signParts(obj).channelId);
   const can3d = $derived(isChannel && !!specFromObject(obj));
+  const bodyId = $derived(signParts(obj).bodyId);
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
   const ro = $derived(!app.canEdit);
@@ -49,7 +51,8 @@
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}
-          <select data-testid="product-select" value={obj.productId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value })}>
+          <!-- 간판 종류 = 몸통. 채널은 아래 사양의 옵션 (2026-10-15). 옛 채널 제품은 몸통 없음으로 보인다 -->
+          <select data-testid="product-select" value={bodyId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value, ...(isChannelProduct(obj.productId) ? { options: { ...(obj.options ?? {}), channel: CHANNEL_OPTIONS.find((c) => c.id === obj.productId)?.label ?? '없음' } } : {}) })}>
             {#each productsOf(category) as p (p.id)}
               <option value={p.id}>{p.name}</option>
             {/each}
@@ -126,7 +129,7 @@
               placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
               oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
           </label>
-          {#if product && !isChannel}
+          {#if product && bodyId !== 'body-none'}
             <label>두께
               <input data-testid="depth-mm" type="number" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="보드 두께·돌출 깊이"
                 oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />

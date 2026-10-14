@@ -4,7 +4,7 @@ import { CATALOG, SHEETS } from '../../src/lib/core/catalog';
 
 describe('단가표', () => {
   it('기본 단가표는 카탈로그의 모든 제품·시트 값을 갖는다', () => {
-    for (const p of CATALOG) expect(DEFAULT_PRICES.products[p.id]).toBeGreaterThan(0);
+    for (const p of CATALOG) if (p.unit !== 'none') expect(DEFAULT_PRICES.products[p.id]).toBeGreaterThan(0); // 몸통 없음은 금액 없음
     for (const s of SHEETS) expect(DEFAULT_PRICES.sheets[s.id]).toBeGreaterThan(0);
     expect(DEFAULT_PRICES).toMatchObject({ version: 1, install: 250000, minimum: 0, rounding: 1000, vatIncluded: false });
   });

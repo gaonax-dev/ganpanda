@@ -3,7 +3,7 @@ import { CATALOG, SHEETS } from './catalog';
 
 export interface PriceTable {
   version: 1;
-  /** 제품 단가: 보드는 원/㎡, 채널은 원/자/cm(글자 높이 1cm 당) */
+  /** 제품 단가: 몸통(보드)은 원/㎡, 채널(옵션)은 원/자/cm(글자 높이 1cm 당). 몸통 없음(body-none)은 금액 없음 */
   products: Record<string, number>;
   /** 시트 단가: 원/㎡ */
   sheets: Record<string, number>;

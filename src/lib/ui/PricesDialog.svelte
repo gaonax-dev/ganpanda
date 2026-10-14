@@ -28,7 +28,7 @@
       {#each ['board', 'channel'] as const as cat (cat)}
         <section>
           <h3>{CATEGORY_LABEL[cat]}</h3>
-          {#each CATALOG.filter((x) => x.category === cat) as item (item.id)}
+          {#each CATALOG.filter((x) => x.category === cat && x.unit !== 'none') as item (item.id)}
             <label class="row"><span>{item.name}</span>
               <input data-testid="price-{item.id}" type="number" min="0" step="100" value={p.products[item.id]} oninput={(e) => setProduct(item.id, e.currentTarget.value)} />
               <small>{UNIT_LABEL[item.unit]}</small></label>
