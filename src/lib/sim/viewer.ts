@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { CameraPose } from '../core/homography';
 
@@ -21,6 +22,28 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+/**
+ * 메인 카메라(격자·그림자 면, 레이어 0)로 한 번 그리고, 사인물마다 **자기 카메라**(자기 영역의 호모그래피)로 그 레이어만 덧그린다.
+ * 사진의 카메라 설정이 벽과 어긋나거나(예: 바닥 평면으로 잡힘) 사인물이 그 평면의 지평선 너머라도, 사인물은 항상 그린 자리에 보인다
+ * (2026-10-14 운영 프로젝트 점검: 측면 사진의 사인물이 바닥 평면 기준 "카메라 뒤"로 잘려 안 보였음)
+ */
+class SignsPass extends Pass {
+  constructor(private scene: THREE.Scene, private main: THREE.Camera, private signs: { camera: THREE.Camera; layer: number }[]) { super(); this.needsSwap = false; }
+  render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget) {
+    renderer.setRenderTarget(this.renderToScreen ? null : read);
+    const auto = renderer.autoClear;
+    renderer.autoClear = false;
+    this.main.layers.set(0);
+    renderer.render(this.scene, this.main);
+    for (const s of this.signs) {
+      renderer.clearDepth();
+      s.camera.layers.set(s.layer);
+      renderer.render(this.scene, s.camera);
+    }
+    renderer.autoClear = auto;
+  }
+}
+
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -36,6 +59,8 @@ export class Viewer {
   private wallShadow: THREE.Mesh;
   private grid = new THREE.Group();
   private selection = new THREE.Box3Helper(new THREE.Box3(), 0x2f8bff);
+  /** 사인물별 카메라 (레이어 1..) */
+  private signCameras: { camera: THREE.Camera; layer: number }[] = [];
   private wall = { w: 1, h: 1 };
   night = false;
   private dirty = true;
@@ -72,9 +97,9 @@ export class Viewer {
 
     this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
     this.composer.addPass(new RenderPass(this.bgScene, this.bgCamera));
-    const main = new RenderPass(this.scene, this.camera);
-    main.clear = false;
-    this.composer.addPass(main);
+    this.composer.addPass(new SignsPass(this.scene, this.camera, this.signCameras));
+    // 조명·그림자는 모든 레이어에
+    this.sun.layers.enableAll(); this.hemi.layers.enableAll(); this.sun.shadow.camera.layers.enableAll();
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 1.0);
     this.bloom.enabled = false;
     this.composer.addPass(this.bloom);
@@ -104,6 +129,43 @@ export class Viewer {
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
     this.invalidate();
+  }
+
+  /**
+   * 사인물 그룹에 자기 카메라를 붙인다 (P·pose = 그 사인물 영역의 투영). 레이어 1부터 순서대로 — 최대 31개, 넘으면 메인 카메라(레이어 0)로
+   * 깊이 범위는 corners(벽면 mm) 의 깊이에서 정한다
+   */
+  addSignCamera(group: THREE.Object3D, P: number[], pose: CameraPose, corners: [number, number][]) {
+    const idx = this.signCameras.length + 1;
+    if (idx > 31) { group.traverse((o) => o.layers.set(0)); return; }
+    group.traverse((o) => o.layers.set(idx));
+    const cam = new THREE.PerspectiveCamera();
+    this.configureCamera(cam, P, pose, corners.map(([x, y]) => [x, y] as [number, number]));
+    this.signCameras.push({ camera: cam, layer: idx });
+    this.invalidate();
+  }
+
+  clearSignCameras() { this.signCameras.length = 0; }
+
+  /** P(3×4)·pose 를 카메라에 적용: 위치·회전은 포즈, 정점 변환은 P 와 똑같은 클립 행렬 */
+  private configureCamera(cam: THREE.PerspectiveCamera, P: number[], pose: CameraPose, pts: [number, number][]) {
+    const { R, t, imgW, imgH } = pose;
+    const view = new THREE.Matrix4().set(R[0], R[1], R[2], t[0], -R[3], -R[4], -R[5], -t[1], -R[6], -R[7], -R[8], -t[2], 0, 0, 0, 1);
+    view.invert().decompose(cam.position, cam.quaternion, cam.scale);
+    cam.updateMatrixWorld();
+    const depths = pts.map(([x, y]) => P[8] * x + P[9] * y + P[11]).filter((d) => d > 0);
+    const dmin = Math.max(1e-6, Math.min(...depths) * 0.2), dmax = Math.max(...depths) * 5;
+    const a = (dmax + dmin) / (dmax - dmin), b = (-2 * dmax * dmin) / (dmax - dmin);
+    const row = (i: number) => [P[i * 4], P[i * 4 + 1], P[i * 4 + 2], P[i * 4 + 3]];
+    const P0 = row(0), P1 = row(1), P2 = row(2);
+    const m = new THREE.Matrix4().set(
+      (2 / imgW) * P0[0] - P2[0], (2 / imgW) * P0[1] - P2[1], (2 / imgW) * P0[2] - P2[2], (2 / imgW) * P0[3] - P2[3],
+      -(2 / imgH) * P1[0] + P2[0], -(2 / imgH) * P1[1] + P2[1], -(2 / imgH) * P1[2] + P2[2], -(2 / imgH) * P1[3] + P2[3],
+      a * P2[0], a * P2[1], a * P2[2], a * P2[3] + b,
+      P2[0], P2[1], P2[2], P2[3],
+    );
+    cam.projectionMatrix.copy(m).multiply(cam.matrixWorld);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
   }
 
   /**

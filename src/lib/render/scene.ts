@@ -2,7 +2,7 @@
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
-import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, type WallPlane } from '../core/wallPlane';
+import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
 import { buildChannel, buildLightbox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
@@ -34,19 +34,21 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
     const url = await assetUrl(photo.assetId);
     if (!url) throw new Error('photo asset missing');
     v.setPhoto(await loadImage(url));
-    const placed = objects.map((o) => ({ o, at: placeOnWall(plane, o) }));
+    const placed = objects.map((o) => { const own = plane ? (wallPlaneOf([o], null) ?? plane) : plane; return { o, plane: own, at: placeOnWall(own, o) }; });
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(plane, photo.w, photo.h), poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
-    for (const { o, at } of placed) {
+    for (const { o, plane: own, at } of placed) {
       const spec = renderSpecOf(o, at);
       if (!spec) continue;
       const face = spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
       let b: BuiltSign;
       try { b = spec.kind === 'channel' ? buildChannel(spec, font) : buildLightbox(spec, 'Pretendard, sans-serif', face); }
       catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
-      warpToQuad(b.group, spec.widthMm, spec.heightMm, quadOnWall(plane, o) as [number, number][], spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);
+      const corners = quadOnWall(own, o) as [number, number][];
+      warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);
       v.signsRoot.add(b.group);
+      v.addSignCamera(b.group, projectionFromPlane(own, photo.w, photo.h), poseOfPlane(own, photo.w, photo.h), corners);
       built.push(b);
     }
     v.setNight(false); for (const b of built) b.setNight(false);
