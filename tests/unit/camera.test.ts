@@ -137,3 +137,36 @@ describe('축 선 자동 제안', () => {
     expect(Math.abs((snapped.x[0].a[1] + snapped.x[0].b[1]) / 2 - trueY)).toBeLessThan(1.5);
   });
 });
+
+// ---------- fSpy 식: 축 선택·리버스, 원점 이동 시 카메라 위치·화각 ----------
+describe('축 선택·리버스와 카메라 위치·화각', () => {
+  it('카메라 위치(벽 좌표 m)와 화각을 돌려준다 — 합성 카메라와 1% 안', () => {
+    const s = solveCamera(setupOf(proj), imgW, imgH)!;
+    near(s.cameraPos[0], 3000, 0.01); near(s.cameraPos[1], 1800, 0.01); near(s.cameraPos[2], 8000, 0.01);
+    near(s.fov.h, (2 * Math.atan(imgW / 2 / f) * 180) / Math.PI, 0.01);
+    near(s.fov.v, (2 * Math.atan(imgH / 2 / f) * 180) / Math.PI, 0.01);
+  });
+  it('원점을 옮기면 카메라 위치가 그만큼 반대로 움직인다 (화각은 그대로)', () => {
+    const a = solveCamera(setupOf(proj), imgW, imgH)!;
+    const st = setupOf(proj); st.origin = proj([2000, 1000, 0]); st.ref = { a: proj([3000, 1500, 0]), b: proj([3900, 1500, 0]), axis: 'x', mm: 900 };
+    const b = solveCamera(st, imgW, imgH)!;
+    near(b.cameraPos[0], 1000, 0.02); near(b.cameraPos[1], 800, 0.02); near(b.cameraPos[2], 8000, 0.02);
+    near(b.fov.h, a.fov.h, 0.001);
+  });
+  it('선 쌍 축 지정: 첫 쌍을 +Y, 둘째 쌍을 +X 로 바꿔 넣어도 같은 카메라', () => {
+    const st = setupOf(proj);
+    const swapped: CameraSetup = { ...st, x: st.y, y: st.x, axes: { first: '+y', second: '+x' } };
+    const s = solveCamera(swapped, imgW, imgH)!;
+    const q: V3 = [2500, 1200, 300];
+    const [u, v] = projectPoint(s.pose, q), [tu, tv] = proj(q);
+    expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
+  });
+  it('리버스: −X 로 하면 +X 축이 사진에서 왼쪽을 향하고, Z 가 벽 안쪽이 되어 경고', () => {
+    const s = solveCamera({ ...setupOf(proj), axes: { first: '-x', second: '+y' } }, imgW, imgH)!;
+    const o = projectPoint(s.pose, [0, 0, 0]), px = projectPoint(s.pose, [1000, 0, 0]);
+    expect(px[0]).toBeLessThan(o[0]);
+    expect(s.warnings.some((w) => w.includes('벽 안쪽'))).toBe(true);
+    const ok = solveCamera({ ...setupOf(proj), axes: { first: '+x', second: '+y' } }, imgW, imgH)!;
+    expect(ok.warnings.some((w) => w.includes('벽 안쪽'))).toBe(false);
+  });
+});

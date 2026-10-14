@@ -19,7 +19,10 @@ export interface CameraSetup {
   ref?: { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
   /** 주점: 사진 중앙(기본) / 제3 소실점의 수심 (z 축 필요) */
   principal?: 'center' | 'third';
+  /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 어느 축의 어느 방향인가. 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y) */
+  axes?: { first: AxisDir; second: AxisDir };
 }
+export type AxisDir = '+x' | '-x' | '+y' | '-y';
 export interface CameraSolution {
   f: number;
   /** 주점 (사진 px) */
@@ -30,6 +33,10 @@ export interface CameraSolution {
   Hinv: number[];
   /** 소실점 (동차) */
   vx: V3; vy: V3; vz?: V3;
+  /** 카메라 위치 (벽 좌표 mm: X 오른쪽, Y 위, Z 벽에서 카메라 쪽) */
+  cameraPos: V3;
+  /** 화각 (도) 가로·세로 */
+  fov: { h: number; v: number };
   warnings: string[];
 }
 
@@ -95,11 +102,23 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
 
   // 회전: 벽 축의 카메라 좌표 방향 r1 ∥ K⁻¹vx, r2 ∥ K⁻¹vy. 부호: X 는 사진 오른쪽, Y 는 사진 위(−y)
   const Kinv = (v: V3): V3 => [(v[0] - pp[0] * v[2]) / f, (v[1] - pp[1] * v[2]) / f, v[2]];
-  let r1 = unit(Kinv(vx)), r2 = unit(Kinv(vy));
-  if (r1[0] < 0) r1 = scale(r1, -1);
-  if (r2[1] > 0) r2 = scale(r2, -1);
+  // 선 쌍의 방향(부호 없음) → 정준 부호: 가로에 가까우면 사진 오른쪽, 세로에 가까우면 사진 위(−y)
+  const canon = (d: V3): V3 => (Math.abs(d[0]) >= Math.abs(d[1]) ? (d[0] < 0 ? scale(d, -1) : d) : (d[1] > 0 ? scale(d, -1) : d));
+  const d1 = canon(unit(Kinv(vx))), d2 = canon(unit(Kinv(vy)));
+  let r1: V3, r2: V3;
+  if (setup.axes) {
+    // 사용자가 지정: 첫 쌍·둘째 쌍이 각각 ±X / ±Y
+    const sgn = (a: AxisDir) => (a[0] === '-' ? -1 : 1);
+    const firstIsX = setup.axes.first[1] === 'x';
+    if (firstIsX === (setup.axes.second[1] === 'x')) warnings.push('두 선 쌍이 같은 축으로 지정되었습니다. 하나는 X, 하나는 Y 여야 합니다.');
+    const dx = firstIsX ? scale(d1, sgn(setup.axes.first)) : scale(d2, sgn(setup.axes.second));
+    const dy = firstIsX ? scale(d2, sgn(setup.axes.second)) : scale(d1, sgn(setup.axes.first));
+    r1 = dx; r2 = dy;
+  } else { r1 = d1; r2 = d2; }
   r2 = unit(sub(r2, scale(r1, dot(r1, r2)))); // 직교화
   const r3 = cross(r1, r2);
+  // 벽 밖(+Z)은 카메라 쪽(카메라 좌표 −z)이어야 한다. 아니면 축이 거울상 — 리버스 안내
+  if (r3[2] > 0) warnings.push('Z 축이 벽 안쪽을 향합니다 (축이 거울상). X 나 Y 중 하나를 리버스하세요.');
   // 위치: 원점은 광선 K⁻¹o 위. 깊이 s 는 기준 길이로
   const o3 = Kinv([setup.origin[0], setup.origin[1], 1]);
   if (o3[2] <= 0) return null;
@@ -127,7 +146,11 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const H = Hof(pose);
   const Hinv = invert3(H);
   if (!Hinv) return null;
-  return { f, pp, pose, H, Hinv, vx, vy, vz, warnings };
+  // 카메라 위치 C = −Rᵀt (벽 좌표), 화각
+  const T = pose.t;
+  const cameraPos: V3 = [-(R[0] * T[0] + R[3] * T[1] + R[6] * T[2]), -(R[1] * T[0] + R[4] * T[1] + R[7] * T[2]), -(R[2] * T[0] + R[5] * T[1] + R[8] * T[2])];
+  const fov = { h: (2 * Math.atan(imgW / 2 / f) * 180) / Math.PI, v: (2 * Math.atan(imgH / 2 / f) * 180) / Math.PI };
+  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, warnings };
 }
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */

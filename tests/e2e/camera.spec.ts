@@ -101,6 +101,22 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   expect(Math.abs(after[1] - (before[1] + 20))).toBeLessThanOrEqual(2);
   // 기본 배치는 가로 선 두 개가 평행 → 경고가 보인다
   await expect(dlg.getByTestId('camera-warning').first()).toContainText('평행');
+  // fSpy 식: 원점을 끌면 카메라 위치가 실시간으로 바뀌고, 화각이 표시된다
+  await expect(dlg.getByTestId('camera-fov')).toContainText('화각');
+  const posBefore = await dlg.getByTestId('camera-position').textContent();
+  const oh = dlg.locator('[data-testid="camera-handle"][data-key="o"]');
+  const ob = (await oh.boundingBox())!;
+  await page.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(ob.x + ob.width / 2 + 60 * scale, ob.y + ob.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(dlg.getByTestId('camera-position')).not.toHaveText(posBefore!);
+  // 축 선택·리버스: 첫 쌍을 −X 로 하면 거울상 경고, 둘째 쌍은 자동으로 Y 유지
+  await dlg.getByTestId('camera-axis-1').selectOption('-x');
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+y');
+  await expect(dlg.getByTestId('camera-warning').filter({ hasText: '거울상' })).toHaveCount(1);
+  await dlg.getByTestId('camera-axis-1').selectOption('+y');
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
   await dlg.getByTestId('camera-ref-mm').fill('900');
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);

@@ -5,7 +5,7 @@
   import { assetUrl } from '../assets';
   import type { Pt } from '../core/homography';
   import type { Photo } from '../core/model';
-  import type { Axis, CameraSetup, Line } from '../core/camera';
+  import type { Axis, AxisDir, CameraSetup, Line } from '../core/camera';
   import { projectVisible, type CameraPose } from '../core/homography';
 
   let { photo }: { photo: Photo } = $props();
@@ -56,6 +56,19 @@
 
   /** 핸들 키: "x0a" = x 축 0번 선의 a 끝점, "o" = 원점, "ra"/"rb" = 기준 길이 끝점 */
   const AXES: { axis: Axis; label: string; cls: string }[] = [{ axis: 'x', label: '가로 X', cls: 'ax' }, { axis: 'y', label: '세로 Y', cls: 'ay' }, { axis: 'z', label: '깊이 Z', cls: 'az' }];
+  /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 'auto' = 사진 오른쪽이 +X, 위가 +Y */
+  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X (오른쪽)' }, { id: '-x', label: '−X (왼쪽)' }, { id: '+y', label: '+Y (위)' }, { id: '-y', label: '−Y (아래)' }];
+  const other = (a: AxisDir): AxisDir => (a[1] === 'x' ? '+y' : '+x');
+  function setAxis(which: 'first' | 'second', v: string) {
+    if (v === 'auto') { set({ axes: undefined }); return; }
+    const cur = draft.axes ?? { first: '+x' as AxisDir, second: '+y' as AxisDir };
+    const next = { ...cur, [which]: v as AxisDir };
+    // 다른 쌍이 같은 축이면 반대 축으로
+    const o = which === 'first' ? 'second' : 'first';
+    if (next[o][1] === (v as AxisDir)[1]) next[o] = other(v as AxisDir);
+    set({ axes: next });
+  }
+  const m = (mm: number) => (mm / 1000).toFixed(2);
   const linesOf = (axis: Axis): [Line, Line] | undefined => (axis === 'x' ? draft.x : axis === 'y' ? draft.y : draft.z);
   const toPhoto = (e: PointerEvent): Pt => {
     const r = svg.getBoundingClientRect();
@@ -124,6 +137,9 @@
                   {#if overlay.axes.x}<line class="axx" x1={overlay.axes.x.a[0]} y1={overlay.axes.x.a[1]} x2={overlay.axes.x.b[0]} y2={overlay.axes.x.b[1]} stroke-width={3 / scale} />{/if}
                   {#if overlay.axes.y}<line class="axy" x1={overlay.axes.y.a[0]} y1={overlay.axes.y.a[1]} x2={overlay.axes.y.b[0]} y2={overlay.axes.y.b[1]} stroke-width={3 / scale} />{/if}
                   {#if overlay.axes.z}<line class="axz" x1={overlay.axes.z.a[0]} y1={overlay.axes.z.a[1]} x2={overlay.axes.z.b[0]} y2={overlay.axes.z.b[1]} stroke-width={3 / scale} />{/if}
+                  {#if overlay.axes.x}<text class="lx" x={overlay.axes.x.b[0]} y={overlay.axes.x.b[1]} font-size={14 / scale} stroke-width={3 / scale}>X</text>{/if}
+                  {#if overlay.axes.y}<text class="ly" x={overlay.axes.y.b[0]} y={overlay.axes.y.b[1]} font-size={14 / scale} stroke-width={3 / scale}>Y</text>{/if}
+                  {#if overlay.axes.z}<text class="lz" x={overlay.axes.z.b[0]} y={overlay.axes.z.b[1]} font-size={14 / scale} stroke-width={3 / scale}>Z</text>{/if}
                 </g>
               {/if}
               {#each AXES as ax (ax.axis)}
@@ -183,6 +199,19 @@
         </section>
         <section>
           <h3>축 선 <span class="legend ax">■</span> 가로 <span class="legend ay">■</span> 세로 <span class="legend az">■</span> 깊이</h3>
+          <div class="row">
+            <label class="opt"><span class="legend ax">■</span> 첫 쌍
+              <select data-testid="camera-axis-1" value={draft.axes?.first ?? 'auto'} disabled={ro} onchange={(e) => setAxis('first', e.currentTarget.value)}>
+                <option value="auto">자동 (+X)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
+              </select>
+            </label>
+            <label class="opt"><span class="legend ay">■</span> 둘째 쌍
+              <select data-testid="camera-axis-2" value={draft.axes?.second ?? 'auto'} disabled={ro} onchange={(e) => setAxis('second', e.currentTarget.value)}>
+                <option value="auto">자동 (+Y)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
+              </select>
+            </label>
+          </div>
+          <p class="hint">선 쌍이 어느 축인지 바꾸거나(X↔Y) 방향을 뒤집습니다(리버스). Z 는 벽 밖(카메라 쪽)으로 자동 결정되며, 거울상이면 경고합니다.</p>
           <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 깊이 축(옆면 벽) 선 2개 추가</label>
           <label class="check"><input type="checkbox" data-testid="camera-principal" checked={draft.principal === 'third'} disabled={ro || !draft.z} onchange={(e) => set({ principal: e.currentTarget.checked ? 'third' : 'center' })} /> 세 소실점으로 주점 계산 (잘라낸 사진)</label>
           <p class="hint">흰 십자 = 원점(벽 좌표 0,0). 보통 벽의 왼쪽 아래 모서리.</p>
@@ -193,7 +222,9 @@
           <p class="hint">풀린 카메라로 벽면 1m 격자와 원점 축(X 빨강 · Y 초록 · Z 파랑), 1m 상자를 사진에 겹칩니다. 격자가 벽의 줄눈·창과 나란하고 상자가 서 있으면 맞은 것입니다. 선을 끌면 바로 바뀝니다.</p>
           <h3>결과</h3>
           {#if sol}
-            <small>초점거리 {fmt(sol.f)}px · 주점 ({fmt(sol.pp[0])}, {fmt(sol.pp[1])})</small>
+            <small data-testid="camera-fov">화각 가로 {sol.fov.h.toFixed(1)}° · 세로 {sol.fov.v.toFixed(1)}° · 초점거리 {fmt(sol.f)}px · 주점 ({fmt(sol.pp[0])}, {fmt(sol.pp[1])})</small>
+            <small data-testid="camera-position">카메라 위치 (원점 기준): 벽에서 {m(sol.cameraPos[2])}m 앞 · 높이 {m(sol.cameraPos[1])}m · 좌우 {sol.cameraPos[0] >= 0 ? '오른쪽' : '왼쪽'} {m(Math.abs(sol.cameraPos[0]))}m</small>
+            <p class="hint">원점(흰 십자)을 끌면 위치가 바로 바뀝니다. 기준 길이가 축척이므로 거리·높이도 그에 따릅니다.</p>
             {#each sol.warnings as w, i (i)}<p class="warn" data-testid="camera-warning">⚠ {w}</p>{/each}
           {:else}
             <p class="warn">카메라를 풀 수 없습니다. 선·원점을 확인하세요.</p>
@@ -230,6 +261,8 @@
   .overlay .g { stroke: rgba(255,255,255,0.45); }
   .overlay .cube { stroke: rgba(255,255,255,0.9); }
   .overlay .axx { stroke: #ff4d4d; } .overlay .axy { stroke: #3ddc84; } .overlay .axz { stroke: #4da3ff; }
+  .overlay .lx { fill: #ff4d4d; } .overlay .ly { fill: #3ddc84; } .overlay .lz { fill: #4da3ff; }
+  .opt { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); flex: 1; }
   text { fill: #fff; stroke: rgba(0,0,0,0.75); paint-order: stroke; font-weight: 700; pointer-events: none; }
   .loupe { position: absolute; width: 180px; height: 180px; border: 2px solid var(--accent); border-radius: 50%; background: #000; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
   .status { color: var(--muted); }
