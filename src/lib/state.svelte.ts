@@ -84,6 +84,8 @@ class AppState {
   letter3dOpen = $state(false);
   /** 선택한 사인물의 세부 설정 창 */
   objectSettingsOpen = $state(false);
+  /** 휴대폰 폭: 전체 속성 패널을 열었는가 (기본은 빠른 막대만 — 패널이 사진을 가리지 않게). 데스크톱에서는 항상 열림 */
+  panelOpen = $state(false);
   /** 실사 보기 창 (사진 id) */
   renderPhotoId = $state<string | null>(null);
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
@@ -523,8 +525,15 @@ class AppState {
   /** 별개의 동작(추가·삭제·드래그 끝) 경계 — 이후 변경은 새 실행 취소 묶음 */
   editBoundary() { this.history.stopCapturing(); }
 
+  /** 한 사진의 사인물을 **왼쪽부터** 순서대로 (휴대폰 빠른 막대의 이전/다음, 머리글 탭 → 첫 사인물). Y.Map 순서는 안정적이지 않으므로 위치로 정렬 */
+  photoSigns(photoId: string): SignObject[] {
+    const left = (o: SignObject) => Math.min(...o.quad.map((p) => p[0]));
+    const top = (o: SignObject) => Math.min(...o.quad.map((p) => p[1]));
+    return this.objects.filter((o) => o.photoId === photoId).sort((a, b) => left(a) - left(b) || top(a) - top(b));
+  }
+
   selectObject(id: string | null) {
-    if (id !== this.selectedId) this.objectSettingsOpen = false;
+    if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }
     this.selectedId = id;
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }

@@ -12,6 +12,7 @@
 
   let {
     photo, url, zoom, objects, measures, selectedId, sameIds = [], tool, editable = true, unread = {},
+    ontap,
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
@@ -43,6 +44,8 @@
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
     unread?: Record<string, number>;
+    /** 머리글(이름)을 끌지 않고 탭했을 때 — 휴대폰에서 사진 → 첫 사인물 실측 입력 흐름 */
+    ontap?: () => void;
     /** 선택한 사인물과 같은 사인물(다른 사진) — 핸들 없이 하이라이트만 */
     sameIds?: string[];
     photo: Photo;
@@ -218,7 +221,9 @@
 
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
   let headerDrag: { x: number; y: number } | null = null;
+  let headerMoved = false;
   function headerDown(e: PointerEvent) {
+    headerMoved = false;
     if (!editable) return;
     e.stopPropagation();
     headerDrag = { x: e.clientX, y: e.clientY };
@@ -226,6 +231,7 @@
   }
   function headerMove(e: PointerEvent) {
     if (!headerDrag) return;
+    if (Math.hypot(e.clientX - headerDrag.x, e.clientY - headerDrag.y) > 2) headerMoved = true;
     onmove((e.clientX - headerDrag.x) / zoom, (e.clientY - headerDrag.y) / zoom);
     headerDrag = { x: e.clientX, y: e.clientY };
   }
@@ -241,6 +247,8 @@
     onpointerdown={headerDown}
     onpointermove={headerMove}
     onpointerup={() => (headerDrag = null)}
+    onclick={(e) => { const t = e.target as HTMLElement; if (!headerMoved && (t === e.currentTarget || t.classList.contains('name'))) ontap?.(); }}
+    onkeydown={(e) => { if (e.key === 'Enter') ontap?.(); }}
   >
     <span class="name" title={photo.name}>{photo.name}</span>
     {#if !narrow}<span class="count">사인물 {objects.length}</span>{/if}
@@ -341,6 +349,8 @@
         </text>
         {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
+            <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
+            <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
             <circle class="handle" data-testid="sign-handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
               onpointerdown={(e) => shapeDown(e, o, i)} />
           {/each}
@@ -410,6 +420,7 @@
   .camera .co { fill: none; stroke: #fff; }
   .header .cam.set, .header .x.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
+  .hit { fill: transparent; stroke: none; cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
   svg.zoning { cursor: crosshair; }

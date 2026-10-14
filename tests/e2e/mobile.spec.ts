@@ -71,3 +71,38 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 12; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: 200, clientY: 400, bubbles: true, cancelable: true })); });
   await expect(page.getByTestId('camera-open')).toBeVisible();
 });
+
+test('휴대폰 폭: 사인물을 만들면 패널 대신 빠른 막대가 뜨고, 치수를 바로 넣고, [속성]으로 패널을 연다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.project.allPhotos()[0].id;
+    app.project.addObject({ photoId, name: '첫째', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [] });
+    app.project.addObject({ photoId, name: '둘째', shape: 'rect', quad: [[900, 100], [1400, 100], [1400, 300], [900, 300]], sheetIds: [] });
+  });
+  // 사진 머리글(이름)을 탭하면 첫 사인물이 선택되어 빠른 막대가 뜬다 — 패널은 안 뜸
+  await page.getByTestId('photo-zone').locator('.name').tap();
+  await expect(page.getByTestId('quick-bar')).toBeVisible();
+  await expect(page.getByTestId('quick-name')).toContainText('첫째');
+  await expect(page.getByTestId('object-panel')).toHaveCount(0);
+  // 치수 입력 → 저장
+  await page.getByTestId('quick-width').fill('3000');
+  await page.getByTestId('quick-height').fill('600');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { name: string; widthMm?: number; heightMm?: number }[] } }).__ganpanda.objects.find((o) => o.name === '첫째')?.widthMm)).toBe(3000);
+  // 다음 사인물로
+  await page.getByTestId('quick-next').click();
+  await expect(page.getByTestId('quick-name')).toContainText('둘째');
+  await page.getByTestId('quick-width').fill('2500');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { name: string; widthMm?: number }[] } }).__ganpanda.objects.find((o) => o.name === '둘째')?.widthMm)).toBe(2500);
+  // [속성] → 전체 패널, 닫으면 다시 빠른 막대 (선택 유지)
+  await page.getByTestId('quick-panel-open').click();
+  await expect(page.getByTestId('object-panel')).toBeVisible();
+  await page.getByTestId('object-panel-close').click();
+  await expect(page.getByTestId('quick-bar')).toBeVisible();
+  await expect(page.getByTestId('quick-name')).toContainText('둘째');
+  // 선택된 사인물의 꼭짓점에는 보이는 핸들보다 두 배 넓은 터치 영역이 있다
+  await expect(page.getByTestId('sign-handle-hit')).toHaveCount(4);
+  const [hit, vis] = await Promise.all([page.getByTestId('sign-handle-hit').first().getAttribute('r'), page.getByTestId('sign-handle').first().getAttribute('r')]);
+  expect(parseFloat(hit!) / parseFloat(vis!)).toBeCloseTo(2);
+});
