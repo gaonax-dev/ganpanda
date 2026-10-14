@@ -7,7 +7,7 @@ import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
-import { calibrate, refsFromObjects, snapEdge, type Calibration, type RefLine } from './core/calibration';
+import { calibrate, edgesFromObjects, refsFromObjects, snapEdge, type Calibration, type RefLine } from './core/calibration';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -137,7 +137,8 @@ class AppState {
     for (const p of this.photos) {
       const key = this.refsKeys.get(p.id);
       if (key && p.calib?.key === key) {
-        const c = calibrate(refsFromObjects(this.objects.filter((o) => o.photoId === p.id)));
+        const objs = this.objects.filter((o) => o.photoId === p.id);
+        const c = calibrate(refsFromObjects(objs), { edges: edgesFromObjects(objs), imgW: p.w, imgH: p.h });
         if (c) out.set(p.id, c);
       }
     }
@@ -262,7 +263,8 @@ class AppState {
       });
       const snapped: Record<string, Pt[]> = {};
       for (const o of objs) if (shift[o.id]) snapped[o.id] = o.quad.map((p, i) => [Math.round(p[0] + shift[o.id][i][0]), Math.round(p[1] + shift[o.id][i][1])] as Pt);
-      const c = calibrate(refsFromObjects(objs.map((o) => (snapped[o.id] ? { ...o, quad: snapped[o.id] } : o))));
+      const snappedObjs = objs.map((o) => (snapped[o.id] ? { ...o, quad: snapped[o.id] } : o));
+      const c = calibrate(refsFromObjects(snappedObjs), { edges: edgesFromObjects(snappedObjs), imgW: photo.w, imgH: photo.h });
       const withDev = results.map((r) => ({ ...r, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
       this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs: withDev, warnings: c?.warnings ?? ['기준을 계산할 수 없습니다.'], snapped } };
     } finally { this.calibBusy = false; }
