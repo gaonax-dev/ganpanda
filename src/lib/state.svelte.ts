@@ -115,6 +115,13 @@ class AppState {
   /** 사인물 = 원본만 (리스트·견적·UV 대상). 연결된 영역은 제외 */
   signs = $derived(this.objects.filter((o) => !o.sameAs));
   selected = $derived.by(() => (this.selectedId ? this.objects.find((o) => o.id === this.selectedId) ?? null : null));
+  /** 선택한 사인물과 같은 사인물인 다른 영역들(원본·연결) — 다른 사진에서도 하이라이트 */
+  sameAsSelected = $derived.by(() => {
+    const s = this.selected;
+    if (!s) return [] as string[];
+    const root = s.sameAs ?? s.id;
+    return this.objects.filter((o) => o.id !== s.id && (o.id === root || o.sameAs === root)).map((o) => o.id);
+  });
   /** 사진별 기준선 구성 키 (사인물 id·변·치수·좌표) — 바뀌면 다시 평가·적용 */
   refsKeys = $derived.by(() => {
     const out = new Map<string, string>();

@@ -10,7 +10,7 @@
   import type { Tool } from '../state.svelte';
 
   let {
-    photo, url, zoom, objects, measures, selectedId, tool, editable = true, unread = {},
+    photo, url, zoom, objects, measures, selectedId, sameIds = [], tool, editable = true, unread = {},
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
@@ -42,6 +42,8 @@
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
     unread?: Record<string, number>;
+    /** 선택한 사인물과 같은 사인물(다른 사진) — 핸들 없이 하이라이트만 */
+    sameIds?: string[];
     photo: Photo;
     url?: string;
     zoom: number;
@@ -288,11 +290,14 @@
       {@const q = quadOf(o)}
       {@const m = measures.get(o.id)}
       {@const sel = o.id === selectedId}
+      {@const same = !sel && sameIds.includes(o.id)}
       {@const warn = (m?.warnings.length ?? 0) > 0}
-      <g class="sign" class:sel class:warn>
+      <g class="sign" class:sel class:same class:warn>
         <polygon
           data-testid="sign-shape"
           data-shape={o.shape}
+          data-selected={sel || undefined}
+          data-same={same || undefined}
           points={outline(o.shape, q, o.polygon)}
           stroke-width={2 * u}
           role="button"
@@ -305,7 +310,7 @@
         </text>
         {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
-            <circle class="handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
+            <circle class="handle" data-testid="sign-handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
               onpointerdown={(e) => shapeDown(e, o, i)} />
           {/each}
         {/if}
@@ -361,6 +366,7 @@
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: rgba(255, 204, 0, 0.16); stroke: var(--accent); }
+  .sign.same polygon { fill: rgba(255, 204, 0, 0.1); stroke: var(--accent); stroke-dasharray: 6 4; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }

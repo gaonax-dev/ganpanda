@@ -179,6 +179,7 @@
         objects={app.objects.filter((o) => o.photoId === p.id)}
         measures={app.measures}
         selectedId={app.selectedId}
+        sameIds={app.sameAsSelected}
         tool={app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         editable={app.canEdit}
         unread={app.unread}

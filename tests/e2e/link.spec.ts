@@ -40,6 +40,10 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('sign-linked')).toHaveCount(1);
   await expect(page.getByTestId('sign-shape')).toHaveCount(2);
+  // 같은 사인물은 다른 사진에서도 하이라이트 (핸들 없이)
+  await expect(page.locator('[data-testid="sign-shape"][data-selected="true"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="sign-shape"][data-same="true"]')).toHaveCount(1);
+  await expect(page.getByTestId('sign-handle')).toHaveCount(4); // 선택한 영역의 핸들만
 
   // 리스트·견적에는 하나만
   await page.getByTestId('view-list').click();
