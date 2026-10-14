@@ -76,8 +76,10 @@
   const inv = $derived(1 / viewport.zoom);
 </script>
 
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape' && app.view === 'uv') app.uvObjectId = null; }} />
+
 <div class="uv">
-  <InfiniteCanvas bind:this={canvas} bind:viewport testid="uv-canvas" onbackgrounddown={() => false}>
+  <InfiniteCanvas bind:this={canvas} bind:viewport testid="uv-canvas" onbackgrounddown={() => { app.uvObjectId = null; return false; }}>
     {#each layout as l (l.source.id + ':' + l.page)}
       {@const pg = l.source.pages[l.page]}
       <div class="page" style:left="{l.x}px" style:top="{l.y}px" style:width="{l.w}px" style:height="{l.h}px">
@@ -86,7 +88,7 @@
         {#if urls[pg.assetId]}<img src={urls[pg.assetId]} alt={l.source.name} draggable="false" />{:else}<div class="loading">불러오는 중…</div>{/if}
         <svg data-testid="source-page" data-w={l.w} data-h={l.h} viewBox="0 0 {l.w} {l.h}" class:cropping={!!selected && app.canEdit} role="presentation"
           onpointerdown={(e) => down(e, l)} onpointermove={(e) => move(e, l)} onpointerup={() => up(l)}>
-          {#each app.objects.filter((o) => o.design?.sourceId === l.source.id && o.design.page === l.page) as o (o.id)}
+          {#each app.signs.filter((o) => o.design?.sourceId === l.source.id && o.design.page === l.page) as o (o.id)}
             {@const c = o.design!.crop}
             <g class="crop" class:sel={o.id === app.uvObjectId}>
               <rect data-testid={o.id === app.uvObjectId ? 'crop-rect' : 'crop-rect-other'} x={c.x} y={c.y} width={c.w} height={c.h} stroke-width={2 * inv} />
@@ -122,7 +124,7 @@
     <h2>사인물</h2>
     <ul>
       {#each app.signs as o (o.id)}
-        <li><button data-testid="uv-object" class:on={o.id === app.uvObjectId} onclick={() => (app.uvObjectId = o.id)}>
+        <li><button data-testid="uv-object" class:on={o.id === app.uvObjectId} onclick={() => (app.uvObjectId = app.uvObjectId === o.id ? null : o.id)}>
           <span>{o.name}</span>{#if o.design}<small>{sourceName(o.design.sourceId)}</small>{:else}<small class="none">디자인 없음</small>{/if}
         </button></li>
       {:else}<li class="hint">사진 보드에서 사인물을 먼저 만드세요.</li>{/each}

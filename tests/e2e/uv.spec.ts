@@ -60,6 +60,19 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
   await dragOnSource(page, 0, [10, 10], [w / 2, h - 10]);
   await expect(page.getByTestId('crop-rect')).toHaveCount(1);
   await expect(page.getByTestId('design-history-item')).toHaveCount(1);
+  // 선택 해제: 빈 곳 클릭 → 강조 상자가 사라진다. 목록을 다시 누르면 선택, 한 번 더 누르면 해제, Esc 도 해제
+  await page.getByTestId('uv-canvas').click({ position: { x: 20, y: 20 } });
+  await expect(page.getByTestId('crop-rect')).toHaveCount(0);
+  await expect(page.getByTestId('crop-rect-other')).toHaveCount(1);
+  await expect(page.getByTestId('uv-object').first()).not.toHaveClass(/on/);
+  await page.getByTestId('uv-object').first().click();
+  await expect(page.getByTestId('crop-rect')).toHaveCount(1);
+  await page.getByTestId('uv-object').first().click();
+  await expect(page.getByTestId('crop-rect')).toHaveCount(0);
+  await page.getByTestId('uv-object').first().click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('crop-rect')).toHaveCount(0);
+  await page.getByTestId('uv-object').first().click();
 
   // 사진 보드와 전개도에 디자인이 보인다
   await page.getByTestId('view-board').click();
