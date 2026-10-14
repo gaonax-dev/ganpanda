@@ -14,7 +14,7 @@
 | `objects` | `Y.Map<id, Y.Map>` | 사인물 오브젝트 |
 | `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(핀) |
 | `sources` | `Y.Map<id, Y.Map>` | 디자인 소스(파일 + 페이지 이미지) → [uv-view.md](../features/uv-view.md) |
-| `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`), 주문 정보(`order`) — [sign-list-quote.md](../features/sign-list-quote.md), [order.md](../features/order.md) |
+| `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`), 주문 정보(`order`), 제안(`proposal`: 실사 에셋·해시·한마디), 승인 기록(`approvals[]`: 이름·시각·해시·스냅샷, 서버가 추가) — [sign-list-quote.md](../features/sign-list-quote.md), [order.md](../features/order.md), [proposal.md](../features/proposal.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id) |
 
 ### Photo
@@ -55,7 +55,7 @@
 `accounts`, `sessions`, `login_tokens`, `projects`, `invites`, `account_assets`, `identities`(공급자 계정 연결), `oauth_states` → `server/migrations/`
 
 ### Message
-`{ id, objectId, author, text, kind: 'chat' | 'comment', ts }`
+`{ id, objectId, author, text, kind: 'chat' | 'comment' | 'approval', ts }` — `approval` 은 서버가 승인 때 남기는 알림(`objectId: 'project'`)
 
 ## 규칙
 - **엔티티 하나 = 중첩 `Y.Map`**. 필드 단위로 병합되어, 두 사람이 같은 오브젝트의 다른 필드를 동시에 고쳐도 둘 다 남습니다. 엔티티를 JSON 하나로 통째로 저장하면 안 됩니다.

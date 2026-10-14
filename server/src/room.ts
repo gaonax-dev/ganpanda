@@ -21,7 +21,9 @@ const SEAT_RENEW = 30_000;
 /** 소켓에 붙여 두는 정보 (Hibernation 뒤에도 유지) */
 interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: number }
 export interface Attachment { assetId: string; name: string; type: string; size: number }
-export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment'; ts: number; attachments?: Attachment[] }
+export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval'; ts: number; attachments?: Attachment[] }
+/** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
+export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string }
 type AwRow = { client_id: number; sock: string; clock: number; state: string };
 
 export class Room extends DurableObject<Env> {
@@ -154,6 +156,30 @@ export class Room extends DurableObject<Env> {
       pins.set(id, m);
     });
     return pin;
+  }
+
+  /**
+   * 제안 승인 기록 (RPC, viewer 도 가능). settings.approvals(JSON 배열)에 추가하고 대화에 승인 메시지를 남긴다 (objectId 'project').
+   * 같은 트랜잭션으로 넣어 한 번에 전파된다
+   */
+  async addApproval(by: string, hash: string, snapshot: unknown, proposalId?: string): Promise<Approval> {
+    const settings = this.doc.getMap<unknown>('settings');
+    const a: Approval = { id: crypto.randomUUID(), at: Date.now(), by, hash, snapshot, ...(proposalId ? { proposalId } : {}) };
+    const total = (snapshot as { total?: number } | null)?.total;
+    const text = `${by} 님이 제안을 승인했습니다${typeof total === 'number' ? ` (합계 ${Math.round(total).toLocaleString('ko-KR')}원)` : ''}`;
+    this.doc.transact(() => {
+      const prev = (settings.get('approvals') as Approval[] | undefined) ?? [];
+      settings.set('approvals', [...prev, a]);
+      this.doc.getArray<Message>('messages').push([{ id: crypto.randomUUID(), objectId: 'project', author: by, text, kind: 'approval', ts: a.at }]);
+    });
+    return a;
+  }
+
+  /** 제안 미리보기 이미지(첫 사진 주간 렌더)의 에셋 id — 카카오톡 OG 이미지용 */
+  async proposalImageAsset(): Promise<string | null> {
+    const p = this.doc.getMap<unknown>('settings').get('proposal') as { renders?: { day?: string }[] } | undefined;
+    const id = p?.renders?.[0]?.day;
+    return typeof id === 'string' ? id : null;
   }
 
   /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */

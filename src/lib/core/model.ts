@@ -108,6 +108,10 @@ export interface ProjectSettings {
   extras?: ExtraItem[];
   /** 주문 정보 (주문자·연락처·시공지·납기·요청사항) → core/order.ts */
   order?: import('./order').OrderInfo;
+  /** 마지막으로 보낸 제안 (실사 이미지 에셋·해시) → core/proposal.ts */
+  proposal?: import('./proposal').ProposalInfo;
+  /** 승인 기록 (서버가 추가, 최신이 뒤) */
+  approvals?: import('./proposal').Approval[];
 }
 
 export interface Message {
@@ -115,7 +119,8 @@ export interface Message {
   objectId: string;
   author: string;
   text: string;
-  kind: 'chat' | 'comment';
+  /** approval = 제안 승인 알림 (objectId 'project', 서버가 기록) */
+  kind: 'chat' | 'comment' | 'approval';
   ts: number;
   /** 사진·PDF 첨부 (에셋 ID 로 참조) */
   attachments?: Attachment[];

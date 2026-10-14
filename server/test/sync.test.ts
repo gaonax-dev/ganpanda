@@ -84,8 +84,10 @@ describe('저장 (SQLite)', () => {
     const id = await room();
     const a = await TestClient.connect(id);
     for (let i = 0; i < 260; i++) a.doc.getMap('m').set('k' + i, i);
-    await new Promise((r) => setTimeout(r, 300));
     const stub = env.ROOM.getByName(id);
+    // 260개 변경이 모두 서버 문서에 닿을 때까지 기다린다 (전체 스위트에서는 300ms 로 모자랐음 — 느슨한 대기는 압축 전 상태를 볼 수 있다)
+    const received = () => runInDurableObject(stub, async (inst: Room) => (inst as unknown as { doc: Y.Doc }).doc.getMap('m').size);
+    for (let t = Date.now(); Date.now() - t < 5000 && (await received()) < 260; ) await new Promise((r) => setTimeout(r, 50));
     await runInDurableObject(stub, async (_instance: Room, state) => {
       const rows = state.storage.sql.exec<{ data: ArrayBuffer }>('SELECT data FROM updates ORDER BY id').toArray();
       expect(rows.length).toBeLessThan(100);
