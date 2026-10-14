@@ -198,6 +198,7 @@
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}
+        ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}

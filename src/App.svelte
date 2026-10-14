@@ -10,6 +10,7 @@
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
+  import QuickBar from './lib/ui/QuickBar.svelte';
   import PricesDialog from './lib/ui/PricesDialog.svelte';
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import Letter3DDialog from './lib/ui/Letter3DDialog.svelte';
@@ -131,7 +132,9 @@
       {#if app.view === 'list'}<div class="view"><ListView /></div>{/if}
       {#if app.view === 'uv'}<div class="view"><UvView /></div>{/if}
       {#if app.selected && app.view === 'board'}
-        {#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}
+        <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
+        {#if app.compact && !app.panelOpen}{#key app.selected.id}<QuickBar obj={app.selected} />{/key}
+        {:else}{#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}{/if}
       {:else if app.selectedPin && app.view === 'board'}
         {#key app.selectedPin.id}<PinPanel pin={app.selectedPin} />{/key}
       {/if}

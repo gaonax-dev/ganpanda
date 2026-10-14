@@ -49,7 +49,7 @@
 <aside class="panel" data-testid="object-panel">
   <header>
     <input class="title" value={obj.name} disabled={ro} onchange={(e) => update({ name: e.currentTarget.value || obj.name })} />
-    <button class="icon" title="닫기" onclick={() => app.selectObject(null)}>✕</button>
+    <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
 
   {#if obj.sameAs || shownIn.length || (linkTargets.length && !ro)}
