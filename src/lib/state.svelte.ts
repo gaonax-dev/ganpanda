@@ -16,7 +16,7 @@ import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
-import { approvalState, contentHash, snapshotOf } from './core/proposal';
+import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -91,6 +91,18 @@ class AppState {
   /** 실사 보기 창 (사진 id) */
   renderPhotoId = $state<string | null>(null);
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
+  /** 보드 단계: 원본(실측·편집) / 3D(모든 사진 위에 합성 결과를 겹침, 편집 없음). 2026-10-15 사용자: "3D 는 화면에 바로 올리고" */
+  stage = $state<'original' | '3d'>('original');
+  /** 3D 단계의 사진별 합성 결과 (내용 키 + 데이터 URL) */
+  stageRenders = $state<Record<string, { key: string; url: string }>>({});
+  /** 지금 합성 중인 사진 수 */
+  stageBusy = $state(0);
+  /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
+  stageKey(photoId: string): string {
+    const p = this.photos.find((x) => x.id === photoId);
+    const objs = this.objects.filter((o) => o.photoId === photoId).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null]);
+    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h }));
+  }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');
   lastRender = $state('');

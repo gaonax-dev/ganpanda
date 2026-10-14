@@ -4,6 +4,11 @@
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
   import { BOARD_PX_PER_MM, boardToList, flatOrigin, listToBoard, mmFromBoardRect } from '../core/boardCards';
+  import { StageRenderer } from '../render/scene';
+  import { loadFont } from '../core/textShapes';
+  import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
+  import { wallPlaneOf } from '../core/wallPlane';
+  import type { Font } from 'opentype.js';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { formatBytes } from '../core/format';
@@ -138,6 +143,45 @@
 
   let dropping = $state(false);
 
+  // ---------- 3D 단계: 사진마다 합성 결과(PNG)를 겹친다. 내용 키가 바뀐 사진만, 차례로 하나씩 (뷰어 하나 재사용) ----------
+  let stageRenderer: StageRenderer | null = null;
+  let stageFont: Font | null = null;
+  let stagePumping = false;
+  const stageQueue: string[] = [];
+  async function pumpStage() {
+    if (stagePumping) return;
+    stagePumping = true;
+    try {
+      stageFont ??= await loadFont(fontUrl);
+      while (stageQueue.length && app.stage === '3d') {
+        const id = stageQueue.shift()!;
+        const p = app.photos.find((x) => x.id === id);
+        if (!p) continue;
+        const key = app.stageKey(id);
+        if (app.stageRenders[id]?.key === key) continue;
+        const objs = app.objects.filter((o) => o.photoId === id);
+        const plane = wallPlaneOf(objs, app.calibrations.get(id));
+        if (!plane) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없는 사진은 원본 그대로
+        stageRenderer ??= new StageRenderer();
+        app.stageBusy++;
+        try { app.stageRenders[id] = { key, url: await stageRenderer.render(p, objs, plane, app.sources, stageFont) }; }
+        catch (e) { console.warn('3D 단계 합성 실패', e); app.stageRenders[id] = { key, url: '' }; }
+        finally { app.stageBusy--; }
+      }
+    } finally { stagePumping = false; }
+  }
+  let stageTimer = 0;
+  $effect(() => {
+    if (app.stage !== '3d') { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
+    // 의존: 사진·사인물·카메라 (키 계산이 전부 읽는다)
+    const stale = app.photos.filter((p) => app.stageRenders[p.id]?.key !== app.stageKey(p.id)).map((p) => p.id);
+    if (!stale.length) return;
+    clearTimeout(stageTimer);
+    stageTimer = window.setTimeout(() => { for (const id of stale) if (!stageQueue.includes(id)) stageQueue.push(id); pumpStage(); }, 300);
+  });
+  // 3D 단계에서는 편집 도구를 쓰지 않는다
+  $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
+
   // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 0.1px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
   const origin = $derived(flatOrigin(app.photos));
 
@@ -224,7 +268,8 @@
         measures={app.measures}
         selectedId={app.selectedId}
         sameIds={app.sameAsSelected}
-        tool={app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
+        tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
+        overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         editable={app.canEdit}
         unread={app.unread}
         pins={app.pins.filter((x) => x.photoId === p.id)}
@@ -281,6 +326,9 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      {#if app.stage === '3d' && app.stageBusy}
+        <div class="ai-status" data-testid="stage-status">3D 합성 중… ({app.stageBusy})</div>
+      {/if}
       {#if app.tool === 'magic' && app.segmentStatus !== 'ready'}
         <div class="ai-status" data-testid="ai-status" data-status={app.segmentStatus}>
           {#if app.segmentStatus === 'error'}AI 모델을 불러오지 못했습니다. {app.segmentError}
