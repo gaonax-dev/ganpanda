@@ -71,6 +71,8 @@
   const scale = $derived(photo.width / photo.w);
   /** 머리글이 화면에서 좁으면(휴대폰·축소) 라벨을 축약 */
   const narrow = $derived(photo.width * zoom < 520);
+  /** 아주 좁으면(260px 미만, 휴대폰에서 전체 보기) 머리글은 이름만, 사진 위 글자 라벨은 숨김 — 겹쳐서 읽을 수 없으므로 */
+  const tiny = $derived(photo.width * zoom < 260);
   /** 화면 1px 에 해당하는 사진 픽셀 */
   const u = $derived(1 / (scale * zoom));
   const worldH = $derived(photo.width * (photo.h / photo.w));
@@ -242,11 +244,11 @@
   >
     <span class="name" title={photo.name}>{photo.name}</span>
     {#if !narrow}<span class="count">사인물 {objects.length}</span>{/if}
-    {#if oncamera}
+    {#if oncamera && !tiny}
       <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
     {/if}
-    {#if onrender}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '3D 뷰 (사진 속 벽면·사인물 합성)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🧊✓' : '🧊') : threeD === 'ok' ? '🧊 3D ✓' : '🧊 3D'}</button>{/if}
-    {#if editable}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
+    {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '3D 뷰 (사진 속 벽면·사인물 합성)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🧊✓' : '🧊') : threeD === 'ok' ? '🧊 3D ✓' : '🧊 3D'}</button>{/if}
+    {#if editable && !tiny}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
@@ -266,6 +268,7 @@
     <div class="loading">불러오는 중…</div>
   {/if}
   <svg
+    class:tiny={tiny}
     viewBox="0 0 {photo.w} {photo.h}"
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
@@ -391,6 +394,7 @@
   }
   .header .name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header .x { white-space: nowrap; flex-shrink: 0; }
+  svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }

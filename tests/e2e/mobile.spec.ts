@@ -49,6 +49,10 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   // 사진 머리글 버튼은 아이콘만
   await expect(page.getByTestId('camera-open')).toHaveText('📐');
   await expect(page.getByTestId('render-open')).toHaveText('🧊');
+  // 접속자 칩·역할은 숨기고 프로젝트 이름은 보인다
+  await expect(page.getByTestId('role-badge')).toBeHidden();
+  const title = (await page.getByTestId('project-title').boundingBox())!;
+  expect(title.width).toBeGreaterThan(40);
   // 가로 넘침 없음
   const over = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(over).toBe(false);
@@ -60,4 +64,10 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   const dlg = (await page.getByTestId('render-dialog').boundingBox())!;
   expect(dlg.width).toBeGreaterThanOrEqual(380);
   await page.getByTestId('close-render').click();
+  // 사진을 아주 작게(전체 보기보다 더) 축소하면 머리글은 이름만, 사진 위 라벨은 숨김
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 12; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 200, clientY: 400, bubbles: true, cancelable: true })); });
+  await expect(page.getByTestId('camera-open')).toBeHidden();
+  await expect(page.getByTestId('photo-zone').locator('svg text').first()).toBeHidden();
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 12; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, clientX: 200, clientY: 400, bubbles: true, cancelable: true })); });
+  await expect(page.getByTestId('camera-open')).toBeVisible();
 });
