@@ -1,11 +1,11 @@
 <!--
   휴대폰 폭 빠른 막대 (2026-10-15 사용자: "모바일에서는 사인물을 선택하면 하단에 1개의 셀렉터(종류 선택), 2개의 버튼 간단 입력(사인물 네임, 사이즈), 상세정보를 둔다")
-  · 종류 셀렉터(간판·스카시 제품 / 시트) · [이름] [사이즈] 버튼 → 아래 줄에 간단 입력 · [상세정보] → 전체 패널
+  · 종류 셀렉터(간판 / 스카시 / 시트 — 세부 제품은 상세정보에서) · [이름] [사이즈] 버튼 → 아래 줄에 간단 입력 · [상세정보] → 전체 패널
   배경: 현장에서는 휴대폰으로 치수만 넣고 나머지는 데스크톱에서 (2026-10-14)
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, categoryOf, groupOfProduct, productsOf, productById, sheetById } from '../core/catalog';
+  import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import type { SignObject } from '../core/model';
 
   let { obj }: { obj: SignObject } = $props();
@@ -30,45 +30,40 @@
   }
 
   /** 종류 셀렉터 값: 제품 id, 시트면 'sheet:<id>', 없으면 '' */
-  const kind = $derived(obj.productId ? obj.productId : obj.sheetIds.length ? `sheet:${obj.sheetIds[0]}` : '');
-  /** 분류(간판/스카시/시트)가 바뀌는 선택은 확인을 거친다 (패널과 같은 규칙) */
-  let pendingKind: string | null = $state(null);
-  const groupOfKind = (v: string) => (v.startsWith('sheet:') ? 'sheet' : groupOfProduct(v));
-  function setKind(v: string) {
-    if (!v) return;
-    const cur = categoryOf(obj);
-    if (cur !== null && groupOfKind(v) !== cur) { pendingKind = v; return; }
-    applyKind(v);
+  /** 종류 = 분류(간판/스카시/시트)만 (2026-10-15 사용자: "모바일의 종류 선택은 간판, 스카시, 시트. 현재 내역(제품 목록)은 간판 상세에").
+   *  처음 선택은 바로, 이미 분류가 있으면 확인을 거친다 (패널과 같은 규칙) */
+  const category = $derived(categoryOf(obj));
+  let pending: Group | null = $state(null);
+  function pickCategory(g: Group | '') {
+    if (!g || g === category) return;
+    if (category === null) { apply(g); return; }
+    pending = g;
   }
-  function applyKind(v: string) {
-    const changed = categoryOf(obj) !== groupOfKind(v);
-    if (v.startsWith('sheet:')) update({ productId: undefined, sheetIds: [v.slice(6)], ...(changed ? { options: undefined } : {}) });
-    else update({ productId: v, ...(changed ? { options: undefined } : {}) });
-    pendingKind = null;
+  function apply(g: Group) {
+    // 시트는 제품 없이 시트 컷팅으로 시작(시트가 하나도 없으면 분류가 비어 보이므로), 나머지는 분류 기본 제품. 옵션은 비운다
+    update({ productId: defaultProductFor(g), options: undefined, ...(g === 'sheet' && !obj.sheetIds.length ? { sheetIds: ['sh-cut'] } : {}) });
+    pending = null;
   }
-  const kindName = (v: string) => (v.startsWith('sheet:') ? sheetById(v.slice(6))?.name : productById(v)?.name) ?? v;
+  const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
   const isBoard = $derived(productById(obj.productId)?.category === 'board');
   const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}${obj.depthMm ? `×${fmt(obj.depthMm)}` : ''}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
-  const kindLabel = (g: string) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? g;
 </script>
 
 <div class="quick" data-testid="quick-bar">
   <div class="row">
-    <select class="kind" data-testid="quick-kind" value={pendingKind ?? kind} disabled={ro} onchange={(e) => setKind(e.currentTarget.value)}>
+    <select class="kind" data-testid="quick-kind" value={pending ?? category ?? ''} disabled={ro} onchange={(e) => pickCategory(e.currentTarget.value as Group | '')}>
       <option value="" disabled>종류 선택</option>
-      <optgroup label={kindLabel('sign')}>{#each productsOf('sign') as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</optgroup>
-      <optgroup label={kindLabel('scashi')}>{#each productsOf('scashi') as p (p.id)}<option value={p.id}>{p.name}</option>{/each}</optgroup>
-      <optgroup label={kindLabel('sheet')}>{#each SHEETS as s (s.id)}<option value="sheet:{s.id}">{s.name}</option>{/each}</optgroup>
+      {#each CATEGORY_GROUPS as g (g.id)}<option value={g.id}>{g.label}</option>{/each}
     </select>
     <button class="btn small val" class:on={editing === 'name'} data-testid="quick-name" title="이름" onclick={openName}>{obj.name}</button>
     <button class="btn small val" class:on={editing === 'size'} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
     <button class="btn small primary" data-testid="quick-panel-open" onclick={() => (app.panelOpen = true)}>상세정보</button>
   </div>
-  {#if pendingKind}
+  {#if pending}
     <div class="row confirm" data-testid="category-confirm">
-      <p>분류가 바뀝니다 (→ {kindName(pendingKind)}). 종류·옵션이 초기화되고 모두에게 적용됩니다.</p>
-      <button class="btn small primary" data-testid="category-confirm-ok" onclick={() => applyKind(pendingKind!)}>바꾸기</button>
-      <button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pendingKind = null)}>취소</button>
+      <p>분류를 <b>{label(category)} → {label(pending)}</b> 로 바꾸면 종류·옵션이 초기화되고 모두에게 적용됩니다.</p>
+      <button class="btn small primary" data-testid="category-confirm-ok" onclick={() => apply(pending!)}>바꾸기</button>
+      <button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pending = null)}>취소</button>
     </div>
   {/if}
   {#if editing === 'name'}
@@ -96,7 +91,7 @@
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
     </div>
   {/if}
-  {#if !obj.productId && obj.sheetIds.length > 1}<small class="hint">시트 {obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')}</small>{/if}
+  {#if obj.productId || obj.sheetIds.length}<small class="hint" data-testid="quick-detail">{productById(obj.productId)?.name ?? obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')} — 세부 종류·옵션은 [상세정보]</small>{/if}
 </div>
 
 <style>

@@ -87,16 +87,20 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   await expect(page.getByTestId('quick-bar')).toBeVisible();
   await expect(page.getByTestId('quick-name')).toHaveText('첫째');
   await expect(page.getByTestId('object-panel')).toHaveCount(0);
-  // 종류 셀렉터: 제품 → productId, 시트 → sheetIds
-  await page.getByTestId('quick-kind').selectOption('ch-front');
-  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBe('ch-front');
-  // 분류가 바뀌는 선택(간판 → 시트)은 확인을 거친다
-  await page.getByTestId('quick-kind').selectOption('sheet:sh-cut');
+  // 종류 셀렉터는 분류(간판/스카시/시트)만 — 세부 제품은 상세정보에서. 처음 선택은 바로
+  await page.getByTestId('quick-kind').selectOption('scashi');
+  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBe('ch-rubber');
+  await expect(page.getByTestId('quick-detail')).toContainText('고무 스카시');
+  // 분류가 바뀌는 선택(스카시 → 시트)은 확인을 거친다
+  await page.getByTestId('quick-kind').selectOption('sheet');
   await expect(page.getByTestId('category-confirm')).toBeVisible();
+  await page.getByTestId('category-confirm-cancel').click();
+  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBe('ch-rubber');
+  await page.getByTestId('quick-kind').selectOption('sheet');
   await page.getByTestId('category-confirm-ok').click();
-  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.sheetIds).toEqual(['sh-cut']);
-  // 보드 종류로 돌리면 사이즈 입력 줄에 두께가 생긴다
-  await page.getByTestId('quick-kind').selectOption('board-protrude');
+  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBeUndefined();
+  // 간판(보드 기본 제품)으로 돌리면 사이즈 입력 줄에 두께가 생긴다
+  await page.getByTestId('quick-kind').selectOption('sign');
   await page.getByTestId('category-confirm-ok').click();
   await page.getByTestId('quick-size').click();
   await page.getByTestId('quick-depth').fill('150');
