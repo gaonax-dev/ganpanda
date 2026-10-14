@@ -113,13 +113,13 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await expect(dlg.getByTestId('camera-position')).not.toHaveText(posBefore!);
   // 축 선택·리버스: 첫 쌍을 −X 로 하면 거울상 경고, 둘째 쌍은 자동으로 Y 유지
   await dlg.getByTestId('camera-axis-1').selectOption('-x');
-  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+y');
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+z');
   await expect(dlg.getByTestId('camera-warning').filter({ hasText: '거울상' })).toHaveCount(1);
-  await dlg.getByTestId('camera-axis-1').selectOption('+y');
-  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
   await dlg.getByTestId('camera-axis-1').selectOption('+z');
   await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
-  await dlg.getByTestId('camera-axis-2').selectOption('+y');
+  await dlg.getByTestId('camera-axis-1').selectOption('+y'); // 세로(깊이) = 옆면 벽
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+z');
+  await dlg.getByTestId('camera-axis-2').selectOption('+x');
   await expect(dlg.getByTestId('camera-warning').filter({ hasText: '같은 축' })).toHaveCount(0);
   await dlg.getByTestId('camera-ref-mm').fill('900');
   await page.keyboard.press('Escape');

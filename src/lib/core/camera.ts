@@ -1,6 +1,8 @@
 // 사진별 카메라 설정 (사용자 결정 2026-10-14, 사인물과 분리): 축 선 두 쌍(가로 X·세로 Y, 선택 깊이 Z) + 원점 + 기준 길이
 // → 소실점 → 초점거리(직교) → 회전 → 위치(기준 길이) → 벽면 평면. 교과서 기하(Caprile & Torre, Hartley & Zisserman)를
-// 수식에서 직접 구현했고 외부 코드는 쓰지 않았다. 벽 좌표: X 오른쪽, Y 위, Z 벽 밖(카메라 쪽), 단위 mm.
+// 수식에서 직접 구현했고 외부 코드는 쓰지 않았다.
+// 월드 축 이름은 가로·세로·높이 관례(2026-10-14 사용자): X = 가로(오른쪽), Y = 세로(깊이, 벽 안쪽이 +), Z = 높이(위) — Blender/fSpy 와 같은 Z-up.
+// 내부 벽면 프레임(pose·H)은 u 가로, v 위, n 벽 밖(카메라 쪽), 단위 mm.
 import type { Calibration, Gray } from './calibration';
 import { snapEdge } from './calibration';
 import { proposeAxes } from './lines';
@@ -11,7 +13,7 @@ export type Axis = 'x' | 'y' | 'z';
 export interface CameraSetup {
   x: [Line, Line];
   y: [Line, Line];
-  /** 깊이 축(옆면 벽 방향). 있으면 제3 소실점으로 주점을 구할 수 있다 */
+  /** 셋째 쌍(남은 축, 보통 세로 Y = 깊이). 있으면 제3 소실점으로 주점을 구할 수 있다. 키 이름은 호환을 위해 z */
   z?: [Line, Line];
   /** 벽 위 (0,0) 이 되는 사진 점 */
   origin: Pt;
@@ -20,7 +22,7 @@ export interface CameraSetup {
   /** 주점: 사진 중앙(기본) / 제3 소실점의 수심 (z 축 필요) */
   principal?: 'center' | 'third';
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
-   *  두 쌍이 이루는 평면이 벽면이 된다 (예: Z + Y = 옆면 벽) */
+   *  두 쌍이 이루는 평면이 벽면이 된다 (예: 세로 Y + 높이 Z = 옆면 벽). 없으면 자동(첫 쌍 = +X 가로, 둘째 쌍 = +Z 높이) */
   axes?: { first: AxisDir; second: AxisDir };
 }
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -115,9 +117,9 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const canon = (d: V3): V3 => (Math.abs(d[0]) >= Math.abs(d[1]) ? (d[0] < 0 ? scale(d, -1) : d) : (d[1] > 0 ? scale(d, -1) : d));
   const d1 = canon(unit(Kinv(vx))), d2 = canon(unit(Kinv(vy)));
   // 축 지정: 첫 쌍 → u, 둘째 쌍 → v (벽면 = u,v 평면, n = u×v 는 카메라 쪽). 월드 축 라벨은 지정대로
-  let axesUsed: { first: AxisDir; second: AxisDir } = setup.axes ?? { first: '+x', second: '+y' };
-  if (axesUsed.first[1] === axesUsed.second[1]) { warnings.push('두 선 쌍이 같은 축으로 지정되었습니다. 서로 다른 축(X·Y·Z)이어야 합니다. 기본(X, Y)으로 풉니다.'); axesUsed = { first: '+x', second: '+y' }; }
-  // 월드 축 = 정준 방향(X 오른쪽, Y 위, Z 는 깊이 선의 정준 방향). 부호(−)는 "벽의 축이 월드 축의 반대로 간다"는 뜻
+  let axesUsed: { first: AxisDir; second: AxisDir } = setup.axes ?? { first: '+x', second: '+z' };
+  if (axesUsed.first[1] === axesUsed.second[1]) { warnings.push('두 선 쌍이 같은 축으로 지정되었습니다. 서로 다른 축(가로 X·세로 Y·높이 Z)이어야 합니다. 기본(가로, 높이)으로 풉니다.'); axesUsed = { first: '+x', second: '+z' }; }
+  // 월드 축 = 정준 방향(X 오른쪽, Z 위, Y 는 깊이 선의 정준 방향; 남은 축은 오른손 규칙). 부호(−)는 "벽의 축이 월드 축의 반대로 간다"는 뜻
   const sgn = (a: AxisDir) => (a[0] === '-' ? -1 : 1);
   const A = axesUsed.first[1] as 'x' | 'y' | 'z', B = axesUsed.second[1] as 'x' | 'y' | 'z';
   const C = (['x', 'y', 'z'] as const).find((k) => k !== A && k !== B)!;
@@ -126,10 +128,10 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const cols: Record<'x' | 'y' | 'z', V3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   cols[A] = d1; cols[B] = d2o; cols[C] = cyclic ? cross(d1, d2o) : cross(d2o, d1);
   const worldR = [cols.x[0], cols.y[0], cols.z[0], cols.x[1], cols.y[1], cols.z[1], cols.x[2], cols.y[2], cols.z[2]];
-  // 벽면 u,v: 첫 쌍·둘째 쌍의 (부호 적용) 방향. 세로(Y)가 첫 쌍이면 가로가 u 가 되게 순서를 바꾼다 (치수 = 가로×세로)
+  // 벽면 u,v: 첫 쌍·둘째 쌍의 (부호 적용) 방향. 높이(Z)가 첫 쌍이면 가로가 u 가 되게 순서를 바꾼다 (치수 = 가로×세로)
   let r1 = scale(d1, sgn(axesUsed.first)), r2 = scale(d2o, sgn(axesUsed.second));
   let wallAxes: [AxisDir, AxisDir] = [axesUsed.first, axesUsed.second];
-  if (A === 'y' && B !== 'y') { [r1, r2] = [r2, r1]; wallAxes = [axesUsed.second, axesUsed.first]; }
+  if (A === 'z' && B !== 'z') { [r1, r2] = [r2, r1]; wallAxes = [axesUsed.second, axesUsed.first]; }
   const r3 = cross(r1, r2);
   // 벽 밖(n = u×v)은 카메라 쪽(카메라 좌표 −z)이어야 한다. 아니면 거울상 — 리버스 안내
   if (r3[2] > 0) warnings.push('벽의 바깥쪽(법선)이 벽 안쪽을 향합니다 (축이 거울상). 두 쌍 중 하나를 리버스하세요.');

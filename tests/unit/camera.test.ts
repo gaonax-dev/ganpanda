@@ -155,50 +155,49 @@ describe('축 선택·리버스와 카메라 위치·화각', () => {
   });
   it('선 쌍 축 지정: 첫 쌍을 +Y, 둘째 쌍을 +X 로 바꿔 넣어도 같은 카메라', () => {
     const st = setupOf(proj);
-    const swapped: CameraSetup = { ...st, x: st.y, y: st.x, axes: { first: '+y', second: '+x' } };
+    const swapped: CameraSetup = { ...st, x: st.y, y: st.x, axes: { first: '+z', second: '+x' } };
     const s = solveCamera(swapped, imgW, imgH)!;
     const q: V3 = [2500, 1200, 300];
     const [u, v] = projectPoint(s.pose, q), [tu, tv] = proj(q);
     expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
   });
   it('리버스: −X 로 하면 +X 축이 사진에서 왼쪽을 향하고, Z 가 벽 안쪽이 되어 경고', () => {
-    const s = solveCamera({ ...setupOf(proj), axes: { first: '-x', second: '+y' } }, imgW, imgH)!;
+    const s = solveCamera({ ...setupOf(proj), axes: { first: '-x', second: '+z' } }, imgW, imgH)!;
     const o = projectPoint(s.pose, [0, 0, 0]), px = projectPoint(s.pose, [1000, 0, 0]);
     expect(px[0]).toBeLessThan(o[0]);
     expect(s.warnings.some((w) => w.includes('벽 안쪽'))).toBe(true);
-    const ok = solveCamera({ ...setupOf(proj), axes: { first: '+x', second: '+y' } }, imgW, imgH)!;
+    const ok = solveCamera({ ...setupOf(proj), axes: { first: '+x', second: '+z' } }, imgW, imgH)!;
     expect(ok.warnings.some((w) => w.includes('벽 안쪽'))).toBe(false);
   });
 });
 
-describe('Z 축 지정 (옆면 벽: 깊이 선 + 세로 선)', () => {
-  it('첫 쌍을 ±Z, 둘째 쌍을 +Y 로 두면 옆면 벽(x=0 평면)이 벽면이 되고, 월드 축이 실제와 맞는다', () => {
+describe('세로 Y(깊이) 축 지정 (옆면 벽: 깊이 선 + 높이 선)', () => {
+  it('첫 쌍을 ±Y, 둘째 쌍을 +Z 로 두면 옆면 벽(x=0 평면)이 벽면이 되고, 월드 축이 실제와 맞는다', () => {
     const full = setupOf(proj, true);
     // 깊이 선(z 방향)을 첫 쌍으로, 세로 선을 둘째 쌍으로. 기준 길이는 깊이 방향 1m
     const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { a: proj([0, 500, 0]), b: proj([0, 500, -1000]), axis: 'x', mm: 1000 } };
-    const tryDir = (first: '+z' | '-z') => solveCamera({ ...base, axes: { first, second: '+y' } }, imgW, imgH)!;
+    const tryDir = (first: '+y' | '-y') => solveCamera({ ...base, axes: { first, second: '+z' } }, imgW, imgH)!;
     // 사진에서 깊이 선의 부호는 모르므로 둘 중 거울상 경고가 없는 쪽이 맞는 것
-    const sols = [tryDir('+z'), tryDir('-z')];
+    const sols = [tryDir('+y'), tryDir('-y')];
     const ok = sols.find((s) => !s.warnings.some((w) => w.includes('거울상')))!;
     expect(ok).toBeDefined();
-    // 월드 Z 축(카메라 좌표)이 실제 카메라의 Z 열과 평행 (부호 포함)
+    // 합성 카메라의 열: 0 = 가로, 1 = 위(높이), 2 = 벽 밖(깊이). 월드 세로 Y 는 깊이 선의 정준 방향(±), 높이 Z 는 위
     const Rt = P.R;
-    const zTruth: V3 = [Rt[2], Rt[5], Rt[8]], yTruth: V3 = [Rt[1], Rt[4], Rt[7]];
+    const depthTruth: V3 = [Rt[2], Rt[5], Rt[8]], upTruth: V3 = [Rt[1], Rt[4], Rt[7]];
     const col = (R: number[], i: number): V3 => [R[i], R[3 + i], R[6 + i]];
     const dotv = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    // 월드 Z 는 깊이 선의 정준 방향이라 실제 Z 와 같거나 반대, Y 는 위
-    const dz = dotv(col(ok.worldR, 2), zTruth);
+    const dz = dotv(col(ok.worldR, 1), depthTruth); // 월드 Y(세로) 열
     expect(Math.abs(dz)).toBeGreaterThan(0.999);
-    expect(dotv(col(ok.worldR, 1), yTruth)).toBeGreaterThan(0.999);
+    expect(dotv(col(ok.worldR, 2), upTruth)).toBeGreaterThan(0.999); // 월드 Z(높이) 열
     // 벽면(u = 깊이, v = 세로) 위 점 (u=1000, v=500) = 월드 (0, 500, ±1000) 가 제자리에 투영
-    const uSign = (ok.axesUsed.first === '+z' ? 1 : -1) * Math.sign(dz);
+    const uSign = (ok.axesUsed.first === '+y' ? 1 : -1) * Math.sign(dz);
     const [u, v] = applyHomography(ok.H, [1000, 500]);
     const [tu, tv] = proj([0, 500, 1000 * uSign]);
     expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
-    expect(ok.wallAxes).toEqual([ok.axesUsed.first, '+y']);
-    // 월드 포즈로는 실제 월드 점이 제자리에 (Z 부호만 정준)
+    expect(ok.wallAxes).toEqual([ok.axesUsed.first, '+z']);
+    // 월드 포즈로는 실제 월드 점이 제자리에: 월드 (x, y세로, z높이) = 합성 (x, 높이, 깊이·부호)
     const q: V3 = [0, 1200, 800 * Math.sign(dz)];
-    const [wu, wv] = projectPoint(ok.worldPose, [0, 1200, 800]), [tq, tr] = proj(q);
+    const [wu, wv] = projectPoint(ok.worldPose, [0, 800, 1200]), [tq, tr] = proj(q);
     expect(Math.hypot(wu - tq, wv - tr)).toBeLessThan(1);
   });
   it('같은 축을 두 번 지정하면 경고하고 기본(X,Y)으로 푼다', () => {

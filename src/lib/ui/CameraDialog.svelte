@@ -61,15 +61,17 @@
   });
 
   /** 핸들 키: "x0a" = x 축 0번 선의 a 끝점, "o" = 원점, "ra"/"rb" = 기준 길이 끝점 */
-  const AXES: { axis: Axis; label: string; cls: string }[] = [{ axis: 'x', label: '가로 X', cls: 'ax' }, { axis: 'y', label: '세로 Y', cls: 'ay' }, { axis: 'z', label: '깊이 Z', cls: 'az' }];
-  /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 'auto' = 사진 오른쪽이 +X, 위가 +Y */
-  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X (오른쪽)' }, { id: '-x', label: '−X (왼쪽)' }, { id: '+y', label: '+Y (위)' }, { id: '-y', label: '−Y (아래)' }, { id: '+z', label: '+Z (깊이, 앞)' }, { id: '-z', label: '−Z (깊이, 뒤)' }];
-  /** 같은 축을 피해 다른 축으로: x→y, y→x, z→x (둘째) / 첫째가 z 면 y */
-  const other = (a: AxisDir, which: 'first' | 'second'): AxisDir => (a[1] === 'x' ? '+y' : a[1] === 'y' ? '+x' : which === 'first' ? '+x' : '+y');
-  const remaining = $derived(sol ? (['x', 'y', 'z'] as const).find((k) => k !== sol.axesUsed.first[1] && k !== sol.axesUsed.second[1])! : 'z');
+  // 선 쌍 그리기 색: 첫 쌍(데이터 키 x) 노랑, 둘째 쌍(키 y) 파랑, 셋째 쌍(키 z) 초록 — 축 이름은 아래 DIRS 지정으로
+  const AXES: { axis: Axis; label: string; cls: string }[] = [{ axis: 'x', label: '첫 쌍', cls: 'ax' }, { axis: 'y', label: '둘째 쌍', cls: 'ay' }, { axis: 'z', label: '셋째 쌍', cls: 'az' }];
+  /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 가로·세로·높이 관례: X 가로, Y 세로(깊이), Z 높이. 'auto' = +X 가로, +Z 높이 */
+  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X 가로 (오른쪽)' }, { id: '-x', label: '−X 가로 (왼쪽)' }, { id: '+y', label: '+Y 세로 (안쪽)' }, { id: '-y', label: '−Y 세로 (앞쪽)' }, { id: '+z', label: '+Z 높이 (위)' }, { id: '-z', label: '−Z 높이 (아래)' }];
+  /** 같은 축을 피해 다른 축으로: 가로↔높이, 세로면 (첫째) 가로 / (둘째) 높이 */
+  const other = (a: AxisDir, which: 'first' | 'second'): AxisDir => (a[1] === 'x' ? '+z' : a[1] === 'z' ? '+x' : which === 'first' ? '+x' : '+z');
+  const AXIS_NAME = { x: '가로 X', y: '세로 Y', z: '높이 Z' } as const;
+  const remaining = $derived(sol ? (['x', 'y', 'z'] as const).find((k) => k !== sol.axesUsed.first[1] && k !== sol.axesUsed.second[1])! : 'y');
   function setAxis(which: 'first' | 'second', v: string) {
     if (v === 'auto') { set({ axes: undefined }); return; }
-    const cur = draft.axes ?? { first: '+x' as AxisDir, second: '+y' as AxisDir };
+    const cur = draft.axes ?? { first: '+x' as AxisDir, second: '+z' as AxisDir };
     const next = { ...cur, [which]: v as AxisDir };
     // 다른 쌍이 같은 축이면 반대 축으로
     const o = which === 'first' ? 'second' : 'first';
@@ -129,7 +131,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="사진 원근 맞추기" data-testid="camera-dialog">
     <header>
       <h2>사진 원근 맞추기 · {photo.name}</h2>
-      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개·세로 선 2개</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다.</small>
+      <small>이 사진에서 치수를 재고 실사를 합성하려면: 벽의 확실한 직선에 <b>가로 선 2개(노랑)·높이 선 2개(파랑)</b>를 맞추고, <b>원점</b>과 <b>실측한 길이 하나</b>를 놓으세요. 사진마다 따로 합니다.</small>
       <button class="icon" data-testid="close-camera" title="닫기" onclick={close}>✕</button>
     </header>
     <div class="body">
@@ -199,35 +201,35 @@
               <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={draft.ref.mm} disabled={ro} oninput={(e) => set({ ref: { ...draft.ref!, mm: Math.max(1, Number(e.currentTarget.value) || 1) } })} />
               <span>mm</span>
               <select data-testid="camera-ref-axis" value={draft.ref.axis} disabled={ro} onchange={(e) => set({ ref: { ...draft.ref!, axis: e.currentTarget.value as 'x' | 'y' } })}>
-                <option value="x">가로 방향</option><option value="y">세로 방향</option>
+                <option value="x">가로 방향</option><option value="y">높이 방향</option>
               </select>
             </div>
-            <p class="hint">빨간 선을 실측한 곳(문 폭, 창 높이 등)에 맞추고 길이를 넣으세요. 가로·세로 축을 따라 놓아야 합니다.</p>
+            <p class="hint">빨간 선을 실측한 곳(문 폭, 창 높이 등)에 맞추고 길이를 넣으세요. 벽면의 가로 또는 높이 방향을 따라 놓아야 합니다.</p>
           {/if}
         </section>
         <section>
-          <h3>축 선 <span class="legend ax">■</span> 가로 <span class="legend ay">■</span> 세로 <span class="legend az">■</span> 깊이</h3>
+          <h3>축 선 <span class="legend ax">■</span> 첫 쌍 <span class="legend ay">■</span> 둘째 쌍 <span class="legend az">■</span> 셋째 쌍</h3>
           <div class="row">
             <label class="opt"><span class="legend ax">■</span> 첫 쌍
               <select data-testid="camera-axis-1" value={draft.axes?.first ?? 'auto'} disabled={ro} onchange={(e) => setAxis('first', e.currentTarget.value)}>
-                <option value="auto">자동 (+X)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
+                <option value="auto">자동 (+X 가로)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
               </select>
             </label>
             <label class="opt"><span class="legend ay">■</span> 둘째 쌍
               <select data-testid="camera-axis-2" value={draft.axes?.second ?? 'auto'} disabled={ro} onchange={(e) => setAxis('second', e.currentTarget.value)}>
-                <option value="auto">자동 (+Y)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
+                <option value="auto">자동 (+Z 높이)</option>{#each DIRS as d (d.id)}<option value={d.id}>{d.label}</option>{/each}
               </select>
             </label>
           </div>
-          <p class="hint">선 쌍이 어느 월드 축(X·Y·Z)인지 정하고 방향을 뒤집습니다(리버스). 두 쌍이 이루는 평면이 벽면입니다 (예: Z + Y = 옆면 벽). 남은 축은 오른손 규칙으로 자동. 벽의 바깥이 카메라 반대면 경고합니다.</p>
-          <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 셋째 쌍(남은 축 {remaining.toUpperCase()}) 선 2개 추가 — 주점 계산용</label>
+          <p class="hint">축은 가로 X · 세로 Y(깊이) · 높이 Z. 선 쌍이 어느 축인지 정하고 방향을 뒤집습니다(리버스). 두 쌍이 이루는 평면이 벽면입니다 (정면 벽 = 가로+높이, 옆면 벽 = 세로+높이). 남은 축은 오른손 규칙으로 자동. 벽의 바깥이 카메라 반대면 경고합니다.</p>
+          <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 셋째 쌍({AXIS_NAME[remaining]}) 선 2개 추가 — 주점 계산용</label>
           <label class="check"><input type="checkbox" data-testid="camera-principal" checked={draft.principal === 'third'} disabled={ro || !draft.z} onchange={(e) => set({ principal: e.currentTarget.checked ? 'third' : 'center' })} /> 세 소실점으로 주점 계산 (잘라낸 사진)</label>
           <p class="hint">흰 십자 = 원점(벽 좌표 0,0). 보통 벽의 왼쪽 아래 모서리.</p>
         </section>
         <section data-testid="camera-result">
           <h3>3D 확인</h3>
           <label class="check"><input type="checkbox" data-testid="camera-show3d" bind:checked={show3d} /> 3D 격자·축 보기</label>
-          <p class="hint">풀린 카메라로 벽면 1m 격자와 원점 축(X 빨강 · Y 초록 · Z 파랑), 1m 상자를 사진에 겹칩니다. 격자가 벽의 줄눈·창과 나란하고 상자가 서 있으면 맞은 것입니다. 선을 끌면 바로 바뀝니다.</p>
+          <p class="hint">풀린 카메라로 벽면 1m 격자와 원점 축(가로 X 빨강 · 세로 Y 초록 · 높이 Z 파랑), 1m 상자를 사진에 겹칩니다. 격자가 벽의 줄눈·창과 나란하고 상자가 서 있으면 맞은 것입니다. 선을 끌면 바로 바뀝니다.</p>
           <h3>결과</h3>
           {#if sol}
             <small data-testid="camera-fov">화각 가로 {sol.fov.h.toFixed(1)}° · 세로 {sol.fov.v.toFixed(1)}° · 초점거리 {fmt(sol.f)}px · 주점 ({fmt(sol.pp[0])}, {fmt(sol.pp[1])})</small>
