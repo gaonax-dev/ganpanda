@@ -1,7 +1,7 @@
 // 화면 없이 사진 한 장을 3D 합성해 PNG 로 (제안 이미지 만들기). RenderDialog 와 같은 규칙
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
-import { renderSpecOf } from '../core/render';
+import { fitScale, renderSpecOf } from '../core/render';
 import { placeOnWall, poseOfPlane, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
 import { buildChannel, buildLightbox, type BuiltSign, type FaceImage } from '../sim/signs';
@@ -44,6 +44,7 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
       const face = spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
       const b = spec.kind === 'channel' ? buildChannel(spec, font) : buildLightbox(spec, 'Pretendard, sans-serif', face);
       b.group.position.set(spec.x, spec.y, 0);
+      if (spec.kind === 'channel') b.group.scale.setScalar(fitScale(b.measured.widthMm, spec.widthMm));
       v.signsRoot.add(b.group);
       built.push(b);
     }

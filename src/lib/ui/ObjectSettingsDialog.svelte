@@ -133,7 +133,7 @@
             </label>
           {/if}
         </div>
-        {#each m?.warnings ?? [] as w, i (i)}
+        {#each (app.warnMeasure ? m?.warnings ?? [] : []) as w, i (i)}
           <div class="warning" data-testid="measure-warning">
             <b>⚠ 실측 확인 필요</b>
             <p>{w.message}</p>

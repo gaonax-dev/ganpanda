@@ -15,7 +15,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none',
+    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -64,6 +64,8 @@
     cameraSet?: boolean;
     /** 이 사진에 3D 벽면이 있는가 (원근 설정 또는 치수 입력 사인물) */
     threeD?: 'ok' | 'none';
+    /** 치수 경고(⚠) 표시 여부 (옵션) */
+    showWarnings?: boolean;
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
@@ -314,7 +316,7 @@
       {@const m = measures.get(o.id)}
       {@const sel = o.id === selectedId}
       {@const same = !sel && sameIds.includes(o.id)}
-      {@const warn = (m?.warnings.length ?? 0) > 0}
+      {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
       <g class="sign" class:sel class:same class:warn>
         <polygon
           data-testid="sign-shape"

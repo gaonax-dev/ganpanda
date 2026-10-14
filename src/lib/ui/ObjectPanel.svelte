@@ -82,7 +82,7 @@
       </p>
       <button class="btn small" data-testid="object-settings-open" onclick={() => (app.objectSettingsOpen = true)}>설정</button>
     </div>
-    {#if m?.warnings.length}
+    {#if app.warnMeasure && m?.warnings.length}
       <button class="warning" data-testid="measure-warning-hint" onclick={() => (app.objectSettingsOpen = true)}>⚠ 실측 확인 필요 — 설정에서 확인</button>
     {/if}
   </section>

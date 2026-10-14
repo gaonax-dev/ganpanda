@@ -6,7 +6,7 @@
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import type { Photo, SignObject } from '../core/model';
-  import { renderSpecOf } from '../core/render';
+  import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
   import { placeOnWall, poseOfPlane, wallPlaneOf } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
@@ -81,7 +81,7 @@
     const v = viewer;
     if (!v || !font) return;
     clear();
-    if (!p) { status = '이 사진은 아직 3D 를 만들 수 없습니다. [원근 맞추기]를 하거나 사인물 하나에 가로·세로 치수를 넣으세요.'; count = 0; v.invalidate(); return; }
+    if (!p) { status = '이 사진은 아직 3D 를 만들 수 없습니다. 사인물 영역을 하나 그리거나 [원근 맞추기]를 하세요.'; count = 0; v.invalidate(); return; }
     status = '합성 중…';
     const placed = os.map((o) => ({ o, at: placeOnWall(p, o) }));
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
@@ -98,6 +98,7 @@
       if (!it) continue;
       const b = it.spec.kind === 'channel' ? buildChannel(it.spec, font) : buildLightbox(it.spec, 'Pretendard, sans-serif', it.face);
       b.group.position.set(it.spec.x, it.spec.y, 0);
+      if (it.spec.kind === 'channel') b.group.scale.setScalar(fitScale(b.measured.widthMm, it.spec.widthMm)); // 그린 영역 폭에 맞춤
       b.setNight(night);
       v.signsRoot.add(b.group);
       built.push(b);
@@ -136,7 +137,7 @@
     </div>
     <footer>
       {#if plane}
-        <small>3D 기준: {plane.source === 'calibration' ? '카메라 설정 (원근 맞추기)' : `치수를 입력한 첫 사인물 — 원근 맞추기를 하면 더 정확합니다`} · 격자 1칸 = 1m, 축 가로 X 빨강 · 높이 Z 파랑 · 세로 Y 초록(앞쪽), 흰 상자 = 1m. {count ? '입체 글자는 채널 제품 + 문구, 보드·시트는 면으로 표시됩니다.' : '사인물이 없어도 3D 는 봅니다. 분류를 정한 사인물이 생기면 여기에 놓입니다.'}</small>
+        <small>3D 기준: {plane.source === 'calibration' ? '카메라 설정 (원근 맞추기)' : plane.source === 'reference' ? '치수를 입력한 첫 사인물 — 원근 맞추기를 하면 더 정확합니다' : '그린 영역 (치수·원근 없음 — 자리와 비율만 맞춤, 원근 맞추기를 하면 정확해집니다)'} · 격자 1칸 = 1m, 축 가로 X 빨강 · 높이 Z 파랑 · 세로 Y 초록(앞쪽), 흰 상자 = 1m. {count ? '입체 글자는 채널 제품 + 문구, 보드·시트는 면으로 표시됩니다.' : '사인물이 없어도 3D 는 봅니다. 분류를 정한 사인물이 생기면 여기에 놓입니다.'}</small>
       {:else}
         <small>원근을 맞추거나 사인물 하나에 가로·세로 치수를 넣으면 이 사진에 3D 벽면이 생깁니다.</small>
       {/if}

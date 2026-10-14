@@ -204,6 +204,7 @@
         oncamera={() => app.openCamera(p.id)}
         cameraSet={app.cameras.has(p.id)}
         threeD={app.threeDOk(p.id) ? 'ok' : 'none'}
+        showWarnings={app.warnMeasure}
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
       />
     {/each}

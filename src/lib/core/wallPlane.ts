@@ -10,7 +10,8 @@ export interface WallPlane {
   H: number[];
   /** 사진 px → 벽면 mm */
   Hinv: number[];
-  source: 'calibration' | 'reference';
+  /** calibration = 원근 설정 / reference = 치수 입력 첫 영역 / drawn = 치수 없이 그린 영역의 비율만 (높이 1000mm 가정) */
+  source: 'calibration' | 'reference' | 'drawn';
   referenceId?: string;
 }
 
@@ -55,11 +56,23 @@ export function wallPlaneOf(objs: SignObject[], calib?: Calibration | null): Wal
     return H ? { H, Hinv, source: 'calibration' } : null;
   }
   const ref = objs.find(sized);
-  if (!ref) return null;
-  const w = ref.widthMm!, h = ref.heightMm!;
-  const H = solveHomography([[0, h], [w, h], [w, 0], [0, 0]], ref.quad);
+  if (ref) {
+    const w = ref.widthMm!, h = ref.heightMm!;
+    const H = solveHomography([[0, h], [w, h], [w, 0], [0, 0]], ref.quad);
+    const Hinv = invert3(H);
+    return Hinv ? { H, Hinv, source: 'reference', referenceId: ref.id } : null;
+  }
+  // 치수도 원근도 없으면: 사용자가 그린 영역을 그대로 벽면으로 (2026-10-14 사용자: "사진 위의 사인물 크기는 그린 사인물에 맞물리면 된다").
+  // 실제 mm 는 모르니 높이 1000mm 로 두고 가로는 영역의 비율로 — 3D 는 그려진 자리에 그 비율대로 놓인다
+  const drawn = objs.find((o) => isValidQuad(o.quad));
+  if (!drawn) return null;
+  const [tl, tr, br, bl] = drawn.quad;
+  const pw = (len(tl, tr) + len(bl, br)) / 2, ph = (len(tl, bl) + len(tr, br)) / 2;
+  if (!(pw > 0 && ph > 0)) return null;
+  const h = 1000, w = (1000 * pw) / ph;
+  const H = solveHomography([[0, h], [w, h], [w, 0], [0, 0]], drawn.quad);
   const Hinv = invert3(H);
-  return Hinv ? { H, Hinv, source: 'reference', referenceId: ref.id } : null;
+  return Hinv ? { H, Hinv, source: 'drawn', referenceId: drawn.id } : null;
 }
 
 /** 사진 위 사각 영역 → 벽면 mm 위치·크기 (위·아래 변 평균 = 가로, 좌·우 변 평균 = 세로) */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
-import { renderSpecOf } from '../../src/lib/core/render';
+import { fitScale, renderSpecOf } from '../../src/lib/core/render';
 
 const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], createdAt: 0, ...o });
 const place = { cx: 4500, cy: 4200, w: 9000, h: 1000 };
@@ -39,5 +39,13 @@ describe('실사 합성 사양 (사인물 → 3D 간판)', () => {
   it('입체 설정의 색을 쓴다', () => {
     const s = renderSpecOf(obj({ productId: 'board-acp', letter3d: { depthMm: 60, faceColor: '#123456', sideColor: '#abcdef', letterSpacing: 0 } }), place)!;
     expect(s.faceColor).toBe('#123456'); expect(s.depthMm).toBe(60);
+  });
+});
+
+describe('입체 글자를 그린 영역 폭에 맞춤', () => {
+  it('글자 폭이 영역보다 넓으면 줄이고, 좁으면 그대로', () => {
+    expect(fitScale(12000, 9000)).toBeCloseTo(0.75, 6);
+    expect(fitScale(6000, 9000)).toBe(1);
+    expect(fitScale(0, 9000)).toBe(1);
   });
 });

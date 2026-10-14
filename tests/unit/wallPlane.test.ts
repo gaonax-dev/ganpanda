@@ -55,8 +55,13 @@ describe('벽면 좌표계 (실사 합성용)', () => {
     expect(Math.abs((d.cx - s.cx) - ((5500 + 600) - (1000 + 2000)))).toBeLessThan(60);
   });
 
-  it('치수 입력 영역이 없으면 null', () => {
-    expect(wallPlaneOf([band], null)).toBeNull();
+  it('치수도 원근도 없으면 그린 영역을 그대로 벽면으로 (높이 1000mm, 가로는 비율) — 자리에 맞물린다', () => {
+    const plane = wallPlaneOf([band], null)!;
+    expect(plane.source).toBe('drawn');
+    const b = placeOnWall(plane, band);
+    expect(b.h).toBeCloseTo(1000, 3);
+    expect(b.w).toBeGreaterThan(1000); // 띠는 가로로 길다
+    expect(wallPlaneOf([], null)).toBeNull();
   });
 
   it('벽면에서 카메라를 복원하면 벽 위 점이 사진의 제자리에 투영된다 (1px 안)', () => {

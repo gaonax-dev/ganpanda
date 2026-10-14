@@ -98,13 +98,22 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
   await expect(guest.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await guest.ctx.close();
 
-  // 치수를 지우면 벽면을 정할 수 없다
+  // 치수를 지워도 그린 영역만으로 3D 가 된다 (자리·비율). 사인물을 지우면 그제야 안내
   await page.evaluate(() => {
     const app = (window as unknown as { __ganpanda: { project: { allObjects(): { id: string }[]; updateObject(id: string, p: unknown): void } } }).__ganpanda;
     for (const o of app.project.allObjects()) app.project.updateObject(o.id, { widthMm: undefined, heightMm: undefined });
   });
+  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'ok');
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-dialog')).toContainText('그린 영역');
+  await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
+  await page.getByTestId('close-render').click();
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { project: { allObjects(): { id: string }[]; removeObject(id: string): void } } }).__ganpanda;
+    for (const o of app.project.allObjects()) app.project.removeObject(o.id);
+  });
   await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'none');
   await page.getByTestId('render-open').click();
-  await expect(page.getByTestId('render-status')).toContainText('치수');
+  await expect(page.getByTestId('render-status')).toContainText('영역');
   await expect(page.getByTestId('render-open-camera')).toBeVisible();
 });
