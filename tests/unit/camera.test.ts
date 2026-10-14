@@ -170,3 +170,42 @@ describe('축 선택·리버스와 카메라 위치·화각', () => {
     expect(ok.warnings.some((w) => w.includes('벽 안쪽'))).toBe(false);
   });
 });
+
+describe('Z 축 지정 (옆면 벽: 깊이 선 + 세로 선)', () => {
+  it('첫 쌍을 ±Z, 둘째 쌍을 +Y 로 두면 옆면 벽(x=0 평면)이 벽면이 되고, 월드 축이 실제와 맞는다', () => {
+    const full = setupOf(proj, true);
+    // 깊이 선(z 방향)을 첫 쌍으로, 세로 선을 둘째 쌍으로. 기준 길이는 깊이 방향 1m
+    const base: CameraSetup = { x: full.z!, y: full.y, origin: proj([0, 0, 0]), ref: { a: proj([0, 500, 0]), b: proj([0, 500, -1000]), axis: 'x', mm: 1000 } };
+    const tryDir = (first: '+z' | '-z') => solveCamera({ ...base, axes: { first, second: '+y' } }, imgW, imgH)!;
+    // 사진에서 깊이 선의 부호는 모르므로 둘 중 거울상 경고가 없는 쪽이 맞는 것
+    const sols = [tryDir('+z'), tryDir('-z')];
+    const ok = sols.find((s) => !s.warnings.some((w) => w.includes('거울상')))!;
+    expect(ok).toBeDefined();
+    // 월드 Z 축(카메라 좌표)이 실제 카메라의 Z 열과 평행 (부호 포함)
+    const Rt = P.R;
+    const zTruth: V3 = [Rt[2], Rt[5], Rt[8]], yTruth: V3 = [Rt[1], Rt[4], Rt[7]];
+    const col = (R: number[], i: number): V3 => [R[i], R[3 + i], R[6 + i]];
+    const dotv = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    // 월드 Z 는 깊이 선의 정준 방향이라 실제 Z 와 같거나 반대, Y 는 위
+    const dz = dotv(col(ok.worldR, 2), zTruth);
+    expect(Math.abs(dz)).toBeGreaterThan(0.999);
+    expect(dotv(col(ok.worldR, 1), yTruth)).toBeGreaterThan(0.999);
+    // 벽면(u = 깊이, v = 세로) 위 점 (u=1000, v=500) = 월드 (0, 500, ±1000) 가 제자리에 투영
+    const uSign = (ok.axesUsed.first === '+z' ? 1 : -1) * Math.sign(dz);
+    const [u, v] = applyHomography(ok.H, [1000, 500]);
+    const [tu, tv] = proj([0, 500, 1000 * uSign]);
+    expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
+    expect(ok.wallAxes).toEqual([ok.axesUsed.first, '+y']);
+    // 월드 포즈로는 실제 월드 점이 제자리에 (Z 부호만 정준)
+    const q: V3 = [0, 1200, 800 * Math.sign(dz)];
+    const [wu, wv] = projectPoint(ok.worldPose, [0, 1200, 800]), [tq, tr] = proj(q);
+    expect(Math.hypot(wu - tq, wv - tr)).toBeLessThan(1);
+  });
+  it('같은 축을 두 번 지정하면 경고하고 기본(X,Y)으로 푼다', () => {
+    const s = solveCamera({ ...setupOf(proj), axes: { first: '+x', second: '-x' } }, imgW, imgH)!;
+    expect(s.warnings.some((w) => w.includes('같은 축'))).toBe(true);
+    const q: V3 = [2500, 1200, 0];
+    const [u, v] = projectPoint(s.pose, q), [tu, tv] = proj(q);
+    expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
+  });
+});

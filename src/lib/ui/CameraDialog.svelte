@@ -35,7 +35,13 @@
     const grid: { a: Pt; b: Pt }[] = [];
     for (let i = -1; i <= nx; i++) { const s = seg([i * step, -step, 0], [i * step, ny * step, 0]); if (s) grid.push(s); }
     for (let j = -1; j <= ny; j++) { const s = seg([-step, j * step, 0], [nx * step, j * step, 0]); if (s) grid.push(s); }
-    const axes = { x: seg([0, 0, 0], [step, 0, 0]), y: seg([0, 0, 0], [0, step, 0]), z: seg([0, 0, 0], [0, 0, step]) };
+    // 월드 축 (지정한 라벨대로): 월드 점 p → 카메라 = Rw·p + t 를 벽면 좌표로 바꿔 투영
+    const Rw = sol.worldR, Rp = pose.R;
+    const toWall = (p: [number, number, number]): [number, number, number] => {
+      const cx = Rw[0] * p[0] + Rw[1] * p[1] + Rw[2] * p[2], cy = Rw[3] * p[0] + Rw[4] * p[1] + Rw[5] * p[2], cz = Rw[6] * p[0] + Rw[7] * p[1] + Rw[8] * p[2];
+      return [Rp[0] * cx + Rp[3] * cy + Rp[6] * cz, Rp[1] * cx + Rp[4] * cy + Rp[7] * cz, Rp[2] * cx + Rp[5] * cy + Rp[8] * cz];
+    };
+    const axes = { x: seg([0, 0, 0], toWall([step, 0, 0])), y: seg([0, 0, 0], toWall([0, step, 0])), z: seg([0, 0, 0], toWall([0, 0, step])) };
     const c = (x: number, y: number, z: number): [number, number, number] => [x * step, y * step, z * step];
     const E: [[number, number, number], [number, number, number]][] = [
       [c(0,0,0), c(1,0,0)], [c(1,0,0), c(1,1,0)], [c(1,1,0), c(0,1,0)], [c(0,1,0), c(0,0,0)],
@@ -57,15 +63,17 @@
   /** 핸들 키: "x0a" = x 축 0번 선의 a 끝점, "o" = 원점, "ra"/"rb" = 기준 길이 끝점 */
   const AXES: { axis: Axis; label: string; cls: string }[] = [{ axis: 'x', label: '가로 X', cls: 'ax' }, { axis: 'y', label: '세로 Y', cls: 'ay' }, { axis: 'z', label: '깊이 Z', cls: 'az' }];
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 'auto' = 사진 오른쪽이 +X, 위가 +Y */
-  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X (오른쪽)' }, { id: '-x', label: '−X (왼쪽)' }, { id: '+y', label: '+Y (위)' }, { id: '-y', label: '−Y (아래)' }];
-  const other = (a: AxisDir): AxisDir => (a[1] === 'x' ? '+y' : '+x');
+  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X (오른쪽)' }, { id: '-x', label: '−X (왼쪽)' }, { id: '+y', label: '+Y (위)' }, { id: '-y', label: '−Y (아래)' }, { id: '+z', label: '+Z (깊이, 앞)' }, { id: '-z', label: '−Z (깊이, 뒤)' }];
+  /** 같은 축을 피해 다른 축으로: x→y, y→x, z→x (둘째) / 첫째가 z 면 y */
+  const other = (a: AxisDir, which: 'first' | 'second'): AxisDir => (a[1] === 'x' ? '+y' : a[1] === 'y' ? '+x' : which === 'first' ? '+x' : '+y');
+  const remaining = $derived(sol ? (['x', 'y', 'z'] as const).find((k) => k !== sol.axesUsed.first[1] && k !== sol.axesUsed.second[1])! : 'z');
   function setAxis(which: 'first' | 'second', v: string) {
     if (v === 'auto') { set({ axes: undefined }); return; }
     const cur = draft.axes ?? { first: '+x' as AxisDir, second: '+y' as AxisDir };
     const next = { ...cur, [which]: v as AxisDir };
     // 다른 쌍이 같은 축이면 반대 축으로
     const o = which === 'first' ? 'second' : 'first';
-    if (next[o][1] === (v as AxisDir)[1]) next[o] = other(v as AxisDir);
+    if (next[o][1] === (v as AxisDir)[1]) next[o] = other(v as AxisDir, o);
     set({ axes: next });
   }
   const m = (mm: number) => (mm / 1000).toFixed(2);
@@ -211,8 +219,8 @@
               </select>
             </label>
           </div>
-          <p class="hint">선 쌍이 어느 축인지 바꾸거나(X↔Y) 방향을 뒤집습니다(리버스). Z 는 벽 밖(카메라 쪽)으로 자동 결정되며, 거울상이면 경고합니다.</p>
-          <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 깊이 축(옆면 벽) 선 2개 추가</label>
+          <p class="hint">선 쌍이 어느 월드 축(X·Y·Z)인지 정하고 방향을 뒤집습니다(리버스). 두 쌍이 이루는 평면이 벽면입니다 (예: Z + Y = 옆면 벽). 남은 축은 오른손 규칙으로 자동. 벽의 바깥이 카메라 반대면 경고합니다.</p>
+          <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 셋째 쌍(남은 축 {remaining.toUpperCase()}) 선 2개 추가 — 주점 계산용</label>
           <label class="check"><input type="checkbox" data-testid="camera-principal" checked={draft.principal === 'third'} disabled={ro || !draft.z} onchange={(e) => set({ principal: e.currentTarget.checked ? 'third' : 'center' })} /> 세 소실점으로 주점 계산 (잘라낸 사진)</label>
           <p class="hint">흰 십자 = 원점(벽 좌표 0,0). 보통 벽의 왼쪽 아래 모서리.</p>
         </section>

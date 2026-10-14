@@ -117,6 +117,10 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await expect(dlg.getByTestId('camera-warning').filter({ hasText: '거울상' })).toHaveCount(1);
   await dlg.getByTestId('camera-axis-1').selectOption('+y');
   await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
+  await dlg.getByTestId('camera-axis-1').selectOption('+z');
+  await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+x');
+  await dlg.getByTestId('camera-axis-2').selectOption('+y');
+  await expect(dlg.getByTestId('camera-warning').filter({ hasText: '같은 축' })).toHaveCount(0);
   await dlg.getByTestId('camera-ref-mm').fill('900');
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);
