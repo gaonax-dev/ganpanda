@@ -26,7 +26,7 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await dlg.getByTestId('sheet-sh-print').click();
   await dlg.getByTestId('width-mm').fill('1000');
   await dlg.getByTestId('height-mm').fill('500');
-  await expect(panel.getByTestId('object-summary')).toContainText('실사 출력 시트');
+  await expect(panel.getByTestId('object-summary')).toContainText('돔보 컷팅');
   await expect(panel.getByTestId('object-summary')).toContainText('1,000×500');
   // 창은 보드 조작을 막지 않는다: 다른 사인물을 그리면 창이 그 사인물로 바뀐다
   await page.keyboard.press('Escape');

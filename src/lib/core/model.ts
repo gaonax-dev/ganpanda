@@ -56,6 +56,10 @@ export interface SignObject {
   /** 리스트 뷰(전개도) 위 위치, mm */
   listX?: number;
   listY?: number;
+  /** 주문 사양 옵션 (core/options.ts 스키마의 키 → 값) */
+  options?: Record<string, string | boolean>;
+  /** 사인물별 요청사항 (배선 위치, 특수 가공 등) */
+  note?: string;
   /** 다른 사진의 같은 사인물(원본 id). 규격은 원본에서 읽고 위치만 자기 것 → core/link.ts */
   sameAs?: string;
   createdAt: number;
@@ -102,6 +106,8 @@ export interface ProjectSettings {
   /** 프로젝트별 설치비 (없으면 단가표 기본값) */
   installFee?: number;
   extras?: ExtraItem[];
+  /** 주문 정보 (주문자·연락처·시공지·납기·요청사항) → core/order.ts */
+  order?: import('./order').OrderInfo;
 }
 
 export interface Message {

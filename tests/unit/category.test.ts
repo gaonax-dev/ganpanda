@@ -16,9 +16,9 @@ describe('사인물 분류 (간판 / 스카시 / 시트)', () => {
   it('분류별 제품 목록과 기본 제품', () => {
     expect(productsOf('sign').map((p) => p.id)).toContain('board-acp');
     expect(productsOf('sign').map((p) => p.id)).not.toContain('ch-scashi');
-    expect(productsOf('scashi').map((p) => p.id)).toEqual(['ch-scashi', 'ch-rubber']);
-    expect(defaultProductFor('sign')).toBe('board-acp');
-    expect(defaultProductFor('scashi')).toBe('ch-scashi');
+    expect(productsOf('scashi').map((p) => p.id)).toEqual(['ch-rubber', 'sc-titan', 'ch-scashi']);
+    expect(defaultProductFor('sign')).toBe('board-flex');
+    expect(defaultProductFor('scashi')).toBe('ch-rubber');
     expect(CATEGORY_GROUPS.map((g) => g.id)).toEqual(['sign', 'scashi', 'sheet']);
   });
 });

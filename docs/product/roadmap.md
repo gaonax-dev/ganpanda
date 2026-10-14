@@ -13,6 +13,7 @@
 | 4차 | 입체 간판 (글자를 3D로) | **구현됨** → [features/render-3d.md](../features/render-3d.md) |
 | 5차 | 결과물을 바로 확인하는 실사 렌더링 | **구현됨** → [features/render-3d.md](../features/render-3d.md) |
 | **6차** | 한 장으로 결정하기 — 고객 제안 링크 + 승인 | 계획 (다음 작업) |
+| 8차 | 주문: 사인물 사양 옵션(스키마) + 주문 정보 + 주문서·JSON | **구현됨**(2026-10-14) → [features/order.md](../features/order.md). 옵션 가격 차등·상태 흐름은 6차와 함께 |
 | 7차 | 카메라 솔버(fSpy 방식, 자체 구현): 사진별 카메라 설정 → 모든 실측·실사의 기준 | 7-1·7-2 **구현됨**(2026-10-14), 7-3 존 = 벽면·EXIF 계획 → [features/measurement.md](../features/measurement.md) |
 
 ## 기반 단계 — 구현됨

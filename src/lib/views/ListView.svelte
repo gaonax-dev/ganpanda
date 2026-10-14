@@ -153,7 +153,8 @@
       <h2>견적</h2>
       <span class="actions">
         {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
-        <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>견적서</button>
+        <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
+        <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
         <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
       </span>
     </header>

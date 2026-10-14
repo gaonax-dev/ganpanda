@@ -85,6 +85,8 @@ class AppState {
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
   lastRender = $state('');
   quoteSheetOpen = $state(false);
+  /** 주문 정보 창 */
+  orderOpen = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
   seatLimit = $state<{ used: number; limit: number } | null>(null);
   /** 화면 상단 알림 (용량 초과 등) */

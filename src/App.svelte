@@ -16,6 +16,7 @@
   import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
   import CameraDialog from './lib/ui/CameraDialog.svelte';
   import RenderDialog from './lib/ui/RenderDialog.svelte';
+  import OrderDialog from './lib/ui/OrderDialog.svelte';
   import { ROLE_LABEL } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -141,6 +142,7 @@
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
+{#if app.orderOpen}<OrderDialog />{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}<CameraDialog photo={app.cameraPhoto} />{/key}{/if}
 {#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
 {#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}<RenderDialog photo={rp} />{/key}{/if}{/if}

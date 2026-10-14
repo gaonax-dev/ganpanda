@@ -11,7 +11,7 @@ export const DEFAULT_LETTER3D: Letter3D = { depthMm: 80, faceColor: '#ff3b30', s
 
 /** 제품 → 조명: 전광 채널은 면 발광, 후광 채널은 벽면 반사, 그 외 비조명 */
 export function lightingOf(productId: string | undefined): Lighting {
-  if (productId === 'ch-front') return 'front';
+  if (productId === 'ch-front' || productId === 'ch-both') return 'front';
   if (productId === 'ch-halo') return 'halo';
   return 'none';
 }
