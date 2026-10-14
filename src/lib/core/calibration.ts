@@ -1,6 +1,6 @@
 // 실측 기준선 (사용자 결정 2026-10-13): 실측한 사인물의 변을 기준선으로 삼아
 // 가로선 → 가로 축척, 세로선 → 세로 축척을 따로 정하고, 소실점으로 벽면을 정면 보정한다.
-import type { Pt } from './homography';
+import { DEFAULT_FOCAL_RATIO, type Pt } from './homography';
 import type { SignObject } from './model';
 
 export interface RefLine { objectId: string; edge: 'top' | 'bottom' | 'left' | 'right'; kind: 'h' | 'v'; a: Pt; b: Pt; mm: number }
@@ -13,6 +13,23 @@ export interface Calibration {
   warnings: string[];
 }
 export const REF_TOLERANCE = 0.1;
+
+/** 소실점 계산에 쓰는 선 (치수 없음): 모든 사인물 영역의 네 변 */
+export interface EdgeLine { kind: 'h' | 'v'; a: Pt; b: Pt }
+export interface CalibrateOptions {
+  /** 소실점에 보탤 선들 (치수 불필요). 기준선이 한 축뿐이어도 다른 축의 소실점을 얻는다 */
+  edges?: EdgeLine[];
+  /** 사진 크기 — 있으면 소실점 직교로 초점거리를 추정해 한 축만 있을 때 다른 축 축척을 카메라 기하로 맞춘다 */
+  imgW?: number; imgH?: number;
+}
+
+/** 모든 영역의 네 변 (소실점용). 찌그러진 영역은 제외하지 않는다 — 소실점은 최소제곱이라 영향이 작다 */
+export function edgesFromObjects(objs: { quad: Pt[] }[]): EdgeLine[] {
+  return objs.flatMap((o) => {
+    const [tl, tr, br, bl] = o.quad;
+    return [{ kind: 'h', a: tl, b: tr }, { kind: 'h', a: bl, b: br }, { kind: 'v', a: tl, b: bl }, { kind: 'v', a: tr, b: br }] as EdgeLine[];
+  });
+}
 
 type V3 = [number, number, number];
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -81,13 +98,15 @@ const applyH = (H: number[], [x, y]: Pt): Pt => {
 };
 const len = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
-export function calibrate(refs: RefLine[]): Calibration | null {
+export function calibrate(refs: RefLine[], opts: CalibrateOptions = {}): Calibration | null {
   const hs = refs.filter((r) => r.kind === 'h'), vs = refs.filter((r) => r.kind === 'v');
   if (!hs.length && !vs.length) return null;
   const warnings: string[] = [];
-  // 소실점: 가로선·세로선 각각. 한 축이 없으면 사진 축 방향(무한원점)으로 가정
-  const vx = hs.length ? vanishing(hs.map((r) => lineOf(r.a, r.b))) : ([1, 0, 0] as V3);
-  const vy = vs.length ? vanishing(vs.map((r) => lineOf(r.a, r.b))) : ([0, 1, 0] as V3);
+  // 소실점: 기준선 + 모든 영역의 변. 한 축에 선이 전혀 없으면 사진 축 방향(무한원점)으로 가정
+  const hLines = [...hs, ...(opts.edges ?? []).filter((e) => e.kind === 'h')].map((r) => lineOf(r.a, r.b));
+  const vLines = [...vs, ...(opts.edges ?? []).filter((e) => e.kind === 'v')].map((r) => lineOf(r.a, r.b));
+  const vx = hLines.length ? vanishing(hLines) : ([1, 0, 0] as V3);
+  const vy = vLines.length ? vanishing(vLines) : ([0, 1, 0] as V3);
   // 기준 원점: 기준선 끝점들의 평균 (유한점)
   const pts = refs.flatMap((r) => [r.a, r.b]);
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
@@ -99,12 +118,37 @@ export function calibrate(refs: RefLine[]): Calibration | null {
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const sx = hs.length ? mean(hs.map(scaleOf)) : NaN;
   const sy = vs.length ? mean(vs.map(scaleOf)) : NaN;
-  if (!hs.length) warnings.push('가로 기준이 없어 세로 축척을 가로에도 씁니다.');
-  if (!vs.length) warnings.push('세로 기준이 없어 가로 축척을 세로에도 씁니다.');
-  const SX = isNaN(sx) ? sy : sx, SY = isNaN(sy) ? sx : sy;
+  // 한 축만 있을 때: 정면 보정(affine)은 축 비율을 모르므로, 소실점 직교로 초점거리를 구해 비율을 카메라 기하로 보정한다
+  let SX = isNaN(sx) ? sy : sx, SY = isNaN(sy) ? sx : sy;
+  if (isNaN(sx) !== isNaN(sy)) {
+    const ratio = opts.imgW && opts.imgH ? axisRatio(vx, vy, opts.imgW, opts.imgH) : null;
+    const how = ratio ? '카메라 기하(소실점)로 추정' : '가로·세로 축척이 같다고 가정';
+    if (isNaN(sy)) { if (ratio) SY = sx * ratio; warnings.push(`세로 기준이 없어 세로 축척을 ${how}합니다.`); }
+    else { if (ratio) SX = sy / ratio; warnings.push(`가로 기준이 없어 가로 축척을 ${how}합니다.`); }
+  }
   const perRef = refs.map((r) => ({ objectId: r.objectId, edge: r.edge, kind: r.kind, deviation: scaleOf(r) / (r.kind === 'h' ? SX : SY) - 1 }));
   for (const r of perRef) if (Math.abs(r.deviation) > REF_TOLERANCE) warnings.push(`${r.objectId} 의 ${r.kind === 'h' ? '가로' : '세로'} 기준이 다른 기준과 ${Math.round(Math.abs(r.deviation) * 100)}% 어긋납니다.`);
   return { H, sx: SX, sy: SY, perRef, warnings };
+}
+
+/**
+ * 세로 축척 / 가로 축척 비율 (정면 보정 좌표계 기준). 벽의 x·y 방향 r1,r2 는 소실점 vx,vy 로 K·r = λ·v 이므로
+ * |K⁻¹vx| : |K⁻¹vy| 가 두 축의 "정면 보정 단위당 mm" 비율이 된다. 초점거리는 소실점 직교(r1·r2=0)에서,
+ * 한 소실점이 무한원점이면 기본 초점거리(장변×0.75)를 쓴다.
+ */
+function axisRatio(vx: V3, vy: V3, imgW: number, imgH: number): number | null {
+  const cx = imgW / 2, cy = imgH / 2;
+  const centered = (v: V3): V3 => [v[0] - cx * v[2], v[1] - cy * v[2], v[2]];
+  const a = centered(vx), b = centered(vy);
+  let f2 = NaN;
+  if (Math.abs(a[2]) > 1e-9 && Math.abs(b[2]) > 1e-9) f2 = -(a[0] * b[0] + a[1] * b[1]) / (a[2] * b[2]);
+  const long = Math.max(imgW, imgH);
+  const f = f2 > (0.3 * long) ** 2 && f2 < (4 * long) ** 2 ? Math.sqrt(f2) : DEFAULT_FOCAL_RATIO * long;
+  const nK = (v: V3) => Math.hypot(v[0] / f, v[1] / f, v[2]);
+  const na = nK(a), nb = nK(b);
+  if (!(na > 0) || !(nb > 0)) return null;
+  const r = nb / na;
+  return isFinite(r) && r > 0.2 && r < 5 ? r : null;
 }
 
 /** 사각 영역의 실제 크기: 위·아래 변 평균 × 가로 축척, 좌·우 변 평균 × 세로 축척 */

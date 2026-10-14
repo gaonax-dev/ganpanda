@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calibrate, measureQuad, refsFromObjects, snapEdge, type RefLine } from '../../src/lib/core/calibration';
+import { calibrate, edgesFromObjects, measureQuad, refsFromObjects, snapEdge, type RefLine } from '../../src/lib/core/calibration';
 import { projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
 import type { SignObject } from '../../src/lib/core/model';
 
@@ -65,6 +65,45 @@ describe('기준선으로 원근·축척 보정', () => {
     expect(c.warnings.some((w) => w.includes('세로'))).toBe(true);
     const m = measureQuad(c, band);
     expect(Math.abs(m.widthMm - 6000) / 6000).toBeLessThan(0.03);
+  });
+
+  // 사용자 보고 (2026-10-14): 대각으로 찍은 사진에서 6400×600 간판을 6400×450 으로 추정 — 가로 기준만 있을 때 세로 축척을 가로와 같다고 가정한 탓
+  describe('한 축 기준만 있을 때 카메라 기하로 다른 축 보정 (대각 촬영)', () => {
+    const Q = pose(0.55, -0.3, [2500, 1200, 7000]); // 옆에서 + 올려다봄
+    const big = obj('big', rectOn(Q, 500, 3000, 6400, 600), { widthMm: 6400, heightMm: 600, refH: true });
+    const win = obj('win', rectOn(Q, 1000, 500, 1500, 1800));
+    const opts = { edges: edgesFromObjects([big, win]), imgW, imgH };
+
+    it('가로 기준만: 세로를 카메라 기하(소실점 직교)로 맞춘다 — 자기 높이 600, 창 1500×1800 이 2% 안', () => {
+      const c = calibrate(refsFromObjects([big]), opts)!;
+      const self = measureQuad(c, big.quad);
+      expect(Math.abs(self.heightMm - 600) / 600).toBeLessThan(0.02);
+      const w = measureQuad(c, win.quad);
+      expect(Math.abs(w.widthMm - 1500) / 1500).toBeLessThan(0.02);
+      expect(Math.abs(w.heightMm - 1800) / 1800).toBeLessThan(0.02);
+      expect(c.warnings.some((x) => x.includes('카메라'))).toBe(true);
+    });
+
+    it('세로 기준만: 가로를 맞춘다', () => {
+      const door = obj('door', rectOn(Q, 4000, 0, 1000, 2100), { widthMm: 1000, heightMm: 2100, refV: true });
+      const c = calibrate(refsFromObjects([door]), { edges: edgesFromObjects([door, big, win]), imgW, imgH })!;
+      const b = measureQuad(c, big.quad);
+      expect(Math.abs(b.widthMm - 6400) / 6400).toBeLessThan(0.02);
+    });
+
+    it('보정 없이 가정만 쓰면 크게 틀린다 (회귀 확인용)', () => {
+      const c = calibrate(refsFromObjects([big]))!;
+      const self = measureQuad(c, big.quad);
+      expect(Math.abs(self.heightMm - 600) / 600).toBeGreaterThan(0.05);
+    });
+
+    it('정면 사진은 보정이 있어도 그대로 맞다', () => {
+      const F = pose(0, 0, [5000, 3000, 12000]);
+      const s = obj('s', rectOn(F, 1000, 2500, 4000, 900), { widthMm: 4000, heightMm: 900, refH: true });
+      const c = calibrate(refsFromObjects([s]), { edges: edgesFromObjects([s]), imgW, imgH })!;
+      const m = measureQuad(c, rectOn(F, 0, 3600, 6000, 600));
+      expect(Math.abs(m.heightMm - 600) / 600).toBeLessThan(0.01);
+    });
   });
 
   it('기준이 하나도 없으면 null', () => {
