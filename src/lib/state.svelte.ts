@@ -91,6 +91,8 @@ class AppState {
   orderOpen = $state(false);
   /** 제안 보내기 창 (제작자) */
   proposalOpen = $state(false);
+  /** 사진과 입력 치수가 다르다는 경고 표시 (옵션, 기본 꺼짐 — 2026-10-14 사용자: "사이즈는 제작을 위한 메모, 경고는 옵션") */
+  warnMeasure = $state(load('ganpanda.warnMeasure') === '1');
   /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
   proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
@@ -633,6 +635,8 @@ class AppState {
   setCursor(c: Cursor | null) {
     this.client?.setCursor(c);
   }
+
+  setWarnMeasure(v: boolean) { this.warnMeasure = v; save('ganpanda.warnMeasure', v ? '1' : '0'); }
 
   setNickname(n: string, persist = true) {
     this.nickname = n;

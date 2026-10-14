@@ -47,7 +47,7 @@
   ];
   const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
-  const warnCount = $derived([...app.measures.values()].filter((m) => m.warnings.length).length);
+  const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
 </script>
 
 <div class="shell">

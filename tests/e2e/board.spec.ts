@@ -37,8 +37,12 @@ test('원형 도구 = 모서리 50% 둥근 사각형. 설정에서 둥글기를 
   await expect(shape).toHaveAttribute('data-corner', '0.2');
 });
 
-test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고 → 추정값 적용', async ({ page }) => {
+test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵션 켜면) → 추정값 적용', async ({ page }) => {
   await uploadPhoto(page);
+  // 경고는 옵션 (설정에서 켬)
+  await page.getByTestId('open-settings').click();
+  await page.getByTestId('warn-measure').check();
+  await page.getByTestId('close-settings').click();
   await page.keyboard.press('r');
   await dragOnPhoto(page, [400, 200], [800, 300]); // 400×100px
   await openObjectSettings(page);
