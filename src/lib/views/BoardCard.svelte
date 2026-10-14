@@ -40,8 +40,7 @@
 </div>
 
 <style>
-  .card { position: absolute; cursor: pointer; }
-  .card.standalone { cursor: grab; }
+  .card { position: absolute; cursor: grab; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed rgba(255, 204, 0, 0.7); }
   .sel .face { outline: 2px solid var(--accent); }

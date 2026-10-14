@@ -43,8 +43,7 @@
 | `letter3d?` | 입체 설정 `{depthMm, faceColor, sideColor, letterSpacing}` |
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
-| `listX?`, `listY?` | 사인물 리스트 전개도 위 위치 (mm). 없으면 자동 배치 |
-| `boardX?`, `boardY?` | 보드에 직접 만든 사인물의 보드(world px) 위치 |
+| `listX?`, `listY?` | 평면도 위치 (mm) — 리스트 뷰와 보드 평면 구역이 같은 배치를 씀. 없으면 자동 배치 |
 | `depthMm?` | 보드 두께·돌출 깊이 (규격 필드) |
 | `options?` | 주문 사양 옵션 (`core/options.ts` 스키마 키 → 값). 규격 필드 → [../features/order.md](../features/order.md) |
 | `note?` | 사인물별 요청사항 (규격 필드) |

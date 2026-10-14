@@ -3,6 +3,7 @@ import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable } from './core/version';
+import { layoutList } from './core/layout';
 import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -90,6 +91,8 @@ class AppState {
   /** 실사 보기 창 (사진 id) */
   renderPhotoId = $state<string | null>(null);
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
+  /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
+  lastSvg = $state('');
   lastRender = $state('');
   quoteSheetOpen = $state(false);
   /** 주문 정보 창 */
@@ -532,8 +535,8 @@ class AppState {
 
   /** 한 사진의 사인물을 **왼쪽부터** 순서대로 (휴대폰 빠른 막대의 이전/다음, 머리글 탭 → 첫 사인물). Y.Map 순서는 안정적이지 않으므로 위치로 정렬 */
   photoSigns(photoId: string): SignObject[] {
-    const left = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[0])) : o.boardX ?? 0);
-    const top = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[1])) : o.boardY ?? 0);
+    const left = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[0])) : o.listX ?? 0);
+    const top = (o: SignObject) => (o.quad.length ? Math.min(...o.quad.map((p) => p[1])) : o.listY ?? 0);
     return this.objects.filter((o) => o.photoId === photoId).sort((a, b) => left(a) - left(b) || top(a) - top(b));
   }
 
@@ -563,12 +566,12 @@ class AppState {
     return id;
   }
 
-  /** 보드 빈 곳에 사인물 만들기 (사진 없이): 끌어 그린 크기가 치수가 되고 바로 생성된다 */
-  createStandalone(boardX: number, boardY: number, size: { widthMm: number; heightMm: number }): string | null {
+  /** 보드 빈 곳에 사인물 만들기 (사진 없이): 끌어 그린 크기가 치수가 되고 바로 생성된다. 위치는 평면 배치(listX/listY mm) */
+  createStandalone(listX: number, listY: number, size: { widthMm: number; heightMm: number }): string | null {
     if (!this.canEdit) return null;
     const n = this.signs.length + 1;
     this.editBoundary();
-    const id = this.project.addObject({ photoId: '', name: `사인물 ${n}`, shape: 'rect', quad: [], sheetIds: [], boardX: Math.round(boardX), boardY: Math.round(boardY), ...size });
+    const id = this.project.addObject({ photoId: '', name: `사인물 ${n}`, shape: 'rect', quad: [], sheetIds: [], listX: Math.round(listX), listY: Math.round(listY), ...size });
     this.editBoundary();
     this.selectObject(id);
     this.tool = 'select';
@@ -576,6 +579,9 @@ class AppState {
   }
   /** 사진 없는 사인물(보드 직접 생성) */
   standalone = $derived(this.objects.filter((o) => !o.photoId));
+  /** 평면도(전개도) 카드: 치수(입력 또는 추정)가 있는 원본 사인물 — 리스트 뷰와 보드 평면 구역이 같은 목록·같은 배치를 쓴다 */
+  flatCards = $derived.by(() => this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ o, ...s }] : []; }));
+  flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
 
   selectObject(id: string | null) {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }

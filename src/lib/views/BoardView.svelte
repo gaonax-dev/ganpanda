@@ -3,7 +3,7 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
-  import { BOARD_PX_PER_MM, cardsUnderPhoto, mmFromBoardRect } from '../core/boardCards';
+  import { BOARD_PX_PER_MM, boardToList, flatOrigin, listToBoard, mmFromBoardRect } from '../core/boardCards';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { formatBytes } from '../core/format';
@@ -138,8 +138,8 @@
 
   let dropping = $state(false);
 
-  // ---------- 평면도 카드 (사진 아래: 치수를 직접 입력한 사인물, 생성 순) ----------
-  const cardsOf = (p: typeof app.photos[number]) => cardsUnderPhoto(p, app.photoSigns(p.id).filter((o) => o.widthMm && o.heightMm).map((o) => ({ id: o.id, w: o.widthMm!, h: o.heightMm! })));
+  // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 0.1px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
+  const origin = $derived(flatOrigin(app.photos));
 
   // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
   let draft: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
@@ -153,12 +153,13 @@
       const d = draft!; draft = null;
       const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
       if (w < 8 || h < 8) return;
-      app.createStandalone(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), mmFromBoardRect(w, h));
+      const at = boardToList(origin, Math.min(d.x0, d.x1), Math.min(d.y0, d.y1));
+      app.createStandalone(at.x, at.y, mmFromBoardRect(w, h));
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     return true;
   }
-  // 보드 사인물 끌어 옮기기
+  // 평면도 카드 끌어 배치 → listX/listY (리스트 뷰에도 그대로)
   let cardDrag: { id: string; dx: number; dy: number } | null = null;
   function cardDown(e: PointerEvent, o: typeof app.objects[number]) {
     if (e.button !== 0) return;
@@ -166,8 +167,10 @@
     app.selectObject(o.id);
     if (!app.canEdit) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
-    cardDrag = { id: o.id, dx: w.x - (o.boardX ?? 0), dy: w.y - (o.boardY ?? 0) };
-    const move = (ev: PointerEvent) => { if (!cardDrag) return; const p = canvas.clientToWorld(ev.clientX, ev.clientY); app.project.updateObject(cardDrag.id, { boardX: Math.round(p.x - cardDrag.dx), boardY: Math.round(p.y - cardDrag.dy) }); };
+    const p = app.flatPlaced.get(o.id)!;
+    const at = listToBoard(origin, p.x, p.y);
+    cardDrag = { id: o.id, dx: w.x - at.x, dy: w.y - at.y };
+    const move = (ev: PointerEvent) => { if (!cardDrag) return; const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy); app.project.updateObject(cardDrag.id, { listX: l.x, listY: l.y }); };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
@@ -256,17 +259,15 @@
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
       />
     {/each}
-    <!-- 사진 아래 평면도 카드: 치수를 직접 입력한 사인물 (2026-10-15 사용자 시나리오) -->
-    {#each app.photos as p (p.id)}
-      {@const cards = cardsOf(p)}
-      {#each app.photoSigns(p.id) as o (o.id)}
-        {@const c = cards.placed.get(o.id)}
-        {#if c}<BoardCard {o} x={c.x} y={c.y} w={c.w} h={c.h} photo={p} url={urls[p.assetId]} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} linked={!!o.sameAs || app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => { e.stopPropagation(); app.selectObject(o.id); }} />{/if}
-      {/each}
-    {/each}
-    <!-- 보드에 직접 만든 사인물 (사진 없음): 치수 × 0.1px/mm, 끌어 옮김 -->
-    {#each app.standalone as o (o.id)}
-      <BoardCard {o} x={o.boardX ?? 0} y={o.boardY ?? 0} w={(o.widthMm ?? 1000) * BOARD_PX_PER_MM} h={(o.heightMm ?? 500) * BOARD_PX_PER_MM} zoom={viewport.zoom} selected={app.selectedId === o.id} standalone linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+    <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
+    {#if app.flatCards.length}
+      <div class="flat-label" style:left="{origin.x}px" style:top="{origin.y - 22}px" style:transform="scale({1 / viewport.zoom})" style:transform-origin="0 100%">평면도 · 끌어서 배치 (리스트와 같은 배치)</div>
+    {/if}
+    {#each app.flatCards as { o, w, h } (o.id)}
+      {@const p = app.flatPlaced.get(o.id)!}
+      {@const at = listToBoard(origin, p.x, p.y)}
+      {@const photo = app.photos.find((x) => x.id === o.photoId)}
+      <BoardCard {o} x={at.x} y={at.y} w={w * BOARD_PX_PER_MM} h={h * BOARD_PX_PER_MM} {photo} url={photo ? urls[photo.assetId] : undefined} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
@@ -325,6 +326,7 @@
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: rgba(255, 204, 0, 0.08); pointer-events: none; }
+  .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
     color: var(--muted); pointer-events: none;

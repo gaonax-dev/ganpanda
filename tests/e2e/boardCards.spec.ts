@@ -76,8 +76,52 @@ test('보드 빈 곳에 사각 도구로 끌면 사진 없는 사인물이 바�
   const area = after.find((o) => o.photoId && o.sameAs === standalone.id)!;
   expect(area.widthMm).toBe(6000); // 규격은 보드 사인물 것
   await expect(page.getByTestId('sign-linked')).toHaveCount(1);
-  // 리스트에는 하나, 사진 아래 평면도 카드에도 ⇄ 표시
-  await expect(page.getByTestId('board-card')).toContainText('⇄');
+  // 리스트에는 하나, 평면도 카드(보드 사인물 것 하나뿐)에 ⇄ 표시
+  await expect(page.getByTestId('board-card')).toHaveCount(0);
+  await expect(card).toContainText('⇄');
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-card')).toHaveCount(1);
+});
+
+test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이어도 중복 없음), 보드에서 끌어 배치하면 리스트 뷰도 같은 배치, PDF 는 SVG 로', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string; linkObject(a: string, b: string): void } } }).__ganpanda;
+    const photoId = app.photos[0].id;
+    const master = app.project.addObject({ photoId, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600 });
+    const copy = app.project.addObject({ photoId, name: '복사', shape: 'rect', quad: [[900, 100], [1400, 100], [1400, 300], [900, 300]], sheetIds: [] });
+    app.project.linkObject(copy, master);
+    return { master, copy };
+  });
+  // 같은 사인물이 두 영역에 있어도 평면도 카드는 하나
+  await expect(page.getByTestId('board-card')).toHaveCount(1);
+  // 평면 구역이 화면에 들어오게 축소
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 2; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 700, clientY: 200, bubbles: true, cancelable: true })); });
+  await expect(page.getByTestId('board-card')).toContainText('⇄');
+  // 보드에서 카드를 끌어 옮기면 listX/listY 가 바뀌고
+  const card = page.getByTestId('board-card');
+  const b = (await card.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
+  const pos = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master);
+  expect(pos[0]).toBeGreaterThan(0);
+  expect(pos[1]).toBeGreaterThan(0);
+  // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY)
+  await page.getByTestId('view-list').click();
+  const listPos = await page.evaluate(() => { const el = document.querySelector('[data-testid="list-card"]') as HTMLElement; return [parseFloat(el.style.left), parseFloat(el.style.top)]; });
+  expect(listPos).toEqual(pos);
+  // PDF: SVG 를 만들어 인쇄 창에 띄운다
+  const popup = page.waitForEvent('popup');
+  await page.getByTestId('export-pdf').click();
+  const w = await popup;
+  await w.waitForLoadState();
+  expect(await w.locator('svg').count()).toBe(1);
+  const svg = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
+  expect(svg).toContain('정면 간판');
+  expect(svg).toContain('>3,000<');
+  expect(svg).toContain('후렉스 간판');
+  await w.close();
 });
