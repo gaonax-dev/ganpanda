@@ -44,7 +44,8 @@ export function textToShapes(font: Font, text: string, letterSpacing = 0): THREE
     cur = null;
   };
   let x = 0;
-  const glyphs = font.stringToGlyphs(text);
+  // 폰트에 없는 글자(.notdef, 인덱스 0)는 네모 상자 대신 건너뛴다 — 윤곽이 하나도 없으면 호출자가 상자로 대신한다
+  const glyphs = font.stringToGlyphs(text).filter((g) => g.index !== 0 && g.name !== '.notdef');
   const scale = size / font.unitsPerEm;
   for (const g of glyphs) {
     for (const c of g.getPath(x, 0, size).commands) {

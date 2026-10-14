@@ -106,6 +106,33 @@ export class Viewer {
     this.invalidate();
   }
 
+  /**
+   * 벽면 호모그래피에 정확히 맞는 3×4 투영(wallPlane.projectionFromPlane)을 Three 카메라에 적용.
+   * 카메라 위치·회전은 셰이딩용으로 복원 포즈를 쓰고, 정점 변환은 projectionMatrix = M·matrixWorld 로 P 와 똑같게 맞춘다
+   */
+  applyProjection(P: number[], pose: CameraPose, wallW: number, wallH: number) {
+    const { imgW, imgH } = pose;
+    this.applyPose(pose, wallW, wallH); // 위치·회전·그림자·격자
+    // 깊이 범위: 벽면 상자의 모서리 깊이에서
+    const depths = [[0, 0], [wallW, 0], [wallW, wallH], [0, wallH]].map(([x, y]) => P[8] * x + P[9] * y + P[11]).filter((d) => d > 0);
+    // 깊이는 H 정규화(h33=1) 때문에 ~1 근처의 단위 없는 값 — mm 가 아니므로 바닥값을 두면 안 된다 (두면 전부 near 에 잘림)
+    const dmin = Math.max(1e-6, Math.min(...depths) * 0.2), dmax = Math.max(...depths) * 5;
+    const a = (dmax + dmin) / (dmax - dmin), b = (-2 * dmax * dmin) / (dmax - dmin);
+    // 클립 = [ (2/W)·P0 − P2 ; −(2/H)·P1 + P2 ; a·P2 + b ; P2 ]  (NDC x 오른쪽, y 위, z = a + b/깊이)
+    const row = (i: number) => [P[i * 4], P[i * 4 + 1], P[i * 4 + 2], P[i * 4 + 3]];
+    const P0 = row(0), P1 = row(1), P2 = row(2);
+    const m = new THREE.Matrix4().set(
+      (2 / imgW) * P0[0] - P2[0], (2 / imgW) * P0[1] - P2[1], (2 / imgW) * P0[2] - P2[2], (2 / imgW) * P0[3] - P2[3],
+      -(2 / imgH) * P1[0] + P2[0], -(2 / imgH) * P1[1] + P2[1], -(2 / imgH) * P1[2] + P2[2], -(2 / imgH) * P1[3] + P2[3],
+      a * P2[0], a * P2[1], a * P2[2], a * P2[3] + b,
+      P2[0], P2[1], P2[2], P2[3],
+    );
+    this.camera.updateMatrixWorld();
+    this.camera.projectionMatrix.copy(m).multiply(this.camera.matrixWorld);
+    this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+    this.invalidate();
+  }
+
   /** homography 로 복원한 포즈를 Three 카메라에 적용 */
   applyPose(pose: CameraPose, wallW: number, wallH: number) {
     const { R, t, f, imgW, imgH } = pose;

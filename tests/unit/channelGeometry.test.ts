@@ -40,3 +40,17 @@ describe('channelGeometry (채널 간판 입체 글자)', () => {
     expect(w2).toBeCloseTo(w1 * 2, 3);
   });
 });
+
+import { channelGeometry as cg2 } from '../../src/lib/sim/signs';
+describe('글자 윤곽이 없는 문구 (이모지·공백만)', () => {
+  it('폰트에 없는 글자만 있으면 예외 대신 "글자 없음" 오류를 던진다 (렌더러가 상자로 대신)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fontFromBuffer } = await import('../../src/lib/core/textShapes');
+    const buf = readFileSync('node_modules/pretendard/dist/public/static/Pretendard-Bold.otf');
+    const font = fontFromBuffer(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+    const spec = { id: 'x', kind: 'channel' as const, text: '🙂', heightMm: 600, widthMm: 0, depthMm: 80, letterSpacing: 0, lighting: 'none' as const, faceColor: '#fff', sideColor: '#ccc', textColor: '#000', x: 0, y: 0 };
+    expect(() => cg2(spec, font)).toThrow(/글자/);
+    expect(() => cg2({ ...spec, text: '   ' }, font)).toThrow(/글자/);
+    expect(cg2({ ...spec, text: '간판다' }, font).measured.widthMm).toBeGreaterThan(0);
+  });
+});

@@ -72,6 +72,28 @@ test('실사 보기: 사진 속 제자리에 입체 글자를 합성하고, 야�
   await expect(dlg).toHaveCount(0);
 });
 
+test('폰트에 없는 글자(이모지)만 있는 채널 사인물이 있어도 다른 사인물은 그려지고, 그것은 상자로 대신한다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.evaluate(async () => {
+    const path = '/src/lib/sim/sample.ts';
+    const { SAMPLE } = await import(/* @vite-ignore */ path);
+    const hp = '/src/lib/core/homography.ts';
+    const { applyHomography, solveHomography } = await import(/* @vite-ignore */ hp);
+    const H = solveHomography([[0, SAMPLE.wallH], [SAMPLE.wallW, SAMPLE.wallH], [SAMPLE.wallW, 0], [0, 0]], SAMPLE.corners);
+    const rect = (x: number, y: number, w: number, h: number) => [[x, y + h], [x + w, y + h], [x + w, y], [x, y]].map((p) => applyHomography(H, p as [number, number]));
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.project.allPhotos()[0].id;
+    // 먼저 만든 것: 이모지 문구 (글자 윤곽 없음) — 뒤에 만든 것: 보통 문구
+    app.project.addObject({ photoId, name: '이모지', shape: 'rect', quad: rect(600, 4950, 1500, 850), sheetIds: [], productId: 'ch-front', text: '🙂' });
+    app.project.addObject({ photoId, name: '뒤에 만든 것', shape: 'rect', quad: rect(2700, 4950, 1500, 850), sheetIds: [], productId: 'ch-halo', text: '카페' });
+  });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('3', { timeout: 20_000 });
+  await expect(page.getByTestId('render-status')).toContainText('이모지');
+  await expect(page.getByTestId('render-status')).toContainText('상자');
+  await page.getByTestId('close-render').click();
+});
+
 test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 나온다', async ({ page, request }) => {
   await setup(page, request);
   const flat = await makePhoto(page);

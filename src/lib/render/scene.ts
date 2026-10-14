@@ -2,7 +2,7 @@
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
-import { placeOnWall, poseOfPlane, type WallPlane } from '../core/wallPlane';
+import { placeOnWall, poseOfPlane, projectionFromPlane, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
 import { buildChannel, buildLightbox, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
@@ -37,12 +37,14 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
     const placed = objects.map((o) => ({ o, at: placeOnWall(plane, o) }));
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
-    v.applyPose(poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
+    v.applyProjection(projectionFromPlane(plane, photo.w, photo.h), poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
     for (const { o, at } of placed) {
       const spec = renderSpecOf(o, at);
       if (!spec) continue;
       const face = spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
-      const b = spec.kind === 'channel' ? buildChannel(spec, font) : buildLightbox(spec, 'Pretendard, sans-serif', face);
+      let b: BuiltSign;
+      try { b = spec.kind === 'channel' ? buildChannel(spec, font) : buildLightbox(spec, 'Pretendard, sans-serif', face); }
+      catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
       b.group.position.set(spec.x, spec.y, 0);
       if (spec.kind === 'channel') b.group.scale.setScalar(fitScale(b.measured.widthMm, spec.widthMm));
       v.signsRoot.add(b.group);
