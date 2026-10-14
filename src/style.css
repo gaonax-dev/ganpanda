@@ -7,6 +7,7 @@
 }
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }
+body, #app { height: 100dvh; }
 input[type=text], input[type=number], input:not([type]), select {
   background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px;
   padding: 7px 9px; font: inherit; font-size: 13px; width: 100%;
@@ -28,3 +29,7 @@ code { font-size: 11px; }
 .seg { display: flex; background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
 .seg button { flex: 1; background: none; border: 0; color: var(--muted); padding: 6px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
 .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+/* 휴대폰 폭: 두 칸 격자는 한 칸 (창 크기는 각 창의 @media 규칙) */
+@media (max-width: 720px) {
+  .grid2 { grid-template-columns: 1fr; }
+}

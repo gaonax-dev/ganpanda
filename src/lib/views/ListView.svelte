@@ -242,4 +242,9 @@
   .quote footer { padding: 12px 14px; border-top: 1px solid var(--line); }
   .sum { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; font-variant-numeric: tabular-nums; }
   .sum.total { font-size: 16px; font-weight: 800; color: var(--accent); margin: 4px 0 10px; }
+  @media (max-width: 720px) {
+    .quote { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 55%; }
+    .empty { padding-right: 0; padding-bottom: 55%; }
+    .quote header { flex-wrap: wrap; }
+  }
 </style>

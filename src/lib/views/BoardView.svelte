@@ -232,19 +232,19 @@
       {/if}
       <div class="tools" role="toolbar">
         {#if app.canEdit}
-          <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖ 선택</button>
-          <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭ 사각</button>
-          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯ 원형</button>
-          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍 핀</button>
-          <button data-testid="tool-zone" class:on={app.tool === 'zone'} title="작업 존 ({hint('toolZone')})" onclick={() => (app.tool = 'zone')}>▱ 존</button>
+          <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
+          <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
+          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯<span class="lbl"> 원형</span></button>
+          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍<span class="lbl"> 핀</span></button>
+          <button data-testid="tool-zone" class:on={app.tool === 'zone'} title="작업 존 ({hint('toolZone')})" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
           {#if SERVER_URL}
-            <button data-testid="tool-magic" class:on={app.tool === 'magic'} title="자동 분리 · AI ({hint('toolMagic')})" onclick={() => (app.tool = 'magic')}>✨ 자동</button>
+            <button data-testid="tool-magic" class:on={app.tool === 'magic'} title="자동 분리 · AI ({hint('toolMagic')})" onclick={() => (app.tool = 'magic')}>✨<span class="lbl"> 자동</span></button>
           {/if}
           <span class="sep"></span>
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}>↶</button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}>↷</button>
           <span class="sep"></span>
-          <label class="file" title="사진 추가">＋ 사진<input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+          <label class="file" title="사진 추가">＋<span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
         {:else}
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>📍 핀</button>
           <span class="readonly">보기·대화만 가능</span>
@@ -283,4 +283,12 @@
   .readonly { color: var(--muted); font-size: 12px; padding: 7px 11px; }
   .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
   .zoom { color: var(--muted); font-size: 12px; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  .tools button, .tools .file { white-space: nowrap; }
+  /* 휴대폰 폭: 아이콘만, 화면 폭에 맞춰 가로 스크롤 */
+  @media (max-width: 720px) {
+    .tools { left: 8px; right: 8px; bottom: 8px; transform: none; overflow-x: auto; justify-content: flex-start; gap: 2px; scrollbar-width: none; }
+    .tools .lbl, .tools .zoom { display: none; }
+    .tools button, .tools .file { padding: 9px 10px; font-size: 15px; }
+    .empty p { font-size: 15px; text-align: center; padding: 0 16px; }
+  }
 </style>

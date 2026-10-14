@@ -326,4 +326,13 @@
   .warn { color: var(--warn); font-size: 12px; margin: 0; }
   small { color: var(--muted); font-size: 11px; }
   .actions { display: flex; gap: 6px; margin-top: auto; }
+  @media (max-width: 720px) {
+    .backdrop { place-items: stretch; }
+    .dialog { width: 100vw; height: 100%; border-radius: 0; border: 0; }
+    header { gap: 8px; padding: 8px 10px; }
+    h2 { font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    header small { display: none; }
+    .body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 45%); }
+    aside { border-left: 0; border-top: 1px solid var(--line); padding: 10px 12px; }
+  }
 </style>

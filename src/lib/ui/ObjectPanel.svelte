@@ -114,4 +114,9 @@
     background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); color: var(--warn); border-radius: 8px; padding: 6px 10px;
   }
   .chat-sec { flex: 1; min-height: 220px; display: flex; flex-direction: column; padding: 0; border-bottom: 0; }
+  /* 휴대폰 폭: 화면 아래쪽 시트 (사진이 위에 보이게) */
+  @media (max-width: 720px) {
+    .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; border-radius: 14px; }
+    .chat-sec { min-height: 120px; }
+  }
 </style>

@@ -40,10 +40,11 @@
     return () => document.removeEventListener('wheel', block);
   });
 
-  const VIEWS: { id: ViewKind; label: string }[] = [
-    { id: 'board', label: '사진 보드' },
-    { id: 'list', label: '사인물 리스트' },
-    { id: 'uv', label: 'UV 뷰' },
+  /** 휴대폰 폭에서는 짧은 라벨 (short) */
+  const VIEWS: { id: ViewKind; label: string; short: string }[] = [
+    { id: 'board', label: '사진 보드', short: '보드' },
+    { id: 'list', label: '사인물 리스트', short: '리스트' },
+    { id: 'uv', label: 'UV 뷰', short: 'UV' },
   ];
   const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
@@ -57,14 +58,14 @@
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
-      {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>초대 링크</button>{/if}
-      {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>제안 보내기</button>{/if}
-      {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? `✅ 승인됨 · ${app.approval.approval.by}` : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
+      {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
+      {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
+      {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
     <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode}>
       {#each VIEWS as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
-          {v.label}
+          {app.compact ? v.short : v.label}
           {#if v.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
           {#if v.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
           {#if v.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
@@ -79,7 +80,7 @@
         {/each}
       </span>
       {#if app.room}
-        <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {SYNC_LABEL[app.sync]}</span>
+        <span class="sync" data-testid="sync-status" data-status={app.sync} title={SYNC_LABEL[app.sync]}>● {app.compact ? '' : SYNC_LABEL[app.sync]}</span>
       {/if}
       {#if app.account}
         <span class="account">
@@ -167,6 +168,19 @@
   .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; }
   .banner.warn { background: rgba(255, 170, 0, 0.14); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+  .project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* 휴대폰 폭: 두 줄(위 = 프로젝트·버튼·계정, 아래 = 뷰 탭), 라벨은 축약, 접속자·역할은 숨김 */
+  @media (max-width: 720px) {
+    .top { flex-wrap: wrap; gap: 8px; padding: 6px 10px; }
+    .project { flex: 1; max-width: 40vw; font-size: 13px; }
+    .role, .peers { display: none; }
+    .views { order: 10; flex-basis: 100%; justify-content: stretch; }
+    .views button { flex: 1; justify-content: center; padding: 6px 8px; }
+    .right { gap: 6px; }
+    .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+    .toasts { left: 12px; right: 12px; bottom: 76px; }
+    .toast { width: auto; }
+  }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
   .project { font-weight: 600; font-size: 14px; }
   .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }

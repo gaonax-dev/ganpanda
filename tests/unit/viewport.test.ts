@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitRect, pan, toScreen, toWorld, zoomAt, type Viewport } from '../../src/lib/core/viewport';
+import { fitRect, pan, toScreen, toWorld, zoomAt, type Viewport, type XY } from '../../src/lib/core/viewport';
 
 const v0: Viewport = { x: 100, y: 50, zoom: 2 };
 
@@ -36,5 +36,32 @@ describe('무한 캔버스 뷰포트', () => {
     const c = toScreen(v, { x: 500, y: 250 });
     expect(c.x).toBeCloseTo(400);
     expect(c.y).toBeCloseTo(300);
+  });
+});
+
+describe('핀치 (두 손가락)', async () => {
+  const { pinch } = await import('../../src/lib/core/viewport');
+  it('두 손가락을 벌리면 가운데 점의 world 좌표가 고정된 채 거리 비율만큼 확대된다', () => {
+    const prev: [XY, XY] = [{ x: 100, y: 200 }, { x: 300, y: 200 }];
+    const now: [XY, XY] = [{ x: 0, y: 200 }, { x: 400, y: 200 }]; // 200 → 400 = 2배
+    const mid = { x: 200, y: 200 };
+    const before = toWorld(v0, mid);
+    const v1 = pinch(v0, prev, now);
+    expect(v1.zoom).toBeCloseTo(4);
+    const after = toWorld(v1, mid);
+    expect(after.x).toBeCloseTo(before.x);
+    expect(after.y).toBeCloseTo(before.y);
+  });
+  it('두 손가락을 같이 옮기면 확대 없이 이동한다', () => {
+    const prev: [XY, XY] = [{ x: 100, y: 200 }, { x: 300, y: 200 }];
+    const now: [XY, XY] = [{ x: 130, y: 250 }, { x: 330, y: 250 }];
+    const v1 = pinch(v0, prev, now);
+    expect(v1.zoom).toBeCloseTo(v0.zoom);
+    expect(v1.x).toBeCloseTo(v0.x + 30);
+    expect(v1.y).toBeCloseTo(v0.y + 50);
+  });
+  it('손가락이 겹쳐 거리가 0 이면 확대하지 않는다', () => {
+    const v1 = pinch(v0, [{ x: 10, y: 10 }, { x: 10, y: 10 }], [{ x: 10, y: 10 }, { x: 50, y: 10 }]);
+    expect(v1.zoom).toBeCloseTo(v0.zoom);
   });
 });
