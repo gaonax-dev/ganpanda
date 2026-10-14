@@ -1,5 +1,6 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
+import { isSpecField, specOf } from './link';
 import type { Attachment, DesignSource, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
 
 type Fields<T> = Omit<T, 'id'>;
@@ -143,8 +144,36 @@ export class Project {
     return id;
   }
 
+  /** 연결된 영역(sameAs)의 규격 변경은 원본으로, 위치·기준 체크는 자기 것으로 */
   updateObject(id: string, patch: Partial<Fields<SignObject>>) {
-    this.patch(this.objects.get(id), patch);
+    const m = this.objects.get(id);
+    const masterId = m?.get('sameAs') as string | undefined;
+    const master = masterId ? this.objects.get(masterId) : undefined;
+    if (!master || 'sameAs' in patch) { this.patch(m, patch); return; } // 연결 자체의 변경은 자기 것
+    const own: Record<string, unknown> = {}, spec: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) (isSpecField(k) ? spec : own)[k] = v;
+    this.doc.transact(() => { this.patch(m, own); this.patch(master, spec); });
+  }
+
+  // ---------- 여러 사진의 같은 사인물 ----------
+
+  /** id 영역을 masterId 사인물과 같은 것으로. 연결된 영역에 연결하면 그 원본으로, 자기 연결 영역들은 따라온다 */
+  linkObject(id: string, masterId: string) {
+    const target = this.object(masterId);
+    if (!target || masterId === id) return;
+    const root = target.sameAs && this.objects.has(target.sameAs) ? target.sameAs : masterId;
+    if (root === id) return;
+    this.doc.transact(() => {
+      this.patch(this.objects.get(id), { sameAs: root });
+      for (const c of this.allObjects()) if (c.sameAs === id) this.patch(this.objects.get(c.id), { sameAs: root });
+    });
+  }
+
+  /** 연결 해제: 그 시점의 원본 규격을 복사해 독립 사인물로 */
+  unlinkObject(id: string) {
+    const o = this.object(id);
+    const master = o?.sameAs ? this.object(o.sameAs) : undefined;
+    this.patch(this.objects.get(id), { ...(master ? specOf(master) : {}), sameAs: undefined });
   }
 
   object(id: string) {
@@ -162,8 +191,18 @@ export class Project {
     return this.allObjects().filter((o) => o.photoId === photoId);
   }
 
+  /** 삭제. 원본이면 첫 연결 영역이 새 원본이 되고(규격·대화 승계) 나머지는 그쪽으로 */
   removeObject(id: string) {
     this.doc.transact(() => {
+      const o = this.object(id);
+      const copies = o ? this.allObjects().filter((c) => c.sameAs === id) : [];
+      if (o && copies.length) {
+        const heir = copies[0].id;
+        this.patch(this.objects.get(heir), { ...specOf(o), sameAs: undefined });
+        for (const c of copies.slice(1)) this.patch(this.objects.get(c.id), { sameAs: heir });
+        const arr = this.messages.toArray();
+        for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === id) { this.messages.delete(i, 1); this.messages.insert(i, [{ ...arr[i], objectId: heir }]); }
+      }
       this.objects.delete(id);
       this.deleteMessagesOf(id);
     });

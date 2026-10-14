@@ -26,7 +26,7 @@
     <table>
       <thead><tr><th>#</th><th>항목</th><th>규격·산출</th><th class="r">금액</th></tr></thead>
       <tbody>
-        {#each app.objects as o, i (o.id)}
+        {#each app.signs as o, i (o.id)}
           {@const sz = app.sizeOf(o)}
           {@const lines = q.lines.filter((l) => l.objectId === o.id)}
           {#if lines.length}

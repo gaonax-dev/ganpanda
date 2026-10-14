@@ -85,7 +85,7 @@
   }
 
   function create(photoId: string, shape: ShapeKind, quad: Pt[]) {
-    const n = app.objects.length + 1;
+    const n = app.signs.length + 1;
     app.editBoundary();
     const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape, quad, sheetIds: [] });
     app.editBoundary();
