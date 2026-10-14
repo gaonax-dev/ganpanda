@@ -1,155 +1,20 @@
-// 실측 기준선 (사용자 결정 2026-10-13): 실측한 사인물의 변을 기준선으로 삼아
-// 가로선 → 가로 축척, 세로선 → 세로 축척을 따로 정하고, 소실점으로 벽면을 정면 보정한다.
-import { DEFAULT_FOCAL_RATIO, type Pt } from './homography';
-import type { SignObject } from './model';
+// 벽면 보정 결과와 모서리 붙이기. 보정 자체는 사진별 카메라 설정(camera.ts)에서 만든다.
+import type { Pt } from './homography';
 
-export interface RefLine { objectId: string; edge: 'top' | 'bottom' | 'left' | 'right'; kind: 'h' | 'v'; a: Pt; b: Pt; mm: number }
 export interface Calibration {
-  /** 사진 px → 정면 보정 좌표 (축척 전) */
+  /** 사진 px → 벽면 좌표 (축척 전) */
   H: number[];
   sx: number; sy: number;
-  /** 기준선별 축척 편차 (평균 대비, +0.1 = 10% 큼) */
-  perRef: { objectId: string; edge: RefLine['edge']; kind: RefLine['kind']; deviation: number }[];
+  /** (옛 기준선 방식의 흔적) 기준별 편차 — 카메라 설정에서는 비어 있다 */
+  perRef: { objectId: string; edge: 'top' | 'bottom' | 'left' | 'right'; kind: 'h' | 'v'; deviation: number }[];
   warnings: string[];
 }
-export const REF_TOLERANCE = 0.1;
 
-/** 소실점 계산에 쓰는 선 (치수 없음): 모든 사인물 영역의 네 변 */
-export interface EdgeLine { kind: 'h' | 'v'; a: Pt; b: Pt }
-export interface CalibrateOptions {
-  /** 소실점에 보탤 선들 (치수 불필요). 기준선이 한 축뿐이어도 다른 축의 소실점을 얻는다 */
-  edges?: EdgeLine[];
-  /** 사진 크기 — 있으면 소실점 직교로 초점거리를 추정해 한 축만 있을 때 다른 축 축척을 카메라 기하로 맞춘다 */
-  imgW?: number; imgH?: number;
-}
-
-/** 모든 영역의 네 변 (소실점용). 찌그러진 영역은 제외하지 않는다 — 소실점은 최소제곱이라 영향이 작다 */
-export function edgesFromObjects(objs: { quad: Pt[] }[]): EdgeLine[] {
-  return objs.flatMap((o) => {
-    const [tl, tr, br, bl] = o.quad;
-    return [{ kind: 'h', a: tl, b: tr }, { kind: 'h', a: bl, b: br }, { kind: 'v', a: tl, b: bl }, { kind: 'v', a: tr, b: br }] as EdgeLine[];
-  });
-}
-
-type V3 = [number, number, number];
-const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const lineOf = (p: Pt, q: Pt): V3 => cross([p[0], p[1], 1], [q[0], q[1], 1]);
-const norm3 = (v: V3): V3 => { const n = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / n, v[1] / n, v[2] / n]; };
-
-/** 사인물 → 기준선: 가로 기준은 위·아래 변(가로 mm), 세로 기준은 좌·우 변(세로 mm) */
-export function refsFromObjects(objs: SignObject[]): RefLine[] {
-  const out: RefLine[] = [];
-  for (const o of objs) {
-    const [tl, tr, br, bl] = o.quad;
-    if (o.refH && o.widthMm) {
-      out.push({ objectId: o.id, edge: 'top', kind: 'h', a: tl, b: tr, mm: o.widthMm });
-      out.push({ objectId: o.id, edge: 'bottom', kind: 'h', a: bl, b: br, mm: o.widthMm });
-    }
-    if (o.refV && o.heightMm) {
-      out.push({ objectId: o.id, edge: 'left', kind: 'v', a: tl, b: bl, mm: o.heightMm });
-      out.push({ objectId: o.id, edge: 'right', kind: 'v', a: tr, b: br, mm: o.heightMm });
-    }
-  }
-  return out;
-}
-
-/** 3×3 대칭 행렬의 최소 고유벡터 (야코비 회전) */
-function smallestEigenvector(M: number[]): V3 {
-  const a = M.slice();
-  let V = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-  for (let iter = 0; iter < 50; iter++) {
-    let p = 0, q = 1, max = Math.abs(a[1]);
-    if (Math.abs(a[2]) > max) { p = 0; q = 2; max = Math.abs(a[2]); }
-    if (Math.abs(a[5]) > max) { p = 1; q = 2; max = Math.abs(a[5]); }
-    if (max < 1e-12) break;
-    const app = a[p * 3 + p], aqq = a[q * 3 + q], apq = a[p * 3 + q];
-    const th = 0.5 * Math.atan2(2 * apq, aqq - app);
-    const c = Math.cos(th), s = Math.sin(th);
-    const R = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-    R[p * 3 + p] = c; R[p * 3 + q] = s; R[q * 3 + p] = -s; R[q * 3 + q] = c;
-    const mul = (x: number[], y: number[]) => { const r = new Array(9).fill(0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) r[i * 3 + j] += x[i * 3 + k] * y[k * 3 + j]; return r; };
-    const Rt = [R[0], R[3], R[6], R[1], R[4], R[7], R[2], R[5], R[8]];
-    const next = mul(mul(Rt, a), R);
-    for (let i = 0; i < 9; i++) a[i] = next[i];
-    V = mul(V, R);
-  }
-  const ev = [a[0], a[4], a[8]];
-  const k = ev.indexOf(Math.min(...ev));
-  return norm3([V[k], V[3 + k], V[6 + k]]);
-}
-
-/** 선들의 소실점 (동차). 평행하면 무한원점(방향)이 나온다 */
-function vanishing(lines: V3[]): V3 {
-  const M = new Array(9).fill(0);
-  for (const l of lines) { const n = norm3(l); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[i * 3 + j] += n[i] * n[j]; }
-  return smallestEigenvector(M);
-}
-
-function invert3(m: number[]): number[] | null {
-  const [a, b, c, d, e, f, g, h, i] = m;
-  const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
-  const det = a * A + b * B + c * C;
-  if (Math.abs(det) < 1e-12) return null;
-  return [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d].map((v) => v / det);
-}
 const applyH = (H: number[], [x, y]: Pt): Pt => {
   const w = H[6] * x + H[7] * y + H[8];
   return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w];
 };
 const len = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-
-export function calibrate(refs: RefLine[], opts: CalibrateOptions = {}): Calibration | null {
-  const hs = refs.filter((r) => r.kind === 'h'), vs = refs.filter((r) => r.kind === 'v');
-  if (!hs.length && !vs.length) return null;
-  const warnings: string[] = [];
-  // 소실점: 기준선 + 모든 영역의 변. 한 축에 선이 전혀 없으면 사진 축 방향(무한원점)으로 가정
-  const hLines = [...hs, ...(opts.edges ?? []).filter((e) => e.kind === 'h')].map((r) => lineOf(r.a, r.b));
-  const vLines = [...vs, ...(opts.edges ?? []).filter((e) => e.kind === 'v')].map((r) => lineOf(r.a, r.b));
-  const vx = hLines.length ? vanishing(hLines) : ([1, 0, 0] as V3);
-  const vy = vLines.length ? vanishing(vLines) : ([0, 1, 0] as V3);
-  // 기준 원점: 기준선 끝점들의 평균 (유한점)
-  const pts = refs.flatMap((r) => [r.a, r.b]);
-  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-  // 정면 보정: 소실점 vx→x축 무한원점, vy→y축 무한원점, 원점 c→원점.  H⁻¹ = [vx vy c]
-  const Hinv = [vx[0], vy[0], cx, vx[1], vy[1], cy, vx[2], vy[2], 1];
-  const H = invert3(Hinv);
-  if (!H) return null;
-  const scaleOf = (r: RefLine) => r.mm / Math.max(1e-9, len(applyH(H, r.a), applyH(H, r.b)));
-  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-  const sx = hs.length ? mean(hs.map(scaleOf)) : NaN;
-  const sy = vs.length ? mean(vs.map(scaleOf)) : NaN;
-  // 한 축만 있을 때: 정면 보정(affine)은 축 비율을 모르므로, 소실점 직교로 초점거리를 구해 비율을 카메라 기하로 보정한다
-  let SX = isNaN(sx) ? sy : sx, SY = isNaN(sy) ? sx : sy;
-  if (isNaN(sx) !== isNaN(sy)) {
-    const ratio = opts.imgW && opts.imgH ? axisRatio(vx, vy, opts.imgW, opts.imgH) : null;
-    const how = ratio ? '카메라 기하(소실점)로 추정' : '가로·세로 축척이 같다고 가정';
-    if (isNaN(sy)) { if (ratio) SY = sx * ratio; warnings.push(`세로 기준이 없어 세로 축척을 ${how}합니다.`); }
-    else { if (ratio) SX = sy / ratio; warnings.push(`가로 기준이 없어 가로 축척을 ${how}합니다.`); }
-  }
-  const perRef = refs.map((r) => ({ objectId: r.objectId, edge: r.edge, kind: r.kind, deviation: scaleOf(r) / (r.kind === 'h' ? SX : SY) - 1 }));
-  for (const r of perRef) if (Math.abs(r.deviation) > REF_TOLERANCE) warnings.push(`${r.objectId} 의 ${r.kind === 'h' ? '가로' : '세로'} 기준이 다른 기준과 ${Math.round(Math.abs(r.deviation) * 100)}% 어긋납니다.`);
-  return { H, sx: SX, sy: SY, perRef, warnings };
-}
-
-/**
- * 세로 축척 / 가로 축척 비율 (정면 보정 좌표계 기준). 벽의 x·y 방향 r1,r2 는 소실점 vx,vy 로 K·r = λ·v 이므로
- * |K⁻¹vx| : |K⁻¹vy| 가 두 축의 "정면 보정 단위당 mm" 비율이 된다. 초점거리는 소실점 직교(r1·r2=0)에서,
- * 한 소실점이 무한원점이면 기본 초점거리(장변×0.75)를 쓴다.
- */
-function axisRatio(vx: V3, vy: V3, imgW: number, imgH: number): number | null {
-  const cx = imgW / 2, cy = imgH / 2;
-  const centered = (v: V3): V3 => [v[0] - cx * v[2], v[1] - cy * v[2], v[2]];
-  const a = centered(vx), b = centered(vy);
-  let f2 = NaN;
-  if (Math.abs(a[2]) > 1e-9 && Math.abs(b[2]) > 1e-9) f2 = -(a[0] * b[0] + a[1] * b[1]) / (a[2] * b[2]);
-  const long = Math.max(imgW, imgH);
-  const f = f2 > (0.3 * long) ** 2 && f2 < (4 * long) ** 2 ? Math.sqrt(f2) : DEFAULT_FOCAL_RATIO * long;
-  const nK = (v: V3) => Math.hypot(v[0] / f, v[1] / f, v[2]);
-  const na = nK(a), nb = nK(b);
-  if (!(na > 0) || !(nb > 0)) return null;
-  const r = nb / na;
-  return isFinite(r) && r > 0.2 && r < 5 ? r : null;
-}
 
 /** 사각 영역의 실제 크기: 위·아래 변 평균 × 가로 축척, 좌·우 변 평균 × 세로 축척 */
 export function measureQuad(c: Calibration, quad: Pt[]): { widthMm: number; heightMm: number } {
@@ -157,14 +22,14 @@ export function measureQuad(c: Calibration, quad: Pt[]): { widthMm: number; heig
   return { widthMm: ((len(tl, tr) + len(bl, br)) / 2) * c.sx, heightMm: ((len(tl, bl) + len(tr, br)) / 2) * c.sy };
 }
 
-// ---------- 모서리 보정 (AI 평가) ----------
+// ---------- 모서리 붙이기 (AI) ----------
 export interface Gray { data: Uint8Array | Uint8ClampedArray; width: number; height: number }
 
 /**
- * 기준선을 법선 방향으로 ±range px 옮겨 보며 밝기 변화가 가장 큰 위치에 붙인다.
+ * 선을 법선 방향으로 ±range px 옮겨 보며 밝기 변화가 가장 큰 위치(사진 속 실제 모서리)에 붙인다.
  * confidence = (최대 변화 − 평균 변화) / 최대 변화 (0~1). 모서리가 없으면 낮다
  */
-export function snapEdge(img: Gray, line: RefLine, range = 8): { a: Pt; b: Pt; offset: number; confidence: number } {
+export function snapEdge(img: Gray, line: { a: Pt; b: Pt }, range = 8): { a: Pt; b: Pt; offset: number; confidence: number } {
   const dx = line.b[0] - line.a[0], dy = line.b[1] - line.a[1];
   const L = Math.hypot(dx, dy) || 1;
   const nx = -dy / L, ny = dx / L; // 법선

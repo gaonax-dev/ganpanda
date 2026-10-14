@@ -7,7 +7,8 @@ import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
-import { calibrate, edgesFromObjects, refsFromObjects, snapEdge, type Calibration, type RefLine } from './core/calibration';
+import type { Calibration } from './core/calibration';
+import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { putAsset, StorageLimitError } from './assets';
 import { formatBytes } from './core/format';
@@ -122,26 +123,16 @@ class AppState {
     const root = s.sameAs ?? s.id;
     return this.objects.filter((o) => o.id !== s.id && (o.id === root || o.sameAs === root)).map((o) => o.id);
   });
-  /** 사진별 기준선 구성 키 (사인물 id·변·치수·좌표) — 바뀌면 다시 평가·적용 */
-  refsKeys = $derived.by(() => {
-    const out = new Map<string, string>();
-    for (const p of this.photos) {
-      const refs = refsFromObjects(this.objects.filter((o) => o.photoId === p.id));
-      out.set(p.id, refs.length ? JSON.stringify(refs.map((r) => [r.objectId, r.edge, r.mm, r.a, r.b])) : '');
-    }
+  /** 사진별 카메라 (사진에 저장된 설정을 풀어서) */
+  cameras = $derived.by(() => {
+    const out = new Map<string, CameraSolution>();
+    for (const p of this.photos) if (p.camera) { const c = solveCamera(p.camera, p.w, p.h); if (c) out.set(p.id, c); }
     return out;
   });
-  /** 적용된 보정 (키가 현재 구성과 같을 때만) */
+  /** 실측·벽면 코드가 쓰는 보정 (카메라 → 사진 px → 벽 mm) */
   calibrations = $derived.by(() => {
     const out = new Map<string, Calibration>();
-    for (const p of this.photos) {
-      const key = this.refsKeys.get(p.id);
-      if (key && p.calib?.key === key) {
-        const objs = this.objects.filter((o) => o.photoId === p.id);
-        const c = calibrate(refsFromObjects(objs), { edges: edgesFromObjects(objs), imgW: p.w, imgH: p.h });
-        if (c) out.set(p.id, c);
-      }
-    }
+    for (const [id, c] of this.cameras) out.set(id, calibrationOf(c));
     return out;
   });
   /** 사진별 실측 판독 결과 (기준선 보정이 적용된 사진은 그 축척으로) */
@@ -152,12 +143,16 @@ class AppState {
     }
     return out;
   });
-  /** AI 평가 결과 (저장하지 않음) */
-  calibEvals = $state<Record<string, { key: string; refs: (RefLine & { offset: number; confidence: number; deviation: number; manual?: boolean })[]; warnings: string[]; snapped: Record<string, Pt[]> }>>({});
-  calibBusy = $state(false);
-  /** 기준선 직접 조정 창 (사진 id) */
-  calibEditPhotoId = $state<string | null>(null);
-  calibEditPhoto = $derived(this.calibEditPhotoId ? this.photos.find((p) => p.id === this.calibEditPhotoId) ?? null : null);
+  /** 카메라 설정 창 (사진 id) 과 편집 중인 설정 (적용 전) */
+  cameraPhotoId = $state<string | null>(null);
+  cameraPhoto = $derived(this.cameraPhotoId ? this.photos.find((p) => p.id === this.cameraPhotoId) ?? null : null);
+  cameraDraft = $state<CameraSetup | null>(null);
+  cameraBusy = $state(false);
+  /** 편집 중인 설정의 풀이 (경고·초점거리 표시용) */
+  cameraDraftSolution = $derived.by(() => {
+    const p = this.cameraPhoto, d = this.cameraDraft;
+    return p && d ? solveCamera(d, p.w, p.h) : null;
+  });
   pins = $derived.by(() => (this.version, this.project.allPins()));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
@@ -233,90 +228,58 @@ class AppState {
     this.accountPrices = me?.prices ?? null;
   }
 
-  /** 기준선 상태: none / unevaluated / evaluated / applied / stale */
-  calibStatus(photoId: string): 'none' | 'unevaluated' | 'evaluated' | 'applied' | 'stale' {
-    const key = this.refsKeys.get(photoId);
-    if (!key) return 'none';
-    const photo = this.photos.find((p) => p.id === photoId);
-    if (photo?.calib?.key === key) return 'applied';
-    if (this.calibEvals[photoId]?.key === key) return 'evaluated';
-    return photo?.calib ? 'stale' : 'unevaluated';
-  }
+  // ---------- 카메라 설정 (사진별, 사인물과 무관) ----------
 
-  /** AI 평가: 각 기준선을 사진 모서리에 붙여 보정하고, 보정된 기준으로 축척 모순을 점검 */
-  async evaluateCalibration(photoId: string) {
-    const photo = this.project.photo(photoId);
-    if (!photo || !this.canEdit) return;
-    this.calibBusy = true;
+  /** 설정 창 열기: 저장된 설정이 있으면 그것, 없으면 사진 크기 기준 기본 배치로 시작 */
+  openCamera(photoId: string) {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p) return;
+    this.cameraDraft = p.camera ? (JSON.parse(JSON.stringify(p.camera)) as CameraSetup) : defaultCameraSetup(p.w, p.h);
+    this.cameraPhotoId = photoId;
+  }
+  closeCamera() { this.cameraPhotoId = null; this.cameraDraft = null; }
+
+  /** AI 자동 제안: 사진의 강한 직선에서 가로·세로 축 선을 찾고 끝점을 모서리에 붙인다. 원점·기준 길이는 유지 */
+  async proposeCamera() {
+    const p = this.cameraPhoto;
+    if (!p || !this.cameraDraft || !this.canEdit) return false;
+    this.cameraBusy = true;
     try {
-      const objs = this.project.objectsOf(photoId);
-      const refs = refsFromObjects(objs);
-      const key = this.refsKeys.get(photoId) ?? '';
-      const gray = await this.grayOf(photo.assetId, photo.w, photo.h);
-      // 변마다 보정 → 꼭짓점 이동 (한 꼭짓점은 두 변의 이동을 합친다)
-      const shift: Record<string, [number, number][]> = {};
-      const results = refs.map((r) => {
-        const snap = gray ? snapEdge(gray, r, 8) : { a: r.a, b: r.b, offset: 0, confidence: 0 };
-        const dx = snap.a[0] - r.a[0], dy = snap.a[1] - r.a[1];
-        const o = objs.find((x) => x.id === r.objectId)!;
-        const sh = (shift[o.id] ??= o.quad.map(() => [0, 0]));
-        const idx = r.edge === 'top' ? [0, 1] : r.edge === 'bottom' ? [3, 2] : r.edge === 'left' ? [0, 3] : [1, 2];
-        for (const i of idx) { sh[i][0] += dx; sh[i][1] += dy; }
-        return { ...r, offset: Math.round(snap.offset), confidence: snap.confidence };
-      });
-      const snapped: Record<string, Pt[]> = {};
-      for (const o of objs) if (shift[o.id]) snapped[o.id] = o.quad.map((p, i) => [Math.round(p[0] + shift[o.id][i][0]), Math.round(p[1] + shift[o.id][i][1])] as Pt);
-      const snappedObjs = objs.map((o) => (snapped[o.id] ? { ...o, quad: snapped[o.id] } : o));
-      const c = calibrate(refsFromObjects(snappedObjs), { edges: edgesFromObjects(snappedObjs), imgW: photo.w, imgH: photo.h });
-      const withDev = results.map((r) => ({ ...r, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
-      this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs: withDev, warnings: c?.warnings ?? ['기준을 계산할 수 없습니다.'], snapped } };
-    } finally { this.calibBusy = false; }
+      const gray = await this.grayOf(p.assetId, p.w, p.h);
+      const found = gray && proposeAxisLines(gray);
+      if (!gray || !found) return false;
+      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y });
+      return true;
+    } finally { this.cameraBusy = false; }
   }
 
-  /** 직접 조정 창용: 평가가 없거나 낡았으면 현재 영역 그대로(보정 0)로 평가 항목을 만든다 */
-  ensureCalibEval(photoId: string) {
-    const key = this.refsKeys.get(photoId) ?? '';
-    if (this.calibEvals[photoId]?.key === key) return;
-    const objs = this.project.objectsOf(photoId);
-    const photo = this.project.photo(photoId);
-    const c = photo ? calibrate(refsFromObjects(objs), { edges: edgesFromObjects(objs), imgW: photo.w, imgH: photo.h }) : null;
-    const refs = refsFromObjects(objs).map((r) => ({ ...r, offset: 0, confidence: 0, deviation: c?.perRef.find((p) => p.objectId === r.objectId && p.edge === r.edge)?.deviation ?? 0 }));
-    this.calibEvals = { ...this.calibEvals, [photoId]: { key, refs, warnings: c?.warnings ?? [], snapped: {} } };
+  /** 현재 선들의 끝점을 사진 모서리에 붙인다 */
+  async snapCamera() {
+    const p = this.cameraPhoto;
+    if (!p || !this.cameraDraft || !this.canEdit) return;
+    this.cameraBusy = true;
+    try {
+      const gray = await this.grayOf(p.assetId, p.w, p.h);
+      if (gray) this.cameraDraft = snapSetup(gray, this.cameraDraft);
+    } finally { this.cameraBusy = false; }
   }
 
-  /** 사람이 꼭짓점을 직접 옮김 (AI 가 잡은 선을 수정). 닿는 기준선은 '직접 조정'으로 표시하고 편차를 다시 계산 */
-  setCalibVertex(photoId: string, objectId: string, index: number, p: Pt) {
+  /** 적용: 사진에 저장 (실시간 공유·⌘Z 가능) */
+  applyCamera() {
+    const p = this.cameraPhoto;
+    if (!p || !this.cameraDraft || !this.canEdit) return;
+    this.editBoundary();
+    this.project.updatePhoto(p.id, { camera: $state.snapshot(this.cameraDraft) as CameraSetup });
+    this.editBoundary();
+    this.closeCamera();
+  }
+
+  clearCamera(photoId: string) {
     if (!this.canEdit) return;
-    this.ensureCalibEval(photoId);
-    const ev = this.calibEvals[photoId];
-    const photo = this.project.photo(photoId);
-    const objs = this.project.objectsOf(photoId);
-    const o = objs.find((x) => x.id === objectId);
-    if (!ev || !photo || !o) return;
-    const quad = (ev.snapped[objectId] ?? o.quad).map((q) => [...q] as Pt);
-    quad[index] = [Math.round(p[0]), Math.round(p[1])];
-    const snapped = { ...ev.snapped, [objectId]: quad };
-    const snappedObjs = objs.map((x) => (snapped[x.id] ? { ...x, quad: snapped[x.id] } : x));
-    const c = calibrate(refsFromObjects(snappedObjs), { edges: edgesFromObjects(snappedObjs), imgW: photo.w, imgH: photo.h });
-    const touched = index === 0 ? ['top', 'left'] : index === 1 ? ['top', 'right'] : index === 2 ? ['bottom', 'right'] : ['bottom', 'left'];
-    const fresh = refsFromObjects(snappedObjs);
-    const refs = ev.refs.map((r) => {
-      const now = fresh.find((f) => f.objectId === r.objectId && f.edge === r.edge);
-      const manual = r.manual || (r.objectId === objectId && touched.includes(r.edge));
-      return { ...r, ...(now ? { a: now.a, b: now.b } : {}), manual, deviation: c?.perRef.find((x) => x.objectId === r.objectId && x.edge === r.edge)?.deviation ?? 0 };
-    });
-    this.calibEvals = { ...this.calibEvals, [photoId]: { ...ev, refs, warnings: c?.warnings ?? [], snapped } };
-  }
-
-  /** 전체 적용: 보정된 사각 영역을 저장하고 이 구성을 적용된 기준으로 기록 */
-  applyCalibration(photoId: string) {
-    const ev = this.calibEvals[photoId];
-    if (!ev || !this.canEdit) return;
     this.editBoundary();
-    for (const [id, quad] of Object.entries(ev.snapped)) this.project.updateObject(id, { quad });
-    const key = JSON.stringify(refsFromObjects(this.project.objectsOf(photoId)).map((r) => [r.objectId, r.edge, r.mm, r.a, r.b]));
-    this.project.updatePhoto(photoId, { calib: { key, at: Date.now() } });
+    this.project.updatePhoto(photoId, { camera: undefined });
     this.editBoundary();
+    if (this.cameraPhotoId === photoId) this.closeCamera();
   }
 
   /** 사진의 회색조 (긴 변 1600px 이하로 줄이지 않고 원본 크기 — 좌표가 사진 px 이므로) */
@@ -685,4 +648,15 @@ function save(k: string, v: string) {
 
 export const app = new AppState();
 // 개발·E2E 전용 훅 (운영 빌드에는 없음)
+/** 처음 여는 사진의 기본 배치: 가로 선 두 개(위·아래), 세로 선 두 개(좌·우), 원점 좌하단, 기준 길이 아래 가로 */
+export function defaultCameraSetup(w: number, h: number): CameraSetup {
+  return {
+    x: [{ a: [w * 0.2, h * 0.3], b: [w * 0.8, h * 0.3] }, { a: [w * 0.2, h * 0.7], b: [w * 0.8, h * 0.7] }],
+    y: [{ a: [w * 0.25, h * 0.2], b: [w * 0.25, h * 0.8] }, { a: [w * 0.75, h * 0.2], b: [w * 0.75, h * 0.8] }],
+    origin: [w * 0.25, h * 0.7],
+    ref: { a: [w * 0.3, h * 0.78], b: [w * 0.5, h * 0.78], axis: 'x', mm: 1000 },
+    principal: 'center',
+  };
+}
+
 if (import.meta.env.DEV) (window as unknown as { __ganpanda: AppState }).__ganpanda = app;

@@ -80,7 +80,7 @@
     const v = viewer;
     if (!v || !font) return;
     clear();
-    if (!p) { status = '치수를 입력한 사인물이나 기준선 적용이 필요합니다.'; count = 0; v.invalidate(); return; }
+    if (!p) { status = '카메라 설정(또는 치수를 입력한 사인물)이 필요합니다.'; count = 0; v.invalidate(); return; }
     status = '합성 중…';
     const placed = os.map((o) => ({ o, at: placeOnWall(p, o) }));
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
@@ -134,7 +134,7 @@
     </div>
     <footer>
       {#if plane}
-        <small>벽면 기준: {plane.source === 'calibration' ? '기준선 보정' : `치수를 입력한 첫 사인물`} · 입체 글자는 채널 제품 + 문구, 보드·시트는 면으로 표시됩니다.</small>
+        <small>벽면 기준: {plane.source === 'calibration' ? '카메라 설정' : `치수를 입력한 첫 사인물 (카메라 설정 권장)`} · 입체 글자는 채널 제품 + 문구, 보드·시트는 면으로 표시됩니다.</small>
       {:else}
         <small>사인물 하나에 가로·세로 치수를 넣거나 기준선을 적용하면 사진 속 벽면에 합성합니다.</small>
       {/if}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calibrate, refsFromObjects } from '../../src/lib/core/calibration';
+import { calibrationOf, solveCamera } from '../../src/lib/core/camera';
 import { applyHomography, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
 import type { SignObject } from '../../src/lib/core/model';
 import { placeOnWall, poseOfPlane, wallPlaneOf } from '../../src/lib/core/wallPlane';
@@ -20,15 +20,21 @@ const rectOn = (p: CameraPose, x: number, y: number, w: number, h: number): Pt[]
 const obj = (id: string, quad: Pt[], o: Partial<SignObject> = {}): SignObject =>
   ({ id, photoId: 'p', name: id, shape: 'rect', quad, sheetIds: [], createdAt: 0, ...o });
 const P = pose(0.45, -0.1, [3000, 2000, 8000]);
-const sign = obj('sign', rectOn(P, 1000, 2500, 4000, 900), { widthMm: 4000, heightMm: 900, refH: true });
-const door = obj('door', rectOn(P, 5500, 0, 1200, 2100), { widthMm: 1200, heightMm: 2100, refV: true });
+const sign = obj('sign', rectOn(P, 1000, 2500, 4000, 900), { widthMm: 4000, heightMm: 900 });
+const door = obj('door', rectOn(P, 5500, 0, 1200, 2100), { widthMm: 1200, heightMm: 2100 });
+/** 카메라 설정: 간판·문의 변을 축 선으로, 원점 = 벽 좌하단, 기준 길이 = 간판 가로 */
+const pr = (x: number, y: number): Pt => projectPoint(P, [x, y, 0]);
+const camera = calibrationOf(solveCamera({
+  x: [{ a: pr(1000, 2500), b: pr(5000, 2500) }, { a: pr(0, 0), b: pr(6000, 0) }],
+  y: [{ a: pr(5500, 0), b: pr(5500, 2100) }, { a: pr(1000, 2500), b: pr(1000, 3400) }],
+  origin: pr(0, 0), ref: { a: pr(1000, 2500), b: pr(5000, 2500), axis: 'x', mm: 4000 },
+}, imgW, imgH)!);
 const band = obj('band', rectOn(P, 0, 3600, 6000, 600)); // 치수 없음 → 벽면에서 추정
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b) / Math.max(1, Math.abs(b))).toBeLessThan(tol);
 
 describe('벽면 좌표계 (실사 합성용)', () => {
   it('기준선 보정이 있으면 그 벽면으로: 다른 영역의 크기·상대 위치가 1% 안', () => {
-    const c = calibrate(refsFromObjects([sign, door]))!;
-    const plane = wallPlaneOf([sign, door, band], c)!;
+    const plane = wallPlaneOf([sign, door, band], camera)!;
     expect(plane.source).toBe('calibration');
     const s = placeOnWall(plane, sign), b = placeOnWall(plane, band);
     near(b.w, 6000, 0.01); near(b.h, 600, 0.01);
@@ -54,8 +60,7 @@ describe('벽면 좌표계 (실사 합성용)', () => {
   });
 
   it('벽면에서 카메라를 복원하면 벽 위 점이 사진의 제자리에 투영된다 (1px 안)', () => {
-    const c = calibrate(refsFromObjects([sign, door]))!;
-    const plane = wallPlaneOf([sign, door, band], c)!;
+    const plane = wallPlaneOf([sign, door, band], camera)!;
     const cam = poseOfPlane(plane, imgW, imgH);
     const b = placeOnWall(plane, band);
     const corners: Pt[] = [[b.cx - b.w / 2, b.cy + b.h / 2], [b.cx + b.w / 2, b.cy + b.h / 2], [b.cx + b.w / 2, b.cy - b.h / 2], [b.cx - b.w / 2, b.cy - b.h / 2]];
