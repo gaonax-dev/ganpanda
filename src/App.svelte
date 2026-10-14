@@ -64,6 +64,13 @@
       {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
+    {#if app.room && app.access.status === 'ok' && !app.proposalMode && app.view === 'board'}
+      <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
+      <div class="views stage" data-testid="stage">
+        <button data-testid="stage-original" class:on={app.stage === 'original'} onclick={() => (app.stage = 'original')}>원본</button>
+        <button data-testid="stage-3d" class:on={app.stage === '3d'} onclick={() => (app.stage = '3d')}>3D</button>
+      </div>
+    {/if}
     <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode}>
       {#each VIEWS as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
@@ -213,6 +220,7 @@
     .right { min-width: 0; }
     .role, .peers { display: none; }
     .views { order: 10; flex-basis: 100%; justify-content: stretch; }
+    .views.stage { order: 11; }
     .views button { flex: 1; justify-content: center; padding: 6px 8px; }
     .right { gap: 6px; }
     .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }

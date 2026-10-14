@@ -135,9 +135,9 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); }} />
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="3D 뷰" data-testid="render-dialog">
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="렌더링" data-testid="render-dialog">
     <header>
-      <h2>3D 뷰 · {photo.name}</h2>
+      <h2>렌더링 · {photo.name}</h2>
       <span class="count" data-testid="render-count">사인물 {count}</span>
       <span class="seg"><button class:on={!night} onclick={() => (night = false)}>주간</button><button data-testid="render-night" class:on={night} onclick={() => (night = true)}>야간</button></span>
       <label class="check"><input type="checkbox" bind:checked={grid} /> 벽면 격자</label>

@@ -16,6 +16,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
+    overlay,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -62,6 +63,8 @@
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
     onrender?: () => void;
+    /** 3D 단계: 사진 위에 겹칠 합성 결과(데이터 URL). 있으면 영역·디자인은 숨기고 편집하지 않는다 */
+    overlay?: string;
     /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
     oncamera?: () => void;
     cameraSet?: boolean;
@@ -255,13 +258,14 @@
     {#if oncamera && !tiny}
       <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
     {/if}
-    {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '3D 뷰 (사진 속 벽면·사인물 합성)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🧊✓' : '🧊') : threeD === 'ok' ? '🧊 3D ✓' : '🧊 3D'}</button>{/if}
+    {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
     {#if editable && !tiny}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
+    {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
     <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
-    <div class="designs" style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
+    <div class="designs" class:hidden={!!overlay} style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o)}
         {@const c = o.design!.crop}
@@ -277,6 +281,7 @@
   {/if}
   <svg
     class:tiny={tiny}
+    class:hidden={!!overlay}
     viewBox="0 0 {photo.w} {photo.h}"
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
@@ -404,6 +409,8 @@
   }
   .header .name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header .x { white-space: nowrap; flex-shrink: 0; }
+  .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .designs.hidden, svg.hidden { display: none; }
   svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }

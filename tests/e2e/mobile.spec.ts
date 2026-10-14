@@ -48,7 +48,7 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   await expect(page.getByTestId('tool-rect').locator('.lbl')).toBeHidden();
   // 사진 머리글 버튼은 아이콘만
   await expect(page.getByTestId('camera-open')).toHaveText('📐');
-  await expect(page.getByTestId('render-open')).toHaveText('🧊');
+  await expect(page.getByTestId('render-open')).toHaveText('🎨');
   // 접속자 칩·역할은 숨기고 프로젝트 이름은 보인다
   await expect(page.getByTestId('role-badge')).toBeHidden();
   const title = (await page.getByTestId('project-title').boundingBox())!;
