@@ -29,9 +29,10 @@
 | 필드 | 설명 |
 |---|---|
 | `id`, `photoId`, `name`, `createdAt` | |
-| `shape` | `rect` / `ellipse` / `polygon` |
+| `shape` | `rect` / `ellipse`(옛 형식, 새 원형은 rect + corner) / `polygon` |
 | `quad` | 외곽 사각 영역 4점 (좌상, 우상, 우하, 좌하), **사진 원본 px**. 원근 반영 |
 | `polygon?` | `shape = polygon`일 때 윤곽 (사진 px) |
+| `corner?` | 사각형 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5, 0.5 = 원·알약). 원형 도구가 0.5 로 만듦. 규격 필드(연결 시 원본 것) |
 | `widthMm?`, `heightMm?` | 사용자가 입력한 실제 치수 |
 | `productId?` | 간판 종류 (`catalog.ts`의 보드·채널) |
 | `sheetIds` | 시트 종류 (복수) |

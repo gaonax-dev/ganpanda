@@ -41,6 +41,16 @@ describe('오브젝트 견적 (단가표 기준)', () => {
     expect(lines[0].amount).toBe(Math.round((Math.PI / 4) * 40000));
   });
 
+  it('둥근 사각 시트는 모서리를 깎은 면적 (비율 0.5 정사각 = 원)', () => {
+    const sheet = SHEETS[0];
+    const prices = { ...P, sheets: { ...P.sheets, [sheet.id]: 40000 }, rounding: 1 as const, minimum: 0 };
+    const round = quoteObject(obj({ shape: 'rect', corner: 0.5, sheetIds: [sheet.id], widthMm: 1000, heightMm: 1000 }), prices);
+    expect(round[0].amount).toBe(Math.round((Math.PI / 4) * 40000));
+    const r = 0.1 * 1000; // 2000×1000, 비율 0.1 → 반지름 100mm
+    const soft = quoteObject(obj({ shape: 'rect', corner: 0.1, sheetIds: [sheet.id], widthMm: 2000, heightMm: 1000 }), prices);
+    expect(soft[0].amount).toBe(Math.round(((2 - (4 - Math.PI) * r * r / 1e6)) * 40000));
+  });
+
   it('최소 금액 미만이면 최소 금액', () => {
     const prices = { ...P, minimum: 300000, rounding: 1 as const };
     const [line] = quoteObject(obj({ productId: board.id, widthMm: 100, heightMm: 100 }), prices);

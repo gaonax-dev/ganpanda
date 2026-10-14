@@ -29,7 +29,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   }
   const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : SHEET_LOOK;
   return {
-    ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h,
+    ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: l?.depthMm ?? look.depthMm,
     lighting: o.productId === 'board-flex' ? 'front' : 'none',
     faceColor: l?.faceColor ?? look.faceColor,

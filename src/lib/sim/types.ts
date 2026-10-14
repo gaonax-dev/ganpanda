@@ -12,6 +12,8 @@ export interface SignSpec {
   widthMm: number;
   /** 두께 (mm) */
   depthMm: number;
+  /** 박스 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5) */
+  corner?: number;
   letterSpacing: number;
   lighting: Lighting;
   /** 채널: 면/LED 색 · 박스: 바탕색 */

@@ -19,11 +19,22 @@ test('사각 도구로 사인물 영역을 그리면 오브젝트가 생기고 �
   await expect(page.getByTestId('object-panel')).toBeVisible();
 });
 
-test('원형 도구', async ({ page }) => {
+test('원형 도구 = 모서리 50% 둥근 사각형. 설정에서 둥글기를 조절하고 디자인은 그 모양으로 잘린다', async ({ page }) => {
   await uploadPhoto(page);
   await page.keyboard.press('o');
   await dragOnPhoto(page, [1000, 100], [1200, 300]);
-  await expect(page.getByTestId('sign-shape')).toHaveAttribute('data-shape', 'ellipse');
+  const shape = page.getByTestId('sign-shape');
+  await expect(shape).toHaveAttribute('data-shape', 'rect');
+  await expect(shape).toHaveAttribute('data-corner', '0.5');
+  const round = (await shape.getAttribute('points'))!.split(' ').length;
+  expect(round).toBeGreaterThan(8);
+  await openObjectSettings(page);
+  await expect(page.getByTestId('corner-ratio')).toHaveValue('50');
+  await page.getByTestId('corner-ratio').fill('0');
+  await expect(shape).toHaveAttribute('data-corner', '0');
+  expect((await shape.getAttribute('points'))!.split(' ').length).toBe(4);
+  await page.getByTestId('corner-ratio').fill('20');
+  await expect(shape).toHaveAttribute('data-corner', '0.2');
 });
 
 test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고 → 추정값 적용', async ({ page }) => {

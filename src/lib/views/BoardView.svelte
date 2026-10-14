@@ -87,7 +87,8 @@
   function create(photoId: string, shape: ShapeKind, quad: Pt[]) {
     const n = app.signs.length + 1;
     app.editBoundary();
-    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape, quad, sheetIds: [] });
+    // 원형 도구 = 모서리 50% 둥근 사각형 (이미지 맵핑이 되도록 사각형 기반, 사용자 결정 2026-10-14)
+    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape: shape === 'ellipse' ? 'rect' : shape, quad, sheetIds: [], ...(shape === 'ellipse' ? { corner: 0.5 } : {}) });
     app.editBoundary();
     app.selectedId = id;
     app.tool = 'select';

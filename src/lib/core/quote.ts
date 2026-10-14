@@ -31,10 +31,11 @@ export function charCountOf(o: Pick<SignObject, 'text' | 'charCount'>): number {
   return [...(o.text ?? '')].filter((c) => c.trim()).length;
 }
 
-/** 실제 도형 면적(㎡). 사각=w·h, 원=π/4·w·h, 다각형=정면 보정 후 면적 */
+/** 실제 도형 면적(㎡). 사각=w·h, 둥근 사각=w·h−(4−π)r², 원=π/4·w·h, 다각형=정면 보정 후 면적 */
 export function shapeAreaM2(o: SignObject): number {
   const w = o.widthMm!, h = o.heightMm!;
   if (o.shape === 'ellipse') return ((Math.PI / 4) * w * h) / 1e6;
+  if (o.shape === 'rect' && o.corner) { const r = Math.min(0.5, o.corner) * Math.min(w, h); return (w * h - (4 - Math.PI) * r * r) / 1e6; }
   if (o.shape === 'polygon' && o.polygon?.length) {
     try {
       const H = quadToRect(o.quad, w, h);

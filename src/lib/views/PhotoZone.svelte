@@ -5,7 +5,7 @@
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
   import type { MeasureResult } from '../core/measure';
-  import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad } from '../core/perspective';
+  import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import type { Tool } from '../state.svelte';
 
@@ -71,8 +71,10 @@
 
   const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : 'rect');
   const quadOf = (o: SignObject) => (editing?.id === o.id ? editing.quad : o.quad);
-  const outline = (shape: ShapeKind, quad: Pt[], poly?: Pt[]) =>
-    (shape === 'ellipse' ? ellipseInQuad(quad) : shape === 'polygon' && poly ? poly : quad).map((p) => p.join(',')).join(' ');
+  /** 영역 윤곽 (사진 px): 둥근 사각 / 옛 타원 / 다각형 / 사각 */
+  const outlinePts = (shape: ShapeKind, quad: Pt[], poly?: Pt[], corner?: number): Pt[] =>
+    shape === 'ellipse' ? ellipseInQuad(quad) : shape === 'polygon' && poly ? poly : corner ? roundedInQuad(quad, corner) : quad;
+  const outline = (shape: ShapeKind, quad: Pt[], poly?: Pt[], corner?: number) => outlinePts(shape, quad, poly, corner).map((p) => p.join(',')).join(' ');
   const clamp = ([x, y]: Pt): Pt => [Math.max(0, Math.min(photo.w, x)), Math.max(0, Math.min(photo.h, y))];
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -240,7 +242,7 @@
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o)}
         {@const c = o.design!.crop}
-        <div class="design" style:clip-path={o.shape === 'polygon' && o.polygon ? `polygon(${o.polygon.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : o.shape === 'ellipse' ? `polygon(${ellipseInQuad(q).map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
+        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()}>
             <DesignFace design={o.design!} w={c.w} h={c.h} />
           </div>
@@ -298,7 +300,8 @@
           data-shape={o.shape}
           data-selected={sel || undefined}
           data-same={same || undefined}
-          points={outline(o.shape, q, o.polygon)}
+          points={outline(o.shape, q, o.polygon, o.corner)}
+          data-corner={o.shape === 'rect' ? (o.corner ?? 0) : undefined}
           stroke-width={2 * u}
           role="button"
           tabindex="-1"
@@ -338,7 +341,7 @@
       <text class="status" data-testid="photo-ai-status" x={photo.w / 2} y={photo.h / 2} font-size={18 * u} text-anchor="middle" stroke-width={4 * u}>AI 가 사진을 분석하는 중…</text>
     {/if}
     {#if draft}
-      <polygon class="draft" points={outline(drawShape, quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
+      <polygon class="draft" points={outline('rect', quadFromDrag(draft.start, draft.end), undefined, drawShape === 'ellipse' ? 0.5 : 0)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
   </svg>
 </div>
