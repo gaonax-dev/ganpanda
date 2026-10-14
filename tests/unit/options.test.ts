@@ -46,3 +46,30 @@ describe('주문 사양 옵션 스키마', () => {
     expect(optionValue({ key: 'x', label: 'x', kind: 'toggle' }, {})).toBe(false);
   });
 });
+
+describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다")', async () => {
+  const { CATALOG, productById, groupOfProduct } = await import('../../src/lib/core/catalog');
+  const { DEFAULT_PRICES } = await import('../../src/lib/core/pricing');
+  const { quoteObject } = await import('../../src/lib/core/quote');
+  it('카탈로그에 간판 분류로 있고(㎡ 단가), 기본 단가표에도 있다', () => {
+    const p = productById('board-protrude')!;
+    expect(p).toBeTruthy();
+    expect(p.name).toBe('돌출 간판');
+    expect(p.unit).toBe('m2');
+    expect(groupOfProduct('board-protrude')).toBe('sign');
+    expect(CATALOG.findIndex((x) => x.id === 'board-protrude')).toBeLessThan(CATALOG.findIndex((x) => x.id === 'ch-front')); // 보드 간판 묶음 안
+    expect(DEFAULT_PRICES.products['board-protrude']).toBeGreaterThan(0);
+  });
+  it('옵션: 면(양면 기본) · 몸체(갈바 도색/후렉스/아크릴) · 내부 조명 · 갈바 도색일 때만 컬러코드 · 브라켓', () => {
+    const o = obj({ productId: 'board-protrude' });
+    expect(keys(o)).toEqual(['sides', 'body', 'light', 'paintSystem', 'paintCode', 'bracket']);
+    const [g] = optionGroupsFor(o);
+    expect(g.fields.find((f) => f.key === 'sides')!.values![0].id).toBe('양면');
+    expect(keys(obj({ productId: 'board-protrude', options: { body: '후렉스' } }))).not.toContain('paintCode');
+  });
+  it('견적: 양면 기준 ㎡ 단가로 계산된다', () => {
+    const o = obj({ productId: 'board-protrude', widthMm: 600, heightMm: 900 });
+    const lines = quoteObject(o, DEFAULT_PRICES);
+    expect(lines[0].amount).toBe(Math.round(0.54 * DEFAULT_PRICES.products['board-protrude'] / 1000) * 1000);
+  });
+});
