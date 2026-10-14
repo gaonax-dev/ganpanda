@@ -48,7 +48,7 @@
   }
   function apply(g: Group) {
     // 시트는 제품 없이 시트만, 나머지는 분류의 기본 제품으로 시작. 옵션은 종류가 바뀌므로 비운다
-    update({ productId: defaultProductFor(g), options: undefined });
+    update({ productId: defaultProductFor(g), options: undefined, ...(g === 'sheet' && !obj.sheetIds.length ? { sheetIds: ['sh-cut'] } : {}) }); // 시트는 시트 컷팅으로 시작
     pending = null;
   }
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
