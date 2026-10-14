@@ -169,18 +169,6 @@
   .banner.warn { background: rgba(255, 170, 0, 0.14); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
   .project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  /* 휴대폰 폭: 두 줄(위 = 프로젝트·버튼·계정, 아래 = 뷰 탭), 라벨은 축약, 접속자·역할은 숨김 */
-  @media (max-width: 720px) {
-    .top { flex-wrap: wrap; gap: 8px; padding: 6px 10px; }
-    .project { flex: 1; max-width: 40vw; font-size: 13px; }
-    .role, .peers { display: none; }
-    .views { order: 10; flex-basis: 100%; justify-content: stretch; }
-    .views button { flex: 1; justify-content: center; padding: 6px 8px; }
-    .right { gap: 6px; }
-    .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
-    .toasts { left: 12px; right: 12px; bottom: 76px; }
-    .toast { width: auto; }
-  }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
   .project { font-weight: 600; font-size: 14px; }
   .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }
@@ -209,4 +197,18 @@
   main { position: relative; overflow: hidden; }
   .view { position: absolute; inset: 0; }
   .view[hidden] { display: none; }
+  /* (스타일 끝에 두어 같은 우선순위의 위 규칙들을 덮는다) */
+  /* 휴대폰 폭: 두 줄(위 = 프로젝트·버튼·계정, 아래 = 뷰 탭), 라벨은 축약, 접속자·역할은 숨김 */
+  @media (max-width: 720px) {
+    .top { flex-wrap: wrap; gap: 8px; padding: 6px 10px; }
+    .project { flex: 1 1 auto; min-width: 48px; max-width: 40vw; font-size: 13px; }
+    .right { min-width: 0; }
+    .role, .peers { display: none; }
+    .views { order: 10; flex-basis: 100%; justify-content: stretch; }
+    .views button { flex: 1; justify-content: center; padding: 6px 8px; }
+    .right { gap: 6px; }
+    .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+    .toasts { left: 12px; right: 12px; bottom: 76px; }
+    .toast { width: auto; }
+  }
 </style>
