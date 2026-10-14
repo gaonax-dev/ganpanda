@@ -56,12 +56,9 @@ export interface SignObject {
   design?: DesignRef;
   /** 디자인 변경 이력 (최신이 앞) */
   designHistory?: DesignHistoryEntry[];
-  /** 리스트 뷰(전개도) 위 위치, mm */
+  /** 평면도 위치 (mm) — 리스트 뷰와 보드의 평면 구역이 같은 배치를 쓴다. 없으면 자동 배치 */
   listX?: number;
   listY?: number;
-  /** 보드에 직접 만든 사인물의 보드(world px) 위치 */
-  boardX?: number;
-  boardY?: number;
   /** 주문 사양 옵션 (core/options.ts 스키마의 키 → 값) */
   options?: Record<string, string | boolean>;
   /** 사인물별 요청사항 (배선 위치, 특수 가공 등) */

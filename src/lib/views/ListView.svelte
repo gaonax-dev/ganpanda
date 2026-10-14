@@ -3,7 +3,8 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
-  import { layoutList } from '../core/layout';
+  import { listSvg, type SvgCard } from '../core/listSvg';
+  import { describeOptions } from '../core/options';
   import { faceClip, faceWarp } from '../core/cardFace';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won } from '../core/quote';
@@ -17,15 +18,10 @@
   let drag: { id: string; dx: number; dy: number; sx: number; sy: number } | null = $state(null);
   let fitted = false;
 
-  /** 치수가 확정(입력 또는 추정)된 사인물만 전개도에 배치 */
-  const sized = $derived(
-    app.signs.flatMap((o) => {
-      const s = app.sizeOf(o);
-      return s ? [{ o, ...s }] : [];
-    }),
-  );
+  /** 치수가 확정(입력 또는 추정)된 사인물만 전개도에 배치 — 보드의 평면 구역과 같은 목록·배치 (app.flatCards/flatPlaced) */
+  const sized = $derived(app.flatCards);
   const pending = $derived(app.signs.filter((o) => !app.sizeOf(o)));
-  const placed = $derived(layoutList(sized.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
+  const placed = $derived(app.flatPlaced);
   // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
   const quote = $derived(app.quote);
   const extras = $derived(app.settings.extras ?? []);
@@ -78,6 +74,37 @@
 
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const inv = $derived(1 / viewport.zoom);
+
+  /** 전개도 SVG (디자인 이미지는 data URL 로 묻어 인쇄 창이 따로 불러오지 않게) */
+  export async function buildSvg(): Promise<string> {
+    const toDataUrl = async (u: string) => { try { const b = await (await fetch(u)).blob(); return await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); } catch { return u; } };
+    const cards: SvgCard[] = [];
+    for (const { o, w, h, estimated } of sized) {
+      const p = placed.get(o.id)!;
+      const parts = signParts(o);
+      const prod = productById(parts.bodyId), chan = CHANNEL_OPTIONS.find((c) => c.id === parts.channelId)?.label;
+      const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0);
+      const lines = [[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정', ...describeOptions(o), ...(o.text ? [`“${o.text}”`] : []), ...(o.depthMm ? [`두께 ${fmt(o.depthMm)}mm`] : [])];
+      let image: SvgCard['image'];
+      if (o.design) {
+        const page = app.sources.find((s) => s.id === o.design!.sourceId)?.pages[o.design.page];
+        const u = page && (await assetUrl(page.assetId));
+        if (page && u) image = { href: await toDataUrl(u), pageW: page.w, pageH: page.h, crop: o.design.crop };
+      }
+      cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner });
+    }
+    const title = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 사인물 전개도`;
+    return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards });
+  }
+  /** SVG 를 인쇄 창에 띄운다 → 브라우저의 "PDF 로 저장" (A4 가로) */
+  async function exportPdf() {
+    const svg = await buildSvg();
+    app.lastSvg = svg;
+    const w = window.open('', '_blank');
+    if (!w) { app.notice = '팝업이 막혀 PDF 창을 열 수 없습니다. 팝업을 허용해 주세요.'; return; }
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
+    w.document.close();
+  }
 
   async function copyQuote() {
     const text = [
@@ -154,6 +181,7 @@
         {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
+        <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!sized.length} onclick={exportPdf}>PDF</button>
         <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
       </span>
     </header>
