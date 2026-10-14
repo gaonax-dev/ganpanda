@@ -59,6 +59,8 @@ class AppState {
   settingsOpen = $state(false);
   inviteOpen = $state(false);
   readonly isMac = isMacPlatform();
+  /** 휴대폰 폭(≤ 720px): 라벨을 축약하고 패널·창을 전체 폭으로 (2026-10-14 사용자: "텍스트도 자리가 넘치거나 모자란데 단축어로") */
+  compact = $state(typeof matchMedia === 'function' && matchMedia('(max-width: 720px)').matches);
   /** 현재 방(프로젝트). null = 홈 화면 */
   readonly room: string | null;
   /** 초대 토큰 (이 방에 초대 링크로 들어온 경우) */
@@ -691,3 +693,4 @@ export function defaultCameraSetup(w: number, h: number): CameraSetup {
 }
 
 if (import.meta.env.DEV) (window as unknown as { __ganpanda: AppState }).__ganpanda = app;
+if (typeof matchMedia === 'function') { const mq = matchMedia('(max-width: 720px)'); mq.addEventListener('change', (e) => { app.compact = e.matches; }); }

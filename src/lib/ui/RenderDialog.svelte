@@ -168,4 +168,13 @@
   .view :global(canvas) { display: block; }
   .status { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; color: #eee; text-shadow: 0 1px 3px #000; text-align: center; padding: 20px; }
   footer { padding: 8px 14px; border-top: 1px solid var(--line); color: var(--muted); }
+  h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 720px) {
+    .backdrop { place-items: stretch; }
+    .dialog { width: 100vw; height: 100%; border-radius: 0; border: 0; }
+    header { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+    h2 { flex-basis: 100%; font-size: 14px; }
+    .count { display: none; }
+    footer { font-size: 11px; max-height: 64px; overflow-y: auto; }
+  }
 </style>

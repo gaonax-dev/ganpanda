@@ -56,5 +56,12 @@
 ## 관련 테스트
 - `tests/e2e/board.spec.ts`, `tests/e2e/objectPanel.spec.ts`, `tests/unit/category.test.ts`, `tests/e2e/zone.spec.ts`, `tests/unit/zone.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
 
+## 휴대폰 폭 (≤ 720px, 2026-10-14)
+사용자: "핀치줌 안되는거 해결… 텍스트도 자리가 넘치거나 모자란데 단축어로 표시".
+- **핀치 확대·축소** → [shortcuts.md](shortcuts.md). 한 손가락 빈 곳 드래그 = 이동.
+- **축약 라벨** (`app.compact`, `matchMedia('(max-width: 720px)')`): 상단 바는 두 줄(위 = 프로젝트·초대·제안·설정·접속 상태·계정, 아래 = 보드·리스트·UV 탭), 역할·접속자 이름 숨김, 접속 상태는 점만. 도구 막대는 아이콘만(`.lbl` 숨김)·가로 스크롤. 사진 머리글은 머리글 폭이 520px 보다 좁으면(`narrow`, 휴대폰이든 축소든) 📐/🧊 아이콘만, 사인물 수 숨김, 이름 말줄임.
+- **패널·창**: 사인물 패널·견적 패널은 화면 아래 시트(높이 62%/55%), 3D 뷰·원근 창은 전체 화면(원근 창은 사진 위·설정 아래 세로 배치), `.grid2` 는 한 칸. 키보드가 올라오면 화면이 줄어들도록 `interactive-widget=resizes-content`, 높이는 `100dvh`.
+- 테스트: `tests/e2e/mobile.spec.ts` (390px 터치: 합성 터치 포인터로 핀치 2배/축소, 축약 라벨·가로 넘침 없음·창 폭), `tests/unit/viewport.test.ts` (핀치 수학).
+
 ## 남은 일
-- SAM 호버 영역 분리 (다각형 오브젝트), 터치 조작 최적화, 사진 확대경(모서리 정밀 지정)
+- SAM 호버 영역 분리 (다각형 오브젝트), 사진 확대경(모서리 정밀 지정), 휴대폰에서 사인물 꼭짓점 드래그 정밀도(핸들 크기)

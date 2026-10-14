@@ -1,12 +1,13 @@
 <!--
   공용 무한 캔버스 — 화면 조작은 xlpop 캔버스와 같다 (docs/features/shortcuts.md)
   · 마우스 휠, Ctrl+휠, 핀치 → 커서 기준 확대·축소 / 트랙패드 스크롤 → 이동
+  · 터치: 두 손가락 핀치 → 가운데 기준 확대·축소 + 이동, 한 손가락 빈 곳 드래그 → 이동
   · 단축키(설정에서 변경 가능): ⌘/Ctrl + = - 0, 스페이스+드래그
   · 가운데 버튼 드래그, 빈 곳 드래그 → 이동
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { pan, toWorld, zoomAt, type Viewport, type XY } from '../core/viewport';
+  import { pan, pinch, toWorld, zoomAt, type Viewport, type XY } from '../core/viewport';
   import { wheelIntent, isWindowsPlatform } from '../core/wheel';
   import { matchAction } from '../core/keymap';
   import { app } from '../state.svelte';
@@ -42,6 +43,39 @@
   let panKey: string | null = $state(null);
   let hovered = false;
   let drag: { x: number; y: number } | null = $state(null);
+  /** 화면에 닿아 있는 손가락 (pointerId → 캔버스 기준 좌표). 둘이면 핀치 */
+  const touches = new Map<number, XY>();
+  let pinching = $state(false);
+  export function isPinching() { return pinching; }
+
+  function local(e: PointerEvent): XY {
+    const r = el.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+  /** 캡처 단계에서 손가락을 추적한다. 두 번째 손가락이 닿으면 핀치로 전환하고 자식(사진·도형)에는 이벤트를 주지 않는다 */
+  function touchDown(e: PointerEvent) {
+    if (e.pointerType !== 'touch') return;
+    touches.set(e.pointerId, local(e));
+    if (touches.size === 2) { pinching = true; drag = null; e.stopPropagation(); e.preventDefault(); }
+    else if (touches.size > 2) e.stopPropagation();
+  }
+  function touchMove(e: PointerEvent) {
+    if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+    if (!pinching) { touches.set(e.pointerId, local(e)); return; }
+    e.stopPropagation(); e.preventDefault();
+    const ids = [...touches.keys()];
+    if (ids.length < 2 || !ids.includes(e.pointerId)) return;
+    const [a, b] = ids;
+    const prev: [XY, XY] = [touches.get(a)!, touches.get(b)!];
+    touches.set(e.pointerId, local(e));
+    const now: [XY, XY] = [touches.get(a)!, touches.get(b)!];
+    viewport = pinch(viewport, prev, now);
+  }
+  function touchUp(e: PointerEvent) {
+    if (e.pointerType !== 'touch') return;
+    touches.delete(e.pointerId);
+    if (pinching) { e.stopPropagation(); if (touches.size < 2) { pinching = false; touches.clear(); } }
+  }
   const isWindows = isWindowsPlatform();
 
   export function clientToWorld(cx: number, cy: number): XY {
@@ -114,7 +148,7 @@
     el.setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent) {
-    if (!drag) return;
+    if (!drag || pinching) return;
     viewport = pan(viewport, e.clientX - drag.x, e.clientY - drag.y);
     drag = { x: e.clientX, y: e.clientY };
   }
@@ -133,14 +167,17 @@
 
 <div
   class="ic"
-  class:panning={panKey !== null || drag !== null}
+  class:panning={panKey !== null || drag !== null || pinching}
   bind:this={el}
   data-testid={testid}
   role="application"
   style:cursor={drag ? 'grabbing' : panKey ? 'grab' : cursor}
   style:background-size="{gridStep}px {gridStep}px"
   style:background-position="{viewport.x}px {viewport.y}px"
-  onpointerdowncapture={(e) => { if (e.button === 1 || (e.button === 0 && panKey)) down(e); }}
+  onpointerdowncapture={(e) => { touchDown(e); if (pinching) return; if (e.button === 1 || (e.button === 0 && panKey)) down(e); }}
+  onpointermovecapture={touchMove}
+  onpointerupcapture={touchUp}
+  onpointercancelcapture={touchUp}
   onpointerdown={down}
   onpointermove={move}
   onpointerup={up}
