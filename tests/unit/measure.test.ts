@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkAspect, measurePhoto, sizeOnPlane } from '../../src/lib/core/measure';
-import { DEFAULT_FOCAL_RATIO, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
+import { DEFAULT_FOCAL_RATIO, projectPoint, solveHomography, type CameraPose, type Pt } from '../../src/lib/core/homography';
+import type { Calibration } from '../../src/lib/core/calibration';
 
 // 합성 사진: 기본 화각(장변 × 0.75)으로 비스듬히 찍은 벽
 const imgW = 4000, imgH = 3000, f = DEFAULT_FOCAL_RATIO * imgW;
@@ -75,5 +76,51 @@ describe('퇴화된(찌그러진) 영역', () => {
       { id: 'b', quad: [[0, 0], [10, 0], [10, 10], [0, 10]] as Pt[], widthMm: 100, heightMm: 100 },
     ];
     expect(() => measurePhoto(objs, imgW, imgH)).not.toThrow();
+  });
+});
+
+describe('카메라 설정 + 입력 치수 (2026-10-15 사용자: "원근을 설정했다면 길이 추정이 좋아져야 하는데 오히려 떨어진다")', () => {
+  const sign = rectOnWall(1000, 2500, 4000, 900);
+  const door = rectOnWall(5500, 0, 1200, 2100);
+  /** 카메라 보정: 사진 px → 벽 mm. scaleErr 만큼 축척이 틀린(기준 길이를 잘못 잰) 카메라 */
+  const calibWith = (scaleErr: number, ratioErr = 1): Calibration => {
+    const wall: Pt[] = [[0, 0], [9000, 0], [9000, 4000], [0, 4000]];
+    const px = wall.map(([x, y]) => projectPoint(pose, [x, y, 0]));
+    const H = solveHomography(px, wall.map(([x, y]) => [x * scaleErr * ratioErr, y * scaleErr]));
+    return { H, sx: 1, sy: 1, metric: true, perRef: [], warnings: [] };
+  };
+  it('축척이 20% 틀린 카메라라도 치수를 넣은 사인물이 있으면 그 치수로 축척을 보정해 다른 영역을 맞게 잰다', () => {
+    const objs = [{ id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 }, { id: 'door', quad: door }];
+    const r = measurePhoto(objs, imgW, imgH, calibWith(1.2));
+    expect(r.get('door')!.estimate!.widthMm).toBeCloseTo(1200, 0);
+    expect(r.get('door')!.estimate!.heightMm).toBeCloseTo(2100, 0);
+    expect(r.get('sign')!.warnings).toEqual([]);
+    expect(r.get('sign')!.reference).toBe(true);
+    // 보정 없이 카메라만 쓰면 20% 틀린다 (치수 없는 사진)
+    expect(measurePhoto([{ id: 'door', quad: door }], imgW, imgH, calibWith(1.2)).get('door')!.estimate!.widthMm).toBeCloseTo(1440, 0);
+  });
+  it('가로·세로 축척이 따로 틀려도(초점거리 오차) 축마다 보정한다', () => {
+    const objs = [{ id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 }, { id: 'door', quad: door }];
+    const r = measurePhoto(objs, imgW, imgH, calibWith(1.1, 1.15));
+    expect(r.get('door')!.estimate!.widthMm).toBeCloseTo(1200, 0);
+    expect(r.get('door')!.estimate!.heightMm).toBeCloseTo(2100, 0);
+  });
+  it('치수를 넣은 사인물이 둘이면 둘 다 기준이 되고, 서로 어긋나면 경고한다', () => {
+    const objs = [
+      { id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 },
+      { id: 'door', quad: door, widthMm: 1200, heightMm: 2100 },
+      { id: 'band', quad: rectOnWall(0, 3600, 6000, 600), widthMm: 9000, heightMm: 900 }, // 1.5배 과대 입력
+    ];
+    const r = measurePhoto(objs, imgW, imgH, calibWith(1.2));
+    expect(r.get('sign')!.warnings).toEqual([]);
+    expect(r.get('door')!.warnings).toEqual([]);
+    expect(r.get('band')!.warnings.map((w) => w.kind)).toEqual(['scale']);
+    expect(r.get('band')!.estimate!.widthMm).toBeCloseTo(6000, -1);
+  });
+  it('카메라의 벽면이 엉뚱해(가로·세로 보정 비율이 2배 넘게 다름) 치수와 맞지 않으면 기준 영역 방식으로 돌아간다', () => {
+    const objs = [{ id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 }, { id: 'door', quad: door }];
+    const r = measurePhoto(objs, imgW, imgH, calibWith(1, 3));
+    expect(r.get('door')!.estimate!.widthMm).toBeCloseTo(1200, 0);
+    expect(r.get('door')!.estimate!.heightMm).toBeCloseTo(2100, 0);
   });
 });

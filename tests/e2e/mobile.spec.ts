@@ -81,7 +81,7 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
     app.project.addObject({ photoId, name: '첫째', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [] });
     app.project.addObject({ photoId, name: '둘째', shape: 'rect', quad: [[900, 100], [1400, 100], [1400, 300], [900, 300]], sheetIds: [] });
   });
-  const objs = () => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { name: string; productId?: string; sheetIds: string[]; widthMm?: number }[] } }).__ganpanda.objects);
+  const objs = () => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { name: string; productId?: string; sheetIds: string[]; widthMm?: number; depthMm?: number }[] } }).__ganpanda.objects);
   // 사진 머리글(이름)을 탭하면 첫 사인물이 선택되어 막대가 뜬다 — 패널은 안 뜸
   await page.getByTestId('photo-zone').locator('.name').tap();
   await expect(page.getByTestId('quick-bar')).toBeVisible();

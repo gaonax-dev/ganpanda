@@ -49,19 +49,34 @@ export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
   objs: T[], imgW: number, imgH: number, calib?: Calibration | null,
 ): Map<string, MeasureResult> {
   const out = new Map<string, MeasureResult>();
-  // 카메라 설정이 있는 사진: 모든 영역을 그 벽면으로 잰다
+  // 카메라 설정이 있는 사진: 모든 영역을 그 벽면으로 잰다.
+  // 치수를 넣은 사인물이 있으면 그 치수로 **축척을 축마다 보정**한다 (2026-10-15 사용자: "원근을 설정했다면 추정이 좋아져야 하는데 오히려 떨어진다"
+  // — 카메라의 기준 길이·초점거리 오차가 그대로 추정에 들어가던 문제. 원근(모양)은 카메라, 축척은 실측이 맡는다).
+  // 가로·세로 보정 비율이 2배 넘게 다르면 카메라의 벽면이 이 사인물들의 면이 아니라는 뜻 → 기준 영역 방식으로 돌아간다
   if (calib) {
-    for (const o of objs) {
-      const r: MeasureResult = { warnings: [] };
-      if (!isValidQuad(o.quad)) { out.set(o.id, r); continue; }
-      const est = measureQuad(calib, o.quad);
-      r.estimate = est;
-      const badW = o.widthMm && dev(o.widthMm, est.widthMm) > TOLERANCE;
-      const badH = o.heightMm && dev(o.heightMm, est.heightMm) > TOLERANCE;
-      if (badW || badH) r.warnings.push({ kind: 'scale', message: `카메라 설정 기준 약 ${mm(est.widthMm)} × ${mm(est.heightMm)}로 보입니다.`, expected: est });
-      out.set(o.id, r);
+    const raw = new Map<string, Size>();
+    for (const o of objs) if (isValidQuad(o.quad)) raw.set(o.id, measureQuad(calib, o.quad));
+    const sized = objs.filter((o): o is T & Size => hasSize(o) && raw.has(o.id));
+    const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
+    const sx = sized.length ? median(sized.map((o) => o.widthMm / raw.get(o.id)!.widthMm)) : 1;
+    const sy = sized.length ? median(sized.map((o) => o.heightMm / raw.get(o.id)!.heightMm)) : 1;
+    const ratio = sx / sy;
+    const usable = isFinite(ratio) && ratio > 0.5 && ratio < 2;
+    if (usable) {
+      for (const o of objs) {
+        const r: MeasureResult = { warnings: [] };
+        const m = raw.get(o.id);
+        if (!m) { out.set(o.id, r); continue; }
+        const est: Size = { widthMm: m.widthMm * sx, heightMm: m.heightMm * sy };
+        r.estimate = est;
+        if (hasSize(o)) r.reference = true;
+        const badW = o.widthMm && dev(o.widthMm, est.widthMm) > TOLERANCE;
+        const badH = o.heightMm && dev(o.heightMm, est.heightMm) > TOLERANCE;
+        if (badW || badH) r.warnings.push({ kind: 'scale', message: `${sized.length ? '카메라 설정과 입력 치수' : '카메라 설정'} 기준 약 ${mm(est.widthMm)} × ${mm(est.heightMm)}로 보입니다.`, expected: est });
+        out.set(o.id, r);
+      }
+      return out;
     }
-    return out;
   }
   // 찌그러진(행렬 계산 불가) 영역은 기준이 될 수 없다
   const ref = objs.find((o) => hasSize(o) && isValidQuad(o.quad)) as (T & Size) | undefined;
