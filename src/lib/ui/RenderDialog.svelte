@@ -63,6 +63,7 @@
   function clear() {
     for (const b of built) { b.group.removeFromParent(); b.dispose(); }
     built = [];
+    viewer?.clearSignCameras();
   }
 
   async function faceOf(o: SignObject): Promise<FaceImage | undefined> {
@@ -83,17 +84,19 @@
     clear();
     if (!p) { status = '이 사진은 아직 3D 를 만들 수 없습니다. 사인물 영역을 하나 그리거나 [원근 맞추기]를 하세요.'; count = 0; v.invalidate(); return; }
     status = '합성 중…';
-    const placed = os.map((o) => ({ o, at: placeOnWall(p, o), corners: quadOnWall(p, o) as [number, number][] }));
+    // 사인물마다 자기 영역을 벽면으로 (치수 있으면 그 mm, 없으면 비율만) — 사진의 카메라가 어떻든 그린 자리에 보인다
+    const placed = os.map((o) => { const own = wallPlaneOf([o], null) ?? p; return { o, plane: own, at: placeOnWall(own, o), corners: quadOnWall(own, o) as [number, number][] }; });
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림
-    const items = await Promise.all(placed.map(async ({ o, at, corners }) => {
+    const items = await Promise.all(placed.map(async ({ o, plane: own, at, corners }) => {
       const spec = renderSpecOf(o, at);
       if (!spec) return null;
       const face = spec.kind === 'lightbox' ? await faceOf(o) : undefined;
-      return { spec, face, corners };
+      return { spec, face, corners, plane: own };
     }));
     if (my !== token) return;
+    v.clearSignCameras();
     // 사인물 하나가 실패해도(폰트에 없는 글자, 찌그러진 영역 등) 나머지는 계속 그린다 (2026-10-14: 뒤에 만든 사인물이 안 보이던 원인)
     const notes: string[] = [];
     for (const it of items) {
@@ -109,6 +112,7 @@
       warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1);
       b.setNight(night);
       v.signsRoot.add(b.group);
+      v.addSignCamera(b.group, projectionFromPlane(it.plane, photo.w, photo.h), poseOfPlane(it.plane, photo.w, photo.h), it.corners);
       built.push(b);
     }
     count = built.length;

@@ -69,7 +69,7 @@
   const pairWorld = $derived(pairAxes(draft));
   const pairColor = (pair: Axis) => AXIS_COLOR[pairWorld[pair === 'x' ? 0 : pair === 'y' ? 1 : 2]];
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑). 가로·세로·높이 관례: X 가로, Y 세로(깊이), Z 높이. 'auto' = +X 가로, +Z 높이 */
-  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X 가로 (오른쪽) 빨강' }, { id: '-x', label: '−X 가로 (왼쪽) 빨강' }, { id: '+y', label: '+Y 세로 (안쪽) 초록' }, { id: '-y', label: '−Y 세로 (앞쪽) 초록' }, { id: '+z', label: '+Z 높이 (위) 파랑' }, { id: '-z', label: '−Z 높이 (아래) 파랑' }];
+  const DIRS: { id: AxisDir; label: string }[] = [{ id: '+x', label: '+X 가로 (오른쪽) 빨강' }, { id: '-x', label: '−X 가로 (왼쪽) 빨강' }, { id: '+y', label: '+Y 세로·깊이 (벽 안쪽) 초록' }, { id: '-y', label: '−Y 세로·깊이 (벽 앞쪽) 초록' }, { id: '+z', label: '+Z 높이 (위) 파랑' }, { id: '-z', label: '−Z 높이 (아래) 파랑' }];
   /** 같은 축을 피해 다른 축으로: 가로↔높이, 세로면 (첫째) 가로 / (둘째) 높이 */
   const other = (a: AxisDir, which: 'first' | 'second'): AxisDir => (a[1] === 'x' ? '+z' : a[1] === 'z' ? '+x' : which === 'first' ? '+x' : '+z');
   const AXIS_NAME = { x: '가로 X', y: '세로 Y', z: '높이 Z' } as const;
@@ -258,7 +258,7 @@
               </select>
             </label>
           </div>
-          <p class="hint">축은 가로 X · 세로 Y(깊이) · 높이 Z. 선 쌍이 어느 축인지 정하고 방향을 뒤집습니다(리버스). 두 쌍이 이루는 평면이 벽면입니다 (정면 벽 = 가로+높이, 옆면 벽 = 세로+높이). 남은 축은 오른손 규칙으로 자동. 벽의 바깥이 카메라 반대면 경고합니다.</p>
+          <p class="hint">축은 가로 X · 세로 Y(깊이, 벽 안쪽으로) · 높이 Z(위). 선 쌍이 어느 축인지 정하고 방향을 뒤집습니다(리버스). 두 쌍이 이루는 평면이 벽면입니다 (정면 벽 = 가로 X + 높이 Z, 옆면 벽 = 세로 Y + 높이 Z). <b>문틀·창틀처럼 위아래로 뻗는 선은 높이 Z</b> 입니다 — 세로 Y 로 두면 벽면이 바닥이 됩니다. 남은 축은 오른손 규칙으로 자동. 벽의 바깥이 카메라 반대면 경고합니다.</p>
           <label class="check"><input type="checkbox" data-testid="camera-z" checked={!!draft.z} disabled={ro} onchange={toggleZ} /> 셋째 쌍({AXIS_NAME[remaining]}) 선 2개 추가 — 주점 계산용</label>
           <label class="check"><input type="checkbox" data-testid="camera-principal" checked={draft.principal === 'third'} disabled={ro || !draft.z} onchange={(e) => set({ principal: e.currentTarget.checked ? 'third' : 'center' })} /> 세 소실점으로 주점 계산 (잘라낸 사진)</label>
           <p class="hint">흰 십자 = 원점(벽 좌표 0,0). 보통 벽의 왼쪽 아래 모서리.</p>

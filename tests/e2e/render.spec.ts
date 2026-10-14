@@ -153,6 +153,38 @@ test('벽과 맞지 않는 카메라에서 사진 곳곳에 그린 사인물이 
   await page.getByTestId('close-render').click();
 });
 
+test('카메라가 바닥 평면으로 잡혀 있어도(둘째 쌍 = 세로 Y) 벽 위쪽에 그린 사인물이 보인다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { updatePhoto(id: string, p: unknown): void } } }).__ganpanda;
+    // 가로 선 = 바닥 가로줄, 둘째 쌍 = 깊이 방향(소실점이 사진 위쪽) → 벽면 = 바닥. 띠(벽 위쪽)는 이 평면의 지평선 너머
+    app.project.updatePhoto(app.photos[0].id, { camera: { x: [{ a: [100, 1000], b: [1500, 1010] }, { a: [100, 1080], b: [1500, 1085] }], y: [{ a: [300, 1090], b: [700, 600] }, { a: [1300, 1090], b: [900, 600] }], origin: [800, 1050], ref: { axis: 'x', point: [1200, 1052], mm: 2000 }, axes: { first: '+x', second: '+y' }, principal: 'center' } });
+  });
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  const center = await page.evaluate(async () => {
+    const path = '/src/lib/sim/sample.ts';
+    const { SAMPLE } = await import(/* @vite-ignore */ path);
+    const hp = '/src/lib/core/homography.ts';
+    const { applyHomography, solveHomography } = await import(/* @vite-ignore */ hp);
+    const H = solveHomography([[0, SAMPLE.wallH], [SAMPLE.wallW, SAMPLE.wallH], [SAMPLE.wallW, 0], [0, 0]], SAMPLE.corners);
+    const rect = (x: number, y: number, w: number, h: number) => [[x, y + h], [x + w, y + h], [x + w, y], [x, y]].map((p) => applyHomography(H, p as [number, number]));
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.project.allPhotos()[0].id;
+    // 2층 창(어두운 영역) 안에 흰 상자 — 배경이 밝으면 검사가 무의미하므로
+    app.project.addObject({ photoId, name: '위 박스', shape: 'rect', quad: rect(4900, 5000, 1300, 750), sheetIds: [], productId: 'board-foamex' });
+    return applyHomography(H, [5550, 5375]) as [number, number];
+  });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('2', { timeout: 20_000 });
+  await page.getByTestId('render-save').click();
+  const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
+  await expect.poll(() => page.evaluate(hook)).toMatch(/^data:image\/png/);
+  const px = await samplePixels(page, await page.evaluate(hook), center, 6);
+  const lum = px.px.reduce((s, [r, g, b]) => s + r + g + b, 0) / px.px.length / 3;
+  expect(lum).toBeGreaterThan(200);
+  await page.getByTestId('close-render').click();
+});
+
 test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 나온다', async ({ page, request }) => {
   await setup(page, request);
   const flat = await makePhoto(page);
