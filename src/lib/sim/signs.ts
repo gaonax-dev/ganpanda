@@ -129,6 +129,29 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   };
 }
 
+/** 박스 형상: 중심 원점, 벽(z=0)에서 앞면(z=depth)까지. corner 가 있으면 둥근 사각형을 밀어낸다. 재질 그룹 0 = 앞·뒷면, 1 = 옆면 */
+export function lightboxGeometry(w: number, h: number, d: number, corner = 0): THREE.BufferGeometry {
+  const r = Math.max(0, Math.min(0.5, corner)) * Math.min(w, h);
+  if (r <= 0) {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(0, 0, d / 2);
+    // BoxGeometry 그룹(+x,-x,+y,-y,+z,-z) → 앞·뒷면 = 0, 옆면 = 1 로 재정렬
+    const groups = g.groups.map((gr) => ({ ...gr }));
+    g.clearGroups();
+    for (const [i, gr] of groups.entries()) g.addGroup(gr.start, gr.count, i === 4 || i === 5 ? 0 : 1);
+    return g;
+  }
+  const s = new THREE.Shape();
+  const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+  s.moveTo(x0 + r, y0); s.lineTo(x1 - r, y0); s.absarc(x1 - r, y0 + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(x1, y1 - r); s.absarc(x1 - r, y1 - r, r, 0, Math.PI / 2, false);
+  s.lineTo(x0 + r, y1); s.absarc(x0 + r, y1 - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(x0, y0 + r); s.absarc(x0 + r, y0 + r, r, Math.PI, Math.PI * 1.5, false);
+  const g = new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 8 });
+  g.computeVertexNormals();
+  return g;
+}
+
 /** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */
 export interface FaceImage { image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number }
 
@@ -160,16 +183,18 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
+  const rounded = !!spec.corner;
+  // ExtrudeGeometry 의 UV 는 형상 좌표(mm) 그대로 → 앞면 전체가 0~1 이 되게
+  if (rounded) { tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.repeat.set(1 / w, 1 / h); tex.offset.set(0.5, 0.5); }
 
   const lit = spec.lighting !== 'none';
   const front = new THREE.MeshPhysicalMaterial({
     map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.3, clearcoat: 0.5,
   });
   const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.7, roughness: 0.4 });
-  const geo = new THREE.BoxGeometry(w, h, d);
-  // BoxGeometry 재질 순서: +x, -x, +y, -y, +z(앞), -z
-  const mesh = new THREE.Mesh(geo, [frame, frame, frame, frame, front, frame]);
-  mesh.position.z = d / 2;
+  const geo = lightboxGeometry(w, h, d, spec.corner);
+  // 그룹 0 = 앞·뒷면, 1 = 옆면 (뒷면은 벽에 붙어 보이지 않음)
+  const mesh = new THREE.Mesh(geo, [front, frame]);
   mesh.castShadow = true;
   mesh.userData.signId = spec.id;
   group.add(mesh);

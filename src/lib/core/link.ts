@@ -4,7 +4,7 @@ import type { SignObject } from './model';
 
 /** 원본에서 읽는 규격 필드 */
 export const SPEC_FIELDS = [
-  'name', 'productId', 'sheetIds', 'widthMm', 'heightMm', 'text', 'charCount', 'letter3d', 'design', 'designHistory', 'listX', 'listY',
+  'name', 'productId', 'sheetIds', 'widthMm', 'heightMm', 'text', 'charCount', 'letter3d', 'design', 'designHistory', 'listX', 'listY', 'corner',
 ] as const satisfies readonly (keyof SignObject)[];
 export type SpecField = (typeof SPEC_FIELDS)[number];
 

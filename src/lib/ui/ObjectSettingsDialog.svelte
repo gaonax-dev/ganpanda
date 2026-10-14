@@ -54,6 +54,17 @@
         {/if}
       </section>
 
+      {#if obj.shape !== 'polygon'}
+        <section>
+          <h3>모양 <span class="cat">{obj.shape === 'ellipse' ? '타원 (옛 형식)' : !obj.corner ? '사각' : obj.corner >= 0.5 ? '원·알약' : `둥근 사각 ${Math.round(obj.corner * 100)}%`}</span></h3>
+          <label class="slider">모서리 둥글기
+            <input data-testid="corner-ratio" type="range" min="0" max="50" step="1" value={obj.shape === 'ellipse' ? 50 : Math.round((obj.corner ?? 0) * 100)} disabled={ro}
+              oninput={(e) => update({ shape: 'rect', corner: Number(e.currentTarget.value) / 100 || undefined })} />
+          </label>
+          <p class="hint">0 = 사각형, 50 = 원·알약. 사각형이 기본이라 디자인(UV)이 그대로 입혀지고 모서리만 깎입니다.</p>
+        </section>
+      {/if}
+
       <section>
         <h3>시트</h3>
         <div class="chips">
@@ -142,6 +153,8 @@
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
   .cat { color: var(--text); font-weight: 700; }
+  .slider { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .slider input { width: 100%; }
   .refs { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .refs .check { font-size: 12px; }
   .badge { background: var(--blue); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }

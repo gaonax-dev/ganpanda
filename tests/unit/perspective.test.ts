@@ -68,3 +68,36 @@ describe('퇴화된 사각형', () => {
     expect(ellipseInQuad(flat)).toEqual(flat);
   });
 });
+
+import { roundedInQuad, roundedRect } from '../../src/lib/core/perspective';
+describe('둥근 사각 영역 (모서리 비율 0~0.5)', () => {
+  it('비율 0 은 사각형 그대로', () => {
+    expect(roundedInQuad(quad, 0)).toEqual(quad);
+  });
+  it('정사각형에 비율 0.5 → 원 (중심 거리가 일정)', () => {
+    const sq: Pt[] = [[0, 0], [100, 0], [100, 100], [0, 100]];
+    const pts = roundedInQuad(sq, 0.5, 8);
+    expect(pts.length).toBeGreaterThan(16);
+    for (const [x, y] of pts) expect(Math.hypot(x - 50, y - 50)).toBeCloseTo(50, 6);
+  });
+  it('가로로 긴 사각형에 비율 0.5 → 짧은 변 기준 반지름(알약 모양), 모든 점이 영역 안', () => {
+    const pts = roundedRect(200, 100, 0.5, 8);
+    for (const [x, y] of pts) { expect(x).toBeGreaterThanOrEqual(-1e-9); expect(x).toBeLessThanOrEqual(200 + 1e-9); expect(y).toBeGreaterThanOrEqual(-1e-9); expect(y).toBeLessThanOrEqual(100 + 1e-9); }
+    // 좌우 끝은 반원: x=0 인 점은 y=50 하나뿐
+    expect(pts.filter(([x]) => Math.abs(x) < 1e-9).every(([, y]) => Math.abs(y - 50) < 1e-9)).toBe(true);
+    // 위쪽 직선 구간이 남는다 (y=0 인 점이 2개 이상)
+    expect(pts.filter(([, y]) => Math.abs(y) < 1e-9).length).toBeGreaterThanOrEqual(2);
+  });
+  it('원근 사각형에서는 정면 보정하면 둥근 사각형이 된다', () => {
+    const pts = roundedInQuad(quad, 0.25, 6);
+    const H = quadToRect(quad, 200, 100);
+    const front = pts.map((p) => mapPoint(H, p));
+    for (const [x, y] of front) { expect(x).toBeGreaterThan(-1e-6); expect(x).toBeLessThan(200 + 1e-6); expect(y).toBeGreaterThan(-1e-6); expect(y).toBeLessThan(100 + 1e-6); }
+    // 모서리 (0,0) 근처에는 점이 없다 (반지름 25 만큼 깎임)
+    expect(front.some(([x, y]) => x < 7 && y < 7)).toBe(false);
+  });
+  it('찌그러진 사각형은 예외 대신 사각형 윤곽', () => {
+    const flat: Pt[] = [[0, 0], [1, 0], [2, 0], [3, 0]];
+    expect(roundedInQuad(flat, 0.5)).toEqual(flat);
+  });
+});

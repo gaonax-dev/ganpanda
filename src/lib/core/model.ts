@@ -34,6 +34,8 @@ export interface SignObject {
   quad: Pt[];
   /** shape = polygon 일 때 윤곽 (사진 픽셀) */
   polygon?: Pt[];
+  /** 사각형 모서리 둥글기: 짧은 변 대비 반지름 비율 0~0.5 (0.5 = 알약/원). 원형 도구는 0.5 로 만든다 */
+  corner?: number;
   widthMm?: number;
   heightMm?: number;
   /** 보드/채널 제품 */

@@ -61,6 +61,7 @@
 
   function clip(o: SignObject, w: number, h: number) {
     if (o.shape === 'ellipse') return 'ellipse(50% 50% at 50% 50%)';
+    if (o.shape === 'rect' && o.corner) return `inset(0 round ${Math.min(0.5, o.corner) * Math.min(w, h)}px)`;
     if (o.shape === 'polygon' && o.polygon) {
       let H: number[];
       try { H = quadToRect(o.quad, w, h); } catch { return 'none'; }

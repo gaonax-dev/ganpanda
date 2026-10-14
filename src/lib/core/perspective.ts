@@ -45,3 +45,23 @@ export function ellipseInQuad(quad: Pt[], n = 48): Pt[] {
     return applyHomography(H, [0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.sin(a)]);
   });
 }
+
+/** 둥근 사각형 윤곽 (정면, 좌상 원점). corner = 짧은 변 대비 반지름 비율 0~0.5 (0.5 = 알약/원). seg = 모서리당 호 분할 수 */
+export function roundedRect(w: number, h: number, corner: number, seg = 6): Pt[] {
+  const r = Math.max(0, Math.min(0.5, corner)) * Math.min(w, h);
+  if (r <= 0) return [[0, 0], [w, 0], [w, h], [0, h]];
+  const arc = (cx: number, cy: number, from: number): Pt[] =>
+    Array.from({ length: seg + 1 }, (_, i) => { const a = from + (i / seg) * (Math.PI / 2); return [cx + r * Math.cos(a), cy + r * Math.sin(a)] as Pt; });
+  // 좌상 → 우상 → 우하 → 좌하 (y 아래 방향 좌표계에서 시계 방향)
+  return [...arc(r, r, Math.PI), ...arc(w - r, r, -Math.PI / 2), ...arc(w - r, h - r, 0), ...arc(r, h - r, Math.PI / 2)];
+}
+
+/** 원근 사각 영역 안의 둥근 사각형 윤곽. 반지름은 영역의 변 길이(평균) 기준 */
+export function roundedInQuad(quad: Pt[], corner: number, seg = 6): Pt[] {
+  if (!(corner > 0)) return quad;
+  const len = (p: Pt, q: Pt) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const w = (len(quad[0], quad[1]) + len(quad[3], quad[2])) / 2, h = (len(quad[0], quad[3]) + len(quad[1], quad[2])) / 2;
+  let H: number[];
+  try { H = rectToQuad(w, h, quad); } catch { return quad; }
+  return roundedRect(w, h, corner, seg).map((p) => applyHomography(H, p));
+}
