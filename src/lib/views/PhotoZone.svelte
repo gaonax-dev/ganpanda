@@ -4,7 +4,7 @@
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
-  import { refLineOf } from '../core/camera';
+  import { refLineOf, solveCamera } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -298,7 +298,7 @@
       <polygon class="zone draft" points={quadFromDrag(zoneDraft.start, zoneDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" />
     {/if}
     {#if photo.camera}
-      {@const refL = refLineOf(photo.camera)}
+      {@const refL = refLineOf(photo.camera, false, solveCamera(photo.camera, photo.w, photo.h) ?? undefined)}
       <!-- 원근 설정(축 선·원점·기준 길이)을 옅게 보여 준다: 이 사진에 설정이 있다는 표시 -->
       <g class="camera" data-testid="camera-overlay" pointer-events="none">
         {#each photo.camera.x as l, i (i)}<line class="cx" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1.5 * u} />{/each}

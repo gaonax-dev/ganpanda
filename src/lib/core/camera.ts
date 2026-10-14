@@ -18,10 +18,10 @@ export interface CameraSetup {
   /** 벽 위 (0,0) 이 되는 사진 점 */
   origin: Pt;
   /**
-   * 축척 = 기준 길이: **축 선 중 하나를 골라** 실제 길이(mm)를 넣는다 (2026-10-14 사용자: "기준길이는 기준선 중에 하나를 선택하고 길이를 입력").
-   * `line` = 첫 쌍 'x0'/'x1', 둘째 쌍 'y0'/'y1'. (옛 형식 {a,b,axis} 도 읽는다)
+   * 축척 = 기준 길이 (fSpy 방식, 2026-10-14 사용자: "기준포인트 선 중에 하나를 선택"): **원점에서 뻗는 축(X 가로 / Y 세로 / Z 높이) 하나**를 고르고,
+   * 그 축 위의 점(사진 px, 축 선 위로 붙여 씀)까지의 실제 거리(mm)를 넣는다. (옛 형식 {line} / {a,b,axis} 도 읽는다)
    */
-  ref?: { line: RefLineKey; mm: number } | { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
+  ref?: { axis: 'x' | 'y' | 'z'; point: Pt; mm: number } | { line: RefLineKey; mm: number } | { a: Pt; b: Pt; axis: 'x' | 'y'; mm: number };
   /** 주점: 사진 중앙(기본) / 제3 소실점의 수심 (z 축 필요) */
   principal?: 'center' | 'third';
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
@@ -31,10 +31,14 @@ export interface CameraSetup {
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 export type RefLineKey = 'x0' | 'x1' | 'y0' | 'y1';
 
-/** 기준 길이로 고른 선의 끝점과 벽면 축 (첫 쌍 = u 가로, 둘째 쌍 = v 높이; 높이가 첫 쌍이면 반대) */
-export function refLineOf(setup: CameraSetup, swapped = false): { a: Pt; b: Pt; axis: 'x' | 'y' } | null {
+/** 기준 길이 표시용 선분: 축 형식이면 원점→(축 위로 붙인) 점, 선 형식이면 그 축 선 */
+export function refLineOf(setup: CameraSetup, swapped = false, sol?: CameraSolution): { a: Pt; b: Pt; axis: 'x' | 'y' } | null {
   const r = setup.ref;
   if (!r) return null;
+  if ('point' in r) {
+    const b = sol ? snapToAxis(sol, r.axis, r.point) : r.point;
+    return { a: setup.origin, b, axis: r.axis === 'z' ? 'y' : 'x' };
+  }
   if ('line' in r) {
     const pair = r.line[0] === 'x' ? setup.x : setup.y, l = pair[Number(r.line[1])];
     if (!l) return null;
@@ -43,6 +47,15 @@ export function refLineOf(setup: CameraSetup, swapped = false): { a: Pt; b: Pt; 
   }
   return { a: r.a, b: r.b, axis: r.axis };
 }
+/** 사진 점을 원점에서 뻗는 월드 축의 사진 위 직선으로 붙인다 (가장 가까운 점) */
+export function snapToAxis(sol: CameraSolution, axis: 'x' | 'y' | 'z', p: Pt): Pt {
+  const o = sol.originPx, d = sol.axisImageDir[axis];
+  const n = Math.hypot(d[0], d[1]);
+  if (n < 1e-9) return p;
+  const t = ((p[0] - o[0]) * d[0] + (p[1] - o[1]) * d[1]) / (n * n);
+  return [o[0] + d[0] * t, o[1] + d[1] * t];
+}
+
 export interface CameraSolution {
   f: number;
   /** 주점 (사진 px) */
@@ -63,6 +76,9 @@ export interface CameraSolution {
   wallAxes: [AxisDir, AxisDir];
   /** 월드 좌표용 포즈 (R = worldR) — 3D 축 표시·검증 */
   worldPose: CameraPose;
+  /** 원점의 사진 위치와, 원점에서 각 월드 축이 사진에서 뻗는 방향 (기준 길이 핸들을 축 위에 붙이는 데) */
+  originPx: Pt;
+  axisImageDir: Record<'x' | 'y' | 'z', Pt>;
   /** 화각 (도) 가로·세로 */
   fov: { h: number; v: number };
   warnings: string[];
@@ -169,13 +185,41 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   let s = 1000;
   const H1 = Hof(poseAt(1)), H1inv = invert3(H1);
   if (!H1inv) return null;
-  const refL = refLineOf(setup, wallAxes[0] !== axesUsed.first);
-  if (refL && setup.ref && setup.ref.mm > 0) {
-    const toWall = (p: Pt): Pt => { const w = H1inv[6] * p[0] + H1inv[7] * p[1] + H1inv[8]; return [(H1inv[0] * p[0] + H1inv[1] * p[1] + H1inv[2]) / w, (H1inv[3] * p[0] + H1inv[4] * p[1] + H1inv[5]) / w]; };
-    const a = toWall(refL.a), b = toWall(refL.b);
-    const L1 = refL.axis === 'x' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
-    if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 선이 너무 짧습니다.');
-  } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 축 선 중 실측한 것을 고르고 길이를 넣으세요.');
+  // 원점에서 각 월드 축이 사진에서 뻗는 방향 (s 와 무관: 소실점 방향)
+  const projCam = (X: V3): Pt => [(f * X[0]) / X[2] + pp[0], (f * X[1]) / X[2] + pp[1]];
+  const originPx: Pt = projCam(o3);
+  const axisDir = (d: V3): Pt => {
+    // 원점에서 축 방향으로 조금 간 점의 사진 위치 차이 (카메라 뒤로 가면 반대쪽으로)
+    const step = Math.max(1e-3, Math.abs(o3[2]) * 1e-3);
+    const q: V3 = [o3[0] + d[0] * step, o3[1] + d[1] * step, o3[2] + d[2] * step];
+    const qq = q[2] > 1e-9 ? projCam(q) : projCam([o3[0] - d[0] * step, o3[1] - d[1] * step, o3[2] - d[2] * step]);
+    const v: Pt = [qq[0] - originPx[0], qq[1] - originPx[1]];
+    const n = Math.hypot(v[0], v[1]) || 1;
+    return [v[0] / n, v[1] / n];
+  };
+  const axisImageDir = { x: axisDir(cols.x), y: axisDir(cols.y), z: axisDir(cols.z) };
+  if (setup.ref && 'point' in setup.ref && setup.ref.mm > 0) {
+    // 축 위 점 P = o3 + λ·d 가 사진의 point 에 투영되도록 λ 를 푼다 (s=1 단위) → s = mm / |λ|
+    const d = cols[setup.ref.axis];
+    const dir = axisImageDir[setup.ref.axis];
+    const t = ((setup.ref.point[0] - originPx[0]) * dir[0] + (setup.ref.point[1] - originPx[1]) * dir[1]);
+    const target: Pt = [originPx[0] + dir[0] * t, originPx[1] + dir[1] * t];
+    const useX = Math.abs(dir[0]) >= Math.abs(dir[1]);
+    const u = useX ? target[0] - pp[0] : target[1] - pp[1];
+    const oi = useX ? o3[0] : o3[1], di = useX ? d[0] : d[1];
+    const den = d[2] * u - f * di;
+    const lambda = Math.abs(den) > 1e-12 ? (f * oi - o3[2] * u) / den : 0;
+    const L1 = Math.abs(lambda);
+    if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 점이 원점과 겹칩니다. 축을 따라 떨어뜨리세요.');
+  } else {
+    const refL = refLineOf(setup, wallAxes[0] !== axesUsed.first);
+    if (refL && setup.ref && setup.ref.mm > 0) {
+      const toWall = (p: Pt): Pt => { const w = H1inv[6] * p[0] + H1inv[7] * p[1] + H1inv[8]; return [(H1inv[0] * p[0] + H1inv[1] * p[1] + H1inv[2]) / w, (H1inv[3] * p[0] + H1inv[4] * p[1] + H1inv[5]) / w]; };
+      const a = toWall(refL.a), b = toWall(refL.b);
+      const L1 = refL.axis === 'x' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
+      if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 선이 너무 짧습니다.');
+    } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 원점에서 뻗는 축 하나를 고르고 실측 거리를 넣으세요.');
+  }
   const pose = poseAt(s);
   const H = Hof(pose);
   const Hinv = invert3(H);
@@ -184,7 +228,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const T = pose.t;
   const cameraPos: V3 = [-(R[0] * T[0] + R[3] * T[1] + R[6] * T[2]), -(R[1] * T[0] + R[4] * T[1] + R[7] * T[2]), -(R[2] * T[0] + R[5] * T[1] + R[8] * T[2])];
   const fov = { h: (2 * Math.atan(imgW / 2 / f) * 180) / Math.PI, v: (2 * Math.atan(imgH / 2 / f) * 180) / Math.PI };
-  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, warnings };
+  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, originPx, axisImageDir, warnings };
 }
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */

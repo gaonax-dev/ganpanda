@@ -256,7 +256,8 @@ class AppState {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
       const found = gray && proposeAxisLines(gray);
       if (!gray || !found) return false;
-      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y });
+      // 처음 셋팅은 가로(X)·높이(Z): 첫 쌍 = 가로 선, 둘째 쌍 = 세로 선 (사용자 2026-10-14)
+      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: { first: '+x', second: '+z' } });
       return true;
     } finally { this.cameraBusy = false; }
   }
@@ -662,7 +663,7 @@ export function defaultCameraSetup(w: number, h: number): CameraSetup {
     x: [{ a: [w * 0.2, h * 0.3], b: [w * 0.8, h * 0.3] }, { a: [w * 0.2, h * 0.7], b: [w * 0.8, h * 0.7] }],
     y: [{ a: [w * 0.25, h * 0.2], b: [w * 0.25, h * 0.8] }, { a: [w * 0.75, h * 0.2], b: [w * 0.75, h * 0.8] }],
     origin: [w * 0.25, h * 0.7],
-    ref: { line: 'x1', mm: 1000 },
+    ref: { axis: 'x', point: [w * 0.45, h * 0.7], mm: 1000 },
     principal: 'center',
   };
 }
