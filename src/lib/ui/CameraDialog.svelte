@@ -6,6 +6,7 @@
   import type { Pt } from '../core/homography';
   import type { Photo } from '../core/model';
   import type { Axis, CameraSetup, Line } from '../core/camera';
+  import { projectVisible, type CameraPose } from '../core/homography';
 
   let { photo }: { photo: Photo } = $props();
   let url = $state<string | undefined>(undefined);
@@ -24,6 +25,26 @@
   const ro = $derived(!app.canEdit);
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const close = () => app.closeCamera();
+  let show3d = $state(true);
+  /** fSpy 처럼 풀린 카메라를 3D 로 바로 보여 준다: 벽면 1m 격자(원점 기준), 축 X·Y·Z, 1m 상자 */
+  const overlay = $derived.by(() => {
+    if (!sol) return null;
+    const pose: CameraPose = sol.pose;
+    const seg = (a: [number, number, number], b: [number, number, number]) => { const p = projectVisible(pose, a), q = projectVisible(pose, b); return p && q ? { a: p, b: q } : null; };
+    const step = 1000, nx = 6, ny = 4;
+    const grid: { a: Pt; b: Pt }[] = [];
+    for (let i = -1; i <= nx; i++) { const s = seg([i * step, -step, 0], [i * step, ny * step, 0]); if (s) grid.push(s); }
+    for (let j = -1; j <= ny; j++) { const s = seg([-step, j * step, 0], [nx * step, j * step, 0]); if (s) grid.push(s); }
+    const axes = { x: seg([0, 0, 0], [step, 0, 0]), y: seg([0, 0, 0], [0, step, 0]), z: seg([0, 0, 0], [0, 0, step]) };
+    const c = (x: number, y: number, z: number): [number, number, number] => [x * step, y * step, z * step];
+    const E: [[number, number, number], [number, number, number]][] = [
+      [c(0,0,0), c(1,0,0)], [c(1,0,0), c(1,1,0)], [c(1,1,0), c(0,1,0)], [c(0,1,0), c(0,0,0)],
+      [c(0,0,1), c(1,0,1)], [c(1,0,1), c(1,1,1)], [c(1,1,1), c(0,1,1)], [c(0,1,1), c(0,0,1)],
+      [c(0,0,0), c(0,0,1)], [c(1,0,0), c(1,0,1)], [c(1,1,0), c(1,1,1)], [c(0,1,0), c(0,1,1)],
+    ];
+    const cube = E.map(([a, b]) => seg(a, b)).filter((s): s is { a: Pt; b: Pt } => !!s);
+    return { grid, axes, cube };
+  });
   const set = (patch: Partial<CameraSetup>) => { app.cameraDraft = { ...draft, ...patch }; };
 
   $effect(() => { assetUrl(photo.assetId).then((u) => (url = u)); });
@@ -96,6 +117,15 @@
           <div class="stage" style:width="{photo.w * scale}px" style:height="{photo.h * scale}px">
             <img bind:this={img} src={url} alt={photo.name} draggable="false" crossorigin="anonymous" />
             <svg bind:this={svg} data-testid="camera-svg" data-scale={scale} viewBox="0 0 {photo.w} {photo.h}" role="presentation" onpointermove={move} onpointerup={up} onpointercancel={up}>
+              {#if show3d && overlay}
+                <g class="overlay" data-testid="camera-3d" pointer-events="none">
+                  {#each overlay.grid as s, i (i)}<line class="g" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1 / scale} />{/each}
+                  {#each overlay.cube as s, i (i)}<line class="cube" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1.5 / scale} />{/each}
+                  {#if overlay.axes.x}<line class="axx" x1={overlay.axes.x.a[0]} y1={overlay.axes.x.a[1]} x2={overlay.axes.x.b[0]} y2={overlay.axes.x.b[1]} stroke-width={3 / scale} />{/if}
+                  {#if overlay.axes.y}<line class="axy" x1={overlay.axes.y.a[0]} y1={overlay.axes.y.a[1]} x2={overlay.axes.y.b[0]} y2={overlay.axes.y.b[1]} stroke-width={3 / scale} />{/if}
+                  {#if overlay.axes.z}<line class="axz" x1={overlay.axes.z.a[0]} y1={overlay.axes.z.a[1]} x2={overlay.axes.z.b[0]} y2={overlay.axes.z.b[1]} stroke-width={3 / scale} />{/if}
+                </g>
+              {/if}
               {#each AXES as ax (ax.axis)}
                 {@const lines = linesOf(ax.axis)}
                 {#if lines}
@@ -158,6 +188,9 @@
           <p class="hint">흰 십자 = 원점(벽 좌표 0,0). 보통 벽의 왼쪽 아래 모서리.</p>
         </section>
         <section data-testid="camera-result">
+          <h3>3D 확인</h3>
+          <label class="check"><input type="checkbox" data-testid="camera-show3d" bind:checked={show3d} /> 3D 격자·축 보기</label>
+          <p class="hint">풀린 카메라로 벽면 1m 격자와 원점 축(X 빨강 · Y 초록 · Z 파랑), 1m 상자를 사진에 겹칩니다. 격자가 벽의 줄눈·창과 나란하고 상자가 서 있으면 맞은 것입니다. 선을 끌면 바로 바뀝니다.</p>
           <h3>결과</h3>
           {#if sol}
             <small>초점거리 {fmt(sol.f)}px · 주점 ({fmt(sol.pp[0])}, {fmt(sol.pp[1])})</small>
@@ -194,6 +227,9 @@
   .handle.ax { stroke: var(--accent); } .handle.ay { stroke: var(--blue); } .handle.az { stroke: #3ddc84; } .handle.ref { stroke: #ff4d4d; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
   .handle.on { fill: var(--accent); cursor: grabbing; }
   .origin line { stroke: #fff; }
+  .overlay .g { stroke: rgba(255,255,255,0.45); }
+  .overlay .cube { stroke: rgba(255,255,255,0.9); }
+  .overlay .axx { stroke: #ff4d4d; } .overlay .axy { stroke: #3ddc84; } .overlay .axz { stroke: #4da3ff; }
   text { fill: #fff; stroke: rgba(0,0,0,0.75); paint-order: stroke; font-weight: 700; pointer-events: none; }
   .loupe { position: absolute; width: 180px; height: 180px; border: 2px solid var(--accent); border-radius: 50%; background: #000; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
   .status { color: var(--muted); }

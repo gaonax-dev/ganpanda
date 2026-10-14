@@ -3,6 +3,7 @@
 // 수식에서 직접 구현했고 외부 코드는 쓰지 않았다. 벽 좌표: X 오른쪽, Y 위, Z 벽 밖(카메라 쪽), 단위 mm.
 import type { Calibration, Gray } from './calibration';
 import { snapEdge } from './calibration';
+import { proposeAxes } from './lines';
 import { DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
 
 export interface Line { a: Pt; b: Pt }
@@ -131,100 +132,20 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */
 export function calibrationOf(s: CameraSolution): Calibration {
-  return { H: s.Hinv, sx: 1, sy: 1, perRef: [], warnings: s.warnings };
+  return { H: s.Hinv, sx: 1, sy: 1, metric: true, perRef: [], warnings: s.warnings };
 }
 
-// ---------- 자동 제안 (AI): 사진의 강한 직선에서 가로·세로 축 선 후보 ----------
-
-interface Cand { theta: number; rho: number; votes: number }
+// ---------- 자동 제안 (AI): 선분 검출 + RANSAC 소실점 (lines.ts) ----------
 
 /**
- * 거친 허프 변환으로 강한 직선을 찾고, 가로에 가까운 선 2개(위·아래로 떨어진)와 세로에 가까운 선 2개(좌·우로 떨어진)를 고른다.
- * 끝점은 그 선을 받치는 에지 픽셀의 범위. 선이 모자라면 null
+ * 사진에서 가로·세로 축 선 후보: LSD 식 선분 검출 → 소실점 두 개(RANSAC) → 각 소실점을 받치는, 서로 떨어진 긴 선분 두 개.
+ * 뚜렷한 직선이 모자라면 null
  */
-export function proposeAxisLines(img: Gray, opts: { minSep?: number } = {}): { x: [Line, Line]; y: [Line, Line] } | null {
-  const { width: w, height: h, data } = img;
-  const step = Math.max(1, Math.round(Math.max(w, h) / 600)); // 큰 사진은 건너뛰며 본다
-  // 그라디언트가 큰 픽셀
-  const edges: { x: number; y: number; ang: number; m: number }[] = [];
-  let sum = 0, n = 0;
-  for (let y = step; y < h - step; y += step) for (let x = step; x < w - step; x += step) {
-    const gx = data[y * w + x + step] - data[y * w + x - step], gy = data[(y + step) * w + x] - data[(y - step) * w + x];
-    const m = Math.hypot(gx, gy);
-    sum += m; n++;
-    if (m > 0) edges.push({ x, y, ang: Math.atan2(gy, gx), m });
-  }
-  const mean = sum / Math.max(1, n);
-  const thr = Math.max(20, mean * 3);
-  const strong = edges.filter((e) => e.m > thr);
-  if (strong.length < 20) return null;
-  // 허프: theta = 선의 법선 방향 (에지 그라디언트 방향과 같다), 1° 간격
-  const T = 180, diag = Math.hypot(w, h), R = Math.ceil(diag);
-  const acc = new Float32Array(T * (2 * R + 1));
-  const idx = (t: number, r: number) => t * (2 * R + 1) + (r + R);
-  for (const e of strong) {
-    let tdeg = Math.round((e.ang * 180) / Math.PI);
-    if (tdeg < 0) tdeg += 180;
-    if (tdeg >= 180) tdeg -= 180;
-    const th = (tdeg * Math.PI) / 180;
-    const rho = Math.round(e.x * Math.cos(th) + e.y * Math.sin(th));
-    for (const dt of [-1, 0, 1]) { const tt = (tdeg + dt + T) % T; acc[idx(tt, Math.max(-R, Math.min(R, rho)))] += dt ? 0.5 : 1; }
-  }
-  // 지역 최대 후보
-  const cands: Cand[] = [];
-  for (let t = 0; t < T; t++) for (let r = -R; r <= R; r++) {
-    const v = acc[idx(t, r)];
-    if (v < 8) continue;
-    let best = true;
-    for (let dt = -3; dt <= 3 && best; dt++) for (let dr = -6; dr <= 6; dr++) {
-      if (!dt && !dr) continue;
-      const tt = (t + dt + T) % T, rr = r + dr;
-      if (rr < -R || rr > R) continue;
-      if (acc[idx(tt, rr)] > v) { best = false; break; }
-    }
-    if (best) cands.push({ theta: (t * Math.PI) / 180, rho: r, votes: v });
-  }
-  cands.sort((a, b) => b.votes - a.votes);
-  // 법선 각 theta: 가로선은 법선이 세로(≈90°), 세로선은 법선이 가로(≈0°/180°)
-  const angTo = (th: number, target: number) => { let d = Math.abs(th - target) % Math.PI; return Math.min(d, Math.PI - d); };
-  const hor = cands.filter((c) => angTo(c.theta, Math.PI / 2) < (35 * Math.PI) / 180);
-  const ver = cands.filter((c) => angTo(c.theta, 0) < (35 * Math.PI) / 180);
-  // 멀리 떨어진 두 선일수록 소실점이 안정 — 먼저 30% 이상 떨어진 쌍을 찾고, 없으면 기준을 절반씩 낮춘다
-  const pick = (list: Cand[], along: 'y' | 'x'): [Cand, Cand] | null => {
-    const extent = along === 'y' ? h : w;
-    const mid = (l: Line) => (along === 'y' ? (l.a[1] + l.b[1]) / 2 : (l.a[0] + l.b[0]) / 2);
-    for (let minSep = opts.minSep ?? extent * 0.3; minSep >= extent * 0.05; minSep /= 2) {
-      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-        const a = toSeg(list[i]), b = toSeg(list[j]);
-        if (!a || !b) continue;
-        if (Math.abs(mid(a) - mid(b)) >= minSep) return [list[i], list[j]];
-      }
-    }
-    return null;
-  };
-  /** 후보 직선 → 받치는 에지 픽셀의 범위로 선분 */
-  function toSeg(c: Cand): Line | null {
-    const cs = Math.cos(c.theta), sn = Math.sin(c.theta);
-    const ts: number[] = [];
-    for (const e of strong) {
-      const d = e.x * cs + e.y * sn;
-      if (Math.abs(d - c.rho) > 2 * step) continue;
-      if (angTo(e.ang, c.theta) > (6 * Math.PI) / 180) continue;
-      ts.push(-e.x * sn + e.y * cs); // 선 방향 좌표
-    }
-    if (ts.length < 8) return null;
-    ts.sort((a, b) => a - b);
-    const lo = ts[Math.floor(ts.length * 0.05)], hi = ts[Math.floor(ts.length * 0.95)];
-    if (hi - lo < Math.min(w, h) * 0.1) return null;
-    const base: Pt = [c.rho * cs, c.rho * sn];
-    const at = (t: number): Pt => [base[0] - t * sn, base[1] + t * cs];
-    return { a: at(lo), b: at(hi) };
-  }
-  const hp = pick(hor, "y"), vp = pick(ver, "x");
-  if (!hp || !vp) return null;
-  const x = [toSeg(hp[0])!, toSeg(hp[1])!].sort((a, b) => (a.a[1] + a.b[1]) - (b.a[1] + b.b[1])) as [Line, Line];
-  const y = [toSeg(vp[0])!, toSeg(vp[1])!].sort((a, b) => (a.a[0] + a.b[0]) - (b.a[0] + b.b[0])) as [Line, Line];
-  return { x, y };
+export function proposeAxisLines(img: Gray): { x: [Line, Line]; y: [Line, Line] } | null {
+  const p = proposeAxes(img);
+  if (!p) return null;
+  const L = (s: { a: Pt; b: Pt }): Line => ({ a: s.a, b: s.b });
+  return { x: [L(p.x[0]), L(p.x[1])], y: [L(p.y[0]), L(p.y[1])] };
 }
 
 /** 축 선·기준 길이 선의 끝점을 사진 모서리에 붙인다 (법선 방향 탐색) */

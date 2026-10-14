@@ -5,6 +5,8 @@ export interface Calibration {
   /** 사진 px → 벽면 좌표 (축척 전) */
   H: number[];
   sx: number; sy: number;
+  /** true = H 가 이미 벽 mm 좌표(원점·방향 포함) — 카메라 설정에서 온 것. 벽면 좌표계를 다시 잡지 않는다 */
+  metric?: boolean;
   /** (옛 기준선 방식의 흔적) 기준별 편차 — 카메라 설정에서는 비어 있다 */
   perRef: { objectId: string; edge: 'top' | 'bottom' | 'left' | 'right'; kind: 'h' | 'v'; deviation: number }[];
   warnings: string[];

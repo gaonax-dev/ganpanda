@@ -55,6 +55,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
     app.cameraDraft = { x: [{ a: bandTL, b: bandTR }, { a: bandBL, b: bandBR }], y: [{ a: doorTL, b: doorBL }, { a: doorTR, b: doorBR }], origin, ref: { a: doorBL, b: doorBR, axis: 'x', mm: 1000 }, principal: 'center' };
   }, { bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin });
   await expect(dlg.getByTestId('camera-result')).toContainText('초점거리');
+  await expect(dlg.getByTestId('camera-3d')).toBeVisible(); // fSpy 처럼 3D 격자·축이 사진에 겹쳐 보인다
   await dlg.getByTestId('camera-apply').click();
   await expect(dlg).toHaveCount(0);
   await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
@@ -72,7 +73,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   // 실사 보기가 카메라를 쓴다 (패널이 사진 머리 바를 가리지 않게 선택 해제)
   await page.evaluate(() => (window as unknown as { __ganpanda: { selectObject(id: string | null): void } }).__ganpanda.selectObject(null));
   await page.getByTestId('render-open').click();
-  await expect(page.getByTestId('render-dialog')).toContainText('카메라 설정');
+  await expect(page.getByTestId('render-dialog')).toContainText('원근 맞추기');
   await page.getByTestId('close-render').click();
 
   // 지우기 → 설정 없음, 추정도 사라짐

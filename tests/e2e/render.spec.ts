@@ -44,6 +44,7 @@ async function samplePixels(page: import('@playwright/test').Page, dataUrl: stri
 
 test('실사 보기: 사진 속 제자리에 입체 글자를 합성하고, 야간에는 발광하며, PNG 로 저장한다', async ({ page, request }) => {
   const { center } = await setup(page, request);
+  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'ok');
   await page.getByTestId('render-open').click();
   const dlg = page.getByTestId('render-dialog');
   await expect(dlg).toBeVisible();
@@ -84,6 +85,8 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
     const app = (window as unknown as { __ganpanda: { project: { allObjects(): { id: string }[]; updateObject(id: string, p: unknown): void } } }).__ganpanda;
     for (const o of app.project.allObjects()) app.project.updateObject(o.id, { widthMm: undefined, heightMm: undefined });
   });
+  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'none');
   await page.getByTestId('render-open').click();
   await expect(page.getByTestId('render-status')).toContainText('치수');
+  await expect(page.getByTestId('render-open-camera')).toBeVisible();
 });

@@ -34,6 +34,11 @@ const len = (p: Pt, q: Pt) => Math.hypot(p[0] - q[0], p[1] - q[1]);
 const sized = (o: SignObject) => !!(o.widthMm && o.heightMm && isValidQuad(o.quad));
 
 export function wallPlaneOf(objs: SignObject[], calib?: Calibration | null): WallPlane | null {
+  // 카메라 설정: 사진 px → 벽 mm 가 이미 원점·방향까지 맞다 → 사인물이 없어도 벽면이 있다
+  if (calib?.metric) {
+    const H = invert3(calib.H);
+    return H ? { H, Hinv: calib.H, source: 'calibration' } : null;
+  }
   if (calib) {
     // px → 정면 보정(c.H) → mm 축척 → 영역들의 좌하단을 원점으로.
     // 소실점 부호에 따라 보정 축 방향이 뒤집힐 수 있으므로 첫 영역의 TL→TR 이 +x, BL→TL 이 +y 가 되게 맞춘다

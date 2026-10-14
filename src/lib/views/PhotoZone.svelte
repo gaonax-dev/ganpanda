@@ -14,7 +14,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false,
+    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none',
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -61,6 +61,8 @@
     /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
     oncamera?: () => void;
     cameraSet?: boolean;
+    /** 이 사진에 3D 벽면이 있는가 (원근 설정 또는 치수 입력 사인물) */
+    threeD?: 'ok' | 'none';
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
@@ -238,7 +240,7 @@
     {#if oncamera}
       <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
     {/if}
-    {#if onrender && objects.length}<button class="x" data-testid="render-open" title="실사 보기 (사진 속 합성)" onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>🎞 실사</button>{/if}
+    {#if onrender}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '3D 뷰 (사진 속 벽면·사인물 합성)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{threeD === 'ok' ? '🧊 3D ✓' : '🧊 3D'}</button>{/if}
     {#if editable}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
   {#if url}
@@ -394,7 +396,7 @@
   .camera { opacity: 0.55; }
   .camera .cx { stroke: var(--accent); stroke-dasharray: 6 4; } .camera .cy { stroke: var(--blue); stroke-dasharray: 6 4; } .camera .cz { stroke: #3ddc84; stroke-dasharray: 6 4; } .camera .cr { stroke: #ff4d4d; }
   .camera .co { fill: none; stroke: #fff; }
-  .header .cam.set { color: var(--ok); }
+  .header .cam.set, .header .x.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
