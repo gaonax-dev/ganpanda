@@ -4,13 +4,15 @@ import { openOwnedProject } from './helpers';
 /** 합성 건물 사진 + 띠 영역(치수 입력 → 3D 벽면 있음) */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
   await openOwnedProject(page, request);
-  const dataUrl = await page.evaluate(async () => { const { makeSamplePhoto } = await import(/* @vite-ignore */ '/src/lib/sim/sample.ts'); return makeSamplePhoto().toDataURL('image/png') as string; });
+  const dataUrl = await page.evaluate(async () => { const path = '/src/lib/sim/sample.ts'; const { makeSamplePhoto } = await import(/* @vite-ignore */ path); return makeSamplePhoto().toDataURL('image/png') as string; });
   await page.getByTestId('photo-input').setInputFiles({ name: '매장.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await page.getByTestId('photo-zone').waitFor();
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   await page.evaluate(async () => {
-    const { SAMPLE } = await import(/* @vite-ignore */ '/src/lib/sim/sample.ts');
-    const { applyHomography, solveHomography } = await import(/* @vite-ignore */ '/src/lib/core/homography.ts');
+    const sp = '/src/lib/sim/sample.ts';
+    const { SAMPLE } = await import(/* @vite-ignore */ sp);
+    const hp = '/src/lib/core/homography.ts';
+    const { applyHomography, solveHomography } = await import(/* @vite-ignore */ hp);
     const H = solveHomography([[0, SAMPLE.wallH], [SAMPLE.wallW, SAMPLE.wallH], [SAMPLE.wallW, 0], [0, 0]], SAMPLE.corners);
     const rect = (x: number, y: number, w: number, h: number) => [[x, y + h], [x + w, y + h], [x + w, y], [x, y]].map((p) => applyHomography(H, p as [number, number]));
     const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
