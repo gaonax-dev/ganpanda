@@ -118,3 +118,14 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   const [hit, vis] = await Promise.all([page.getByTestId('sign-handle-hit').first().getAttribute('r'), page.getByTestId('sign-handle').first().getAttribute('r')]);
   expect(parseFloat(hit!) / parseFloat(vis!)).toBeCloseTo(2);
 });
+
+test('창을 휴대폰 폭으로 줄였다 되돌려도 가로 스와이프(휠)는 막히고 스크롤 연쇄가 없다 (뒤로가기 방지)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(200);
+  const swipeBlocked = () => page.evaluate(() => { const ev = new WheelEvent('wheel', { deltaX: -80, deltaY: 3, bubbles: true, cancelable: true }); (document.elementFromPoint(640, 400) ?? document.body).dispatchEvent(ev); return ev.defaultPrevented; });
+  expect(await swipeBlocked()).toBe(true);
+  const ob = await page.evaluate(() => [getComputedStyle(document.documentElement).overscrollBehaviorX, getComputedStyle(document.body).overscrollBehaviorX, getComputedStyle(document.querySelector('[role="toolbar"]')!).overscrollBehaviorX]);
+  expect(ob).toEqual(['none', 'none', 'contain']);
+});

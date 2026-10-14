@@ -37,8 +37,9 @@
       if (e.ctrlKey) e.preventDefault();
       else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) e.preventDefault(); // 가로 스와이프 뒤로가기 방지
     };
-    document.addEventListener('wheel', block, { passive: false });
-    return () => document.removeEventListener('wheel', block);
+    // 캡처 단계 + window: 어떤 요소가 stopPropagation 해도, 어떤 상태(창·패널 열림)에서도 먼저 받는다
+    window.addEventListener('wheel', block, { passive: false, capture: true });
+    return () => window.removeEventListener('wheel', block, { capture: true });
   });
 
   /** 휴대폰 폭에서는 짧은 라벨 (short) */
