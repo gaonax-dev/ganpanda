@@ -12,6 +12,8 @@ export interface WallPlane {
   Hinv: number[];
   /** calibration = 원근 설정 / reference = 치수 입력 첫 영역 / drawn = 치수 없이 그린 영역의 비율만 (높이 1000mm 가정) */
   source: 'calibration' | 'reference' | 'drawn';
+  /** 카메라 설정의 포즈 (있으면 투영·3D 카메라에 그대로 씀 — 원근 창과 동일) */
+  pose?: CameraPose;
   referenceId?: string;
 }
 
@@ -38,7 +40,7 @@ export function wallPlaneOf(objs: SignObject[], calib?: Calibration | null): Wal
   // 카메라 설정: 사진 px → 벽 mm 가 이미 원점·방향까지 맞다 → 사인물이 없어도 벽면이 있다
   if (calib?.metric) {
     const H = invert3(calib.H);
-    return H ? { H, Hinv: calib.H, source: 'calibration' } : null;
+    return H ? { H, Hinv: calib.H, source: 'calibration', pose: calib.pose } : null;
   }
   if (calib) {
     // px → 정면 보정(c.H) → mm 축척 → 영역들의 좌하단을 원점으로.
@@ -98,6 +100,13 @@ export function placeOnWall(plane: WallPlane, o: { quad: Pt[] }): Placement {
  * 2026-10-14 사용자: "사진 위의 사인물 크기는 사용자가 그린 사인물에 맞물리면 된다"
  */
 export function projectionFromPlane(plane: WallPlane, imgW: number, imgH: number): number[] {
+  // 카메라 설정이 있으면 그 포즈 그대로 P = K[r1 r2 r3 t] — 원근 창의 격자·상자와 같은 위치 (2026-10-14 사용자: "원근과 3D 에서 큐브 위치가 다르다")
+  if (plane.pose) {
+    const { R, t, f } = plane.pose, [cx, cy] = plane.pose.pp ?? [imgW / 2, imgH / 2];
+    const K = (col: V3): V3 => [f * col[0] + cx * col[2], f * col[1] + cy * col[2], col[2]];
+    const c1 = K([R[0], R[3], R[6]]), c2 = K([R[1], R[4], R[7]]), c3 = K([R[2], R[5], R[8]]), c4 = K(t);
+    return [c1[0], c2[0], c3[0], c4[0], c1[1], c2[1], c3[1], c4[1], c1[2], c2[2], c3[2], c4[2]];
+  }
   const H = plane.H;
   const pose = poseOfPlane(plane, imgW, imgH);
   const f = pose.f, cx = imgW / 2, cy = imgH / 2;
@@ -124,6 +133,7 @@ export function projectP(P: number[], p: [number, number, number]): Pt | null {
 
 /** 벽면 → 핀홀 카메라 포즈 (벽면 mm 좌표가 그대로 월드 좌표) */
 export function poseOfPlane(plane: WallPlane, imgW: number, imgH: number, span = 4000): CameraPose {
+  if (plane.pose) return plane.pose;
   const wall: Pt[] = [[0, span], [span, span], [span, 0], [0, 0]];
   const img = wall.map((p) => applyHomography(plane.H, p));
   const centered = img.map(([u, v]) => [u - imgW / 2, v - imgH / 2] as Pt);

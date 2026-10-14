@@ -124,6 +124,35 @@ test('카메라가 벽과 어긋나 있어도(기본 설정 그대로 적용) �
   await page.getByTestId('close-render').click();
 });
 
+test('벽과 맞지 않는 카메라에서 사진 곳곳에 그린 사인물이 모두 그린 자리에 보인다 (사인물마다 자기 영역 기준)', async ({ page, request }) => {
+  await setup(page, request);
+  // 엉뚱한 원근: 가로 선이 사진 안쪽에서 만나 소실선이 사진을 가로지른다
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { updatePhoto(id: string, p: unknown): void } } }).__ganpanda;
+    app.project.updatePhoto(app.photos[0].id, { camera: { x: [{ a: [100, 300], b: [1500, 650] }, { a: [100, 900], b: [1500, 700] }], y: [{ a: [300, 200], b: [250, 1000] }, { a: [1300, 200], b: [1350, 1000] }], origin: [300, 900], ref: { axis: 'x', point: [900, 820], mm: 3000 }, principal: 'center' } });
+  });
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  const centers = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.project.allPhotos()[0].id;
+    const boxes: [number, number, number, number][] = [[250, 150, 500, 320], [1000, 120, 1450, 300], [200, 700, 600, 900], [950, 650, 1400, 850]];
+    for (const [x0, y0, x1, y1] of boxes) app.project.addObject({ photoId, name: `박스 ${x0}`, shape: 'rect', quad: [[x0, y0], [x1, y0 + 20], [x1, y1], [x0, y1 - 15]], sheetIds: [], productId: 'board-foamex' });
+    return boxes.map(([x0, y0, x1, y1]) => [(x0 + x1) / 2, (y0 + y1) / 2] as [number, number]);
+  });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('5', { timeout: 20_000 });
+  await page.getByTestId('render-save').click();
+  const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
+  await expect.poll(() => page.evaluate(hook)).toMatch(/^data:image\/png/);
+  const url = await page.evaluate(hook);
+  for (const c of centers) {
+    const px = await samplePixels(page, url, c, 5);
+    const lum = px.px.reduce((s, [r, g, b]) => s + r + g + b, 0) / px.px.length / 3;
+    expect(lum, `box at ${c}`).toBeGreaterThan(200);
+  }
+  await page.getByTestId('close-render').click();
+});
+
 test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 나온다', async ({ page, request }) => {
   await setup(page, request);
   const flat = await makePhoto(page);
