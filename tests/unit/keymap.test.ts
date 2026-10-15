@@ -50,10 +50,18 @@ describe('기본 단축키 (xlpop 과 동일한 화면 조작)', () => {
 
   it('도구와 삭제', () => {
     expect(matchAction(DEFAULT_KEYMAP, ev('KeyV'), mac)).toBe('toolSelect');
-    expect(matchAction(DEFAULT_KEYMAP, ev('KeyR'), mac)).toBe('toolRect');
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyT'), mac)).toBe('toolRect'); // R 은 크기(QWER)로 옮김 — 사각은 T
     expect(matchAction(DEFAULT_KEYMAP, ev('KeyO'), mac)).toBe('toolEllipse');
     expect(matchAction(DEFAULT_KEYMAP, ev('Delete'), mac)).toBe('deleteSelection');
     expect(matchAction(DEFAULT_KEYMAP, ev('Backspace'), mac)).toBe('deleteSelection');
+  });
+
+  it('QWER = 선택·이동·회전·크기 (2026-10-15 사용자: "qwer 선택,이동,회전,크기")', () => {
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyQ'), mac)).toBe('toolSelect');
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyW'), mac)).toBe('gizmoMove');
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyE'), mac)).toBe('gizmoRotate');
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyR'), mac)).toBe('gizmoScale');
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyR', {}, 'ㄱ'), mac)).toBe('gizmoScale'); // 한글 입력 상태에서도
   });
 
   it('스페이스는 이동(누르고 있기)', () => {
@@ -61,7 +69,7 @@ describe('기본 단축키 (xlpop 과 동일한 화면 조작)', () => {
   });
 
   it('등록되지 않은 조합은 null', () => {
-    expect(matchAction(DEFAULT_KEYMAP, ev('KeyQ'), mac)).toBeNull();
+    expect(matchAction(DEFAULT_KEYMAP, ev('KeyJ'), mac)).toBeNull();
   });
 });
 
@@ -69,7 +77,7 @@ describe('사용자 설정', () => {
   it('바꾼 단축키로 동작하고 이전 키는 동작하지 않는다', () => {
     const km = { ...DEFAULT_KEYMAP, toolRect: ['B'] };
     expect(matchAction(km, ev('KeyB'), true)).toBe('toolRect');
-    expect(matchAction(km, ev('KeyR'), true)).toBeNull();
+    expect(matchAction(km, ev('KeyT'), true)).toBeNull();
   });
 
   it('저장된 설정에 없는 동작은 기본값으로 채우고, 모르는 동작은 버린다', () => {

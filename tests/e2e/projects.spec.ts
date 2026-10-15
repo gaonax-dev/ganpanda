@@ -53,7 +53,7 @@ test('소유자가 초대 링크를 만들고 복사한다 (역할 선택)', asy
 test('viewer 초대: 보고 대화할 수 있지만 편집은 못 한다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   const url = await apiCreateInvite(request, session, projectId, 'viewer');
   const guest = await openInvited(browser, url);
@@ -84,7 +84,7 @@ test('editor 초대: 편집이 소유자에게 반영된다', async ({ page, req
   const guest = await openInvited(browser, url, '디자이너');
   await expect(guest.getByTestId('role-badge')).toContainText('편집');
   await expect(guest.getByTestId('photo-img')).toBeVisible();
-  await guest.keyboard.press('r');
+  await guest.keyboard.press('t');
   await dragOnPhoto(guest, [400, 200], [800, 300]);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   // 초대 링크는 새로고침해도 유지 (토큰은 주소에서 지워짐)

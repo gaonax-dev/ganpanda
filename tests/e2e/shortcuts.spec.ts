@@ -26,7 +26,7 @@ test.describe('화면 조작 (xlpop 과 동일)', () => {
   });
 
   test('스페이스를 누른 채 드래그하면 사진 위에서도 영역 대신 화면이 이동한다', async ({ page }) => {
-    await page.keyboard.press('r'); // 사각 도구 상태에서도
+    await page.keyboard.press('t'); // 사각 도구 상태에서도
     await hoverCanvas(page);
     const before = (await page.getByTestId('photo-img').boundingBox())!;
     await page.keyboard.down('Space');
@@ -57,7 +57,7 @@ test.describe('단축키 설정', () => {
     await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('B');
     await page.getByTestId('close-settings').click();
 
-    await page.keyboard.press('r');
+    await page.keyboard.press('t');
     await dragOnPhoto(page, [400, 200], [800, 300]);
     await expect(page.getByTestId('sign-shape')).toHaveCount(0);
 
@@ -81,11 +81,11 @@ test.describe('단축키 설정', () => {
     await page.getByTestId('open-settings').click();
     await page.getByTestId('shortcut-edit-toolRect').click();
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('R');
+    await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('T');
     await page.getByTestId('shortcut-edit-toolRect').click();
     await page.keyboard.press('b');
     await page.getByTestId('shortcuts-reset-all').click();
-    await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('R');
+    await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('T');
     await expect(page.getByTestId('shortcut-row-toolRect')).not.toContainText('B');
   });
 

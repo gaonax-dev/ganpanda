@@ -4,7 +4,7 @@ import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openOwne
 test('채널 간판에 문구를 넣으면 입체 보기로 3D 글자를 보고, 폰트 기준 폭을 치수에 넣을 수 있다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);

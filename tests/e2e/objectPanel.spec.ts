@@ -4,7 +4,7 @@ import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 설정은 따로 열리는 창', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   const panel = page.getByTestId('object-panel');
   await expect(panel).toBeVisible();
@@ -44,7 +44,7 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   // 창은 보드 조작을 막지 않는다: 다른 사인물을 그리면 창이 그 사인물로 바뀐다
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [900, 400], [1200, 500]);
   await page.getByTestId('object-settings-open').click();
   await expect(page.getByTestId('object-settings')).toContainText('사인물 2');

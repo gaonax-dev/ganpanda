@@ -4,10 +4,10 @@ import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhot
 test('보고 있지 않은 사인물에 메시지가 오면 배지·토스트가 뜨고, 열어 보면 사라진다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]); // 사인물 1
   await page.keyboard.press('Escape');
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [900, 150], [1300, 250]); // 사인물 2 (선택된 채로 둠)
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await expect(guest.getByTestId('sign-shape')).toHaveCount(2);
@@ -35,7 +35,7 @@ test('보고 있지 않은 사인물에 메시지가 오면 배지·토스트가
 test('내가 보낸 메시지는 안 읽음으로 세지 않는다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
   await page.getByTestId('chat-input').fill('메모');
   await page.getByTestId('chat-input').press('Enter');

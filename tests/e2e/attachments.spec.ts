@@ -9,7 +9,7 @@ async function attachImage(page: Page, name: string) {
 test('대화에 사진을 첨부하면 썸네일로 보이고 상대도 본다; PDF 는 파일 링크', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
   await attachImage(page, '참고.png');
   await page.getByTestId('chat-input').fill('이런 느낌으로요');
@@ -34,7 +34,7 @@ test('대화에 사진을 첨부하면 썸네일로 보이고 상대도 본다; 
 test('고객(viewer)도 현장 사진을 첨부해 보낼 수 있다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await guest.getByTestId('sign-shape').click();

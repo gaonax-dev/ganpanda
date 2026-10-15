@@ -13,7 +13,7 @@ test('사진을 올리면 보드에 구역으로 놓인다', async ({ page }) =>
 
 test('사각 도구로 사인물 영역을 그리면 오브젝트가 생기고 패널이 열린다', async ({ page }) => {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   await expect(page.getByTestId('object-panel')).toBeVisible();
@@ -43,7 +43,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
   await page.getByTestId('open-settings').click();
   await page.getByTestId('warn-measure').check();
   await page.getByTestId('close-settings').click();
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]); // 400×100px
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
@@ -51,7 +51,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
   await expect(page.getByTestId('reference-badge')).toBeVisible();
 
   await page.keyboard.press('Escape');
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [900, 200], [1100, 300]); // 200×100px → 2000×1000mm
   await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveAttribute('placeholder', /2,000/);
@@ -71,7 +71,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
 
 test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ page }) => {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
@@ -90,7 +90,7 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
 
 test('오브젝트별 대화 (카톡형)', async ({ page }) => {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await page.getByTestId('chat-input').fill('가로 4m 맞나요?');
   await page.getByTestId('chat-input').press('Enter');
@@ -101,7 +101,7 @@ test('오브젝트별 대화 (카톡형)', async ({ page }) => {
 
 test('새로고침해도 작업이 유지된다', async ({ page }) => {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');

@@ -615,6 +615,8 @@ class AppState {
   // ---------- 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다") ----------
   /** 사인물 클립보드 (이 탭 안에서 유지 — 다른 프로젝트로 옮겨 붙일 수 있다) */
   clipboard = $state<ClipSign | null>(null);
+  /** 매니퓰레이터 모드 (W 이동 · E 회전 · R 크기, 2026-10-15 사용자: "qwer 선택,이동,회전,크기") */
+  gizmoMode = $state<'move' | 'rotate' | 'scale'>('move');
   /** 같은 클립을 몇 번 붙였는지 (붙일 때마다 조금씩 비켜 놓는다) */
   private pasteCount = 0;
   private clipOfSelected(): ClipSign | null {
