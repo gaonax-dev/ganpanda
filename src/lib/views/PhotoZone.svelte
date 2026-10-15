@@ -482,8 +482,11 @@
             {@const tg = turnGizmoOf(plane, tf, screenLen(plane, { c: tf.hinge, ex: [tf.up[1], -tf.up[0]], ey: [-tf.up[0], -tf.up[1]], w: tf.w, h: tf.h }))}
             <g class="gizmo turned" data-testid="gizmo" data-mode={gizmoMode} data-turn={Math.round(tf.deg)} data-hinge={tf.side}>
               {@render modeChips(tg.c)}
+              <line class="halo" x1={tg.c[0]} y1={tg.c[1]} x2={tg.z[0]} y2={tg.z[1]}   stroke-width={5.5 * u} />
               <line class="ax z" x1={tg.c[0]} y1={tg.c[1]} x2={tg.z[0]} y2={tg.z[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.z} />
+              <line class="halo" x1={tg.c[0]} y1={tg.c[1]} x2={tg.x[0]} y2={tg.x[1]}   stroke-width={5.5 * u} />
               <line class="ax x" x1={tg.c[0]} y1={tg.c[1]} x2={tg.x[0]} y2={tg.x[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.x} />
+              <line class="halo" x1={tg.c[0]} y1={tg.c[1]} x2={tg.turn[0]} y2={tg.turn[1]}    stroke-width={4.5 * u} />
               <line class="ax y" x1={tg.c[0]} y1={tg.c[1]} x2={tg.turn[0]} y2={tg.turn[1]} stroke-width={2 * u} stroke-dasharray="{4 * u} {3 * u}" style:stroke={AXIS_COLOR.y} />
               <circle class="gh tmove" data-testid="gizmo-x" cx={tg.x[0]} cy={tg.x[1]} r={6 * u} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tx')} />
               <circle class="gh tmove" data-testid="gizmo-z" cx={tg.z[0]} cy={tg.z[1]} r={6 * u} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tz')} />
@@ -521,17 +524,21 @@
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
               {@render modeChips(g.c)}
               {#if gizmoMode === 'move'}
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={4.5 * u} />
                 <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={2 * u} style:stroke={AXIS_COLOR.x} />
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]}   stroke-width={4.5 * u} />
                 <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={2 * u} style:stroke={AXIS_COLOR.z} />
-                {#if g.y}<line class="ax y" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]} stroke-width={1.5 * u} stroke-dasharray="{3 * u} {2 * u}" style:stroke={AXIS_COLOR.y} />{/if}
+                {#if g.y}<line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]}    stroke-width={4.0 * u} /><line class="ax y" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]} stroke-width={1.5 * u} stroke-dasharray="{3 * u} {2 * u}" style:stroke={AXIS_COLOR.y} />{/if}
                 <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={6 * u} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
                 <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={6 * u} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
                 <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 6 * u} y={g.c[1] - 6 * u} width={12 * u} height={12 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
               {:else if gizmoMode === 'rotate'}
+                <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={4 * u} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * u} />
                 <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
                 {#if canTurn && g.y}
                   <!-- 3단계: 초록 손잡이를 끌면 왼쪽 변을 경첩으로 벽에서 돌려 세운다 -->
+                  <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]}   stroke-width={4.5 * u} />
                   <line class="ax y" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]} stroke-width={2 * u} style:stroke={AXIS_COLOR.y} />
                   <circle class="gh" data-testid="gizmo-turn" cx={g.y[0]} cy={g.y[1]} r={6 * u} style:fill={AXIS_COLOR.y} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tturn')} />
                   {#if !editing}
@@ -623,10 +630,14 @@
   .camera .co { fill: none; stroke: #fff; }
   .header .cam.set, .header .x.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
+  svg { z-index: 2; } /* 편집 층은 3D 합성 그림(.overlay)보다 항상 위 */
+  .overlay { z-index: 1; }
   /* 입체 매니퓰레이터 */
-  .gizmo .ring { fill: none; stroke: rgba(255, 255, 255, 0.55); pointer-events: none; }
+  /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
+  .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
+  .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
-  .gizmo .gh { stroke: #fff; cursor: grab; }
+  .gizmo .gh { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; cursor: grab; }
   .gizmo .gh.center { fill: rgba(255, 255, 255, 0.85); stroke: #333; }
   .gizmo .gh.rot { fill: #ffcc00; }
   .gizmo .gh.size { fill: #fff; stroke: #333; }

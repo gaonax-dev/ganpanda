@@ -122,6 +122,12 @@ test('3D 단계: 사인물을 눌러 고르면 매니퓰레이터가 뜨고, 옮
   const b = (await shape.boundingBox())!;
   await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2);
   await expect(page.getByTestId('gizmo')).toBeVisible();
+  // 3D 그림 위에서도 항상 보이고 눌린다: 손잡이 자리의 맨 위 요소가 손잡이, 선마다 어두운 테두리
+  for (const t of ['gizmo-x', 'gizmo-z', 'gizmo-move']) {
+    const top = await page.getByTestId(t).evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.getAttribute('data-testid'); });
+    expect(top).toBe(t);
+  }
+  expect(await page.getByTestId('gizmo').locator('.halo').count()).toBeGreaterThanOrEqual(2);
   const before = await quadOf(page, id);
   await drag(page, 'gizmo-x', 100, 0);
   expect((await quadOf(page, id))[0][0]).toBeGreaterThan(before[0][0]);
