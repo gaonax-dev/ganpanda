@@ -273,7 +273,7 @@ test('돌출 간판 면에 그린 외곽선: 박스는 벽 가로(X) 방향으�
   expect(await quadOf(page, id)).toEqual(q);
 });
 
-test('평면 판·회전 고리는 박스 방향만 바꾼다: 외곽선·사인물 크기는 그대로, 상자만 그 방향. 켜진 판을 다시 누르면 자동', async ({ page, request }) => {
+test('X·Y·Z 단추·회전 고리는 박스 방향만 바꾼다: 외곽선·사인물 크기는 그대로, 상자만 그 방향. 켜진 판을 다시 누르면 자동', async ({ page, request }) => {
   // 2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다", "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만"
   await openOwnedProject(page, request);
   await loadSample(page);
@@ -283,7 +283,14 @@ test('평면 판·회전 고리는 박스 방향만 바꾼다: 외곽선·사인
   const g = page.getByTestId('gizmo'), face = page.getByTestId('box-guide').locator('polygon.face');
   await expect(g).toHaveAttribute('data-box', 'y');
   await expect(page.getByTestId('face-y')).toHaveAttribute('data-on', 'true');
-  expect(await page.getByTestId('face-y').evaluate((e) => e.tagName)).toBe('polygon'); // 사각 판
+  // 2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다" — 판 대신 모드 단추 아래 X·Y·Z 단추
+  await expect(page.getByTestId('face-axes').locator('polygon')).toHaveCount(0);
+  for (const a of ['x', 'y', 'z']) await expect(page.getByTestId(`face-${a}`).locator('text')).toHaveText(a.toUpperCase());
+  const mode = (await page.getByTestId('gizmo-mode-move').boundingBox())!, fy = (await page.getByTestId('face-y').boundingBox())!;
+  expect(fy.y).toBeGreaterThan(mode.y + mode.height - 1); // 모드 단추 아래
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('face-axes')).toHaveCount(0); // 이동 모드에서만
+  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
   const boxY = await face.getAttribute('points');
   // X 판: 박스가 벽 가로로 — 외곽선 그대로, 상자만 바뀜
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
