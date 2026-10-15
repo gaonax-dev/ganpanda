@@ -4,7 +4,7 @@ import type { Calibration } from './calibration';
 import { DEFAULT_FOCAL_RATIO, applyHomography, estimateFocal, projectPoint, recoverPose, solveHomography, type CameraPose, type Pt } from './homography';
 import { isValidQuad } from './measure';
 import type { SignObject } from './model';
-import { SKEW_ALERT, readTurn, skewOf, turnedPlane } from './manipulator';
+import { SKEW_ALERT, fitPlacement, readTurn, skewOf, turnedPlane, type Hinge, type RefPlane } from './manipulator';
 
 export interface WallPlane {
   /** 벽면 mm → 사진 px */
@@ -146,12 +146,15 @@ export function poseOfPlane(plane: WallPlane, imgW: number, imgH: number, span =
  * 사인물 하나를 3D 로 그릴 면 (2026-10-15 사용자: "실제 입력 길이로 인해 3D 각도에 영향을 주는 것 같아… 원근 설정되었고 오브젝트를 원근 각도에 맞춘 거면 각도는 이쪽에 우선").
  * - 원근 설정(카메라)이 있고 외곽선이 그 원근의 직사각형이면(비틀림 ≤ 3°) → 원근 설정의 벽면·카메라 그대로. 크기는 사진에서 잰 값 (입력 치수는 각도에 영향 없음)
  * - 벽에서 돌려 세운 사인물 → 원근 카메라를 돌린 면으로
+ * - 돌리지 않았어도 외곽선이 벽에 직각인 면(돌출 간판)의 모양이면 → 그 면으로 (구도로 면 방향을 알아봄. 2026-10-15 사용자:
+ *   "간판처럼 해줘 너무 복잡해. 구도를 보고 면 방향을 인식할 수 있잖아") — 외곽선은 그린 그대로 두고 3D 만 그 방향으로
  * - 그 외(원근 없음, 손으로 비튼 외곽선) → 사인물 자신의 면 (그린 자리에 맞물림 우선)
  */
 export function signPlaneOf(o: SignObject, cal: WallPlane | null): WallPlane | null {
   if (cal?.source === 'calibration' && cal.pose && isValidQuad(o.quad)) {
-    if (o.turn) {
-      const tf = readTurn(cal, o.quad, o.turn);
+    const turn = o.turn ?? (skewOf(cal, o.quad) > SKEW_ALERT ? recognizedTurn(cal, o.quad) : undefined);
+    if (turn) {
+      const tf = readTurn(cal, o.quad, turn);
       const tp = tf && turnedPlane(cal, tf);
       if (tf && tp) {
         const rect: Pt[] = [[0, tf.h], [tf.w, tf.h], [tf.w, 0], [0, 0]];
@@ -162,6 +165,13 @@ export function signPlaneOf(o: SignObject, cal: WallPlane | null): WallPlane | n
     } else if (skewOf(cal, o.quad) <= SKEW_ALERT) return cal;
   }
   return wallPlaneOf([o], null);
+}
+
+/** 외곽선이 벽에 직각인 면(돌출 간판)의 직사각형에 가까우면 그 배치(90°, 경첩 쪽). 그린 꼭짓점과의 평균 거리가 대각선의 5% 안일 때만 */
+export function recognizedTurn(cal: RefPlane, quad: Pt[]): { deg: number; hinge: Hinge } | undefined {
+  const fit = fitPlacement(cal, quad);
+  const diag = Math.hypot(quad[0][0] - quad[2][0], quad[0][1] - quad[2][1]);
+  return fit?.turn && fit.err < diag * 0.05 ? fit.turn : undefined;
 }
 
 /** 면 좌표의 +z 가 카메라 쪽이면 1, 반대면 -1 — 원근 설정의 카메라는 축 지정에 따라 벽 안쪽이 +z 일 수 있다. 3D 상자는 이 부호로 뒤집어 앞면이 카메라를 보게 */

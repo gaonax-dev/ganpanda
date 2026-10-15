@@ -8,9 +8,9 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
-  import { SKEW_ALERT, alignQuad, fitPlacement, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
   import { applyHomography } from '../core/homography';
-  import { placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, projectionFromPlane, recognizedTurn, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
   import type { Tool } from '../state.svelte';
@@ -167,7 +167,7 @@
   /**
    * 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제"):
    * 두께 있는 사인물만. 흰 상자 = 3D 가 그릴 면(signPlaneOf)에서 외곽선을 카메라 쪽으로 밀어낸 상자(보기 쉽게 깊이 = 짧은 변).
-   * 원근 설정이 있는데 외곽선이 그 원근에서 비틀렸으면 자홍 점선 상자 = 원근 설정대로의 올바른 상자
+   * (자홍 점선 제안 상자는 없앰 — 2026-10-15 사용자: "너무 복잡해". 면 방향은 signPlaneOf 가 구도로 알아본다)
    */
   function boxFor(o: SignObject, q: Pt[]) {
     if (!thicknessOf(o)) return null;
@@ -178,23 +178,13 @@
     const at = placeOnWall(pl, { quad: q });
     const depth = Math.min(at.w, at.h);
     const box = boxGuideOf(projectionFromPlane(pl, photo.w, photo.h), q.map((p) => applyHomography(pl.Hinv, p)), depth);
-    let target: ReturnType<typeof boxGuideOf> = null;
-    if (cal && !turn && pl !== cal && skewOf(cal, q) > SKEW_ALERT) {
-      // 맞출 면(벽 또는 벽에 직각인 면) 그대로의 상자 — 돌출 간판 면에 그린 외곽선이면 직각 면의 상자
-      const fit = fitPlacement(cal, q);
-      const fp = fit && signPlaneOf({ ...o, quad: fit.quad, turn: fit.turn }, cal);
-      if (fit && fp) target = boxGuideOf(projectionFromPlane(fp, photo.w, photo.h), fit.quad.map((p) => applyHomography(fp.Hinv, p)), depth);
-    }
-    return box ? { box, target } : null;
+    return box ? { box } : null;
   }
 
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
   function alignToPerspective(o: SignObject) {
     const plane = refPlaneOf(o);
     if (!plane) return;
-    // 돌출 간판 면에 그렸으면 직각(90°) 배치로 (2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다")
-    const fit = calib?.metric ? fitPlacement(plane, o.quad) : null;
-    if (fit?.turn && onplace) { onplace(o.id, fit.quad, fit.turn); return; }
     onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)))));
   }
 
@@ -503,11 +493,6 @@
         {@const bg = boxFor(o, q)}
         {#if bg}
           {@const edges = (b: { back: Pt[]; front: Pt[] }) => [0, 1, 2, 3].flatMap((i) => [[b.back[i], b.back[(i + 1) % 4]], [b.front[i], b.front[(i + 1) % 4]], [b.back[i], b.front[i]]]) as [Pt, Pt][]}
-          {#if bg.target}
-            <g class="boxg target" data-testid="box-guide-target" pointer-events="none">
-              {#each edges(bg.target) as [a, b], i (i)}<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1.5 * u} stroke-dasharray="{5 * u} {3 * u}" />{/each}
-            </g>
-          {/if}
           <g class="boxg" data-testid="box-guide" pointer-events="none">
             <polygon class="face" points={bg.box.front.map((p) => p.join(',')).join(' ')} />
             {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={3.5 * u} />{/each}
@@ -564,12 +549,10 @@
             {@const skew = skewOf(plane, q)}
             {@const tilt = tiltOf(fr)}
             <!-- 원근 매니퓰레이터: 외곽선이 원근에서 비틀렸거나 축에서 조금 기울었으면, 맞춘 모양을 점선으로 보여 주고 [원근에 맞추기] -->
-            {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10))}
-              {@const fit = fitPlacement(plane, q)}
-              {@const fixed = fit?.turn && onplace ? fit.quad : frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, q))))}
-              <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)} data-fit={fit?.turn && onplace ? 'perp' : 'wall'}>
-                <polygon class="guide" points={fixed.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * gu} stroke-dasharray="{6 * gu} {4 * gu}" />
-                {@render iconBtn([fixed[2][0] + 14 * gu, fixed[2][1] + 14 * gu], '⊞', fit?.turn && onplace ? '벽에 직각인 면(돌출 간판)으로 맞추기' : `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
+            <!-- 2026-10-15 사용자: "너무 복잡해… 구도를 보고 면 방향을 인식" → 맞춘 모양 점선 없이 ⊞ 만. 돌출 간판 면으로 알아본 외곽선은 그대로(3D 가 그 방향으로) -->
+            {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10)) && !(skew > SKEW_ALERT && recognizedTurn(plane, q))}
+              <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
+                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
               </g>
             {/if}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
@@ -687,7 +670,6 @@
   .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
   .boxg .edge { stroke: #fff; stroke-linecap: round; }
   .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
-  .boxg.target line { stroke: #ff4dd2; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
@@ -707,7 +689,6 @@
   .modes .mode.on text { fill: #1a1500; }
   .gizmo .gh.uni { fill: #ffcc00; stroke: #333; }
   .gizmo .deg { fill: #fff; stroke: rgba(0,0,0,0.7); paint-order: stroke; font-weight: 700; pointer-events: none; }
-  .persp .guide { fill: rgba(255, 77, 210, 0.08); stroke: #ff4dd2; pointer-events: none; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
   svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
   svg.ghost .sign.sel polygon { stroke: var(--accent); stroke-dasharray: 6 4; }

@@ -117,3 +117,28 @@ describe('자신의 면으로 그릴 때도 입력 가로는 3D 각도에 영향
     expect(placeOnWall(a, { quad }).h).toBeCloseTo(600, 0);
   });
 });
+
+describe('면 방향은 구도로 알아본다 (2026-10-15 사용자: "간판처럼 해줘 너무 복잡해. 구도를 보고 면 방향을 인식할 수 있잖아")', async () => {
+  const { outOfWall } = await import('../../src/lib/core/manipulator');
+  const n = outOfWall(cal);
+  const P3 = (x: number, y: number, z: number): Pt => projectPoint(pose, [x, y, z * n]);
+  /** 벽(x=wallX)에서 브래킷만큼 떨어져 직각으로 걸린 간판의 손으로 그린 외곽선 */
+  const protruding = (wallX: number): Pt[] => {
+    const nt = P3(wallX, 3900, 300), nb = P3(wallX, 3000, 300), ft = P3(wallX, 3900, 1200), fb = P3(wallX, 3000, 1200);
+    const q = nt[0] < ft[0] ? [nt, ft, fb, nb] : [ft, nt, nb, fb];
+    return q.map(([x, y], i) => [x + [4, -3, 2, -4][i], y + [-2, 4, -4, 3][i]] as Pt);
+  };
+  /** 면의 법선(카메라 좌표) — 포즈 R 의 셋째 열 */
+  const normal = (R: number[]) => [R[2], R[5], R[8]];
+  const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  for (const wallX of [2000, 7000]) {
+    it(`돌출 간판 면에 그린 외곽선(돌리기 조작 없음)은 벽에 직각인 면으로 그린다 — 벽 x=${wallX}`, () => {
+      const pl = signPlaneOf(obj({ quad: protruding(wallX) }), cal)!;
+      expect(pl.pose).toBeTruthy();
+      expect(Math.abs(dot(normal(pl.pose!.R), normal(pose.R)))).toBeLessThan(0.05); // 벽 법선과 직각
+    });
+  }
+  it('벽에 붙은 간판은 그대로 원근 설정의 벽면', () => {
+    expect(signPlaneOf(obj({}), cal)).toBe(cal);
+  });
+});
