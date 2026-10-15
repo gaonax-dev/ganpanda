@@ -36,13 +36,20 @@
 ## 프로젝트·초대 (1-2b) — `Authorization: Bearer <세션>`
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
-| GET | `/api/projects` | 내 프로젝트 (최근 순) | `{projects}` |
+| GET | `/api/projects` | 내 프로젝트 (최근 순; `groupId, status, contractAmount, paidAmount` 포함) | `{projects}` |
 | POST | `/api/projects` `{name}` | 프로젝트 생성 (id = 방 이름, 16자) | 201 `{project}` / 400 |
 | PATCH | `/api/projects/:id` `{name}` | 이름 변경 (소유자) | 200 / 403 / 404 |
 | DELETE | `/api/projects/:id` | 삭제 + 초대 폐기 (소유자) | 204 / 403 |
 | GET | `/api/projects/:id/invites` | 초대 목록 (토큰은 돌려주지 않음, id = 해시 앞 16자) | `{invites}` |
 | POST | `/api/projects/:id/invites` `{role: viewer\|editor}` | 초대 링크 생성 | 201 `{token, role, url}` / 400 |
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
+| PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|done, contractAmount?, paidAmount?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만) | 200 / 400 / 403 / 404 |
+| GET | `/api/groups` | 내 그룹 (오너 것 + 멤버로 속한 것: `role`, `canBilling`) | `{groups}` |
+| POST | `/api/groups` `{name}` | 그룹 생성 | 201 `{group}` / 400 |
+| GET | `/api/groups/:id` | 그룹 보기: 프로젝트(상태; 계약·받은 금액은 `canBilling` 인 사람에게만) + 멤버(오너에게만) | `{group, projects, members?}` / 403 |
+| PATCH / DELETE | `/api/groups/:id` | 이름 변경 / 삭제(프로젝트는 그룹만 빠짐) (오너) | 200 / 204 / 403 |
+| POST | `/api/groups/:id/members` `{email, canBilling?}` | 멤버 추가 (가입된 계정만, 오너) | 201 `{member}` / 404 |
+| PATCH / DELETE | `/api/groups/:id/members/:accountId` `{canBilling}` | 정산 보기 허용 / 멤버 제거 (오너) | 200 / 204 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
 | GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 | `{role, project, seats:{used, limit}}` / 401 / 403 / 404 |
 | POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind, attachments?}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록). 첨부는 최대 5개, 에셋 ID 32자·허용 형식만. 글이 없으면 첨부 필수 | 201 / 400 / 401 / 403 |

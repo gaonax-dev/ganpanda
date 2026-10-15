@@ -4,7 +4,13 @@ import { AuthError, loadSession } from './auth';
 import type { Attachment } from './core/model';
 
 export type Role = 'owner' | 'editor' | 'viewer';
-export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role }
+export type ProjectStatus = 'waiting' | 'ongoing' | 'done';
+export const STATUS_LABEL: Record<ProjectStatus, string> = { waiting: '대기', ongoing: '진행중', done: '완료' };
+/** 그룹·상태·정산(계약/받은 금액)은 2026-10-15 추가. 금액은 정산을 볼 수 있는 사람에게만 온다 */
+export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; contractAmount?: number; paidAmount?: number }
+export interface GroupInfo { id: string; name: string; createdAt: number; role: 'owner' | 'member'; canBilling: boolean }
+export interface GroupMember { accountId: string; email: string; name: string; canBilling: boolean; createdAt: number }
+export interface GroupView { group: GroupInfo; projects: ProjectInfo[]; members?: GroupMember[] }
 export interface InviteInfo { id: string; role: Exclude<Role, 'owner'>; createdAt: number; revoked: boolean }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -21,6 +27,20 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const listProjects = () => call<{ projects: ProjectInfo[] }>('/api/projects').then((r) => r.projects);
 export const createProject = (name: string) =>
   call<{ project: ProjectInfo }>('/api/projects', { method: 'POST', body: JSON.stringify({ name }) }).then((r) => r.project);
+
+export const updateProject = (id: string, body: { name?: string; groupId?: string | null; status?: ProjectStatus; contractAmount?: number; paidAmount?: number }) =>
+  call<{ project: ProjectInfo }>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.project);
+
+// ---------- 프로젝트 그룹 (계산서를 그룹에서 한번에) ----------
+export const listGroups = () => call<{ groups: GroupInfo[] }>('/api/groups').then((r) => r.groups);
+export const createGroup = (name: string) => call<{ group: GroupInfo }>('/api/groups', { method: 'POST', body: JSON.stringify({ name }) }).then((r) => r.group);
+export const getGroup = (id: string) => call<GroupView>(`/api/groups/${id}`);
+export const deleteGroup = (id: string) => call<void>(`/api/groups/${id}`, { method: 'DELETE' });
+export const addGroupMember = (id: string, email: string, canBilling: boolean) =>
+  call<{ member: GroupMember }>(`/api/groups/${id}/members`, { method: 'POST', body: JSON.stringify({ email, canBilling }) }).then((r) => r.member);
+export const setGroupMember = (id: string, accountId: string, canBilling: boolean) =>
+  call<void>(`/api/groups/${id}/members/${accountId}`, { method: 'PATCH', body: JSON.stringify({ canBilling }) });
+export const removeGroupMember = (id: string, accountId: string) => call<void>(`/api/groups/${id}/members/${accountId}`, { method: 'DELETE' });
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>

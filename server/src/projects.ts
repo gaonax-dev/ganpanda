@@ -7,14 +7,21 @@ export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; group_id?: string | null; status?: string; contract_amount?: number; paid_amount?: number }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
 const newRoomId = () => randomToken().slice(0, 16);
 const inviteUrl = (env: Env, projectId: string, token: string) =>
   `${env.APP_URL.replace(/\/+$/, '')}/?room=${projectId}&invite=${token}`;
-const pub = (p: ProjectRow, role: Role) => ({ id: p.id, name: p.name, createdAt: p.created_at, role });
+/** 공개 형태: 그룹·상태(대기/진행중/완료)·정산(계약·받은 금액) 포함 (2026-10-15) */
+export const pubProject = (p: ProjectRow, role: Role) => ({
+  id: p.id, name: p.name, createdAt: p.created_at, role,
+  groupId: p.group_id ?? null, status: p.status ?? 'waiting', contractAmount: p.contract_amount ?? 0, paidAmount: p.paid_amount ?? 0,
+});
+const pub = pubProject;
+const STATUSES = new Set(['waiting', 'ongoing', 'done']);
+const amount = (v: unknown): number | null | undefined => (v === undefined ? undefined : typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null);
 
 const getProject = (env: Env, id: string) => env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first<ProjectRow>();
 
@@ -74,7 +81,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       const body = await readJson<{ name?: string }>(req);
       const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
       if (!name) return text('bad name', 400);
-      const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name, created_at: Date.now() };
+      const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name, created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0 };
       await env.DB.prepare('INSERT INTO projects (id, owner_id, name, created_at) VALUES (?, ?, ?, ?)').bind(p.id, p.owner_id, p.name, p.created_at).run();
       return json({ project: pub(p, 'owner') }, 201);
     }
@@ -91,11 +98,28 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
 
   if (!sub) {
     if (req.method === 'PATCH') {
-      const body = await readJson<{ name?: string }>(req);
-      const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
-      if (!name) return text('bad name', 400);
-      await env.DB.prepare('UPDATE projects SET name = ? WHERE id = ?').bind(name, project.id).run();
-      return json({ project: pub({ ...project, name }, 'owner') });
+      // 이름 · 그룹(내 그룹만, null = 그룹 없음) · 상태 · 계약/받은 금액 — 주어진 것만 바꾼다
+      const body = await readJson<{ name?: string; groupId?: string | null; status?: string; contractAmount?: number; paidAmount?: number }>(req);
+      if (!body) return text('bad body', 400);
+      const next = { ...project };
+      if (body.name !== undefined) { const name = typeof body.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : ''; if (!name) return text('bad name', 400); next.name = name; }
+      if (body.groupId !== undefined) {
+        if (body.groupId === null) next.group_id = null;
+        else {
+          const g = await env.DB.prepare('SELECT owner_id FROM groups WHERE id = ?').bind(body.groupId).first<{ owner_id: string }>();
+          if (!g) return text('group not found', 404);
+          if (g.owner_id !== me.id) return text('forbidden', 403);
+          next.group_id = body.groupId;
+        }
+      }
+      if (body.status !== undefined) { if (typeof body.status !== 'string' || !STATUSES.has(body.status)) return text('bad status', 400); next.status = body.status; }
+      const c = amount(body.contractAmount), pd = amount(body.paidAmount);
+      if (c === null || pd === null) return text('bad amount', 400);
+      if (c !== undefined) next.contract_amount = c;
+      if (pd !== undefined) next.paid_amount = pd;
+      await env.DB.prepare('UPDATE projects SET name = ?, group_id = ?, status = ?, contract_amount = ?, paid_amount = ? WHERE id = ?')
+        .bind(next.name, next.group_id ?? null, next.status ?? 'waiting', next.contract_amount ?? 0, next.paid_amount ?? 0, project.id).run();
+      return json({ project: pub(next, 'owner') });
     }
     if (req.method === 'DELETE') {
       await env.DB.batch([
