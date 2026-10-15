@@ -8,9 +8,9 @@
   import type { Photo, SignObject } from '../core/model';
   import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
-  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
+  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
-  import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
+  import { buildLightbox, buildSign, orientBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
   let { photo }: { photo: Photo } = $props();
   let host: HTMLDivElement;
@@ -90,10 +90,10 @@
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림
     const items = await Promise.all(placed.map(async ({ o, plane: own, at, corners }) => {
-      const spec = renderSpecOf(o, at);
+      const spec = renderSpecOf(o, sizedAt(o, at, p)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
       if (!spec) return null;
       const face = spec.kind === 'lightbox' ? await faceOf(o) : undefined;
-      return { spec, face, corners, plane: own };
+      return { o, spec, face, corners, plane: own };
     }));
     if (my !== token) return;
     v.clearSignCameras();
@@ -111,7 +111,8 @@
       // 그린 사각형에 정확히 맞춘다 (카메라가 벽과 어긋나도). 글자는 먼저 영역 폭에 맞춤
       warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1);
       // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면(글자·디자인)이 카메라를 보게 (2026-10-15 사용자: "정면 페이스가 사라졌다")
-      if (zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0) b.group.scale.z = -1;
+      // 박스 방향으로 (정면 축·회전 고리, 2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"). 없으면 법선
+      orientBox(b.group, boxLocalDirOf(it.o, it.plane, p, photo.w, photo.h), zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0);
       b.setNight(night);
       v.signsRoot.add(b.group);
       v.addSignCamera(b.group, projectionFromPlane(it.plane, photo.w, photo.h), poseOfPlane(it.plane, photo.w, photo.h), it.corners);

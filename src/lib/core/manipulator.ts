@@ -64,6 +64,46 @@ export function resizeFrame(f: Frame, edge: 'right' | 'top', to: Pt): Frame {
   return { ...f, h, c: sub(bottom, mul(f.ey, h / 2)) };
 }
 
+/**
+ * 크기 손잡이 (2026-10-15 사용자: "크기는 각면 중앙과 꼭지에 있어야 한다", "크기는 외곽선만"): sx·sy ∈ −1·0·1 (sx = 1 오른쪽, sy = 1 위).
+ * 변 가운데(한쪽만 0)는 그 방향만, 꼭짓점은 비율 유지. 반대쪽 변·꼭짓점은 그대로. to = 면 mm
+ */
+export function resizeFrameAt(f: Frame, sx: number, sy: number, to: Pt): Frame {
+  const up = mul(f.ey, -1);
+  const d = sub(to, f.c), u = dot(d, f.ex), v = dot(d, up);
+  let w = f.w, h = f.h, cu = 0, cv = 0;
+  if (sx && sy) {
+    const F = [(-sx * f.w) / 2, (-sy * f.h) / 2], G = [(sx * f.w) / 2, (sy * f.h) / 2], gf = [G[0] - F[0], G[1] - F[1]];
+    const k = Math.max(0.05, ((u - F[0]) * gf[0] + (v - F[1]) * gf[1]) / (gf[0] ** 2 + gf[1] ** 2));
+    w = f.w * k; h = f.h * k; cu = F[0] + (sx * w) / 2; cv = F[1] + (sy * h) / 2;
+  } else if (sx) {
+    const e = (-sx * f.w) / 2;
+    w = Math.max(10, sx * (u - e)); cu = e + (sx * w) / 2;
+  } else if (sy) {
+    const e = (-sy * f.h) / 2;
+    h = Math.max(10, sy * (v - e)); cv = e + (sy * h) / 2;
+  }
+  return { ...f, w, h, c: add(add(f.c, mul(f.ex, cu)), mul(up, cv)) };
+}
+/** 크기 손잡이 8개의 면 위 자리 (네 변 가운데 + 네 꼭짓점) */
+export function sizeHandlesOf(f: Frame): { sx: number; sy: number; at: Pt }[] {
+  const up = mul(f.ey, -1), out: { sx: number; sy: number; at: Pt }[] = [];
+  for (const sx of [-1, 0, 1]) for (const sy of [-1, 0, 1]) if (sx || sy) out.push({ sx, sy, at: add(add(f.c, mul(f.ex, (sx * f.w) / 2)), mul(up, (sy * f.h) / 2)) });
+  return out;
+}
+/**
+ * 외곽선(사진)의 원근 중심 = 두 대각선의 교점 (2026-10-15 사용자: "새로 생성하는 사인물툴의 메니폴레이터가 엉뚱한곳에 나타나").
+ * 평면 직사각형의 중심은 어느 면에 있든 사진에서 대각선 교점이다 — 벽면으로 옮긴 꼭짓점의 평균은 외곽선이 벽면이 아니거나
+ * 벽의 지평선 가까이면 엉뚱한 곳이 된다
+ */
+export function quadCenter(q: Pt[]): Pt {
+  const [a, b, c, d] = q;
+  const r = sub(c, a), s = sub(d, b), den = cross(r, s);
+  if (Math.abs(den) < 1e-9) return mul(add(add(a, b), add(c, d)), 0.25);
+  const t = cross(sub(b, a), s) / den;
+  return add(a, mul(r, t));
+}
+
 /** 원근 어긋남(도): 외곽선을 면 위로 옮겼을 때 네 모서리 각이 90°에서 가장 많이 벗어난 정도 */
 export function skewOf(plane: RefPlane, quad: Pt[]): number {
   const w = quad.map((p) => applyHomography(plane.Hinv, p));
@@ -265,7 +305,7 @@ export function turnedPlane(plane: RefPlane, tf: TurnFrame): { origin: V3; e1: V
 
 // ---------- 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제") ----------
 /** P(3×4, 면 mm → 사진 px)로 면 위 네 꼭짓점과, 그것을 카메라 쪽으로 depth 만큼 밀어낸 네 점을 투영. 어느 점이 카메라 뒤면 null */
-export function boxGuideOf(P: number[], base: Pt[], depth: number): { back: Pt[]; front: Pt[] } | null {
+export function boxGuideOf(P: number[], base: Pt[], depth: number, dir?: [number, number, number]): { back: Pt[]; front: Pt[] } | null {
   const proj = (x: number, y: number, z: number): Pt | null => {
     const w = P[8] * x + P[9] * y + P[10] * z + P[11];
     if (!(w > 1e-9)) return null;
@@ -274,7 +314,9 @@ export function boxGuideOf(P: number[], base: Pt[], depth: number): { back: Pt[]
   // 카메라 쪽 = 깊이(3행)가 줄어드는 z 방향
   const c = mul(add(add(base[0], base[1]), add(base[2], base[3])), 0.25);
   const dz = P[8] * c[0] + P[9] * c[1] + P[10] * depth + P[11] < P[8] * c[0] + P[9] * c[1] + P[11] ? depth : -depth;
-  const back = base.map(([x, y]) => proj(x, y, 0)), front = base.map(([x, y]) => proj(x, y, dz));
+  // 박스 방향(면 좌표, 2026-10-15 "박스만 회전"): 있으면 그 방향으로 깊이만큼, 없으면 면의 법선(카메라 쪽)
+  const back = base.map(([x, y]) => proj(x, y, 0));
+  const front = dir ? base.map(([x, y]) => proj(x + dir[0] * depth, y + dir[1] * depth, dir[2] * depth)) : base.map(([x, y]) => proj(x, y, dz));
   if (back.some((p) => !p) || front.some((p) => !p)) return null;
   return { back: back as Pt[], front: front as Pt[] };
 }

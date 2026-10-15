@@ -274,8 +274,6 @@
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
-        onplace={(id, quad, turn) => { app.project.updateObject(id, { quad, turn }); app.editBoundary(); }}
-        onface={(id, faceAxis) => { app.project.updateObject(id, { faceAxis }); app.editBoundary(); }}
         editable={app.canEdit}
         unread={app.unread}
         pins={app.pins.filter((x) => x.photoId === p.id)}
@@ -300,6 +298,7 @@
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id) => app.selectObject(id)}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
+        onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}
