@@ -24,6 +24,13 @@ export class SyncClient {
     });
     p.awareness.on('change', () => onPeers(peersFrom(p.awareness.getStates(), p.awareness.clientID)));
     this.provider = p;
+    // 나감 알리기 (2026-10-15 사용자: "사용자가 나가도 표시가 계속 남는다"): 브라우저는 탭을 숨기거나 닫을 때 소켓을 바로 닫지 않는 일이 많다
+    // (특히 휴대폰). 숨기면 내 표시를 지우고(돌아오면 복원), 페이지를 떠나면(pagehide) 표시를 지우고 연결을 끊는다. 다시 보이면(뒤로가기 복원) 다시 연결
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? this.away() : this.back()));
+      window.addEventListener('pagehide', () => { this.away(); p.disconnect(); });
+      window.addEventListener('pageshow', (e) => { if (e.persisted) { p.connect(); this.back(); } });
+    }
   }
 
   /** 다시 연결될 때마다 실행 (미전송 에셋 업로드 등) */
@@ -31,9 +38,16 @@ export class SyncClient {
     this.onOnline.push(f);
   }
 
+  private name: string | null = null;
   setName(name: string) {
+    this.name = name;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return; // 숨겨진 동안은 표시하지 않는다
     this.provider?.awareness.setLocalState({ name, color: colorFor(name), cursor: this.provider.awareness.getLocalState()?.cursor });
   }
+  /** 내 표시 지우기 (상대 화면에서 바로 사라짐) */
+  private away() { this.provider?.awareness.setLocalState(null); }
+  /** 다시 표시 */
+  private back() { if (this.name !== null && this.provider?.awareness.getLocalState() === null) this.setName(this.name); }
 
   setCursor(cursor: Cursor | null) {
     const aw = this.provider?.awareness;

@@ -82,3 +82,21 @@ test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침
   await openObjectSettings(b);
   await expect(b.getByTestId('width-mm')).toHaveValue('4000');
 });
+
+test('접속자 표시: 상대가 탭을 숨기거나(휴대폰 백그라운드) 페이지를 떠나면 바로 사라지고, 돌아오면 다시 보인다', async ({ browser, request }) => {
+  const room = await newRoom(request);
+  const a = await open(browser, room, '제작자');
+  const b = await open(browser, room, '고객');
+  await expect(a.getByTestId('peer')).toHaveCount(1);
+  const setVisibility = (state: 'hidden' | 'visible') => b.evaluate((s) => {
+    Object.defineProperty(document, 'visibilityState', { value: s, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, state);
+  await setVisibility('hidden');
+  await expect(a.getByTestId('peer')).toHaveCount(0, { timeout: 5000 });
+  await setVisibility('visible');
+  await expect(a.getByTestId('peer')).toHaveCount(1, { timeout: 5000 });
+  // 페이지를 떠남(pagehide) — 소켓이 바로 닫히지 않아도 사라진다
+  await b.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
+  await expect(a.getByTestId('peer')).toHaveCount(0, { timeout: 5000 });
+});
