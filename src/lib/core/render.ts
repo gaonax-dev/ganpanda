@@ -45,7 +45,11 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const scDepth = scashiId ? parseFloat(String(o.options?.scThick ?? '')) || 10 : 0;
   const product = productById(bodyId);
   const l = o.letter3d;
-  const text = (o.text ?? '').trim();
+  // 조합형(parts): 입체 글자는 첫 채널(없으면 스카시) 구성 요소의 글자 객체들. 여러 객체 배치는 4단계(정면도 편집기)에서 — 지금은 이어 붙이고 가장 큰 높이
+  const lp = o.parts ? o.parts.find((x) => x.kind === 'channel' && x.items.some((i) => i.kind === 'text' && (i.text ?? '').trim())) ?? o.parts.find((x) => x.kind === 'scashi' && x.items.some((i) => i.kind === 'text' && (i.text ?? '').trim())) : undefined;
+  const lpTexts = lp ? lp.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()) : [];
+  const partH = lpTexts.length ? Math.max(...lpTexts.map((i) => i.h)) : 0;
+  const text = o.parts ? lpTexts.map((i) => (i.text ?? '').trim()).join(' ') : (o.text ?? '').trim();
   // 상단 조명 (2026-10-16): 개수는 입력 가로(없으면 3D 배치 가로)로
   const tl = topLightOf(o, p.w);
   const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color } } : {}) };
@@ -59,7 +63,9 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   }
   const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
   // 몸통 + 채널 + 문구 = 상자 위에 입체 글자. 글자 높이는 옵션(없으면 영역 세로의 60%)
-  const letters = channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
+  const fromParts = (h: number) => (h && o.heightMm ? Math.min(p.h * 0.9, (h / o.heightMm) * p.h) : p.h * 0.6);
+  const letters = o.parts && lp && text ? { text, heightMm: fromParts(partH), depthMm: lp.kind === 'scashi' ? parseFloat(String(lp.options?.thickness ?? '')) || 10 : d.depthMm, lighting: lp.kind === 'scashi' ? 'none' as const : lightingOf(lp.type), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
+    : channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
     : scashiId && text ? { text, heightMm: Number(o.options?.scHeight) && o.heightMm ? Math.min(p.h * 0.9, (Number(o.options?.scHeight) / o.heightMm) * p.h) : p.h * 0.6, depthMm: scDepth, lighting: 'none' as const, faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing } : undefined;
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,

@@ -32,6 +32,7 @@
   - [measurement.md](features/measurement.md) — 카메라 설정(축 선·원점·기준 길이), 실측 판독과 경고 규칙
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
+  - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴

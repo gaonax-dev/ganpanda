@@ -1,7 +1,8 @@
 <!-- 사인물 세부 설정 창: 종류·시트·문구·치수·기준선·금액 상세·삭제 (패널의 [설정]) -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, takesLetters } from '../core/catalog';
+  import PartsEditor from './PartsEditor.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -27,7 +28,10 @@
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
   const close = () => (app.objectSettingsOpen = false);
 
-  const optionGroups = $derived(optionGroupsFor(obj));
+  /** 조합형 (2026-10-16): 간판 프레임은 채널·스카시·시트·문구를 구성 요소 카드에서 */
+  const composable = $derived(takesLetters(obj.productId));
+  const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scHeight']);
+  const optionGroups = $derived(optionGroupsFor(obj).map((g) => (composable ? { ...g, fields: g.fields.filter((f) => !LETTER_KEYS.has(f.key)) } : g)).filter((g) => g.fields.length && !(composable && g.title === '시트 옵션')));
   function setOption(f: OptionField, v: string | boolean) {
     const next = { ...normalizeOptions(obj), [f.key]: v };
     update({ options: normalizeOptions({ ...obj, options: next }) });
@@ -98,6 +102,9 @@
         </section>
       {/each}
 
+      {#if composable}
+        <PartsEditor {obj} {ro} {update} />
+      {:else}
       <section>
         <h3>시트</h3>
         <div class="chips">
@@ -113,6 +120,7 @@
         <input data-testid="sign-text" value={obj.text ?? ''} placeholder="간판에 들어갈 글자 (예: 간판다 카페)" disabled={ro}
           oninput={(e) => update({ text: e.currentTarget.value })} />
       </section>
+      {/if}
 
       <section>
         <h3>
@@ -136,7 +144,7 @@
                 oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
             </label>
           {/if}
-          {#if isChannel}
+          {#if isChannel && !composable}
             <label>글자수
               <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}
                 placeholder={autoChars ? `자동 ${autoChars}` : '문구 입력'} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />

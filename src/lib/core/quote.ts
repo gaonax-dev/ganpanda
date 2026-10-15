@@ -1,6 +1,7 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { topLightOf } from './topLight';
-import { CHANNEL_OPTIONS, productById, sheetById, signParts } from './catalog';
+import { partLabel, partsOf } from './parts';
+import { isChannelProduct, productById, sheetById, signParts, takesLetters } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
 import { polygonArea, quadToRect } from './perspective';
@@ -58,7 +59,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     lines.push({ objectId: o.id, label, detail, amount });
   };
   // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
-  const { bodyId, channelId, scashiId } = signParts(o);
+  const { bodyId } = signParts(o);
   const body = productById(bodyId);
   if (body && body.unit === 'm2') {
     const label = `${o.name} · ${body.name}`;
@@ -71,28 +72,17 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   }
   // 개 단위(사인미러·전광판·지주·에어간판): 치수와 무관하게 1식
   if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0);
-  if (channelId) {
-    const ch = productById(channelId)!;
-    const label = `${o.name} · ${CHANNEL_OPTIONS.find((c) => c.id === channelId)?.label ?? ch.name}`;
-    const unit = prices.products[channelId] ?? 0;
-    const chH = Number(o.options?.chHeight) || o.heightMm; // 글자 높이: 옵션, 없으면 간판 높이
-    if (!chH) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else {
-      const n = charCountOf(o);
-      if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
-      else finish(label, `${n}자 × 높이 ${fmt(chH)}mm × ${fmt(unit)}원/자·cm`, n * (chH / 10) * unit);
-    }
-  }
-  // 간판에 붙인 스카시 (2026-10-15 사용자: "스카시도 부착된다"): 채널처럼 자·cm, 글자 높이는 스카시 글자 높이 옵션 > 간판 높이
-  if (scashiId) {
-    const sc = productById(scashiId)!;
-    const label = `${o.name} · ${sc.name}`;
-    const unit = prices.products[scashiId] ?? 0;
-    const h = Number(o.options?.scHeight) || o.heightMm;
-    const n = charCountOf(o);
-    if (!h) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
-    else finish(label, `${n}자 × 높이 ${fmt(h)}mm × ${fmt(unit)}원/자·cm`, n * (h / 10) * unit);
+  // 조합형 (2026-10-16): 채널·스카시 구성 요소마다 글자 객체의 (글자수 × 높이 cm × 원/자·cm) 합. 옛 데이터는 읽을 때 구성 요소로 바뀐다
+  const parts = partsOf(o);
+  const usesParts = takesLetters(o.productId) || isChannelProduct(o.productId);
+  for (const p of parts.filter((x) => x.kind !== 'sheet')) {
+    const label = `${o.name} · ${partLabel(p)}`, unit = prices.products[p.type] ?? 0;
+    const texts = p.items.filter((it) => it.kind === 'text').map((it) => ({ t: (it.text ?? '').trim(), n: it.count ?? charCountOf({ text: it.text }), h: it.h || o.heightMm || 0 })).filter((x) => x.n > 0);
+    if (!texts.length) { lines.push({ objectId: o.id, label, detail: o.heightMm || p.items.some((it) => it.h) ? '문구 또는 글자수 필요' : '치수 필요', amount: 0 }); continue; }
+    if (texts.some((x) => !x.h)) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
+    const raw = texts.reduce((a, x) => a + x.n * (x.h / 10) * unit, 0);
+    const detail = texts.length === 1 ? `${texts[0].n}자 × 높이 ${fmt(texts[0].h)}mm × ${fmt(unit)}원/자·cm` : `${texts.map((x) => `"${x.t}" ${x.n}자×${fmt(x.h)}mm`).join(' + ')} × ${fmt(unit)}원/자·cm`;
+    finish(label, detail, raw);
   }
   // 상단 조명 (2026-10-16): 투광등 = 개수 × 원/개, 트러스 = 간판 가로(m) × 원/m
   const tl = topLightOf(o);
@@ -102,7 +92,17 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     else if (!o.widthMm) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
     else finish(label, `가로 ${(o.widthMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (o.widthMm / 1000) * unit);
   }
-  for (const id of o.sheetIds) {
+  // 시트 구성 요소: 객체가 크기(가로·세로)를 가지면 그 면적 합, 아니면 간판 면적
+  for (const p of parts.filter((x) => x.kind === 'sheet')) {
+    const sh = sheetById(p.type);
+    if (!sh) continue;
+    const label = `${o.name} · ${sh.name}`, unit = prices.sheets[p.type] ?? 0;
+    const sizedItems = p.items.filter((it) => it.w && it.h);
+    if (!sizedItems.length && !sized) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
+    const m2 = sizedItems.length ? sizedItems.reduce((a, it) => a + (it.w! * it.h) / 1e6, 0) : shapeAreaM2(o);
+    finish(label, `${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit);
+  }
+  for (const id of usesParts ? [] : o.sheetIds) {
     const s = sheetById(id);
     if (!s) continue;
     const label = `${o.name} · ${s.name}`;

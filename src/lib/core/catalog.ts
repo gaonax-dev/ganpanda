@@ -119,9 +119,11 @@ export const SCASHI_OPTIONS: { id: string; label: string }[] = [
   { id: 'sc-titan', label: '티타늄 스카시' },
   { id: 'ch-scashi', label: '아크릴 스카시' },
 ];
-export function signParts(o: { productId?: string; options?: Record<string, string | boolean> }): { bodyId: string | undefined; channelId: string | null; scashiId: string | null } {
+export function signParts(o: { productId?: string; options?: Record<string, string | boolean>; parts?: { kind: string; type: string }[] }): { bodyId: string | undefined; channelId: string | null; scashiId: string | null } {
   if (isChannelProduct(o.productId)) return { bodyId: 'body-none', channelId: o.productId!, scashiId: null };
   if (!takesLetters(o.productId)) return { bodyId: o.productId, channelId: null, scashiId: null };
+  // 조합형: 저장된 구성 요소가 있으면 그 첫 채널·스카시 (2026-10-16)
+  if (o.parts) return { bodyId: o.productId, channelId: o.parts.find((p) => p.kind === 'channel')?.type ?? null, scashiId: o.parts.find((p) => p.kind === 'scashi')?.type ?? null };
   const label = o.options?.channel, sc = o.options?.scashi;
   const ch = typeof label === 'string' ? CHANNEL_OPTIONS.find((c) => c.label === label) : undefined;
   const s = typeof sc === 'string' ? SCASHI_OPTIONS.find((c) => c.label === sc) : undefined;
