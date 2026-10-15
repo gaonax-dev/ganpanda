@@ -4,11 +4,10 @@
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
   import { BOARD_PX_PER_MM, boardToList, flatOrigin, listToBoard, mmFromBoardRect } from '../core/boardCards';
-  import { StageRenderer } from '../render/scene';
-  import { loadFont } from '../core/textShapes';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
+  import type { StageRenderer } from '../render/scene';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { formatBytes } from '../core/format';
@@ -152,6 +151,8 @@
     if (stagePumping) return;
     stagePumping = true;
     try {
+      // three.js·폰트는 3D 단계를 처음 켤 때 내려받는다
+      const [{ loadFont }, { StageRenderer }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
       stageFont ??= await loadFont(fontUrl);
       while (stageQueue.length && app.stage === '3d') {
         const id = stageQueue.shift()!;

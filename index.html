@@ -6,6 +6,13 @@
     <title>간판다 · 간판 시뮬레이터</title>
   </head>
   <body>
+    <!-- 앱 코드가 내려오기 전의 로딩 표시 (main.ts 가 지운다) -->
+    <div id="splash" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0f1115;color:#e7e9ee;font-family:'Pretendard','Apple SD Gothic Neo',system-ui,sans-serif;font-size:14px">
+      <b style="font-size:20px;color:#ffcc00;letter-spacing:-0.5px">간판다</b>
+      <span style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:#ffcc00;animation:ganpanda-spin .9s linear infinite"></span>
+      <span style="color:#8b93a3">불러오는 중…</span>
+      <style>@keyframes ganpanda-spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

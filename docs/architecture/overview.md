@@ -24,6 +24,10 @@ ganpanda/
 └─ docs/                   이 문서
 ```
 
+## 번들 나누기와 로딩 표시 (2026-10-15 사용자: "화면 로딩 표시해줘, 모바일에서는 무겁다")
+- **메인 번들 ≈ 380KB**(전에는 1.28MB): three.js·폰트 파서·렌더링(`sim/`, `render/`, `core/textShapes.ts`)은 **필요할 때 따로 내려받습니다** — 렌더링 창·원근 창·입체 보기·제안 도구는 `App.svelte` 에서 `import()` 로, 보드 3D 단계의 합성기는 `BoardView` 에서 처음 켤 때. `core/letter3d.ts` 는 three 를 쓰지 않도록 폭 계산(`sim/letterWidth.ts`)을 분리. 디자인 PDF 변환(`pdf-*.js`, `pdf.worker`)과 AI 분리 워커도 이미 별도.
+- **로딩 표시**: `index.html` 의 정적 스플래시(앱 코드가 내려올 때까지, `main.ts` 가 제거) → 방 확인 "프로젝트 확인 중…" → 문서 "프로젝트 불러오는 중…"(`app.ready` 전) → 무거운 창은 "… 불러오는 중…"(`Loading.svelte`, `data-testid="loading"`). 사진은 `PhotoZone` "불러오는 중…", 3D 단계는 "3D 합성 중…". E2E `tests/e2e/loading.spec.ts`.
+
 ## 핵심 모듈 (`src/lib/core/`)
 
 | 파일 | 역할 |

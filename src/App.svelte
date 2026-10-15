@@ -13,15 +13,18 @@
   import QuickBar from './lib/ui/QuickBar.svelte';
   import PricesDialog from './lib/ui/PricesDialog.svelte';
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
-  import Letter3DDialog from './lib/ui/Letter3DDialog.svelte';
   import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
-  import CameraDialog from './lib/ui/CameraDialog.svelte';
-  import RenderDialog from './lib/ui/RenderDialog.svelte';
   import OrderDialog from './lib/ui/OrderDialog.svelte';
-  import ProposalDialog from './lib/ui/ProposalDialog.svelte';
+  import Loading from './lib/ui/Loading.svelte';
   import ProposalView from './lib/ui/ProposalView.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
+
+  // 무거운 창(three.js·폰트·렌더링)은 처음 열 때 따로 내려받는다 — 메인 번들을 가볍게 (2026-10-15 사용자: "모바일에서는 무겁다")
+  const lazyRender = () => import('./lib/ui/RenderDialog.svelte');
+  const lazyCamera = () => import('./lib/ui/CameraDialog.svelte');
+  const lazyLetter3d = () => import('./lib/ui/Letter3DDialog.svelte');
+  const lazyProposal = () => import('./lib/ui/ProposalDialog.svelte');
 
   let accountOpen = $state(false);
   let nameDraft = $state('');
@@ -176,11 +179,13 @@
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
 {#if app.orderOpen}<OrderDialog />{/if}
-{#if app.proposalOpen}<ProposalDialog />{/if}
-{#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}<CameraDialog photo={app.cameraPhoto} />{/key}{/if}
+{#if app.proposalOpen}{#await lazyProposal()}<Loading text="제안 도구 불러오는 중…" />{:then m}<m.default />{/await}{/if}
+{#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}{#await lazyCamera()}<Loading text="원근 맞추기 불러오는 중…" />{:then m}<m.default photo={app.cameraPhoto} />{/await}{/key}{/if}
 {#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
-{#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}<RenderDialog photo={rp} />{/key}{/if}{/if}
-{#if app.letter3dOpen && app.selected}{#key app.selected.id}<Letter3DDialog obj={app.selected} />{/key}{/if}
+{#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}{#await lazyRender()}<Loading text="렌더링 불러오는 중…" />{:then m}<m.default photo={rp} />{/await}{/key}{/if}{/if}
+{#if app.letter3dOpen && app.selected}{#key app.selected.id}{#await lazyLetter3d()}<Loading text="입체 보기 불러오는 중…" />{:then m}<m.default obj={app.selected} />{/await}{/key}{/if}
+<!-- 방 확인·문서 불러오기 동안 로딩 표시 -->
+{#if app.room && app.access.status === 'loading'}<Loading text="프로젝트 확인 중…" />{:else if app.room && app.access.status === 'ok' && !app.ready}<Loading text="프로젝트 불러오는 중…" />{/if}
 
 <style>
   .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
