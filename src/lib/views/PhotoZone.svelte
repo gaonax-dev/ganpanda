@@ -158,7 +158,7 @@
     if (cur === a && (o.faceAxis === a || o.boxDir)) onbox(o.id, { faceAxis: undefined, boxDir: undefined });
     else onbox(o.id, { faceAxis: a, boxDir: undefined });
   }
-  const FACE_TITLE = { x: 'Y·Z 판 → 박스가 X(벽 가로)로', y: 'X·Z 판 → 박스가 Y(벽 밖)로', z: 'X·Y 판 → 박스가 Z(위·아래)로' } as const;
+  const FACE_TITLE = { x: '정면 X: 박스가 벽 가로로 (돌출 간판)', y: '정면 Y: 박스가 벽 밖으로 (벽면 간판)', z: '정면 Z: 박스가 위·아래로 (어닝 등)' } as const;
 
   /**
    * 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제"):
@@ -522,15 +522,16 @@
               {@render modeChips(g3.c)}
               {#if gizmoMode === 'move'}
                 {#if onbox}
-                  <!-- 평면 판 (2026-10-15 사용자: "사각 판을 선택하면 그걸 사인물의 정면으로", "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지"):
-                       판의 법선 축이 박스 방향이 된다. 외곽선·사인물 크기는 그대로. 켜진 판을 다시 누르면 자동 -->
-                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis && !o.boxDir)}>
-                    {#each ['x', 'y', 'z'] as const as a (a)}
-                      <polygon class="fp" class:on={cur === a} points={g3.planes[a].map((p) => p.join(',')).join(' ')} style:fill={AXIS_COLOR[a]} style:stroke={cur === a ? '#fff' : AXIS_COLOR[a]}
-                        stroke-width={(cur === a ? 2 : 1) * gu} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)}
+                  <!-- 정면(박스 방향) 단추 (2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다"):
+                       모드 단추 아래 X·Y·Z. 누르면 그 축이 박스 방향(외곽선·사인물 크기는 그대로), 켜진 단추를 다시 누르면 자동 -->
+                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis && !o.boxDir)} transform="translate({g3.c[0] - 22 * gu} {g3.c[1] + 45 * gu})">
+                    {#each ['x', 'y', 'z'] as const as a, i (a)}
+                      <g class="fb" class:on={cur === a} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)}
                         onpointerdown={(e) => { e.stopPropagation(); pickFace(o, a, cur); }}>
                         <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a || o.boxDir ? ' — 지금 (다시 누르면 자동)' : ' — 지금 (자동)') : ''}</title>
-                      </polygon>
+                        <circle cx={i * 22 * gu} cy={0} r={9 * gu} style:fill={AXIS_COLOR[a]} stroke-width={(cur === a ? 2.5 : 0) * gu} />
+                        <text x={i * 22 * gu} y={4 * gu} font-size={11 * gu} text-anchor="middle">{a.toUpperCase()}</text>
+                      </g>
                     {/each}
                   </g>
                 {/if}
@@ -669,15 +670,16 @@
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
   /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자, 자홍 점선 = 원근 설정대로의 상자 */
   .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
-  .faces .fp { fill-opacity: 0.28; cursor: pointer; }
-  .faces .fp:hover { fill-opacity: 0.5; }
-  .faces .fp.on { fill-opacity: 0.6; }
 
   .boxg .edge { stroke: #fff; stroke-linecap: round; }
   .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ring3 { fill: none; pointer-events: stroke; cursor: grab; }
+  .faces .fb { cursor: pointer; }
+  .faces .fb circle { stroke: #fff; }
+  .faces .fb:not(.on) circle { fill-opacity: 0.55; }
+  .faces .fb text { fill: #111; font-weight: 700; pointer-events: none; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
   .gizmo .gh { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; cursor: grab; }
   .gizmo .gh.center { fill: rgba(255, 255, 255, 0.85); stroke: #333; }
