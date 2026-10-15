@@ -66,3 +66,26 @@ describe('크기 모드: 비율 유지 확대·축소', () => {
     expect(Math.hypot(q[3][0] - bl[0], q[3][1] - bl[1])).toBeLessThan(0.5);
   });
 });
+
+describe('상자 가이드 (2026-10-15 사용자: "격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제")', async () => {
+  const { boxGuideOf } = await import('../../src/lib/core/manipulator');
+  const { thicknessOf } = await import('../../src/lib/core/render');
+  it('면 위 네 꼭짓점을 카메라 쪽으로 깊이만큼 밀어낸 상자: 뒷면 = 외곽선, 앞면 = 3D 점의 투영', () => {
+    const Pm = projectionFromPlane(cal, imgW, imgH);
+    const base: Pt[] = [[1000, 3900], [5000, 3900], [5000, 3000], [1000, 3000]];
+    const g = boxGuideOf(Pm, base, 900)!;
+    expect(g.back.length).toBe(4);
+    const near = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.5;
+    expect(near(g.back[0], P(1000, 3900))).toBe(true);
+    // 앞면은 카메라 쪽(깊이가 줄어드는 쪽) z
+    const zToward = [900, -900].find((z) => { const d = (x: number) => Pm[8] * 1000 + Pm[9] * 3900 + Pm[10] * x + Pm[11]; return d(z) < d(0); })!;
+    expect(near(g.front[0], projectPoint(pose, [1000, 3900, zToward]))).toBe(true);
+  });
+  it('두께: 입력 두께 > 입체 설정 > 종류 기본, 시트·분류 없음은 0 (가이드 없음)', () => {
+    expect(thicknessOf(obj({ productId: 'board-flex' }))).toBe(150);
+    expect(thicknessOf(obj({ productId: 'board-flex', depthMm: 220 }))).toBe(220);
+    expect(thicknessOf(obj({ productId: 'board-galva', options: { channel: '전광 채널' } }))).toBeGreaterThan(0);
+    expect(thicknessOf(obj({ sheetIds: ['sh-cut'] }))).toBe(0);
+    expect(thicknessOf(obj({}))).toBe(0);
+  });
+});

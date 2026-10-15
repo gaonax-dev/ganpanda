@@ -223,24 +223,26 @@ test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ p
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
 
-test('원근 격자: 고르면 사인물 둘레에 면의 축대로 격자, X 를 끄는 동안 가로선이 진해진다. 버튼은 아이콘(설명은 마우스를 올리면)', async ({ page, request }) => {
+test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보이고, 원근에서 비틀린 외곽선이면 원근 설정대로의 상자(자홍 점선)가 함께. 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
-  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
-  const grid = page.getByTestId('persp-grid');
-  await expect(grid).toHaveCount(1);
-  expect(Number(await grid.getAttribute('data-step'))).toBeGreaterThan(0);
-  expect(await grid.locator('line.gx').count()).toBeGreaterThan(2);
-  expect(await grid.locator('line.gz').count()).toBeGreaterThan(2);
-  // 끄는 동안 X 방향(가로선) 강조
-  const h = (await page.getByTestId('gizmo-x').boundingBox())!;
-  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
-  await page.mouse.move(h.x + h.width / 2 + 20, h.y + h.height / 2);
-  expect(await grid.locator('line.gx.hot').count()).toBeGreaterThan(0);
-  expect(await grid.locator('line.gz.hot').count()).toBe(0);
-  await page.mouse.up();
-  // 아이콘 버튼에는 설명(title)이 있다
+  const q = await rectOnWall(page, 1000, 3800, 3000, 800);
+  const id = await addSign(page, q);
+  const box = page.getByTestId('box-guide');
+  await expect(box).toHaveCount(1);
+  expect(await box.locator('line.edge').count()).toBe(12);
+  await expect(page.getByTestId('box-guide-target')).toHaveCount(0); // 원근에 맞음
+  // 손으로 비튼 외곽선 → 올바른 상자(자홍 점선)도
+  const hand: Pt[] = [[q[0][0], q[0][1] - 30], q[1], [q[2][0] + 25, q[2][1]], q[3]];
+  await page.evaluate(({ id, hand }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { quad: hand }), { id, hand });
+  await expect(page.getByTestId('box-guide-target')).toHaveCount(1);
+  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('box-guide-target')).toHaveCount(0);
+  // 시트(두께 없음)는 상자 없음
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { productId: undefined, sheetIds: ['sh-cut'] }), id);
+  await expect(page.getByTestId('box-guide')).toHaveCount(0);
+  // 아이콘 버튼에는 설명(title)
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('gizmo-perp').locator('title')).toHaveText(/직각/);
   await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동');

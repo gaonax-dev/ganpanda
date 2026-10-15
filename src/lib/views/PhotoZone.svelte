@@ -8,9 +8,10 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
-  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, gridOf, niceStep, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, cornersOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
   import { applyHomography } from '../core/homography';
-  import { placeOnWall, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
+  import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
   import type { Tool } from '../state.svelte';
 
@@ -164,25 +165,26 @@
   }
 
   /**
-   * 원근 격자 (2026-10-15 사용자: "원근이 틀리다는데 인지가 어렵다. 근처에 격자를 넣어 주면, 격자의 방향을 선택에 따라 축에 맞게"):
-   * 고른 사인물의 면(원근 설정의 벽면 / 돌려 세운 면 / 자신의 면)에 그 면의 축대로, 사인물 둘레로 조금 넓게. 간격은 화면에서 약 24px 의 보기 좋은 mm
+   * 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제"):
+   * 두께 있는 사인물만. 흰 상자 = 3D 가 그릴 면(signPlaneOf)에서 외곽선을 카메라 쪽으로 밀어낸 상자(보기 쉽게 깊이 = 짧은 변).
+   * 원근 설정이 있는데 외곽선이 그 원근에서 비틀렸으면 자홍 점선 상자 = 원근 설정대로의 올바른 상자
    */
-  function gridFor(o: SignObject, q: Pt[]) {
+  function boxFor(o: SignObject, q: Pt[]) {
+    if (!thicknessOf(o)) return null;
     const cal = calib?.metric ? wallPlaneOf([], calib) : null;
     const turn = editing?.id === o.id && editing.tf0 ? (editing.turn && editing.turn.deg > 0.5 ? editing.turn : undefined) : o.turn;
     const pl = signPlaneOf({ ...o, quad: q, turn }, cal);
     if (!pl) return null;
     const at = placeOnWall(pl, { quad: q });
-    const a = applyHomography(pl.H, [at.cx, at.cy]), b = applyHomography(pl.H, [at.cx + 1000, at.cy]);
-    const step = niceStep(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1000 / u, 24);
-    return { ...gridOf(pl.H, [at.cx, at.cy], at.w / 2 + step * 2, at.h / 2 + step * 2, step), step };
+    const depth = Math.min(at.w, at.h);
+    const box = boxGuideOf(projectionFromPlane(pl, photo.w, photo.h), q.map((p) => applyHomography(pl.Hinv, p)), depth);
+    let target: ReturnType<typeof boxGuideOf> = null;
+    if (cal && !turn && pl !== cal && skewOf(cal, q) > SKEW_ALERT) {
+      const fr = snapFrame(frameOf(cal, alignQuad(cal, q)));
+      target = boxGuideOf(projectionFromPlane(cal, photo.w, photo.h), cornersOf(fr), depth);
+    }
+    return box ? { box, target } : null;
   }
-  /** 끄는 중인 축: 그 방향 격자선을 강조 */
-  const dragAxis = $derived.by((): 'x' | 'z' | 'both' | null => {
-    const m = editing?.mode;
-    if (typeof m !== 'string') return null;
-    return m === 'gx' || m === 'tx' ? 'x' : m === 'gz' || m === 'tz' ? 'z' : 'both';
-  });
 
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
   function alignToPerspective(o: SignObject) {
@@ -493,11 +495,18 @@
       {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
       {@const turned = !!(o.turn || (editing?.id === o.id && editing.tf0 && (editing.turn?.deg ?? 0) > 0.5))}
       {#if sel && editable && tool === 'select' && gizmoable(o)}
-        {@const grid = gridFor(o, q)}
-        {#if grid}
-          <g class="pgrid" data-testid="persp-grid" data-step={grid.step} pointer-events="none">
-            {#each grid.h as l (l.at)}<line class:hot={dragAxis === 'x' || dragAxis === 'both'} class="gx" x1={l.pts[0][0]} y1={l.pts[0][1]} x2={l.pts[1][0]} y2={l.pts[1][1]} stroke-width={1 * u} />{/each}
-            {#each grid.v as l (l.at)}<line class:hot={dragAxis === 'z' || dragAxis === 'both'} class="gz" x1={l.pts[0][0]} y1={l.pts[0][1]} x2={l.pts[1][0]} y2={l.pts[1][1]} stroke-width={1 * u} />{/each}
+        {@const bg = boxFor(o, q)}
+        {#if bg}
+          {@const edges = (b: { back: Pt[]; front: Pt[] }) => [0, 1, 2, 3].flatMap((i) => [[b.back[i], b.back[(i + 1) % 4]], [b.front[i], b.front[(i + 1) % 4]], [b.back[i], b.front[i]]]) as [Pt, Pt][]}
+          {#if bg.target}
+            <g class="boxg target" data-testid="box-guide-target" pointer-events="none">
+              {#each edges(bg.target) as [a, b], i (i)}<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1.5 * u} stroke-dasharray="{5 * u} {3 * u}" />{/each}
+            </g>
+          {/if}
+          <g class="boxg" data-testid="box-guide" pointer-events="none">
+            <polygon class="face" points={bg.box.front.map((p) => p.join(',')).join(' ')} />
+            {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={3.5 * u} />{/each}
+            {#each edges(bg.box) as [a, b], i (i)}<line class="edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1.5 * u} />{/each}
           </g>
         {/if}
       {/if}
@@ -668,12 +677,11 @@
   .overlay { z-index: 1; }
   /* 입체 매니퓰레이터 */
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
-  /* 원근 격자: 가로선은 X(빨강), 세로선은 Z(파랑) 계열로 옅게, 끄는 축은 진하게 */
-  .pgrid line { stroke-opacity: 0.45; }
-  .pgrid .gx { stroke: #ff8a8a; }
-  .pgrid .gz { stroke: #8ac4ff; }
-  .pgrid line.hot { stroke-opacity: 0.95; }
-  svg.ghost .pgrid line { stroke-opacity: 0.6; }
+  /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자, 자홍 점선 = 원근 설정대로의 상자 */
+  .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
+  .boxg .edge { stroke: #fff; stroke-linecap: round; }
+  .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
+  .boxg.target line { stroke: #ff4dd2; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
