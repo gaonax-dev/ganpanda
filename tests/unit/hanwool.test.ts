@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor } from '../../src/lib/core/options';
-import { productById, productsOf, signParts, CHANNEL_OPTIONS } from '../../src/lib/core/catalog';
+import { CATEGORY_GROUPS, productById, productsOf, signParts, CHANNEL_OPTIONS } from '../../src/lib/core/catalog';
 import { DEFAULT_PRICES } from '../../src/lib/core/pricing';
 import { quoteObject } from '../../src/lib/core/quote';
 import { lightingOf } from '../../src/lib/core/letter3d';
@@ -19,18 +19,18 @@ describe('간판 종류: 한울 제작 간판 분류', () => {
     ['board-lightpanel', '라이트패널', 'm2'], ['board-fabric', '패브릭 라이트박스', 'm2'], ['board-pole', '지주 간판', 'ea'],
     ['board-awning', '어닝', 'm2'], ['board-mirror', 'LED 사인미러', 'ea'], ['board-ledsign', '전광판', 'ea'], ['board-air', '에어간판', 'ea'],
   ] as const;
-  it('새 종류가 간판 분류에 있고 기본 단가가 있다', () => {
-    const ids = productsOf('sign').map((p) => p.id);
+  it('새 종류가 분류에 있고 기본 단가가 있다 (분류는 2026-10-15 재정리)', () => {
+    const ids = CATEGORY_GROUPS.flatMap((g) => productsOf(g.id)).map((p) => p.id);
     for (const [id, name, unit] of NEW) {
       expect(ids).toContain(id);
       expect(productById(id)).toMatchObject({ name, unit });
       expect(DEFAULT_PRICES.products[id]).toBeGreaterThan(0);
     }
   });
-  it('이름 정리: 후렉스 = 프레임 간판, 갈바 = 갈바·스텐 전면, 아크릴 = 아크릴 간판·현판', () => {
-    expect(productById('board-flex')!.name).toBe('프레임 간판 (후렉스)');
-    expect(productById('board-galva')!.name).toBe('갈바·스텐 전면 간판');
-    expect(productById('board-acrylic')!.name).toBe('아크릴 간판·현판');
+  it('이름 (2026-10-15 분류 재정리: 프레임 스타일 이름)', () => {
+    expect(productById('board-flex')!.name).toBe('후렉스');
+    expect(productById('board-galva')!.name).toBe('갈바');
+    expect(productById('board-acrylic')!.name).toBe('아크릴 액자·현판');
   });
   it('개(ea) 단위는 치수 없이 1식 단가로 견적', () => {
     const [l] = quoteObject(obj({ productId: 'board-mirror' }), DEFAULT_PRICES);
@@ -47,8 +47,8 @@ describe('종류별 조합 옵션', () => {
     expect(values(o, 'frame')).toEqual(['일반 텐션', '카바']);
     expect(values(o, 'print')).toEqual(['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력']);
   });
-  it('전면 간판: 소재 갈바/스텐', () => {
-    expect(values(obj({ productId: 'board-galva' }), 'material')).toEqual(['갈바', '스텐']);
+  it('갈바: 프레임 재질 (2026-10-15 분류 재정리)', () => {
+    expect(values(obj({ productId: 'board-galva' }), 'frameMat')).toEqual(['스텐', '알루미늄', '철', '텐션 천']);
   });
   it('돌출 간판: 모양(사각/원형) · 몸체에 스텐', () => {
     const o = obj({ productId: 'board-protrude' });
@@ -68,8 +68,8 @@ describe('종류별 조합 옵션', () => {
     expect(values(o, 'pole')).toEqual(['파이프 지주', '스텐 지주', '알미늄 지주', '갈바 지주', '갈바 사면 지주', '삼각기둥']);
     expect(values(o, 'cover')).toEqual(['없음', '스텐 카바', '갈바 카바']);
   });
-  it('어닝: 종류 · 원단', () => {
-    expect(values(obj({ productId: 'board-awning' }), 'type')).toEqual(['일반 폴딩 어닝', '패션 어닝']);
+  it('어닝: 고정형/접이식 (2026-10-15 분류 재정리)', () => {
+    expect(values(obj({ productId: 'board-awning' }), 'form')).toEqual(['고정형', '접이식']);
   });
   it('LED 사인미러: 거울 · 프레임 · 프레임색 · LED 빛 (채널 없음)', () => {
     const o = obj({ productId: 'board-mirror' });
@@ -81,9 +81,9 @@ describe('종류별 조합 옵션', () => {
     expect(keys(o)).toEqual(['color', 'module', 'sides']);
     expect(values(o, 'module')).toEqual(['200mm', '240mm', '320mm']);
   });
-  it('아크릴 간판·현판: 형태 · 소재 · 두께 · 출력 레이어 · 전처리 · 부착 (+ 채널)', () => {
+  it('아크릴 액자·현판: 형태 · 소재 · 두께 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음)', () => {
     const o = obj({ productId: 'board-acrylic' });
-    expect(keys(o)).toEqual(['form', 'material', 'thick', 'layers', 'mount', 'channel']);
+    expect(keys(o)).toEqual(['form', 'material', 'thick', 'layers', 'mount']);
     expect(keys(obj({ productId: 'board-acrylic', options: { layers: '컬러+화이트 (2레이어)' } }))).toContain('primer'); // 출력할 때만 전처리
     expect(values(o, 'form')).toEqual(['일반 판', '현판', '게시판', '액자', '번호판·층수·호수']);
     expect(values(o, 'layers')).toEqual(['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']);
@@ -122,16 +122,16 @@ describe('채널 (입체 글자) 조합', () => {
 
 describe('스카시·시트', () => {
   it('고무 스카시 표면: 칼라 알루미늄 · 수입 금색 · 수입 은색 · 시트 · 아크릴 · 없음', () => {
-    expect(values(obj({ productId: 'ch-rubber' }), 'front')).toEqual(['칼라 알루미늄', '수입 금색', '수입 은색', '시트 부착', '아크릴 전면판', '없음']);
+    expect(values(obj({ productId: 'ch-rubber' }), 'material')).toEqual(['칼라 알루미늄', '수입 금색', '수입 은색', '시트 부착', '아크릴 전면판', '없음']);
   });
   it('아크릴 스카시(레이저 커팅): 두께 3/5/8/10T · 한글/영문', () => {
     const o = obj({ productId: 'ch-scashi' });
     expect(values(o, 'thickness')).toEqual(['3T', '5T', '8T', '10T']);
     expect(values(o, 'script')).toEqual(['한글', '영문']);
   });
-  it('실사 시트: 소재 · 잉크, 원웨이: 잉크', () => {
+  it('UV 실사: 바탕(흰색/회색) · 잉크, 원웨이: 잉크 (2026-10-15 분류 재정리)', () => {
     const p = obj({ sheetIds: ['sh-print'] });
-    expect(values(p, 'media')).toEqual(['백색', '투명', '알미늄 (바닥용)', '엠보', '리무벌', '그레이']);
+    expect(values(p, 'base')).toEqual(['흰색', '회색']);
     expect(values(p, 'ink')).toEqual(['UV', '솔벤트']);
     expect(keys(obj({ sheetIds: ['sh-perf'] }))).toContain('ink');
   });

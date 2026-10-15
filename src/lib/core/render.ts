@@ -21,6 +21,11 @@ const BOARD_LOOK: Record<string, { faceColor: string; depthMm: number }> = {
   'board-mirror': { faceColor: '#1d2226', depthMm: 30 },
   'board-ledsign': { faceColor: '#111111', depthMm: 70 },
   'board-air': { faceColor: '#f39c12', depthMm: 500 },
+  'board-truss': { faceColor: '#3a3f44', depthMm: 50 },
+  'board-pipe': { faceColor: '#3a3f44', depthMm: 80 },
+  banner: { faceColor: '#ffffff', depthMm: 2 },
+  'frame-plain': { faceColor: '#f4f4f2', depthMm: 30 },
+  'frame-wood': { faceColor: '#c8a27a', depthMm: 40 },
   'body-none': { faceColor: '#9aa0a6', depthMm: 20 },
 };
 const SHEET_LOOK = { faceColor: '#ffffff', depthMm: 2 };
@@ -34,7 +39,9 @@ export const fitScale = (measuredW: number, placementW: number) => (measuredW > 
 export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   // 분류가 없어도 자리를 보여 준다 (회색 얇은 판) — 사진마다 그린 사인물이 3D 에서 빠지지 않게 (2026-10-14 사용자: "4개 사진에서 3D 사인물이 1개 사진에서만 나온다")
   const cat = categoryOf(o);
-  const { bodyId, channelId } = signParts(o); // 간판 = 몸통 + 채널 옵션
+  const { bodyId, channelId, scashiId } = signParts(o); // 간판 = 몸통 + 채널·스카시 옵션
+  // 스카시 부착: 비조명 입체 글자, 두께 = 스카시 두께(T = mm) (2026-10-15 사용자: "스카시도 부착된다")
+  const scDepth = scashiId ? parseFloat(String(o.options?.scThick ?? '')) || 10 : 0;
   const product = productById(bodyId);
   const l = o.letter3d;
   const text = (o.text ?? '').trim();
@@ -44,9 +51,13 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   if (bodyId === 'body-none' && channelId && text) {
     return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor };
   }
+  if (bodyId === 'body-none' && scashiId && text) {
+    return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: scDepth, lighting: 'none', faceColor: d.faceColor, sideColor: d.sideColor };
+  }
   const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
   // 몸통 + 채널 + 문구 = 상자 위에 입체 글자. 글자 높이는 옵션(없으면 영역 세로의 60%)
-  const letters = channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing } : undefined;
+  const letters = channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
+    : scashiId && text ? { text, heightMm: Number(o.options?.scHeight) && o.heightMm ? Math.min(p.h * 0.9, (Number(o.options?.scHeight) / o.heightMm) * p.h) : p.h * 0.6, depthMm: scDepth, lighting: 'none' as const, faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing } : undefined;
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본

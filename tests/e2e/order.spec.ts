@@ -57,7 +57,7 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   expect(download.suggestedFilename()).toMatch(/\.json$/);
   const json = JSON.parse(await (await download.createReadStream()).toArray().then((b) => Buffer.concat(b).toString('utf-8')));
   expect(json.order_info.customer).toBe('홍길동');
-  expect(json.items[0].type).toBe('갈바·스텐 전면 간판');
+  expect(json.items[0].type).toBe('갈바');
   expect(json.items[0].options.paintCode).toBe('9005');
   expect(json.items[0].options.halfCut).toBe(true);
   expect(json.items[0].size.width_mm).toBe(3000);
@@ -80,12 +80,20 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   for (const k of ['chType', 'chBuild', 'chDepth', 'font', 'chFrame', 'bracket']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
   await page.getByTestId('option-chFrame').selectOption('200폭');
   await expect(page.getByTestId('option-chFrameColor')).toBeVisible();
-  // 라이트패널
-  await page.getByTestId('product-select').selectOption('board-lightpanel');
+  // 스카시 부착도 간판 옵션 (2026-10-15 사용자: "스카시도 부착된다")
+  await page.getByTestId('option-scashi').selectOption('티타늄 스카시');
+  for (const k of ['scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  await page.getByTestId('close-object-settings').click();
+  // 분류 9개 (2026-10-15 분류 재정리): 라이트패널 분류
+  await expect(page.getByTestId('category-select').locator('option')).toHaveText(['분류 선택', '간판', '시트', '스카시', '포맥스', '현수막', '라이트패널', '액자', '어닝', '사인미러']);
+  await pickCategory(page, 'lightpanel');
+  await openObjectSettings(page);
   for (const k of ['smps', 'place', 'frameColor']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
-  // LED 사인미러: 채널 없음, 개(1식) 단가
-  await page.getByTestId('product-select').selectOption('board-mirror');
-  await expect(page.getByTestId('option-channel')).toHaveCount(0);
+  await expect(page.getByTestId('option-channel')).toHaveCount(0); // 채널은 간판 옵션
+  await page.getByTestId('close-object-settings').click();
+  // LED 사인미러(따로 분류): 개(1식) 단가
+  await pickCategory(page, 'mirror');
+  await openObjectSettings(page);
   await page.getByTestId('option-led').selectOption('전구색 4000K');
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('전구색 4000K');

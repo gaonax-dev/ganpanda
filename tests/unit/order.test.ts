@@ -20,7 +20,7 @@ describe('주문서 JSON', () => {
     expect(json.order_info.delivery_label).toBe('시공 요청');
     expect(json.items).toHaveLength(3);
     const a = json.items[0];
-    expect(a.category).toBe('간판'); expect(a.type).toBe('갈바·스텐 전면 간판');
+    expect(a.category).toBe('간판'); expect(a.type).toBe('갈바');
     expect(a.size).toEqual({ width_mm: 3000, height_mm: 600, estimated: false });
     expect(a.options.paintCode).toBe('9005');
     expect(a.option_summary).toContain('일체형(전면)');
@@ -28,9 +28,9 @@ describe('주문서 JSON', () => {
     expect(a.note).toBe('배선은 왼쪽');
     expect(a.amount).toBeGreaterThan(0);
     const b = json.items[1];
-    expect(b.category).toBe('시트'); expect(b.sheets).toEqual(['시트 컷팅 (단색, 칼선)']); expect(b.option_summary).toContain('반컷팅');
+    expect(b.category).toBe('시트'); expect(b.sheets).toEqual(['단색·재질 시트 (커팅)']); expect(b.option_summary).toContain('반컷팅');
     const c = json.items[2];
-    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['30T', '칼라 알루미늄', '시공용 1:1 종이 도안', '부착 출고']);
+    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['30T', '칼라 알루미늄', '도색 없음', '시공용 1:1 종이 도안', '부착 출고']);
     expect(json.files).toEqual([{ name: 'design_v1.ai', pages: 1 }]);
     expect(json.file_check.length).toBeGreaterThan(2);
     expect(json.totals.total).toBe(quote.total);

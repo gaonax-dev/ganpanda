@@ -1,7 +1,7 @@
 // 주문 사양 옵션 스키마 (2026-10-14 사용자 요청: 사인물 통합 주문): 종류마다 옵션을 데이터로 두고 설정 창이 폼을 그린다.
 // 새 품목·옵션은 여기에 한 줄 추가. 값은 SignObject.options (키 → 값) 에 저장되고, 조합 규칙은 `when` 으로.
 import type { SignObject } from './model';
-import { CHANNEL_NONE, CHANNEL_OPTIONS, NO_CHANNEL, productById } from './catalog';
+import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -53,6 +53,33 @@ const CHANNEL_FIELDS: OptionField[] = [
   tog('bracket', '까치발 (별도)', hasChannel),
 ];
 
+// ---------- 스카시: 두께 · 재질 · 도색 컬러코드 (2026-10-15 사용자: "스카시: 고무, 티타늄, 아크릴 (두께,재질, 도색컬러코드)") ----------
+const SCASHI_SPEC: Record<string, { thick: string[]; material: string[] }> = {
+  'ch-rubber': { thick: ['10T', '20T', '30T', '50T'], material: ['칼라 알루미늄', '수입 금색', '수입 은색', '시트 부착', '아크릴 전면판', '없음'] },
+  'sc-titan': { thick: ['1.2T', '10T', '20T'], material: ['골드', '실버', '로즈골드', '블랙', '브론즈'] },
+  'ch-scashi': { thick: ['3T', '5T', '8T', '10T'], material: ['캐스팅', '압출', '펄', '미러', '한지'] },
+};
+/** 도색: 체계(도색 없음/PANTONE/RAL/KCC) + 코드 (비우면 요약에 안 나온다) */
+const paintOpt = (prefix: string, label: string, when?: OptionField['when']): OptionField[] => [
+  sel(`${prefix}System`, `${label} 색상 체계`, ['도색 없음', ...COLOR_SYSTEMS], when),
+  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', when),
+];
+const scashiFields = (id: string): OptionField[] => [sel('thickness', '두께', SCASHI_SPEC[id].thick), sel('material', '재질', SCASHI_SPEC[id].material), ...paintOpt('paint', '도색')];
+/** 간판에 붙이는 스카시 (2026-10-15 사용자: "스카시도 부착된다"): 고르면 그 스카시의 두께·재질·도색, 글자 높이 */
+const scIdOf = (opts: Options) => SCASHI_OPTIONS.find((c) => c.label === opts.scashi)?.id;
+const SCASHI_ATTACH_FIELDS: OptionField[] = [
+  sel('scashi', '스카시 부착', [CHANNEL_NONE, ...SCASHI_OPTIONS.map((c) => c.label)]),
+  ...SCASHI_OPTIONS.flatMap((c) => [
+    sel('scThick', '스카시 두께', SCASHI_SPEC[c.id].thick, (opts) => scIdOf(opts) === c.id),
+    sel('scMaterial', '스카시 재질', SCASHI_SPEC[c.id].material, (opts) => scIdOf(opts) === c.id),
+  ]),
+  ...paintOpt('scPaint', '스카시 도색', (opts) => !!scIdOf(opts)),
+  txt('scHeight', '스카시 글자 높이 (mm)', '비우면 간판 높이', (opts) => !!scIdOf(opts)),
+];
+/** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
+const FRAME_MAT = sel('frameMat', '프레임 재질', ['스텐', '알루미늄', '철', '텐션 천']);
+const INDIRECT = sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 'T5 LED 전구색', '측면 LED 바']);
+
 /** 제품별 옵션 (주문 사양) */
 export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 프레임 간판 (한울: 조명/비조명 · 카바/일반 텐션 · 단폭/장폭 4.5㎡ · 플렉스 UV/솔벤 양면·단면 출력)
@@ -61,8 +88,17 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
   'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
-  'board-galva': [sel('material', '소재', ['갈바', '스텐']), sel('form', '형태', ['돌출형', '일체형(전면)']), sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 'T5 LED 전구색', '측면 LED 바']), ...paint('paint', '도색')],
-  'board-foamex': [SIDES, sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']), sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
+  'board-galva': [FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), INDIRECT, ...paint('paint', '도색')],
+  // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접
+  'board-truss': [FRAME_MAT, sel('light', '조명', ['비조명', '간접 조명'])],
+  'board-pipe': [FRAME_MAT, INDIRECT],
+  // 포맥스 (2026-10-15 사용자: "포멕스:uv시트부착")
+  'board-foamex': [sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']), tog('uvSheet', 'UV 시트 부착')],
+  // 현수막 (한울: 일반·솔벤 출력, 기본 마감(재단·막대·타공·끈고리 4개) + 추가 마감)
+  banner: [sel('print', '출력', ['일반', '솔벤']), tog('stitch', '줄미싱'), tog('endStitch', '양끝미싱'), tog('join', '장폭이음·사방미싱'), tog('band', '밴드미싱')],
+  // 액자 (2026-10-15 사용자: "액자에 나무틀 패브릭도")
+  'frame-plain': [sel('frameColor', '프레임 색', ['실버', '화이트', '블랙']), sel('print', '출력', ['실사 출력', '시트'])],
+  'frame-wood': [sel('wood', '나무틀', ['원목', '화이트', '블랙', '월넛']), sel('fabric', '패브릭', ['UV 패브릭 출력'])],
   'board-acp': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   // 아크릴 간판·현판 (한울 아크릴가공: 현판·게시판·액자·번호판/층수/호수, 판재 출력 레이어, 전처리 프라이머)
   'board-acrylic': [
@@ -80,7 +116,16 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 지주 간판 (한울: 파이프·스텐·알미늄·갈바·갈바 사면 지주, 삼각기둥, 스텐/갈바 카바, LED 투광기)
   'board-pole': [sel('pole', '지주', ['파이프 지주', '스텐 지주', '알미늄 지주', '갈바 지주', '갈바 사면 지주', '삼각기둥']), sel('cover', '카바', ['없음', '스텐 카바', '갈바 카바']), sel('light', '조명', ['LED 내부 조명', 'LED 투광기', '비조명'])],
   // 어닝 (한울: 일반 폴딩 어닝 RECACRIL 원단 / 패션 어닝 디지털 양면 출력)
-  'board-awning': [sel('type', '종류', ['일반 폴딩 어닝', '패션 어닝']), sel('fabric', '원단', ['아크릴 원단 (RECACRIL)', '디지털 양면 출력'])],
+  // 어닝 (2026-10-15 사용자: "고정형,접이식(수동,자동, 펼침, 제작사, 천코드,핸들좌우,핸들길이)", "펼침 = 벽에서 나오는 길이, 직접입력")
+  'board-awning': [
+    sel('form', '형태', ['고정형', '접이식']),
+    sel('drive', '작동', ['수동', '자동'], (opts) => opts.form === '접이식'),
+    sel('handleSide', '핸들 위치', ['좌', '우'], (opts) => opts.form === '접이식' && opts.drive !== '자동'),
+    txt('handleLength', '핸들 길이 (mm)', '예: 1500', (opts) => opts.form === '접이식' && opts.drive !== '자동'),
+    txt('reach', '펼침 (벽에서 나오는 길이 mm)', '예: 1200'),
+    txt('maker', '제작사', '직접 입력'),
+    txt('fabricCode', '천 코드', '직접 입력'),
+  ],
   // LED 사인미러 (한울: 흑경·브론즈경·은경 · AL 누드 사각/R · 골드·화이트·블랙 · 주광 5700K/전구 4000K)
   'board-mirror': [sel('mirror', '거울', ['은경', '흑경', '브론즈경']), sel('frame', '프레임', ['AL 누드 사각', 'AL 누드 사각 R']), sel('frameColor', '프레임 색', ['골드', '화이트', '블랙']), sel('led', 'LED 빛', ['주광색 5700K', '전구색 4000K'])],
   // 전광판 (한울: 3색 RW · 3색 RpG · 풀컬러 RpGB, 모듈 200/240/320mm, 단면/양면)
@@ -104,11 +149,10 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     ...paint('body', '알루미늄·측면·프레임 도색'),
     txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이'),
   ]])),
-  // 고무 스카시 (한울: 고무판 베이스 + 칼라 알루미늄 부착 30T 이하/50T, 수입 금색·은색 30T 이하, 10~130각)
-  'ch-rubber': [sel('thickness', '두께', ['10T', '20T', '30T', '50T']), sel('front', '표면', ['칼라 알루미늄', '수입 금색', '수입 은색', '시트 부착', '아크릴 전면판', '없음']), txt('frontColor', '전면 색상', '예: 백색, RAL 3020', (opts) => opts.front !== '없음')],
-  'sc-titan': [sel('color', '색상', ['골드', '실버', '로즈골드', '블랙', '브론즈']), sel('finish', '표면 마감', ['헤어라인(무광)', '미러(유광)'])],
-  // 아크릴 스카시 = 레이저 커팅 (한울: 3/5/8/10T · 한글/영문 · 문자 크기 ~30~400mm 구간)
-  'ch-scashi': [sel('thickness', '두께', ['3T', '5T', '8T', '10T']), sel('script', '문자', ['한글', '영문']), sel('colorMode', '색상', ['색상 코드', '지정 도색']), txt('colorCode', '색상 코드·도색', '예: 아크릴 #302, RAL 9010')],
+  // 스카시: 두께 · 재질 · 도색 컬러코드 (+ 티타늄 표면 마감, 아크릴 문자)
+  'ch-rubber': scashiFields('ch-rubber'),
+  'sc-titan': [...scashiFields('sc-titan'), sel('finish', '표면 마감', ['헤어라인(무광)', '미러(유광)'])],
+  'ch-scashi': [...scashiFields('ch-scashi'), sel('script', '문자', ['한글', '영문'])],
 };
 /** 스카시 공통: 시공 보조 부속품 */
 export const SCASHI_ACCESSORY_OPTIONS: OptionField[] = [
@@ -119,10 +163,10 @@ export const SCASHI_ACCESSORY_OPTIONS: OptionField[] = [
 /** 시트 공통 + 시트별 */
 export const SHEET_COMMON_OPTIONS: OptionField[] = [tog('transferTape', '보조시트(어플리케이션 테이프) 포함'), sel('coating', '코팅', ['코팅 없음', '유광', '무광'])];
 const INK = sel('ink', '잉크', ['UV', '솔벤트']);
-/** 시트별 (한울 시트지 실사: 원웨이(최대 폭 1150)·알미늄(바닥)·투명·엠보·리무벌·그레이·백색, UV/솔벤트) */
+/** 시트별 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개") */
 export const SHEET_OPTIONS: Record<string, OptionField[]> = {
-  'sh-cut': [tog('halfCut', '반컷팅')],
-  'sh-print': [sel('media', '실사 소재', ['백색', '투명', '알미늄 (바닥용)', '엠보', '리무벌', '그레이']), INK],
+  'sh-print': [sel('base', '바탕', ['흰색', '회색']), INK],
+  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램']), tog('halfCut', '반컷팅')],
   'sh-perf': [INK],
 };
 const SCASHI_IDS = ['ch-rubber', 'sc-titan', 'ch-scashi'];
@@ -135,7 +179,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const p = productById(o.productId);
   if (p) {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
-    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(p.category === 'board' && !NO_CHANNEL.has(p.id) ? CHANNEL_FIELDS : [])]);
+    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS] : [])]); // 채널·스카시 부착은 간판 옵션
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }
