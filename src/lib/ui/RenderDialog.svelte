@@ -8,7 +8,7 @@
   import type { Photo, SignObject } from '../core/model';
   import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
-  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
   import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
@@ -85,7 +85,7 @@
     if (!p) { status = '이 사진은 아직 3D 를 만들 수 없습니다. 사인물 영역을 하나 그리거나 [원근 맞추기]를 하세요.'; count = 0; v.invalidate(); return; }
     status = '합성 중…';
     // 사인물마다 자기 영역을 벽면으로 (치수 있으면 그 mm, 없으면 비율만) — 사진의 카메라가 어떻든 그린 자리에 보인다
-    const placed = os.map((o) => { const own = wallPlaneOf([o], null) ?? p; return { o, plane: own, at: placeOnWall(own, o), corners: quadOnWall(own, o) as [number, number][] }; });
+    const placed = os.map((o) => { const own = signPlaneOf(o, p) ?? p; /* 원근에 맞는 사인물은 원근 설정의 각도 우선 (2026-10-15) */ return { o, plane: own, at: placeOnWall(own, o), corners: quadOnWall(own, o) as [number, number][] }; });
     const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림

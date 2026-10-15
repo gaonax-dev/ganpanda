@@ -81,8 +81,8 @@ export const alignQuad = (plane: RefPlane, quad: Pt[]): Pt[] => quadOf(plane, fr
 export const SKEW_ALERT = 3;
 
 /** 매니퓰레이터 그리기용 사진 px 점들: 중심, X·Z(·Y) 화살표 끝, 회전 고리(+손잡이), 크기 손잡이(오른쪽·위 변 가운데) */
-export function gizmoOf(plane: RefPlane, f: Frame) {
-  const L = Math.max(f.w, f.h) * 0.35;
+export function gizmoOf(plane: RefPlane, f: Frame, lengthMm?: number) {
+  const L = lengthMm ?? Math.max(f.w, f.h) * 0.35;
   const P = (p: Pt) => applyHomography(plane.H, p);
   const R = L * 0.8;
   const ring = Array.from({ length: 33 }, (_, i) => { const t = (i / 32) * Math.PI * 2; return P(add(f.c, add(mul(f.ex, Math.cos(t) * R), mul(f.ey, -Math.sin(t) * R)))); });
@@ -100,6 +100,7 @@ export function gizmoOf(plane: RefPlane, f: Frame) {
     c: P(f.c), x: P(add(f.c, mul(f.ex, L))), z: P(sub(f.c, mul(f.ey, L))), y,
     ring, ringHandle: P(ringHandleWall), ringHandleWall,
     right: P(add(f.c, mul(f.ex, f.w / 2))), top: P(sub(f.c, mul(f.ey, f.h / 2))),
+    corner: P(sub(add(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2))),
   };
 }
 
@@ -209,10 +210,10 @@ export function turnAngleAt(plane: RefPlane, tf: TurnFrame, px: Pt): number {
 }
 
 /** 돌린 사인물의 매니퓰레이터 점들: 경첩 가운데, 위, 벽 가로(경첩 이동), 돌리기 손잡이(먼 변 가운데) */
-export function turnGizmoOf(plane: RefPlane, tf: TurnFrame) {
+export function turnGizmoOf(plane: RefPlane, tf: TurnFrame, lengthMm?: number) {
   const { T0, T1, B0, B1 } = corners3(plane, tf);
   const P = (p: V3) => projectPoint(plane.pose!, p);
-  const L = Math.max(tf.w, tf.h) * 0.35;
+  const L = lengthMm ?? Math.max(tf.w, tf.h) * 0.35;
   const M: V3 = [(T0[0] + B0[0]) / 2, (T0[1] + B0[1]) / 2, 0];
   return {
     c: P(M),
@@ -220,4 +221,32 @@ export function turnGizmoOf(plane: RefPlane, tf: TurnFrame) {
     x: P([M[0] + tf.dir[0] * L * (tf.side === 'left' ? -1 : 1) * -1, M[1] + tf.dir[1] * L * (tf.side === 'left' ? -1 : 1) * -1, 0]),
     turn: P([(T1[0] + B1[0]) / 2, (T1[1] + B1[1]) / 2, (T1[2] + B1[2]) / 2]),
   };
+}
+
+/** 크기 모드: 왼쪽 아래 꼭짓점을 고정하고 to(면 mm)까지의 거리 비율로 가로·세로를 같이 (비율 유지) */
+export function scaleFrame(f: Frame, to: Pt): Frame {
+  const anchor = add(sub(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2));
+  const corner = sub(add(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2));
+  const k = Math.max(0.05, Math.hypot(to[0] - anchor[0], to[1] - anchor[1]) / (Math.hypot(corner[0] - anchor[0], corner[1] - anchor[1]) || 1));
+  const w = f.w * k, h = f.h * k;
+  return { ...f, w, h, c: sub(add(anchor, mul(f.ex, w / 2)), mul(f.ey, h / 2)) };
+}
+
+/** 돌려 세운 사인물의 면 좌표계 (3D): 원점 = 사인물 왼쪽 아래, e1 = 사인물 가로(왼→오), e2 = 위. 카메라를 이 면으로 옮긴 포즈와 함께 */
+export function turnedPlane(plane: RefPlane, tf: TurnFrame): { origin: V3; e1: V3; e2: V3; pose: CameraPose } | null {
+  if (!plane.pose) return null;
+  const { T0: _t0, B0, B1 } = corners3(plane, tf);
+  void _t0;
+  const n = outOfWall(plane);
+  const r = (tf.deg * Math.PI) / 180;
+  const F: V3 = [Math.cos(r) * tf.dir[0], Math.cos(r) * tf.dir[1], Math.sin(r) * n];
+  // 왼쪽 경첩: 경첩에서 먼 변으로가 사인물 가로. 오른쪽 경첩: 먼 변(왼쪽)에서 경첩으로
+  const origin = tf.side === 'left' ? B0 : B1;
+  const e1: V3 = tf.side === 'left' ? F : [-F[0], -F[1], -F[2]];
+  const e2: V3 = [tf.up[0], tf.up[1], 0];
+  const e3 = cross3(e1, e2);
+  const { R, t } = plane.pose;
+  const col = (v: V3): V3 => [R[0] * v[0] + R[1] * v[1] + R[2] * v[2], R[3] * v[0] + R[4] * v[1] + R[5] * v[2], R[6] * v[0] + R[7] * v[1] + R[8] * v[2]];
+  const c1 = col(e1), c2 = col(e2), c3 = col(e3), o = col(origin);
+  return { origin, e1, e2, pose: { ...plane.pose, R: [c1[0], c2[0], c3[0], c1[1], c2[1], c3[1], c1[2], c2[2], c3[2]], t: [o[0] + t[0], o[1] + t[1], o[2] + t[2]] } };
 }

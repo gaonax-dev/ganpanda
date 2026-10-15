@@ -2,7 +2,7 @@
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
-import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, wallPlaneOf, type WallPlane } from '../core/wallPlane';
+import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
@@ -30,7 +30,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
   const url = await assetUrl(photo.assetId);
   if (!url) throw new Error('photo asset missing');
   v.setPhoto(await loadImage(url));
-  const placed = objects.map((o) => { const own = plane ? (wallPlaneOf([o], null) ?? plane) : plane; return { o, plane: own, at: placeOnWall(own, o) }; });
+  const placed = objects.map((o) => { const own = plane ? (signPlaneOf(o, plane) ?? plane) : plane; /* 원근에 맞는 사인물은 원근 설정의 각도 우선 */ return { o, plane: own, at: placeOnWall(own, o) }; });
   const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
   const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
   v.applyProjection(projectionFromPlane(plane, photo.w, photo.h), poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
