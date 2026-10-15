@@ -19,3 +19,12 @@ export async function newVersionAvailable(doc: Document, fetchHtml: () => Promis
   if (!mine) return false;
   try { const latest = bundleOf(await fetchHtml()); return !!latest && latest !== mine; } catch { return false; }
 }
+
+/**
+ * 새 버전을 찾았을 때 바로 새로고침해도 되는가. 문서는 실시간 동기화로 저장되어 있으므로 새로고침해도 잃는 것이 없다.
+ * returned = 탭이 백그라운드에서 돌아옴/뒤로가기 복원(사용자가 막 손대지 않은 상태), home = 홈 화면, busy = 입력 중이거나 창이 열림
+ */
+export function shouldAutoReload(s: { returned: boolean; busy: boolean; home?: boolean }): boolean {
+  if (s.busy) return false;
+  return s.returned || !!s.home;
+}

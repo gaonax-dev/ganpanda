@@ -1,0 +1,10 @@
+# 2026-10-15 사용자: "아이폰 크롬이 이전 데이터를 계속 물고 있다"
+# HTML(앱 입구)은 저장하지 않는다 → 새로 열면 항상 최신 번들 이름을 받는다. 번들(/assets/*)은 이름에 해시가 있어 오래 저장해도 안전
+/
+  Cache-Control: no-store
+/index.html
+  Cache-Control: no-store
+/login
+  Cache-Control: no-store
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -2,7 +2,7 @@
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
-import { newVersionAvailable } from './core/version';
+import { newVersionAvailable, shouldAutoReload } from './core/version';
 import { layoutList } from './core/layout';
 import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
@@ -768,15 +768,24 @@ export function defaultCameraSetup(w: number, h: number): CameraSetup {
 
 if (import.meta.env.DEV) (window as unknown as { __ganpanda: AppState }).__ganpanda = app;
 if (typeof matchMedia === 'function') { const mq = matchMedia('(max-width: 720px)'); mq.addEventListener('change', (e) => { app.compact = e.matches; }); }
-// 새 배포 감지: 탭이 다시 보일 때(최대 1분에 한 번) 서버 index.html 의 번들과 비교
+// 새 배포 감지: 시작 직후·탭이 다시 보일 때·뒤로가기 복원(pageshow) 때 서버 index.html 의 번들과 비교 (최대 10초에 한 번).
+// 아이폰 크롬처럼 탭을 메모리에서 되살리는 브라우저가 옛 코드를 계속 쓰던 문제(2026-10-15) → 돌아온 순간이면 바로 새로고침, 아니면 배너
 if (typeof document !== 'undefined' && !import.meta.env.DEV) {
   let last = 0;
-  const check = async () => {
-    if (document.visibilityState !== 'visible' || Date.now() - last < 60_000 || app.updateAvailable) return;
-    last = Date.now();
-    if (await newVersionAvailable(document, () => fetch('/', { cache: 'no-store' }).then((r) => r.text()))) app.updateAvailable = true;
+  const busy = () => {
+    const t = document.activeElement as HTMLElement | null;
+    const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    return typing || !!document.querySelector('[role="dialog"]');
   };
-  document.addEventListener('visibilitychange', check);
-  window.addEventListener('focus', check);
-  setTimeout(check, 30_000);
+  const check = async (returned: boolean) => {
+    if (document.visibilityState !== 'visible' || Date.now() - last < 10_000) return;
+    last = Date.now();
+    if (!(await newVersionAvailable(document, () => fetch('/', { cache: 'no-store' }).then((r) => r.text())))) return;
+    if (shouldAutoReload({ returned, busy: busy(), home: !app.room })) location.reload();
+    else app.updateAvailable = true;
+  };
+  document.addEventListener('visibilitychange', () => check(true));
+  window.addEventListener('pageshow', (e) => check(e.persisted));
+  window.addEventListener('focus', () => check(false));
+  setTimeout(() => check(false), 3_000);
 }
