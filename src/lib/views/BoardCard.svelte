@@ -4,12 +4,13 @@
 -->
 <script lang="ts">
   import type { Photo, SignObject } from '../core/model';
-  import { faceClip, faceWarp } from '../core/cardFace';
+  import { faceClip } from '../core/cardFace';
+  import { faceUrl } from '../photoDisplay';
   import DesignFace from '../ui/DesignFace.svelte';
 
-  let { o, x, y, w, h, photo, url, zoom, selected, standalone = false, linked = false, onpointerdown }: {
+  let { o, x, y, w, h, photo, zoom, selected, standalone = false, linked = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
-    photo?: Photo; url?: string; zoom: number; selected: boolean;
+    photo?: Photo; zoom: number; selected: boolean;
     /** 사진 없는(보드에 직접 만든) 사인물 */
     standalone?: boolean;
     /** 사진의 영역과 연결되어 있음 */
@@ -19,14 +20,19 @@
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   // 카드 안에서의 사진 크기: 카드 px 기준으로 사진 원본을 정면 보정하므로 faceWarp 는 mm 가 아니라 카드 px 로
   const inv = $derived(1 / zoom);
+  // 얼굴: 사진 영역을 펼친 작은 그림 (원본을 matrix3d 로 겹치면 휴대폰 메모리가 넘친다)
+  let face = $state<string | undefined>(undefined);
+  $effect(() => {
+    const mm = { w: o.widthMm ?? w, h: o.heightMm ?? h };
+    if (photo && o.quad.length === 4) faceUrl(photo.assetId, photo.w, o.quad, mm.w, mm.h).then((u) => (face = u));
+    else face = undefined;
+  });
 </script>
 
 <div class="card" class:standalone class:sel={selected} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
   style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
-    {#if photo && url && o.quad.length === 4}
-      <img src={url} alt="" draggable="false" style:width="{photo.w}px" style:height="{photo.h}px" style:transform={faceWarp(o, w, h)} />
-    {/if}
+    {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
   </div>
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
@@ -44,7 +50,7 @@
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed rgba(255, 204, 0, 0.7); }
   .sel .face { outline: 2px solid var(--accent); }
-  .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
+  .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .design { position: absolute; inset: 0; }
   .label { position: absolute; left: 0; top: 100%; margin-top: 4px; transform-origin: 0 0; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); white-space: nowrap; pointer-events: none; }
   .label b { font-size: 12px; }

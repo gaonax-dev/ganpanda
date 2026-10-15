@@ -3,9 +3,10 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
+  import { faceUrl } from '../photoDisplay';
   import { listSvg, type SvgCard } from '../core/listSvg';
   import { describeOptions } from '../core/options';
-  import { faceClip, faceWarp } from '../core/cardFace';
+  import { faceClip } from '../core/cardFace';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won } from '../core/quote';
   import type { ExtraItem } from '../core/model';
@@ -14,7 +15,7 @@
 
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
   let canvas: InfiniteCanvas;
-  let urls: Record<string, string> = $state({});
+  let faces: Record<string, { key: string; url: string }> = $state({});
   let drag: { id: string; dx: number; dy: number; sx: number; sy: number } | null = $state(null);
   let fitted = false;
 
@@ -31,7 +32,14 @@
   const setInstall = (v: string) => app.updateSettings({ installFee: v.trim() === '' ? undefined : Math.max(0, Number(v) || 0) });
 
   $effect(() => {
-    for (const p of app.photos) if (!urls[p.assetId]) assetUrl(p.assetId).then((u) => u && (urls[p.assetId] = u));
+    // 카드 얼굴: 사진 영역을 펼친 작은 그림 (원본 전체를 카드마다 겹치지 않는다 — 휴대폰 메모리)
+    for (const { o, w, h } of sized) {
+      const p = app.photos.find((x) => x.id === o.photoId);
+      if (!p || o.quad.length !== 4) continue;
+      const key = `${o.id}|${o.quad.flat().join(',')}|${Math.round(w)}x${Math.round(h)}`;
+      if (faces[o.id]?.key === key) continue;
+      faceUrl(p.assetId, p.w, o.quad, w, h, 640).then((u) => { if (u) faces[o.id] = { key, url: u }; });
+    }
   });
 
   $effect(() => {
@@ -49,7 +57,7 @@
     viewport = fitRect({ x: x - 400, y: y - 600, w: w + 800, h: h + 1600 }, s.w - 360, s.h, 40);
   }
 
-  const warp = faceWarp, clip = faceClip;
+  const clip = faceClip;
 
   function down(e: PointerEvent, id: string) {
     if (e.button !== 0) return;
@@ -139,9 +147,8 @@
           onpointermove={move}
           onpointerup={up}
         >
-          {#if photo && urls[photo.assetId]}
-            <img src={urls[photo.assetId]} alt="" draggable="false"
-              style:width="{photo.w}px" style:height="{photo.h}px" style:transform={warp(o, w, h)} />
+          {#if photo && faces[o.id]}
+            <img class="flat" src={faces[o.id].url} alt="" draggable="false" />
           {/if}
           {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
         </div>
@@ -239,6 +246,7 @@
   .face { position: absolute; inset: 0; overflow: hidden; background: #333; cursor: grab; outline: 1px solid rgba(255,255,255,0.25); }
   .face.sel { outline: 2px solid var(--accent); }
   .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
+  .face img.flat { width: 100%; height: 100%; }
   .design-on { position: absolute; inset: 0; }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .spec .place { pointer-events: auto; }

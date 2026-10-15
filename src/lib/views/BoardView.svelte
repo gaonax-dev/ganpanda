@@ -10,6 +10,7 @@
   import type { StageRenderer } from '../render/scene';
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
+  import { displayUrl } from '../photoDisplay';
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
@@ -26,7 +27,7 @@
   $effect(() => {
     for (const p of app.photos) {
       if (urls[p.assetId]) continue;
-      assetUrl(p.assetId).then((u) => { if (u) urls[p.assetId] = u; });
+      displayUrl(p.assetId).then((u) => { if (u) urls[p.assetId] = u; }); // 줄인 사진 (휴대폰 메모리)
     }
   });
 
@@ -313,7 +314,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * BOARD_PX_PER_MM} h={h * BOARD_PX_PER_MM} {photo} url={photo ? urls[photo.assetId] : undefined} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * BOARD_PX_PER_MM} h={h * BOARD_PX_PER_MM} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
