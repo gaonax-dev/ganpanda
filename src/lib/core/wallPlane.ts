@@ -4,7 +4,8 @@ import type { Calibration } from './calibration';
 import { DEFAULT_FOCAL_RATIO, applyHomography, estimateFocal, projectPoint, recoverPose, solveHomography, type CameraPose, type Pt } from './homography';
 import { isValidQuad } from './measure';
 import type { SignObject } from './model';
-import { SKEW_ALERT, fitPlacement, readTurn, skewOf, turnedPlane, type Hinge, type RefPlane } from './manipulator';
+import { SKEW_ALERT, readTurn, skewOf, turnedPlane } from './manipulator';
+import { faceFrameOf, type FaceAxis, type FaceFrame } from './faces';
 
 export interface WallPlane {
   /** 벽면 mm → 사진 px */
@@ -144,34 +145,55 @@ export function poseOfPlane(plane: WallPlane, imgW: number, imgH: number, span =
 
 /**
  * 사인물 하나를 3D 로 그릴 면 (2026-10-15 사용자: "실제 입력 길이로 인해 3D 각도에 영향을 주는 것 같아… 원근 설정되었고 오브젝트를 원근 각도에 맞춘 거면 각도는 이쪽에 우선").
- * - 원근 설정(카메라)이 있고 외곽선이 그 원근의 직사각형이면(비틀림 ≤ 3°) → 원근 설정의 벽면·카메라 그대로. 크기는 사진에서 잰 값 (입력 치수는 각도에 영향 없음)
- * - 벽에서 돌려 세운 사인물 → 원근 카메라를 돌린 면으로
- * - 돌리지 않았어도 외곽선이 벽에 직각인 면(돌출 간판)의 모양이면 → 그 면으로 (구도로 면 방향을 알아봄. 2026-10-15 사용자:
- *   "간판처럼 해줘 너무 복잡해. 구도를 보고 면 방향을 인식할 수 있잖아") — 외곽선은 그린 그대로 두고 3D 만 그 방향으로
- * - 그 외(원근 없음, 손으로 비튼 외곽선) → 사인물 자신의 면 (그린 자리에 맞물림 우선)
+ * 원근 설정(카메라)이 있으면 **세 면** 중 하나(faceOf): 벽면(y)·벽에 직각인 세로면(x)·수평면(z) — 외곽선은 그린 그대로, 3D 만 그 면으로.
+ * 벽에서 돌려 세운 사인물은 원근 카메라를 돌린 면. 그 외(원근 없음, 어느 면에도 맞지 않는 외곽선) → 사인물 자신의 면 (그린 자리에 맞물림 우선)
  */
 export function signPlaneOf(o: SignObject, cal: WallPlane | null): WallPlane | null {
-  if (cal?.source === 'calibration' && cal.pose && isValidQuad(o.quad)) {
-    const turn = o.turn ?? (skewOf(cal, o.quad) > SKEW_ALERT ? recognizedTurn(cal, o.quad) : undefined);
-    if (turn) {
-      const tf = readTurn(cal, o.quad, turn);
-      const tp = tf && turnedPlane(cal, tf);
-      if (tf && tp) {
-        const rect: Pt[] = [[0, tf.h], [tf.w, tf.h], [tf.w, 0], [0, 0]];
-        const proj = rect.map(([x, y]) => projectPoint(tp.pose, [x, y, 0]));
-        const H = solveHomography(rect, proj), Hinv = solveHomography(proj, rect);
-        return { H, Hinv, source: 'calibration', pose: tp.pose, referenceId: o.id };
-      }
-    } else if (skewOf(cal, o.quad) <= SKEW_ALERT) return cal;
-  }
-  return wallPlaneOf([o], null);
+  return faceOf(o, cal)?.plane ?? wallPlaneOf([o], null);
 }
 
-/** 외곽선이 벽에 직각인 면(돌출 간판)의 직사각형에 가까우면 그 배치(90°, 경첩 쪽). 그린 꼭짓점과의 평균 거리가 대각선의 5% 안일 때만 */
-export function recognizedTurn(cal: RefPlane, quad: Pt[]): { deg: number; hinge: Hinge } | undefined {
-  const fit = fitPlacement(cal, quad);
-  const diag = Math.hypot(quad[0][0] - quad[2][0], quad[0][1] - quad[2][1]);
-  return fit?.turn && fit.err < diag * 0.05 ? fit.turn : undefined;
+/** 자동으로 x·z 면을 고르는 한계: 바른 직사각형으로 폈을 때 꼭짓점이 대각선의 5% 안 (손 떨림은 봐주고, 엉뚱한 사각형은 면으로 보지 않는다) */
+const AUTO_FACE_ERR = 0.05;
+
+/**
+ * 사인물의 정면 축과 그 면 (2026-10-15 사용자: "삼면 구조로 진행해줘"; "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다").
+ * - 돌려 세운 사인물(turn) → 돌린 면 (45° 넘으면 x)
+ * - 사용자가 고른 축(faceAxis) → 그 면. 그 면의 사진일 수 없는 외곽선이면 null
+ * - 자동: 외곽선이 벽면의 직사각형이면(비틀림 ≤ 3°) y, 아니면 x·z 중 바른 직사각형으로 폈을 때 가장 덜 벗어나는 면(대각선 5% 안). 둘 다 아니면 null
+ * 원근 설정이 없으면 null
+ */
+export function faceOf(o: SignObject, cal: WallPlane | null): { axis: FaceAxis; plane: WallPlane } | null {
+  if (!(cal?.source === 'calibration' && cal.pose && isValidQuad(o.quad))) return null;
+  if (o.turn) {
+    const tf = readTurn(cal, o.quad, o.turn);
+    const tp = tf && turnedPlane(cal, tf);
+    if (!tf || !tp) return null;
+    const rect: Pt[] = [[0, tf.h], [tf.w, tf.h], [tf.w, 0], [0, 0]];
+    const proj = rect.map(([x, y]) => projectPoint(tp.pose, [x, y, 0]));
+    return { axis: o.turn.deg > 45 ? 'x' : 'y', plane: { H: solveHomography(rect, proj), Hinv: solveHomography(proj, rect), source: 'calibration', pose: tp.pose, referenceId: o.id } };
+  }
+  const asPlane = (ff: FaceFrame): WallPlane => ({ H: ff.H, Hinv: ff.Hinv, source: 'calibration', pose: ff.pose, referenceId: o.id });
+  if (o.faceAxis === 'y') return { axis: 'y', plane: cal };
+  if (o.faceAxis === 'x' || o.faceAxis === 'z') {
+    const ff = faceFrameOf(cal, o.quad, o.faceAxis);
+    return ff ? { axis: o.faceAxis, plane: asPlane(ff) } : null;
+  }
+  if (skewOf(cal, o.quad) <= SKEW_ALERT) return { axis: 'y', plane: cal };
+  let best: { axis: FaceAxis; ff: FaceFrame } | null = null;
+  for (const axis of ['x', 'z'] as const) {
+    const ff = faceFrameOf(cal, o.quad, axis);
+    if (ff && ff.err <= AUTO_FACE_ERR && (!best || ff.err < best.ff.err)) best = { axis, ff };
+  }
+  return best ? { axis: best.axis, plane: asPlane(best.ff) } : null;
+}
+
+/** 벽면(y)이 아닌 면에 놓인 사인물의 크기(mm, 그 면에서 잰 값). 벽면이면 undefined(벽면 측정 그대로), 어느 면도 아니면 null(측정 없음) */
+export function faceSizeOf(o: SignObject, cal: WallPlane | null): { widthMm: number; heightMm: number } | null | undefined {
+  const f = faceOf(o, cal);
+  if (!f) return null;
+  if (f.plane === cal) return undefined;
+  const at = placeOnWall(f.plane, o);
+  return { widthMm: at.w, heightMm: at.h };
 }
 
 /** 면 좌표의 +z 가 카메라 쪽이면 1, 반대면 -1 — 원근 설정의 카메라는 축 지정에 따라 벽 안쪽이 +z 일 수 있다. 3D 상자는 이 부호로 뒤집어 앞면이 카메라를 보게 */

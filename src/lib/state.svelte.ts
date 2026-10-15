@@ -17,7 +17,7 @@ import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { wallPlaneOf } from './core/wallPlane';
+import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -181,7 +181,10 @@ class AppState {
   measures = $derived.by(() => {
     const out = new Map<string, MeasureResult>();
     for (const p of this.photos) {
-      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, this.calibrations.get(p.id))) out.set(id, r);
+      const calib = this.calibrations.get(p.id);
+      // 세 면: 벽면이 아닌 면(벽에 직각인 세로면·수평면)의 사인물은 그 면에서 잰다 (2026-10-15 "삼면 구조로 진행해줘")
+      const cal = calib?.metric ? wallPlaneOf([], calib) : null;
+      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, calib, cal ? (o) => faceSizeOf(o, cal) : undefined)) out.set(id, r);
     }
     return out;
   });
