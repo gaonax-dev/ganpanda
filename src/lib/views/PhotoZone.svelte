@@ -10,7 +10,7 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
   import { applyHomography } from '../core/homography';
-  import { placeOnWall, projectionFromPlane, recognizedTurn, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
+  import { faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
   import type { Tool } from '../state.svelte';
@@ -21,7 +21,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    overlay, calib, onplace, gizmoPx = 48,
+    overlay, calib, onplace, onface, gizmoPx = 48,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -67,6 +67,8 @@
     onquad: (id: string, quad: Pt[]) => void;
     /** 외곽선과 벽에서 돌린 상태를 함께 저장 (turn = undefined 면 벽에 붙음) */
     onplace?: (id: string, quad: Pt[], turn: SignObject['turn']) => void;
+    /** 사인물 정면 축 (세 면: x = 벽을 따라 봄, y = 벽 밖, z = 위·아래. undefined = 자동) */
+    onface?: (id: string, axis: SignObject['faceAxis']) => void;
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
     onrender?: () => void;
@@ -130,6 +132,8 @@
   }
   /** 3단계: 벽에서 돌려 세우기 — 원근 설정(카메라)이 있는 사진에서만 */
   const canTurn = $derived(!!calib?.metric && !!calib.pose);
+  /** 세 면 버튼 설명 */
+  const FACE_TITLE = { x: '정면 X: 벽을 따라 보는 세로면 (돌출 간판)', y: '정면 Y: 벽 밖을 보는 벽면', z: '정면 Z: 위·아래를 보는 수평면 (어닝 등)' } as const;
   /** 돌린 사인물의 경첩 틀 (끄는 중이면 그 값) */
   function turnFrameNow(o: SignObject, plane: RefPlane, q: Pt[]): TurnFrame | null {
     if (editing?.id === o.id && editing.tf0 && editing.turn) return readTurn(plane, q, editing.turn);
@@ -550,13 +554,29 @@
             {@const tilt = tiltOf(fr)}
             <!-- 원근 매니퓰레이터: 외곽선이 원근에서 비틀렸거나 축에서 조금 기울었으면, 맞춘 모양을 점선으로 보여 주고 [원근에 맞추기] -->
             <!-- 2026-10-15 사용자: "너무 복잡해… 구도를 보고 면 방향을 인식" → 맞춘 모양 점선 없이 ⊞ 만. 돌출 간판 면으로 알아본 외곽선은 그대로(3D 가 그 방향으로) -->
-            {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10)) && !(skew > SKEW_ALERT && recognizedTurn(plane, q))}
+            {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10)) && !['x', 'z'].includes(faceOf({ ...o, quad: q }, wallPlaneOf([], calib))?.axis ?? '')}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
                 {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
               </g>
             {/if}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
               {@render modeChips(g.c)}
+              {#if calib?.metric && onface}
+                <!-- 세 면 (2026-10-15 사용자: "삼면 구조로 진행해줘", "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다"): 사인물이 보는 축. 누르면 그 축이 정면, 켜진 것을 다시 누르면 자동 -->
+                {@const cw = wallPlaneOf([], calib)}
+                {@const cur = faceOf({ ...o, quad: q }, cw)?.axis ?? 'none'}
+                <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis)}>
+                  {#each ['x', 'y', 'z'] as const as a, i (a)}
+                    {@const can = a === 'y' || !!faceOf({ ...o, quad: q, faceAxis: a }, cw)}
+                    {@const at = [g.c[0] + (46 + i * 20) * gu, g.c[1] + 23 * gu]}
+                    <g class="fb" class:on={cur === a} class:off={!can} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)} data-can={String(can)}
+                      onpointerdown={(e) => { e.stopPropagation(); if (!can) return; onface(o.id, o.faceAxis === a ? undefined : a); }}>
+                      <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a ? ' — 지금 정면 (다시 누르면 자동)' : ' — 지금 정면 (자동)') : can ? ' — 누르면 이 축이 정면' : ' — 이 외곽선은 그 면의 모양이 아니어서 고를 수 없습니다'}</title>
+                      <circle cx={at[0]} cy={at[1]} r={8 * gu} style:fill={AXIS_COLOR[a]} stroke-width={cur === a ? 2.5 * gu : 0} /><text x={at[0]} y={at[1] + 4 * gu} font-size={10 * gu} text-anchor="middle">{a.toUpperCase()}</text>
+                    </g>
+                  {/each}
+                </g>
+              {/if}
               {#if gizmoMode === 'move'}
                 <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={4.5 * gu} />
                 <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={2 * gu} style:stroke={AXIS_COLOR.x} />
@@ -668,6 +688,10 @@
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
   /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자, 자홍 점선 = 원근 설정대로의 상자 */
   .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
+  .faces .fb { cursor: pointer; }
+  .faces .fb circle { stroke: #fff; }
+  .faces .fb text { fill: #111; font-weight: 700; pointer-events: none; }
+  .faces .fb.off { opacity: 0.35; cursor: not-allowed; }
   .boxg .edge { stroke: #fff; stroke-linecap: round; }
   .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }

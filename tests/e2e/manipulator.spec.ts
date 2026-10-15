@@ -291,3 +291,41 @@ test('돌출 간판 면에 그린 외곽선: 구도로 면 방향을 알아봐 �
   expect(await turnOf(page, id)).toBeNull();
   expect(await quadOf(page, id)).toEqual(drawn);
 });
+
+test('세 면: 매니퓰레이터 옆 X·Y·Z 버튼이 사인물이 보는 축을 보여 주고, 누르면 그 축이 정면 (외곽선·원근 기준은 그대로). 켜진 버튼을 다시 누르면 자동', async ({ page, request }) => {
+  // 2026-10-15 사용자: "삼면 구조로 진행해줘", "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const faceOf = (id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; faceAxis?: string }[] } }).__ganpanda.objects.find((o) => o.id === id)!.faceAxis ?? null, id);
+  const axes = page.getByTestId('face-axes');
+  // 벽에 그린 간판: Y. 정면으로 그린 직사각형은 벽에 직각인 면의 사진일 수 없어 X 는 못 고른다
+  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await expect(axes).toHaveAttribute('data-axis', 'y');
+  await expect(page.getByTestId('face-y')).toHaveAttribute('data-on', 'true');
+  await expect(page.getByTestId('face-x')).toHaveAttribute('data-can', 'false');
+  // 돌출 면에 그린 간판: 자동으로 X
+  const ref = await addSign(page, await rectOnWall(page, 1500, 3800, 1200, 900));
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, ref)).toEqual({ deg: 90, hinge: 'left' });
+  const truth = await quadOf(page, ref);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { removeObject(id: string): void } } }).__ganpanda.project.removeObject(id), ref);
+  const id = await addSign(page, truth);
+  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
+  await expect(axes).toHaveAttribute('data-axis', 'x');
+  const face = page.getByTestId('box-guide').locator('polygon.face');
+  const boxX = await face.getAttribute('points');
+  // Y 를 누르면 벽면이 정면 — 외곽선은 그대로, 상자는 벽면 쪽으로
+  await page.getByTestId('face-y').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => faceOf(id)).toBe('y');
+  await expect(axes).toHaveAttribute('data-axis', 'y');
+  expect(await quadOf(page, id)).toEqual(truth);
+  expect(await turnOf(page, id)).toBeNull();
+  await expect(face).not.toHaveAttribute('points', boxX!);
+  // 켜진 Y 를 다시 누르면 자동(다시 X)
+  await page.getByTestId('face-y').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => faceOf(id)).toBeNull();
+  await expect(axes).toHaveAttribute('data-axis', 'x');
+  await expect(face).toHaveAttribute('points', boxX!);
+});

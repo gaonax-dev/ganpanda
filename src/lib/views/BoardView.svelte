@@ -275,6 +275,7 @@
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
         onplace={(id, quad, turn) => { app.project.updateObject(id, { quad, turn }); app.editBoundary(); }}
+        onface={(id, faceAxis) => { app.project.updateObject(id, { faceAxis }); app.editBoundary(); }}
         editable={app.canEdit}
         unread={app.unread}
         pins={app.pins.filter((x) => x.photoId === p.id)}

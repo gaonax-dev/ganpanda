@@ -47,6 +47,9 @@ export function isValidQuad(q: Pt[]): boolean {
  */
 export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
   objs: T[], imgW: number, imgH: number, calib?: Calibration | null,
+  /** 세 면 (2026-10-15 "삼면 구조로 진행해줘"): 벽면이 아닌 면(벽에 직각인 세로면·수평면, 돌려 세운 면)의 사인물은 그 면에서 잰 크기.
+   *  undefined = 벽면(벽면에서 잰다), null = 어느 면도 아님(재지 않음). 없으면 예전처럼 돌려 세운 사인물만 뺀다 */
+  faceSize?: (o: T) => Size | null | undefined,
 ): Map<string, MeasureResult> {
   const out = new Map<string, MeasureResult>();
   // 카메라 설정이 있는 사진: 모든 영역을 그 벽면으로 잰다.
@@ -55,8 +58,13 @@ export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
   // 가로·세로 보정 비율이 2배 넘게 다르면 카메라의 벽면이 이 사인물들의 면이 아니라는 뜻 → 기준 영역 방식으로 돌아간다
   if (calib) {
     const raw = new Map<string, Size>();
-    // 벽에서 돌려 세운 사인물(turn)은 벽면 위가 아니므로 벽면 추정·축척 보정에서 뺀다
-    for (const o of objs) if (isValidQuad(o.quad) && !o.turn) raw.set(o.id, measureQuad(calib, o.quad));
+    // 벽면이 아닌 면의 사인물은 그 면에서 잰다. 면을 모르면(faceSize 없음) 돌려 세운 사인물(turn)은 벽면 위가 아니므로 뺀다
+    for (const o of objs) {
+      if (!isValidQuad(o.quad)) continue;
+      const fs = faceSize?.(o);
+      if (fs) raw.set(o.id, fs);
+      else if (fs === undefined && !(faceSize === undefined && o.turn)) raw.set(o.id, measureQuad(calib, o.quad));
+    }
     const sized = objs.filter((o): o is T & Size => hasSize(o) && raw.has(o.id));
     const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
     const sx = sized.length ? median(sized.map((o) => o.widthMm / raw.get(o.id)!.widthMm)) : 1;
