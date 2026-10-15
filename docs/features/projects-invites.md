@@ -25,11 +25,13 @@
 - **viewer 화면**: 그리기 도구·사진 추가 없음("보기·대화만 가능"), 영역 이동·모서리·삭제 불가, 패널 입력칸 비활성, 전개도 위치 이동 불가. 대화·코멘트는 `POST /api/rooms/:id/messages`로 보냅니다(`app.sendMessage`).
 - **표시 이름 우선순위**: 계정 이름 > 기기에 정한 이름 > 이메일 앞부분.
 
-## 프로젝트 그룹 · 상태 · 정산 (2026-10-15)
-사용자: "프로젝트 그룹을 만들 수 있게 해 주고 계산서를 그룹에서 한번에 볼 수 있게, 세부사항은 프로젝트 리스트 뷰로, 상태 표시도 대기·진행중·완료, 정산 상태도 받은 금액/계약 금액으로 하고 다 받으면 총금액만 보이게. 해당 내역은 오너는 기본으로, 멤버는 오너가 설정해 준다."
-- **홈**(`Home.svelte`): [그룹 만들기](`new-group-name/-submit`) → 그룹 카드(`group`)에 프로젝트 표: 이름(링크 `?room=&view=list` → 바로 **리스트 뷰(견적 세부)**), **상태**(`project-status`: 대기/진행중/완료, 오너만 바꿈), **정산**(`settle`: "받은 / 계약", 다 받으면 **"총 {계약}"** 만, 오너는 `paid-amount`/`contract-amount` 입력) + **계산서 합계**(`group-totals`: 건수, 미수, 받은/계약 또는 총). 그룹 없는 프로젝트 목록에는 [그룹에 넣기…](`project-group`). 그룹 삭제는 프로젝트를 남기고 그룹만 지움.
-- **멤버**: 오너가 가입된 계정의 **이메일**로 추가(`member-email/-add`). 멤버는 그룹·프로젝트·상태를 보고, **정산 금액은 오너가 "정산 보기"(`member-billing`)를 켜 준 멤버만** 봅니다(서버가 금액을 빼고 보냄). 상태·금액·멤버 관리는 오너만. 멤버는 프로젝트를 여는 권한과는 별개(열려면 초대 링크).
-- 데이터: D1 `groups`, `group_members(can_billing)`, `projects.group_id/status/contract_amount/paid_amount` (`server/migrations/0006_groups.sql`). API → [../server/api.md](../server/api.md). 테스트: `server/test/groups.test.ts`, `tests/e2e/groups.spec.ts`.
+## 프로젝트 그룹 · 상태 · 정산 · 멤버 (2026-10-15)
+사용자: "프로젝트 그룹을 만들 수 있게 해 주고 계산서를 그룹에서 한번에, 세부사항은 프로젝트 리스트 뷰로, 상태 대기·진행중·완료, 정산은 받은 금액/계약 금액, 다 받으면 총금액만. 오너는 기본으로, 멤버는 오너가 설정해 준다." 이어서: "복잡해 보인다. 프로젝트를 Shift 로 두 개 잡고 오른쪽 마우스로 그룹 만들기. 리스트 뷰의 계산값이 계약 금액. 입금액은 표시를 클릭하면 입력란, 계약 금액도 직접 입력하면 그 금액 + 자동 계산 복구. 그룹은 두 프로젝트가 겹쳐진 것같이, 클릭 시 폴딩. 멤버 관리는 설정에서. 설정에 계정 구독 상태와 사용량."
+- **홈**(`Home.svelte`): 프로젝트는 **카드**(`project-item`). 상단 **[○ 선택]**(`select-mode`) 토글 → 카드를 눌러 고르고(`.sel`, 계산서 행은 체크 `row-select`) **하단 탭**(`select-bar`): [그룹](`bar-group` → 이름 `group-name` → `group-create`, 새 그룹에 바로 넣음) · 기존 그룹에 넣기(`bar-add-to-group`) · 그룹에서 빼기(`bar-ungroup`) · [삭제](`bar-delete`, 확인 뒤 `DELETE /api/projects/:id`) · 취소. 2026-10-15 사용자: "시프트 대신 상단에 선택 버튼으로 토글하면 하단 탭에 기능 버튼 그룹, 삭제"(Shift·오른쪽 클릭 안 씀 — 휴대폰에서도 됨). 보통 클릭은 프로젝트로 이동.
+- **그룹 카드**(`group`, 카드 두 장이 겹친 모양, 이름·개수·미수 또는 총액 `group-summary`): 누르면 **계산서**(`group-bill`)가 펼쳐지고 다시 누르면 접힘(`data-open`). 계산서: 프로젝트(링크 `?room=&view=list` → 리스트 뷰 세부) · **상태**(`project-status` 대기/진행중/완료, 오너만) · **받은 금액 / 계약 금액**(각각 눌러서 입력 `paid`→`paid-input`, `contract`→`contract-input`). **계약 금액은 리스트 뷰 견적 합계가 자동**(`data-auto="true"`, "자동" 표시; 앱이 소유자가 열어 둔 동안 `quoteTotal` 을 1초 디바운스로 저장) — 직접 입력하면 그 금액이 되고 [자동 계산 복구](`contract-auto`)가 나타남. 다 받으면 **"총 {계약}"**(`settle`)만. 합계 줄(`group-totals`: 건수·미수·받은/계약 또는 총). [그룹 삭제](`group-delete`)는 프로젝트를 남김.
+- **멤버는 설정에서**(`Settings.svelte` "멤버", 계정 단위 `team-section`): 가입된 계정의 이메일로 추가(`member-email/-add`, 없으면 `member-error`), **정산 보기**(`member-billing`), 제거. 멤버는 오너의 **모든 그룹**과 계산서(상태)를 보고, 정산 금액은 정산 보기를 켠 멤버만(서버가 금액을 빼고 보냄). 상태·금액 변경은 오너만. 프로젝트별·그룹별 멤버 관리는 없음. 프로젝트를 열려면 초대 링크.
+- **설정 "계정 · 구독"**(`account-section`): 이메일, 요금제(`plan`), 저장 용량(`usage-storage`, 막대), 동시접속(`usage-seats`).
+- 데이터: D1 `groups`, `team_members(owner_id, account_id, can_billing)`, `projects.group_id/status/paid_amount/quote_total/contract_override`(NULL = 자동) (`server/migrations/0006_groups.sql`, `0007_team.sql`). API → [../server/api.md](../server/api.md). 테스트: `server/test/groups.test.ts`, `tests/e2e/groups.spec.ts`.
 - `?view=list|board|uv` 로 들어가면 그 뷰로 시작(`app.view`).
 
 ## 새 배포 안내 (2026-10-15)

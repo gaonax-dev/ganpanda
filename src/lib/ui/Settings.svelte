@@ -2,6 +2,23 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
+  import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
+  import { formatBytes } from '../core/format';
+
+  // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
+  const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
+  let members = $state<TeamMember[] | null>(null);
+  let memberEmail = $state('');
+  let memberError = $state('');
+  async function loadTeam() { try { members = await listTeam(); } catch { members = []; } }
+  $effect(() => { if (app.account) { app.refreshMe(); loadTeam(); } });
+  async function addMember() {
+    const em = memberEmail.trim();
+    if (!em) return;
+    memberError = '';
+    try { await addTeamMember(em, false); memberEmail = ''; await loadTeam(); }
+    catch { memberError = '그 이메일로 가입한 계정이 없습니다. 먼저 로그인해 계정을 만들게 해 주세요.'; }
+  }
 
   /** 키 입력 대기 중인 동작 */
   let capture: { action: Action; mode: 'replace' | 'add' } | null = $state(null);
@@ -46,11 +63,40 @@
   <div class="dialog" data-testid="settings" role="dialog" aria-modal="true" aria-label="설정">
     <header>
       <h2>설정</h2>
-      <div class="tabs"><span class="on">단축키 · 표시</span></div>
+      <div class="tabs"><span class="on">계정 · 멤버 · 단축키 · 표시</span></div>
       <button class="icon" data-testid="close-settings" title="닫기 (Esc)" onclick={close}>✕</button>
     </header>
 
     <div class="body">
+      {#if app.account}
+        <section data-testid="account-section">
+          <h3>계정 · 구독</h3>
+          <p class="row"><span>{app.account.email}</span><b data-testid="plan">{PLAN_LABEL[app.account.plan] ?? app.account.plan} 요금제</b></p>
+          {#if app.usage}
+            <p class="row"><span>저장 용량</span><span data-testid="usage-storage">{formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</span></p>
+            <div class="bar"><i style:width="{Math.min(100, (app.usage.usage.storageBytes / Math.max(1, app.usage.limits.storageBytes)) * 100)}%"></i></div>
+            <p class="row"><span>동시접속</span><span data-testid="usage-seats">{app.usage.usage.seats} / {app.usage.limits.seats}명</span></p>
+          {/if}
+        </section>
+        <section data-testid="team-section">
+          <h3>멤버</h3>
+          <p class="hint">멤버는 내 프로젝트 그룹과 계산서를 봅니다. 정산 금액은 "정산 보기"를 켠 멤버만 봅니다. 가입된 계정의 이메일로 추가합니다.</p>
+          {#each members ?? [] as m (m.accountId)}
+            <div class="member" data-testid="team-member">
+              <span>{m.name || m.email}<small>{m.email}</small></span>
+              <label class="check"><input type="checkbox" data-testid="member-billing" checked={m.canBilling} onchange={async (e) => { await setTeamMember(m.accountId, e.currentTarget.checked); await loadTeam(); }} /> 정산 보기</label>
+              <button class="icon" title="멤버 제거" data-testid="member-remove" onclick={async () => { await removeTeamMember(m.accountId); await loadTeam(); }}>✕</button>
+            </div>
+          {:else}
+            {#if members}<p class="hint">아직 멤버가 없습니다.</p>{/if}
+          {/each}
+          <form class="add" onsubmit={(e) => { e.preventDefault(); addMember(); }}>
+            <input data-testid="member-email" placeholder="멤버 이메일 (가입된 계정)" bind:value={memberEmail} />
+            <button class="btn small" data-testid="member-add" type="submit" disabled={!memberEmail.trim()}>추가</button>
+          </form>
+          {#if memberError}<p class="hint err" data-testid="member-error">{memberError}</p>{/if}
+        </section>
+      {/if}
       <section>
         <h3>표시</h3>
         <label class="check"><input type="checkbox" data-testid="warn-measure" checked={app.warnMeasure} onchange={(e) => app.setWarnMeasure(e.currentTarget.checked)} /> 입력 치수가 사진 추정과 많이 다르면 경고(⚠) 표시</label>
@@ -115,6 +161,13 @@
 </div>
 
 <style>
+  .row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13px; }
+  .bar { height: 6px; background: var(--input); border-radius: 3px; overflow: hidden; margin: 2px 0 6px; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .member { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .member > span { flex: 1; } .member small { display: block; color: var(--muted); font-size: 11px; }
+  .add { display: flex; gap: 6px; margin-top: 8px; }
+  .err { color: var(--danger); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
   .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 50; }

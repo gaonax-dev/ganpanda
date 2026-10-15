@@ -20,7 +20,7 @@
   import OrderDialog from './lib/ui/OrderDialog.svelte';
   import ProposalDialog from './lib/ui/ProposalDialog.svelte';
   import ProposalView from './lib/ui/ProposalView.svelte';
-  import { ROLE_LABEL } from './lib/projects';
+  import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
   let accountOpen = $state(false);
@@ -30,6 +30,16 @@
     if (n && n !== app.account?.name) await app.renameAccount(n);
     accountOpen = false;
   }
+
+  // 리스트 뷰 견적 합계 = 계약 금액(자동): 소유자가 열어 둔 동안 바뀌면 1초 뒤 프로젝트에 저장 (홈 그룹 계산서가 읽는다)
+  let quoteTimer = 0, lastSavedTotal = -1;
+  $effect(() => {
+    const total = app.quote.total;
+    if (!app.room || app.role !== 'owner' || !app.ready) return;
+    if (total === lastSavedTotal) return;
+    clearTimeout(quoteTimer);
+    quoteTimer = window.setTimeout(() => { lastSavedTotal = total; updateProject(app.room!, { quoteTotal: Math.round(total) }).catch(() => {}); }, 1000);
+  });
 
   // 캔버스 밖에서도 브라우저 확대(Ctrl+휠·핀치)가 일어나지 않게 (xlpop 과 동일)
   $effect(() => {
