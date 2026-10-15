@@ -46,12 +46,12 @@ export async function verifyLink(token: string): Promise<{ account: Account; res
 }
 export const verifyToken = (token: string) => verifyLink(token).then((r) => r.account);
 
-/** 이메일·비밀번호 가입 / 로그인 (2026-10-15) */
-export async function signup(email: string, password: string, name: string): Promise<Account> {
-  const r = await call<{ session: string; account: Account }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name }) }, null);
-  saveSession(r.session);
-  return r.account;
-}
+/** 이메일·비밀번호 가입 (2026-10-15): 인증 메일을 보낸다 — 링크를 열어야 로그인된다. 개발 모드면 링크를 돌려준다 */
+export const signup = (email: string, password: string, name: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name }) }, null);
+/** 인증 메일 다시 받기 */
+export const resendVerify = (email: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/resend-verify', { method: 'POST', body: JSON.stringify({ email }) }, null);
 export async function passwordLogin(email: string, password: string): Promise<Account> {
   const r = await call<{ session: string; account: Account }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, null);
   saveSession(r.session);
@@ -86,6 +86,7 @@ export function describeAuthError(e: unknown, kind: 'link' | 'login' | 'signup' 
   if (kind === 'login') {
     if (s === 401) return '이메일 또는 비밀번호가 맞지 않습니다.';
     if (s === 429) return '여러 번 틀려 15분 동안 잠겼습니다. [비밀번호 찾기]로 메일을 받아 다시 정하세요.';
+    if (s === 403) return '이메일 인증이 아직 끝나지 않았습니다. 가입 때 받은 메일의 링크를 열어 주세요.';
     if (s === 400) return '이메일과 비밀번호를 입력해 주세요.';
   }
   if (kind === 'signup') {

@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { describeAuthError, fetchProviders, passwordLogin, requestLink, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
+  import { AuthError, describeAuthError, fetchProviders, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
   const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
   let providers = $state<SocialProvider[]>([]);
@@ -18,12 +18,16 @@
   let password2 = $state('');
   let name = $state('');
   let sent = $state<string | null>(null);
+  /** 보낸 메일의 종류 */
+  let sentKind = $state<'login' | 'reset' | 'verify'>('login');
+  /** 인증 전 계정으로 로그인 시도 → [인증 메일 다시 받기] */
+  let unverified = $state(false);
   let devLink = $state<string | null>(null);
   let busy = $state(false);
   let error = $state(app.authError);
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  function go(m: Mode) { mode = m; error = ''; sent = null; devLink = null; }
+  function go(m: Mode) { mode = m; error = ''; sent = null; devLink = null; unverified = false; }
   function close() { app.loginOpen = false; app.authError = ''; }
   async function run(f: () => Promise<void>, kind: Parameters<typeof describeAuthError>[1]) {
     busy = true; error = '';
@@ -35,17 +39,22 @@
     if (!EMAIL_RE.test(em)) { error = '이메일 주소를 확인해 주세요.'; return; }
     if (mode === 'login') {
       if (!password) { error = '비밀번호를 입력해 주세요.'; return; }
-      return run(async () => { app.applyAccount(await passwordLogin(em, password)); app.refreshMe(); close(); }, 'login');
+      unverified = false;
+      return run(async () => {
+        try { app.applyAccount(await passwordLogin(em, password)); app.refreshMe(); close(); }
+        catch (e) { if (e instanceof AuthError && e.status === 403) unverified = true; throw e; }
+      }, 'login');
     }
     if (mode === 'signup') {
       if (password.length < PASSWORD_MIN) { error = `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`; return; }
       if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
-      return run(async () => { app.applyAccount(await signup(em, password, name.trim())); app.refreshMe(); close(); }, 'signup');
+      return run(async () => { const r = await signup(em, password, name.trim()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; }, 'signup');
     }
     // 비밀번호 찾기 / 이메일 링크
     return run(async () => {
       const r = await requestLink(em, mode === 'forgot');
       sent = em.toLowerCase();
+      sentKind = mode === 'forgot' ? 'reset' : 'login';
       devLink = r.link ?? null;
     }, 'link');
   }
@@ -61,6 +70,10 @@
       if (r.reset) app.passwordOpen = 'reset';
     } catch (e) { error = describeAuthError(e); }
   }
+  async function resend() {
+    const em = email.trim();
+    await run(async () => { const r = await resendVerify(em); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; error = ''; unverified = false; }, 'link');
+  }
   const TITLE: Record<Mode, string> = { login: '로그인', signup: '회원가입', forgot: '비밀번호 찾기', link: '이메일 링크로 로그인' };
 </script>
 
@@ -68,7 +81,11 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label={TITLE[mode]} data-testid="login-dialog" data-mode={mode}>
     <header><h2>{TITLE[mode]}</h2><button class="icon" title="닫기" onclick={close}>✕</button></header>
     {#if sent}
-      <p data-testid="login-sent"><b>{sent}</b>로 {mode === 'forgot' ? '비밀번호 재설정' : '로그인'} 링크를 보냈습니다. 메일함을 확인해 주세요. (링크는 15분간 유효)</p>
+      {#if sentKind === 'verify'}
+        <p data-testid="login-sent"><b>{sent}</b>로 <b>가입 인증 메일</b>을 보냈습니다. 메일의 [이메일 인증하기]를 누르면 가입이 끝나고 로그인됩니다. (링크는 24시간 유효) 메일이 안 보이면 스팸함도 확인해 주세요.</p>
+      {:else}
+        <p data-testid="login-sent"><b>{sent}</b>로 {sentKind === 'reset' ? '비밀번호 재설정' : '로그인'} 링크를 보냈습니다. 메일함을 확인해 주세요. (링크는 15분간 유효)</p>
+      {/if}
       {#if devLink}<button class="btn primary" data-testid="login-dev-link" onclick={useDevLink}>개발 모드: 바로 열기</button>{/if}
       <button class="btn small" onclick={() => go('login')}>로그인으로 돌아가기</button>
     {:else}
@@ -89,6 +106,7 @@
           <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
         {/if}
         {#if mode === 'forgot'}<p class="hint">가입한 이메일로 재설정 링크를 보냅니다. 링크를 열면 로그인되고 새 비밀번호를 정할 수 있습니다.</p>{/if}
+        {#if mode === 'signup'}<p class="hint">가입하면 인증 메일을 보냅니다. 메일의 링크를 열면 가입이 끝납니다.</p>{/if}
         {#if mode === 'link'}<p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 처음이면 계정이 만들어집니다.</p>{/if}
         <button class="btn primary" data-testid="login-submit" type="submit" disabled={busy || !email.trim()}>
           {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : mode === 'forgot' ? '재설정 링크 받기' : '로그인 링크 받기'}
@@ -102,6 +120,7 @@
       </div>
     {/if}
     {#if error}<p class="error" data-testid="login-error">{error}</p>{/if}
+    {#if unverified && !sent}<button class="btn small" data-testid="login-resend-verify" disabled={busy} onclick={resend}>인증 메일 다시 받기</button>{/if}
   </div>
 </div>
 

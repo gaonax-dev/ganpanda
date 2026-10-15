@@ -5,6 +5,7 @@
 사용자: "로그인 방식 이메일 확인 방식이 정식 방법은 아니지?" → "oauth 는 유지하는데 기본 이메일 비밀번호 방식이 필요해".
 - **로그인 창**(`LoginDialog.svelte`, `data-mode`): 기본 **로그인**(이메일·비밀번호) / **회원가입**(이메일·비밀번호 8자 이상·확인·이름) / **비밀번호 찾기**(재설정 메일) / **이메일 링크로 로그인**(기존 매직 링크). 카카오·구글·애플 버튼은 로그인·가입 화면 위에 그대로.
 - **서버**: `POST /api/auth/signup`(201, 이미 있는 이메일 409), `POST /api/auth/login`(401 / 같은 이메일 15분에 10번 틀리면 429 잠금, `login_failures`), `POST /api/auth/email {reset:true}` → `/login?token=&reset=1` 재설정 메일, `POST /api/me/password {password, current?}`(비밀번호가 있으면 현재 비밀번호 필요 403, **재설정 링크로 만든 세션은 15분 동안 면제** `sessions.reset_until`). 해시는 PBKDF2-SHA256 10만 회 + 16바이트 salt(`server/src/password.ts`), 상수 시간 비교. `/api/me` 의 `account.hasPassword`.
+- **가입 이메일 인증**(2026-10-15 사용자: "가입할 때 이메일 인증도 받게 해줘"): 가입하면 세션 대신 **인증 메일**(`/login?token=&verify=1`, 24시간 유효)을 보냅니다. 링크를 열면 인증되고 로그인되며 "이메일 인증이 끝났습니다" 안내. **인증 전 비밀번호 로그인은 403** → 로그인 창에 [인증 메일 다시 받기](`login-resend-verify`, `POST /api/auth/resend-verify` — 가입 여부를 드러내지 않게 항상 202). 인증 전 같은 이메일로 다시 가입하면 비밀번호를 덮고 메일을 다시 보냄(먼저 걸어 둔 남의 비밀번호가 남지 않음). 인증된 이메일은 409.
 - **이메일 가로채기 방지**: 비밀번호 가입은 이메일 확인 전(`email_verified = 0`). 그 이메일의 주인이 메일 링크·소셜(공급자가 확인한 이메일)로 들어오면 확인 처리하면서 **확인 전에 걸린 비밀번호를 지웁니다**(`markEmailVerified`) — 남이 먼저 내 이메일로 비밀번호를 걸어 두는 것을 막음. 기존 계정은 모두 확인된 것으로 이전.
 - **앱**: 재설정 링크로 들어오면 바로 "새 비밀번호 정하기"(`PasswordDialog.svelte`, 현재 비밀번호 없이). 계정 메뉴·설정 "계정 · 구독"에서 비밀번호 만들기/바꾸기(`open-password`, `settings-password`).
 - 데이터: `server/migrations/0008_password.sql`. 테스트: `server/test/password.test.ts`, `tests/e2e/auth.spec.ts`.
