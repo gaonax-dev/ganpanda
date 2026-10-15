@@ -38,6 +38,8 @@ export interface SignObject {
   polygon?: Pt[];
   /** 사각형 모서리 둥글기: 짧은 변 대비 반지름 비율 0~0.5 (0.5 = 알약/원). 원형 도구는 0.5 로 만든다 */
   corner?: number;
+  /** 벽에서 돌려 세운 사인물 (3단계 매니퓰레이터, 2026-10-15): 경첩 변을 벽에 붙인 채 수직축으로 deg° (90 = 돌출 간판 직각). 사진마다의 배치 — quad 는 그 투영 */
+  turn?: { deg: number; hinge: 'left' | 'right' };
   widthMm?: number;
   heightMm?: number;
   /** 보드 두께·돌출 깊이 (mm). 채널 글자 두께는 letter3d.depthMm (2026-10-15 사용자: "두께가 필요해") */

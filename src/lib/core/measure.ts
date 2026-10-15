@@ -5,7 +5,7 @@ import { measureQuad, type Calibration } from './calibration';
 /** 허용 오차 (12%) */
 export const TOLERANCE = 0.12;
 
-export interface Sized { quad: Pt[]; widthMm?: number; heightMm?: number }
+export interface Sized { quad: Pt[]; widthMm?: number; heightMm?: number; turn?: unknown }
 export interface Size { widthMm: number; heightMm: number }
 export interface MeasureWarning { kind: 'aspect' | 'scale'; message: string; expected: Size }
 export interface MeasureResult { warnings: MeasureWarning[]; estimate?: Size; /** 자동 기준(치수 입력 첫 영역) */ reference?: true }
@@ -55,7 +55,8 @@ export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
   // 가로·세로 보정 비율이 2배 넘게 다르면 카메라의 벽면이 이 사인물들의 면이 아니라는 뜻 → 기준 영역 방식으로 돌아간다
   if (calib) {
     const raw = new Map<string, Size>();
-    for (const o of objs) if (isValidQuad(o.quad)) raw.set(o.id, measureQuad(calib, o.quad));
+    // 벽에서 돌려 세운 사인물(turn)은 벽면 위가 아니므로 벽면 추정·축척 보정에서 뺀다
+    for (const o of objs) if (isValidQuad(o.quad) && !o.turn) raw.set(o.id, measureQuad(calib, o.quad));
     const sized = objs.filter((o): o is T & Size => hasSize(o) && raw.has(o.id));
     const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
     const sx = sized.length ? median(sized.map((o) => o.widthMm / raw.get(o.id)!.widthMm)) : 1;

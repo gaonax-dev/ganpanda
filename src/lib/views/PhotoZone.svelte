@@ -8,7 +8,7 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
-  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, resizeFrame, rotateFrame, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, readTurn, resizeFrame, rotateFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
   import { applyHomography } from '../core/homography';
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Calibration } from '../core/calibration';
@@ -20,7 +20,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    overlay, calib,
+    overlay, calib, onplace,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -64,6 +64,8 @@
     oncreate: (shape: ShapeKind, quad: Pt[]) => void;
     onselect: (id: string | null) => void;
     onquad: (id: string, quad: Pt[]) => void;
+    /** 외곽선과 벽에서 돌린 상태를 함께 저장 (turn = undefined 면 벽에 붙음) */
+    onplace?: (id: string, quad: Pt[], turn: SignObject['turn']) => void;
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
     onrender?: () => void;
@@ -91,10 +93,10 @@
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
-  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt } | null = $state(null);
+  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; tf0?: TurnFrame; turn?: SignObject['turn'] } | null = $state(null);
 
   // ---------- 입체 매니퓰레이터 (2026-10-15) ----------
-  type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gright' | 'gtop';
+  type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gright' | 'gtop' | 'tx' | 'tz' | 'tfree' | 'tturn';
   /** 사인물의 기준 면: 원근 설정이 있으면 그 벽면(카메라 포함), 없으면 사인물 자신의 면 */
   function refPlaneOf(o: SignObject): RefPlane | null {
     if (calib?.metric) { const p = wallPlaneOf([], calib); return p ? { H: p.H, Hinv: p.Hinv, pose: p.pose } : null; }
@@ -113,6 +115,42 @@
     editing = { id: o.id, quad: o.quad, mode, from, orig: o.quad, plane, frame0: frameOf(plane, o.quad), wall0: applyHomography(plane.Hinv, from) };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
+  /** 3단계: 벽에서 돌려 세우기 — 원근 설정(카메라)이 있는 사진에서만 */
+  const canTurn = $derived(!!calib?.metric && !!calib.pose);
+  /** 돌린 사인물의 경첩 틀 (끄는 중이면 그 값) */
+  function turnFrameNow(o: SignObject, plane: RefPlane, q: Pt[]): TurnFrame | null {
+    if (editing?.id === o.id && editing.tf0 && editing.turn) return readTurn(plane, q, editing.turn);
+    return o.turn ? readTurn(plane, q, o.turn) : null;
+  }
+  /** 돌리기·경첩 이동 시작. 벽에 붙은 사인물이면 지금 외곽선에서 경첩 틀을 만든다 (기본 경첩 = 왼쪽) */
+  function turnDown(e: PointerEvent, o: SignObject, mode: 'tx' | 'tz' | 'tfree' | 'tturn') {
+    if (e.button !== 0 || !editable) return;
+    e.stopPropagation();
+    const plane = refPlaneOf(o);
+    if (!plane?.pose) return;
+    // 벽에 붙은 사인물: 경첩(왼쪽) 변의 실제 꼭짓점에서 시작 — 틀 평균을 쓰면 경첩이 몇 px 어긋난다
+    const tf0 = readTurn(plane, o.quad, o.turn ?? { deg: 0, hinge: 'left' });
+    if (!tf0) return;
+    const from = toPhoto(e.clientX, e.clientY);
+    editing = { id: o.id, quad: o.quad, mode, from, orig: o.quad, plane, tf0, wall0: applyHomography(plane.Hinv, from), turn: { deg: tf0.deg, hinge: tf0.side } };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  /** 바로 놓기: 벽에 직각(90°) ↔ 벽에 붙이기(0°), 경첩 바꾸기 */
+  function setTurn(o: SignObject, deg: number, hinge?: Hinge) {
+    const plane = refPlaneOf(o);
+    if (!plane?.pose || !onplace) return;
+    const tf = readTurn(plane, o.quad, o.turn ?? { deg: 0, hinge: hinge ?? 'left' });
+    if (!tf) return;
+    // 경첩 바꾸기: 벽에 붙은 상태로 편 외곽선에서 반대쪽 변을 경첩으로
+    let next: TurnFrame = { ...tf, deg };
+    if (hinge && hinge !== tf.side) {
+      const flat = readTurn(plane, turnedQuad(plane, { ...tf, deg: 0 }), { deg: 0, hinge });
+      if (!flat) return;
+      next = { ...flat, deg };
+    }
+    onplace(o.id, turnedQuad(plane, next), deg > 0.5 ? { deg: Math.round(deg * 10) / 10, hinge: next.side } : undefined);
+  }
+
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
   function alignToPerspective(o: SignObject) {
     const plane = refPlaneOf(o);
@@ -232,6 +270,26 @@
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
+    if ((editing.mode === 'tx' || editing.mode === 'tz' || editing.mode === 'tfree' || editing.mode === 'tturn') && editing.plane && editing.tf0 && editing.wall0) {
+      // 돌린 사인물: 경첩을 벽 위에서 옮기거나, 경첩 높이의 수평면에서 돌린다
+      const t0 = editing.tf0;
+      let tf: TurnFrame = { ...t0, deg: editing.turn?.deg ?? t0.deg };
+      if (editing.mode === 'tturn') {
+        let deg = turnAngleAt(editing.plane, t0, [x, y]);
+        if (deg > 85) deg = 90; else if (deg < 3) deg = 0; // 직각·붙임에 붙이기
+        tf = { ...tf, deg };
+      } else {
+        const w = applyHomography(editing.plane.Hinv, [x, y]);
+        const d: Pt = [w[0] - editing.wall0[0], w[1] - editing.wall0[1]];
+        const along: Pt = [t0.up[1], -t0.up[0]];
+        const m: Pt = editing.mode === 'tx' ? [along[0] * (d[0] * along[0] + d[1] * along[1]), along[1] * (d[0] * along[0] + d[1] * along[1])]
+          : editing.mode === 'tz' ? [t0.up[0] * (d[0] * t0.up[0] + d[1] * t0.up[1]), t0.up[1] * (d[0] * t0.up[0] + d[1] * t0.up[1])] : d;
+        tf = { ...tf, hinge: [t0.hinge[0] + m[0], t0.hinge[1] + m[1]] };
+      }
+      editing.turn = { deg: tf.deg, hinge: tf.side };
+      editing.quad = turnedQuad(editing.plane, tf);
+      return;
+    }
     if (typeof editing.mode === 'string' && editing.mode !== 'move' && editing.plane && editing.frame0 && editing.wall0) {
       // 매니퓰레이터: 면 위에서 옮기기·돌리기·늘리기 → 원근 그대로 사진 외곽선으로
       const w = applyHomography(editing.plane.Hinv, [x, y]);
@@ -260,7 +318,8 @@
       draft = null;
     }
     if (editing) {
-      if (editing.quad !== editing.orig) onquad(editing.id, editing.quad);
+      if (editing.tf0 && onplace) { if (editing.quad !== editing.orig) onplace(editing.id, editing.quad, editing.turn && editing.turn.deg > 0.5 ? editing.turn : undefined); }
+      else if (editing.quad !== editing.orig) onquad(editing.id, editing.quad);
       editing = null;
     }
   }
@@ -378,6 +437,7 @@
       {@const sel = o.id === selectedId}
       {@const same = !sel && sameIds.includes(o.id)}
       {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
+      {@const turned = !!(o.turn || (editing?.id === o.id && editing.tf0 && (editing.turn?.deg ?? 0) > 0.5))}
       <g class="sign" class:sel class:same class:warn>
         <polygon
           data-testid="sign-shape"
@@ -395,7 +455,31 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
-        {#if sel && editable && tool === 'select' && gizmoable(o)}
+        {#if sel && editable && tool === 'select' && gizmoable(o) && canTurn && turned}
+          {@const plane = editing?.id === o.id && editing.plane ? editing.plane : refPlaneOf(o)}
+          {@const tf = plane ? turnFrameNow(o, plane, q) : null}
+          {#if plane && tf}
+            {@const tg = turnGizmoOf(plane, tf)}
+            <g class="gizmo turned" data-testid="gizmo" data-turn={Math.round(tf.deg)} data-hinge={tf.side}>
+              <line class="ax z" x1={tg.c[0]} y1={tg.c[1]} x2={tg.z[0]} y2={tg.z[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.z} />
+              <line class="ax x" x1={tg.c[0]} y1={tg.c[1]} x2={tg.x[0]} y2={tg.x[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.x} />
+              <line class="ax y" x1={tg.c[0]} y1={tg.c[1]} x2={tg.turn[0]} y2={tg.turn[1]} stroke-width={2 * u} stroke-dasharray="{4 * u} {3 * u}" style:stroke={AXIS_COLOR.y} />
+              <circle class="gh" data-testid="gizmo-x" cx={tg.x[0]} cy={tg.x[1]} r={9 * u} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tx')} />
+              <circle class="gh" data-testid="gizmo-z" cx={tg.z[0]} cy={tg.z[1]} r={9 * u} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tz')} />
+              <rect class="gh center" data-testid="gizmo-move" x={tg.c[0] - 9 * u} y={tg.c[1] - 9 * u} width={18 * u} height={18 * u} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tfree')} />
+              <circle class="gh" data-testid="gizmo-turn" cx={tg.turn[0]} cy={tg.turn[1]} r={10 * u} style:fill={AXIS_COLOR.y} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tturn')} />
+              {#if !editing}
+                <g class="chip" role="button" tabindex="-1" data-testid="gizmo-hinge" onpointerdown={(e) => { e.stopPropagation(); setTurn(o, tf.deg, tf.side === 'left' ? 'right' : 'left'); }}>
+                  <rect x={tg.c[0] + 14 * u} y={tg.c[1] + 12 * u} width={74 * u} height={22 * u} rx={6 * u} /><text x={tg.c[0] + 20 * u} y={tg.c[1] + 27 * u} font-size={11 * u}>경첩 바꾸기</text>
+                </g>
+                <g class="chip" role="button" tabindex="-1" data-testid="gizmo-flat" onpointerdown={(e) => { e.stopPropagation(); setTurn(o, 0); }}>
+                  <rect x={tg.c[0] + 14 * u} y={tg.c[1] + 38 * u} width={74 * u} height={22 * u} rx={6 * u} /><text x={tg.c[0] + 20 * u} y={tg.c[1] + 53 * u} font-size={11 * u}>벽에 붙이기</text>
+                </g>
+              {/if}
+              <text class="deg" x={tg.turn[0] + 12 * u} y={tg.turn[1] - 8 * u} font-size={12 * u}>{Math.round(tf.deg)}°</text>
+            </g>
+          {/if}
+        {:else if sel && editable && tool === 'select' && gizmoable(o)}
           {@const plane = editing?.id === o.id && editing.plane ? editing.plane : refPlaneOf(o)}
           {#if plane}
             {@const fr = frameOf(plane, q)}
@@ -418,6 +502,15 @@
               <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.x} />
               <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.z} />
               {#if g.y}<line class="ax y" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.y} />{/if}
+              {#if canTurn && g.y}
+                <!-- 3단계: 초록 손잡이를 끌면 왼쪽 변을 경첩으로 벽에서 돌려 세운다 -->
+                <circle class="gh" data-testid="gizmo-turn" cx={g.y[0]} cy={g.y[1]} r={9 * u} style:fill={AXIS_COLOR.y} role="button" tabindex="-1" onpointerdown={(e) => turnDown(e, o, 'tturn')} />
+                {#if !editing}
+                  <g class="chip" role="button" tabindex="-1" data-testid="gizmo-perp" onpointerdown={(e) => { e.stopPropagation(); setTurn(o, 90); }}>
+                    <rect x={g.c[0] + 14 * u} y={g.c[1] + 12 * u} width={80 * u} height={22 * u} rx={6 * u} /><text x={g.c[0] + 20 * u} y={g.c[1] + 27 * u} font-size={11 * u}>⟂ 벽에 직각</text>
+                  </g>
+                {/if}
+              {/if}
               <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={9 * u} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
               <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={9 * u} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
               <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 9 * u} y={g.c[1] - 9 * u} width={18 * u} height={18 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
@@ -427,7 +520,7 @@
             </g>
           {/if}
         {/if}
-        {#if sel && editable && tool === 'select'}
+        {#if sel && editable && tool === 'select' && !turned}
           {#each q as p, i (i)}
             <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
             <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
@@ -509,6 +602,9 @@
   .gizmo .gh.center { fill: rgba(255, 255, 255, 0.85); stroke: #333; }
   .gizmo .gh.rot { fill: #ffcc00; }
   .gizmo .gh.size { fill: #fff; stroke: #333; }
+  .gizmo .chip { cursor: pointer; }
+  .gizmo .chip rect { fill: rgba(23, 26, 33, 0.92); stroke: #3ddc84; }
+  .gizmo .chip text, .gizmo .deg { fill: #fff; stroke: rgba(0,0,0,0.7); paint-order: stroke; font-weight: 700; pointer-events: none; }
   .persp .guide { fill: rgba(255, 77, 210, 0.08); stroke: #ff4dd2; pointer-events: none; }
   .persp .fix { cursor: pointer; }
   .persp .fix rect { fill: #ff4dd2; }
