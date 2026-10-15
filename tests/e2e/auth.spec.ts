@@ -11,6 +11,7 @@ test.beforeEach(async ({ page }) => {
 test('이메일로 로그인 → 상단에 계정 표시 → 새로고침해도 유지 → 로그아웃', async ({ page }) => {
   const mail = email();
   await page.getByTestId('login-button').click();
+  await page.getByTestId('login-mode-link').click();
   await page.getByTestId('login-email').fill(mail);
   await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('login-sent')).toContainText(mail);
@@ -40,6 +41,7 @@ test('매직링크 URL(/login?token=)로 들어오면 로그인되고 주소가 
 
 test('잘못된 이메일은 안내, 만료된 링크는 오류 안내', async ({ page }) => {
   await page.getByTestId('login-button').click();
+  await page.getByTestId('login-mode-link').click();
   await page.getByTestId('login-email').fill('not-an-email');
   await page.getByTestId('login-submit').click();
   await expect(page.getByTestId('login-error')).toBeVisible();
@@ -50,6 +52,7 @@ test('잘못된 이메일은 안내, 만료된 링크는 오류 안내', async (
 test('로그인하면 표시 이름이 계정 이름이 되고, 이름을 바꾸면 계정에 저장된다', async ({ page }) => {
   const mail = email();
   await page.getByTestId('login-button').click();
+  await page.getByTestId('login-mode-link').click();
   await page.getByTestId('login-email').fill(mail);
   await page.getByTestId('login-submit').click();
   await page.getByTestId('login-dev-link').click();
@@ -76,4 +79,59 @@ test('로그인 창에 서버가 지원하는 소셜 로그인 버튼이 보인�
   await expect(page.getByTestId('social-google')).toBeVisible();
   const href = await page.getByTestId('social-kakao').getAttribute('href');
   expect(href).toContain('/api/auth/kakao/start');
+});
+
+test('이메일·비밀번호: 가입 → 로그아웃 → 로그인(틀리면 안내) → 비밀번호 찾기 메일 → 새 비밀번호 → 새 비밀번호로 로그인', async ({ page }) => {
+  const mail = email();
+  await page.getByTestId('login-button').click();
+  await expect(page.getByTestId('login-dialog')).toHaveAttribute('data-mode', 'login'); // 기본은 비밀번호 로그인
+  await page.getByTestId('login-mode-signup').click();
+  await page.getByTestId('login-email').fill(mail);
+  await page.getByTestId('login-password').fill('short');
+  await page.getByTestId('login-password2').fill('short');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('login-error')).toContainText('8자');
+  await page.getByTestId('login-password').fill('secret-1234');
+  await page.getByTestId('login-password2').fill('secret-1234');
+  await page.getByTestId('login-name').fill('김사장');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('account-menu')).toContainText('김사장');
+  // 로그아웃 → 틀린 비밀번호 → 맞는 비밀번호
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('logout').click();
+  await page.getByTestId('login-button').click();
+  await page.getByTestId('login-email').fill(mail);
+  await page.getByTestId('login-password').fill('wrong-pass');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('login-error')).toContainText('맞지 않습니다');
+  await page.getByTestId('login-password').fill('secret-1234');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('account-menu')).toContainText('김사장');
+  // 비밀번호 찾기: 재설정 링크 → 새 비밀번호
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('logout').click();
+  await page.getByTestId('login-button').click();
+  await page.getByTestId('login-mode-forgot').click();
+  await page.getByTestId('login-email').fill(mail);
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('login-sent')).toContainText('재설정');
+  await page.getByTestId('login-dev-link').click();
+  await expect(page.getByTestId('password-dialog')).toBeVisible();
+  await expect(page.getByTestId('password-current')).toHaveCount(0); // 재설정 링크로 들어오면 현재 비밀번호 없이
+  await page.getByTestId('password-new').fill('brand-new-99');
+  await page.getByTestId('password-new2').fill('brand-new-99');
+  await page.getByTestId('password-save').click();
+  await expect(page.getByTestId('password-done')).toBeVisible();
+  await page.getByRole('button', { name: '확인' }).click();
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('logout').click();
+  await page.getByTestId('login-button').click();
+  await page.getByTestId('login-email').fill(mail);
+  await page.getByTestId('login-password').fill('brand-new-99');
+  await page.getByTestId('login-submit').click();
+  await expect(page.getByTestId('account-menu')).toBeVisible();
+  // 설정에서 비밀번호 바꾸기는 현재 비밀번호가 필요
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('open-password').click();
+  await expect(page.getByTestId('password-current')).toBeVisible();
 });

@@ -24,7 +24,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyToken, type Account, type Usage } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage } from './auth';
 import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
@@ -74,6 +74,8 @@ class AppState {
   private client: SyncClient | null = null;
   /** 로그인한 계정 (null = 로그아웃 상태). authReady 전에는 미확인 */
   account = $state<Account | null>(null);
+  /** 비밀번호 창: reset = 재설정 링크로 들어옴(현재 비밀번호 없이), change = 설정에서 바꾸기/만들기 */
+  passwordOpen = $state<'reset' | 'change' | null>(null);
   authReady = $state(false);
   loginOpen = $state(false);
   /** 매직링크 처리 중 생긴 오류 (로그인 창에 표시) */
@@ -250,7 +252,9 @@ class AppState {
     const token = url.pathname === '/login' ? url.searchParams.get('token') : null;
     if (token) {
       try {
-        this.applyAccount(await verifyToken(token));
+        const r = await verifyLink(token);
+        this.applyAccount(r.account);
+        if (r.reset) this.passwordOpen = 'reset'; // 비밀번호 재설정 링크 → 새 비밀번호 정하기
       } catch (e) {
         this.authError = describeAuthError(e);
         this.loginOpen = true;

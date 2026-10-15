@@ -1,7 +1,7 @@
 // 계정 API 클라이언트 (1-2a): 이메일 매직링크 → 세션 Bearer 토큰 (localStorage 'ganpanda.session')
 import { SERVER_URL } from './sync';
 
-export interface Account { id: string; email: string; name: string; plan: string }
+export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean }
 export interface Usage { limits: { storageBytes: number; seats: number }; usage: { storageBytes: number; seats: number } }
 export type Me = { account: Account; prices: unknown } & Usage;
 /** 계정 기본 단가표 저장 */
@@ -34,14 +34,33 @@ export const fetchProviders = (): Promise<SocialProvider[]> =>
 export const socialStartUrl = (p: SocialProvider, next: string) =>
   `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}`;
 
-export const requestLink = (email: string) =>
-  call<{ ok: true; link?: string }>('/api/auth/email', { method: 'POST', body: JSON.stringify({ email }) });
+/** 메일 링크 요청. reset = 비밀번호 재설정 링크 */
+export const requestLink = (email: string, reset = false) =>
+  call<{ ok: true; link?: string }>('/api/auth/email', { method: 'POST', body: JSON.stringify({ email, reset }) });
 
-export async function verifyToken(token: string): Promise<Account> {
-  const r = await call<{ session: string; account: Account }>('/api/auth/verify', { method: 'POST', body: JSON.stringify({ token }) }, null);
+/** 메일 링크 검증 → 세션 저장. reset 이면 이어서 새 비밀번호를 정한다 */
+export async function verifyLink(token: string): Promise<{ account: Account; reset: boolean }> {
+  const r = await call<{ session: string; account: Account; reset?: boolean }>('/api/auth/verify', { method: 'POST', body: JSON.stringify({ token }) }, null);
+  saveSession(r.session);
+  return { account: r.account, reset: !!r.reset };
+}
+export const verifyToken = (token: string) => verifyLink(token).then((r) => r.account);
+
+/** 이메일·비밀번호 가입 / 로그인 (2026-10-15) */
+export async function signup(email: string, password: string, name: string): Promise<Account> {
+  const r = await call<{ session: string; account: Account }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name }) }, null);
   saveSession(r.session);
   return r.account;
 }
+export async function passwordLogin(email: string, password: string): Promise<Account> {
+  const r = await call<{ session: string; account: Account }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, null);
+  saveSession(r.session);
+  return r.account;
+}
+/** 비밀번호 설정·변경 (재설정 링크로 들어온 직후에는 current 없이) */
+export const setPassword = (password: string, current?: string) =>
+  call<{ ok: true }>('/api/me/password', { method: 'POST', body: JSON.stringify({ password, current }) });
+export const PASSWORD_MIN = 8;
 
 export async function fetchMe(): Promise<Me | null> {
   if (!loadSession()) return null;
@@ -61,9 +80,22 @@ export async function logout() {
   saveSession(null);
 }
 
-/** 사람이 읽는 오류 문구 */
-export function describeAuthError(e: unknown): string {
+/** 사람이 읽는 오류 문구. kind 에 따라 같은 상태 코드도 뜻이 다르다 */
+export function describeAuthError(e: unknown, kind: 'link' | 'login' | 'signup' | 'password' = 'link'): string {
   const s = e instanceof AuthError ? e.status : -1;
+  if (kind === 'login') {
+    if (s === 401) return '이메일 또는 비밀번호가 맞지 않습니다.';
+    if (s === 429) return '여러 번 틀려 15분 동안 잠겼습니다. [비밀번호 찾기]로 메일을 받아 다시 정하세요.';
+    if (s === 400) return '이메일과 비밀번호를 입력해 주세요.';
+  }
+  if (kind === 'signup') {
+    if (s === 409) return '이미 가입된 이메일입니다. 로그인하거나 [비밀번호 찾기]로 비밀번호를 정하세요.';
+    if (s === 400) return `이메일 주소와 비밀번호(${PASSWORD_MIN}자 이상)를 확인해 주세요.`;
+  }
+  if (kind === 'password') {
+    if (s === 403) return '현재 비밀번호가 맞지 않습니다.';
+    if (s === 400) return `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`;
+  }
   if (s === 400) return '이메일 주소를 확인해 주세요.';
   if (s === 404 || s === 410) return '로그인 링크가 만료되었거나 이미 사용되었습니다. 다시 요청해 주세요.';
   if (s === 503) return '이메일 발송이 아직 설정되지 않았습니다.';

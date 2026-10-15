@@ -1,67 +1,105 @@
-<!-- 이메일 매직링크 로그인 -->
+<!--
+  로그인: 이메일·비밀번호가 기본 (2026-10-15 사용자: "oauth 는 유지하는데 기본 이메일 비밀번호 방식이 필요해").
+  가입 · 비밀번호 찾기(재설정 메일) · 이메일 링크 로그인 · 카카오/구글/애플은 그대로
+-->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { describeAuthError, fetchProviders, requestLink, socialStartUrl, verifyToken, type SocialProvider } from '../auth';
+  import { describeAuthError, fetchProviders, passwordLogin, requestLink, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
   const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
   const next = location.pathname + location.search;
 
+  type Mode = 'login' | 'signup' | 'forgot' | 'link';
+  let mode = $state<Mode>('login');
   let email = $state('');
+  let password = $state('');
+  let password2 = $state('');
+  let name = $state('');
   let sent = $state<string | null>(null);
   let devLink = $state<string | null>(null);
   let busy = $state(false);
   let error = $state(app.authError);
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  async function submit() {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { error = '이메일 주소를 확인해 주세요.'; return; }
+  function go(m: Mode) { mode = m; error = ''; sent = null; devLink = null; }
+  function close() { app.loginOpen = false; app.authError = ''; }
+  async function run(f: () => Promise<void>, kind: Parameters<typeof describeAuthError>[1]) {
     busy = true; error = '';
-    try {
-      const r = await requestLink(email);
-      sent = email.trim().toLowerCase();
-      devLink = r.link ?? null;
-    } catch (e) {
-      error = describeAuthError(e);
-    } finally { busy = false; }
+    try { await f(); } catch (e) { error = describeAuthError(e, kind); } finally { busy = false; }
   }
 
-  /** 개발 모드: 서버가 돌려준 링크의 토큰으로 바로 로그인 */
+  function submit() {
+    const em = email.trim();
+    if (!EMAIL_RE.test(em)) { error = '이메일 주소를 확인해 주세요.'; return; }
+    if (mode === 'login') {
+      if (!password) { error = '비밀번호를 입력해 주세요.'; return; }
+      return run(async () => { app.applyAccount(await passwordLogin(em, password)); app.refreshMe(); close(); }, 'login');
+    }
+    if (mode === 'signup') {
+      if (password.length < PASSWORD_MIN) { error = `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`; return; }
+      if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
+      return run(async () => { app.applyAccount(await signup(em, password, name.trim())); app.refreshMe(); close(); }, 'signup');
+    }
+    // 비밀번호 찾기 / 이메일 링크
+    return run(async () => {
+      const r = await requestLink(em, mode === 'forgot');
+      sent = em.toLowerCase();
+      devLink = r.link ?? null;
+    }, 'link');
+  }
+
+  /** 개발 모드: 서버가 돌려준 링크의 토큰으로 바로 */
   async function useDevLink() {
     const token = devLink && new URL(devLink).searchParams.get('token');
     if (!token) return;
-    try { app.applyAccount(await verifyToken(token)); close(); } catch (e) { error = describeAuthError(e); }
+    try {
+      const r = await verifyLink(token);
+      app.applyAccount(r.account);
+      close();
+      if (r.reset) app.passwordOpen = 'reset';
+    } catch (e) { error = describeAuthError(e); }
   }
-
-  function close() { app.loginOpen = false; app.authError = ''; }
+  const TITLE: Record<Mode, string> = { login: '로그인', signup: '회원가입', forgot: '비밀번호 찾기', link: '이메일 링크로 로그인' };
 </script>
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="로그인" data-testid="login-dialog">
-    <header><h2>로그인</h2><button class="icon" title="닫기" onclick={close}>✕</button></header>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label={TITLE[mode]} data-testid="login-dialog" data-mode={mode}>
+    <header><h2>{TITLE[mode]}</h2><button class="icon" title="닫기" onclick={close}>✕</button></header>
     {#if sent}
-      <p data-testid="login-sent"><b>{sent}</b>로 로그인 링크를 보냈습니다. 메일함을 확인해 주세요. (링크는 15분간 유효)</p>
-      {#if devLink}
-        <button class="btn primary" data-testid="login-dev-link" onclick={useDevLink}>개발 모드: 바로 로그인</button>
-      {/if}
-      <button class="btn small" onclick={() => (sent = null)}>다른 이메일로</button>
+      <p data-testid="login-sent"><b>{sent}</b>로 {mode === 'forgot' ? '비밀번호 재설정' : '로그인'} 링크를 보냈습니다. 메일함을 확인해 주세요. (링크는 15분간 유효)</p>
+      {#if devLink}<button class="btn primary" data-testid="login-dev-link" onclick={useDevLink}>개발 모드: 바로 열기</button>{/if}
+      <button class="btn small" onclick={() => go('login')}>로그인으로 돌아가기</button>
     {:else}
-      {#if providers.length}
+      {#if providers.length && (mode === 'login' || mode === 'signup')}
         <div class="social">
-          {#each providers as p (p)}
-            <a class="btn social-{p}" data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>
-          {/each}
+          {#each providers as p (p)}<a class="btn social-{p}" data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>{/each}
         </div>
         <div class="or"><span>또는 이메일로</span></div>
       {/if}
       <!-- 브라우저 기본 검증 대신 앱이 같은 문구로 안내 -->
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
-        <label>이메일
-          <input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" />
-        </label>
-        <p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 처음이면 계정이 만들어집니다.</p>
-        <button class="btn primary" data-testid="login-submit" type="submit" disabled={busy || !email.trim()}>로그인 링크 받기</button>
+        <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" /></label>
+        {#if mode === 'login' || mode === 'signup'}
+          <label>비밀번호{mode === 'signup' ? ` (${PASSWORD_MIN}자 이상)` : ''}<input data-testid="login-password" type="password" bind:value={password} autocomplete={mode === 'signup' ? 'new-password' : 'current-password'} /></label>
+        {/if}
+        {#if mode === 'signup'}
+          <label>비밀번호 확인<input data-testid="login-password2" type="password" bind:value={password2} autocomplete="new-password" /></label>
+          <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
+        {/if}
+        {#if mode === 'forgot'}<p class="hint">가입한 이메일로 재설정 링크를 보냅니다. 링크를 열면 로그인되고 새 비밀번호를 정할 수 있습니다.</p>{/if}
+        {#if mode === 'link'}<p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 처음이면 계정이 만들어집니다.</p>{/if}
+        <button class="btn primary" data-testid="login-submit" type="submit" disabled={busy || !email.trim()}>
+          {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : mode === 'forgot' ? '재설정 링크 받기' : '로그인 링크 받기'}
+        </button>
       </form>
+      <div class="links">
+        {#if mode !== 'login'}<button class="link" data-testid="login-mode-login" onclick={() => go('login')}>로그인</button>{/if}
+        {#if mode !== 'signup'}<button class="link" data-testid="login-mode-signup" onclick={() => go('signup')}>회원가입</button>{/if}
+        {#if mode !== 'forgot'}<button class="link" data-testid="login-mode-forgot" onclick={() => go('forgot')}>비밀번호 찾기</button>{/if}
+        {#if mode !== 'link'}<button class="link" data-testid="login-mode-link" onclick={() => go('link')}>이메일 링크로 로그인</button>{/if}
+      </div>
     {/if}
     {#if error}<p class="error" data-testid="login-error">{error}</p>{/if}
   </div>
@@ -73,6 +111,7 @@
   header { display: flex; align-items: center; justify-content: space-between; }
   h2 { margin: 0; font-size: 16px; }
   form { display: flex; flex-direction: column; gap: 10px; }
+  input[type='password'] { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 8px 9px; font: inherit; font-size: 13px; }
   .social { display: flex; flex-direction: column; gap: 8px; }
   .social .btn { text-decoration: none; justify-content: center; font-weight: 700; }
   .social-kakao { background: #fee500; color: #191919; border-color: #fee500; }
@@ -80,6 +119,8 @@
   .social-apple { background: #000; color: #fff; border-color: #000; }
   .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
   .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+  .links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .link { background: none; border: 0; color: var(--blue); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
   .error { color: var(--danger); font-size: 13px; margin: 0; }
   p { margin: 0; font-size: 13px; line-height: 1.5; }
 </style>

@@ -1,6 +1,6 @@
 // 소셜 로그인 (1-2d): 카카오·구글·애플. 서버가 OAuth 전 과정을 처리하고 세션을 앱(/login#session=)으로 넘긴다.
 import { json, randomToken, sha256hex, text } from './http';
-import { normalizeEmail, type Account } from './auth';
+import { normalizeEmail, type Account, markEmailVerified } from './auth';
 import { appleClientSecret, verifyJwtRS256 } from './oauth/jwt';
 
 export type Provider = 'kakao' | 'google' | 'apple';
@@ -82,9 +82,10 @@ async function accountFor(env: Env, id: Identity): Promise<Account> {
   if (linked) return linked;
   const email = id.email ? normalizeEmail(id.email) : `${id.provider}-${id.providerId}@noemail.ganpanda.co.kr`;
   let account = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
+  if (account && id.email) account = await markEmailVerified(env, account); // 공급자가 확인한 이메일
   if (!account) {
     account = { id: crypto.randomUUID(), email, name: id.name ?? '', plan: 'free', created_at: now };
-    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at) VALUES (?, ?, ?, ?, ?)').bind(account.id, account.email, account.name, account.plan, account.created_at).run();
+    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, email_verified) VALUES (?, ?, ?, ?, ?, ?)').bind(account.id, account.email, account.name, account.plan, account.created_at, id.email ? 1 : 0).run();
   } else if (!account.name && id.name) {
     await env.DB.prepare('UPDATE accounts SET name = ? WHERE id = ?').bind(id.name, account.id).run();
     account = { ...account, name: id.name };

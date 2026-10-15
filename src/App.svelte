@@ -6,6 +6,7 @@
   import ObjectPanel from './lib/ui/ObjectPanel.svelte';
   import Settings from './lib/ui/Settings.svelte';
   import LoginDialog from './lib/ui/LoginDialog.svelte';
+  import PasswordDialog from './lib/ui/PasswordDialog.svelte';
   import Home from './lib/ui/Home.svelte';
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
@@ -120,6 +121,7 @@
               <label>표시 이름
                 <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
               </label>
+              <button class="btn small" data-testid="open-password" onclick={() => { accountOpen = false; app.passwordOpen = 'change'; }}>{app.account.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>
               <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
             </div>
           {/if}
@@ -176,6 +178,7 @@
 </div>
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
+{#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}

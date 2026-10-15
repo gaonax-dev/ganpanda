@@ -72,6 +72,7 @@
         <section data-testid="account-section">
           <h3>계정 · 구독</h3>
           <p class="row"><span>{app.account.email}</span><b data-testid="plan">{PLAN_LABEL[app.account.plan] ?? app.account.plan} 요금제</b></p>
+          <p class="row"><span>비밀번호 {app.account.hasPassword ? '설정됨' : '없음 (메일 링크·소셜로 로그인)'}</span><button class="btn small" data-testid="settings-password" onclick={() => (app.passwordOpen = 'change')}>{app.account.hasPassword ? '바꾸기' : '만들기'}</button></p>
           {#if app.usage}
             <p class="row"><span>저장 용량</span><span data-testid="usage-storage">{formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</span></p>
             <div class="bar"><i style:width="{Math.min(100, (app.usage.usage.storageBytes / Math.max(1, app.usage.limits.storageBytes)) * 100)}%"></i></div>
