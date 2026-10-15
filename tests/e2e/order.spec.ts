@@ -4,7 +4,7 @@ import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, upload
 test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·주문서·JSON 에 반영된다', async ({ page, request }) => {
   await openOwnedProject(page, request, '한울상사');
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);

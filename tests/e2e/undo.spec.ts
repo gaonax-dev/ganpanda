@@ -4,13 +4,13 @@ import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhot
 test('⌘Z 로 내 편집을 되돌리고 ⌘⇧Z 로 다시 실행한다; 상대의 편집은 그대로', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
 
   // 상대(editor)가 하나 더 그림
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'editor'), '디자이너');
-  await guest.keyboard.press('r');
+  await guest.keyboard.press('t');
   await dragOnPhoto(guest, [900, 150], [1300, 250]);
   await expect(page.getByTestId('sign-shape')).toHaveCount(2);
 
@@ -34,7 +34,7 @@ test('⌘Z 로 내 편집을 되돌리고 ⌘⇧Z 로 다시 실행한다; 상�
 test('입력칸에서는 ⌘Z 가 글자 되돌리기로 남는다 (앱 실행 취소 아님)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
   await page.getByTestId('chat-input').fill('메모');
   await page.getByTestId('chat-input').press('ControlOrMeta+z');

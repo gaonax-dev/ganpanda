@@ -29,7 +29,7 @@ test('두 사람이 같은 방에서 사진·영역·대화를 실시간으로 �
   await expect(b.getByTestId('photo-zone')).toHaveCount(1);
   await expect(b.getByTestId('photo-img')).toBeVisible(); // 사진 바이트가 서버를 거쳐 도착
 
-  await a.keyboard.press('r');
+  await a.keyboard.press('t');
   await dragOnPhoto(a, [400, 200], [800, 300]);
   await expect(b.getByTestId('sign-shape')).toHaveCount(1);
 
@@ -68,7 +68,7 @@ test('나중에 들어온 사람도 이전 작업을 모두 받고, 새로고침
   const room = await newRoom(request);
   const a = await open(browser, room, '제작자');
   await uploadPhoto(a);
-  await a.keyboard.press('r');
+  await a.keyboard.press('t');
   await dragOnPhoto(a, [400, 200], [800, 300]);
   await openObjectSettings(a);
   await a.getByTestId('width-mm').fill('4000');

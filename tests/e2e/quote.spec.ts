@@ -3,7 +3,7 @@ import { apiCreateInvite, apiCreateProject, dragOnPhoto, openInvited, openObject
 
 async function makeSign(page: import('@playwright/test').Page) {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
@@ -16,7 +16,7 @@ async function makeSign(page: import('@playwright/test').Page) {
 test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);

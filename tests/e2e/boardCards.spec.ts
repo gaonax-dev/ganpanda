@@ -21,7 +21,7 @@ async function dragOnBoard(page: import('@playwright/test').Page, from: [number,
 test('사진에 그린 사인물에 치수를 직접 입력하면 사진 아래에 평면도 카드가 생긴다 (생성 순, 왼쪽부터)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await expect(page.getByTestId('board-card')).toHaveCount(0); // 치수 전에는 없음
   await pickCategory(page, 'sign');
@@ -51,7 +51,7 @@ test('보드 빈 곳에 사각 도구로 끌면 사진 없는 사인물이 바�
   const photo = await page.evaluate(() => { const p = (window as unknown as { __ganpanda: { photos: { x: number; y: number; width: number }[] } }).__ganpanda.photos[0]; return { x: p.x, y: p.y, width: p.width }; });
   // 사진 오른쪽 빈 곳이 화면에 들어오게 축소
   await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 2; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 200, clientY: 300, bubbles: true, cancelable: true })); });
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   // 사진 오른쪽 빈 곳에 300×60 world px → 3,000×600 mm
   const x0 = photo.x + photo.width + 200, y0 = photo.y;
   await dragOnBoard(page, [x0, y0], [x0 + 300, y0 + 60]);
@@ -68,7 +68,7 @@ test('보드 빈 곳에 사각 도구로 끌면 사진 없는 사인물이 바�
   await page.keyboard.press('Escape');
   await expect(card).toContainText('6,000 × 600');
   // 사진에 영역을 그리고 "기존 사인물과 같은 것?" 으로 보드 사인물과 연결
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 200], [900, 320]);
   await page.getByTestId('link-select').selectOption(standalone.id);
   await expect(page.getByTestId('link-info')).toContainText('2곳');

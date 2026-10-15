@@ -4,6 +4,7 @@
 export type Action =
   | 'zoomIn' | 'zoomOut' | 'zoomFit' | 'panHold'
   | 'toolSelect' | 'toolRect' | 'toolEllipse' | 'toolPin' | 'toolMagic' | 'toolZone'
+  | 'gizmoMove' | 'gizmoRotate' | 'gizmoScale'
   | 'deleteSelection' | 'undo' | 'redo' | 'copy' | 'paste' | 'duplicate';
 
 export type Keymap = Record<Action, string[]>;
@@ -29,6 +30,9 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'toolPin', label: '핀 (위치 코멘트)', group: '도구' },
   { id: 'toolMagic', label: '자동 분리 (AI)', group: '도구' },
   { id: 'toolZone', label: '작업 존', group: '도구' },
+  { id: 'gizmoMove', label: '매니퓰레이터: 이동', group: '도구' },
+  { id: 'gizmoRotate', label: '매니퓰레이터: 회전', group: '도구' },
+  { id: 'gizmoScale', label: '매니퓰레이터: 크기', group: '도구' },
   { id: 'deleteSelection', label: '선택한 사인물 삭제', group: '편집' },
   { id: 'undo', label: '실행 취소', group: '편집' },
   { id: 'redo', label: '다시 실행', group: '편집' },
@@ -44,12 +48,16 @@ export const DEFAULT_KEYMAP: Keymap = {
   zoomOut: ['Mod+-', 'Ctrl+-'],
   zoomFit: ['Mod+0', 'Ctrl+0'],
   panHold: ['Space'],
-  toolSelect: ['V'],
-  toolRect: ['R'],
+  // QWER = 선택·이동·회전·크기 (2026-10-15 사용자: "qwer 선택,이동,회전,크기", Unity·Blender 와 같은 배치). 사각 영역은 R → T
+  toolSelect: ['V', 'Q'],
+  toolRect: ['T'],
   toolEllipse: ['O'],
   toolPin: ['P'],
   toolMagic: ['A'],
   toolZone: ['Z'],
+  gizmoMove: ['W'],
+  gizmoRotate: ['E'],
+  gizmoScale: ['R'],
   deleteSelection: ['Delete', 'Backspace'],
   undo: ['Mod+Z'],
   redo: ['Mod+Shift+Z', 'Mod+Y'],

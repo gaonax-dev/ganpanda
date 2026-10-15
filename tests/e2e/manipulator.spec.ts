@@ -243,7 +243,7 @@ test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 �
   // 아이콘 버튼에는 설명(title)
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('gizmo-rot-z').locator('title')).toHaveText(/박스/);
-  await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동');
+  await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동 (W)');
 });
 
 test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)', async ({ page, request }) => {
@@ -310,4 +310,19 @@ test('X·Y·Z 단추·회전 고리는 박스 방향만 바꾼다: 외곽선·�
   await expect(face).not.toHaveAttribute('points', boxY!);
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
   await expect(g).toHaveAttribute('data-box', 'none');
+});
+
+test('QWER: Q 선택 도구, W 이동, E 회전, R 크기 (매니퓰레이터 모드). 사각 영역은 T', async ({ page, request }) => {
+  // 2026-10-15 사용자: "qwer 선택,이동,회전,크기"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  const g = page.getByTestId('gizmo');
+  await page.keyboard.press('e'); await expect(g).toHaveAttribute('data-mode', 'rotate');
+  await page.keyboard.press('r'); await expect(g).toHaveAttribute('data-mode', 'scale');
+  await page.keyboard.press('w'); await expect(g).toHaveAttribute('data-mode', 'move');
+  await expect(page.getByTestId('gizmo-mode-rotate').locator('title')).toHaveText('회전 (E)');
+  await page.keyboard.press('t'); await expect(page.getByTestId('tool-rect')).toHaveClass(/on/);
+  await page.keyboard.press('q'); await expect(page.getByTestId('tool-select')).toHaveClass(/on/);
 });

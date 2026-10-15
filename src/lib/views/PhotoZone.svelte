@@ -14,7 +14,7 @@
   import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf, type WallPlane } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
-  import type { Tool } from '../state.svelte';
+  import { app, type Tool } from '../state.svelte';
 
   let {
     photo, url, zoom, objects, measures, selectedId, sameIds = [], tool, editable = true, unread = {},
@@ -104,7 +104,8 @@
   /** gx·gz·gfree = 면 위 이동, grot = 면 안 회전(원근 없는 사진), gsize = 크기 손잡이, bmove = 원근 축 이동, brot = 박스 회전 */
   type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gsize' | 'bmove' | 'brot';
   /** 매니퓰레이터 모드: 이동 / 회전 / 크기 (2026-10-15 사용자: "매니퓰레이터 작게, 회전과 이동 스케일이 필요하다") */
-  let gizmoMode = $state<'move' | 'rotate' | 'scale'>('move');
+  // 모드는 앱 상태 (W·E·R 단축키로도 바뀐다)
+  const gizmoMode = $derived(app.gizmoMode);
   /** 손잡이 단위: 기본 매니퓰레이터 크기(설정, 화면 px)에 비례 */
   const gu = $derived(u * gizmoPx / 48);
   /** 화살표 길이(면 mm): 화면에서 약 48px 가 되게 — 사인물 크기와 무관하게 작게 */
@@ -359,8 +360,8 @@
 {#snippet modeChips(at: Pt)}
   <!-- 매니퓰레이터 모드: 이동 ✥ / 회전 ⟳ / 크기 ⤡ (글자 대신 아이콘, 2026-10-15 사용자: "글자로 표시된 건 혼란스럽다") -->
   <g class="modes" transform="translate({at[0] - 33 * gu} {at[1] + 14 * gu})">
-    {#each [['move', '✥', '이동'], ['rotate', '⟳', '회전'], ['scale', '⤡', '크기']] as [m, icon, label], i (m)}
-      <g class="mode" class:on={gizmoMode === m} role="button" tabindex="-1" data-testid="gizmo-mode-{m}" onpointerdown={(e) => { e.stopPropagation(); gizmoMode = m as typeof gizmoMode; }}>
+    {#each [['move', '✥', '이동 (W)'], ['rotate', '⟳', '회전 (E)'], ['scale', '⤡', '크기 (R)']] as [m, icon, label], i (m)}
+      <g class="mode" class:on={gizmoMode === m} role="button" tabindex="-1" data-testid="gizmo-mode-{m}" onpointerdown={(e) => { e.stopPropagation(); app.gizmoMode = m as typeof app.gizmoMode; }}>
         <title>{label}</title>
         <circle cx={i * 22 * gu + 11 * gu} cy={9 * gu} r={9 * gu} /><text x={i * 22 * gu + 11 * gu} y={13 * gu} font-size={12 * gu} text-anchor="middle">{icon}</text>
       </g>

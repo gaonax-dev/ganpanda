@@ -123,6 +123,7 @@
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
+    if (action === 'gizmoMove' || action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoMove' ? 'move' : action === 'gizmoRotate' ? 'rotate' : 'scale'; return; }
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';

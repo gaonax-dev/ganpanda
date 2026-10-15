@@ -4,7 +4,7 @@ import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, pickCateg
 test('리스트의 사인물을 [사진에 올리기]로 다른 사진에 같은 사인물로 올린다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
@@ -34,7 +34,7 @@ test('리스트의 사인물을 [사진에 올리기]로 다른 사진에 같은
 test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성창, 견적·리스트에는 하나만, 해제하면 독립', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page); // 정면
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);

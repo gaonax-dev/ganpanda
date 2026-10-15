@@ -8,7 +8,7 @@ const signs = (page: Page) => page.evaluate(() => (window as unknown as { __ganp
 test('⌘/Ctrl+C → ⌘/Ctrl+V 로 붙이면 규격이 같은 "… 복사" 사인물이 조금 비켜 생기고, 붙일 때마다 더 비킨다. ⌘/Ctrl+D 는 바로 복제. ⌘/Ctrl+Z 로 되돌린다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 200], [700, 300]);
   const [orig] = await signs(page);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 4000, heightMm: 900, text: '바로바로' }), orig.id);
@@ -33,7 +33,7 @@ test('⌘/Ctrl+C → ⌘/Ctrl+V 로 붙이면 규격이 같은 "… 복사" 사�
 test('사인물 설정 창의 [복제]', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 200], [700, 300]);
   await openObjectSettings(page);
   await page.getByTestId('duplicate-sign').click();

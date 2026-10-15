@@ -25,7 +25,7 @@ function twoPagePdf(): Buffer {
 
 async function makeSign(page: Page) {
   await uploadPhoto(page);
-  await page.keyboard.press('r');
+  await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4000');
