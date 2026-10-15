@@ -28,6 +28,7 @@ import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout
 import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
+import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -610,6 +611,47 @@ class AppState {
   /** 평면도(전개도) 카드: 치수(입력 또는 추정)가 있는 원본 사인물 — 리스트 뷰와 보드 평면 구역이 같은 목록·같은 배치를 쓴다 */
   flatCards = $derived.by(() => this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ o, ...s }] : []; }));
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
+
+  // ---------- 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다") ----------
+  /** 사인물 클립보드 (이 탭 안에서 유지 — 다른 프로젝트로 옮겨 붙일 수 있다) */
+  clipboard = $state<ClipSign | null>(null);
+  /** 같은 클립을 몇 번 붙였는지 (붙일 때마다 조금씩 비켜 놓는다) */
+  private pasteCount = 0;
+  private clipOfSelected(): ClipSign | null {
+    const o = this.selected;
+    if (!o) return null;
+    const ph = this.photos.find((p) => p.id === o.photoId);
+    return clipOf(o, o.sameAs ? this.project.object(o.sameAs) : undefined, ph ? { id: ph.id, w: ph.w, h: ph.h } : { id: '', w: 1, h: 1 });
+  }
+  copySelected(): boolean {
+    const c = this.clipOfSelected();
+    if (!c) return false;
+    this.clipboard = c; this.pasteCount = 0;
+    return true;
+  }
+  /** 붙일 사진: 선택한 사인물의 사진 > 복사한 사진 > 첫 사진. 사진 없는 사인물(평면도)은 사진 없이 */
+  private pasteClip(c: ClipSign, n: number): string | null {
+    if (!this.canEdit) return null;
+    const sel = this.selected && this.photos.find((p) => p.id === this.selected!.photoId);
+    const ph = c.fields.quad.length ? (sel ?? this.photos.find((p) => p.id === c.photo.id) ?? this.photos[0]) : null;
+    if (c.fields.quad.length && !ph) return null;
+    const ids = new Set(this.sources.map((s) => s.id));
+    this.editBoundary();
+    const id = this.project.addObject(pastedObject(c, ph ? { id: ph.id, w: ph.w, h: ph.h } : { ...c.photo, id: '' }, n, (s) => ids.has(s)));
+    this.editBoundary();
+    this.selectObject(id);
+    this.tool = 'select';
+    return id;
+  }
+  pasteClipboard(): string | null {
+    if (!this.clipboard) return null;
+    return this.pasteClip(this.clipboard, ++this.pasteCount);
+  }
+  /** 복제: 클립보드는 그대로 두고 바로 옆에 하나 */
+  duplicateSelected(): string | null {
+    const c = this.clipOfSelected();
+    return c ? this.pasteClip(c, 1) : null;
+  }
 
   selectObject(id: string | null) {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }
