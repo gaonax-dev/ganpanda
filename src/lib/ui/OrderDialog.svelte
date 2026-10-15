@@ -27,7 +27,7 @@
       </label>
       <label>배송·시공지 주소<input data-testid="order-address" value={o.address ?? ''} disabled={ro} oninput={(e) => set({ address: e.currentTarget.value })} /></label>
       <label>추가 요청사항<textarea data-testid="order-notes" rows="3" value={o.notes ?? ''} placeholder="배선 위치, 현장 설치 환경, 특수 가공 등" disabled={ro} oninput={(e) => set({ notes: e.currentTarget.value })}></textarea></label>
-      <p class="hint">사인물마다의 사양(종류·옵션·치수·문구·디자인)은 사인물 설정에서, 파일은 UV 뷰에서 올립니다. 주문서는 사인물 리스트의 [주문서]에서 봅니다.</p>
+      <p class="hint">사인물마다의 사양(종류·옵션·치수·문구·디자인)은 사인물 설정에서, 파일은 [디자인 파일] 화면에서 올립니다. 주문서는 사인물 리스트의 [주문서]에서 봅니다.</p>
     </div>
     <footer><span class="sp"></span><button class="btn small primary" onclick={close}>닫기</button></footer>
   </div>

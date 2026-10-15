@@ -174,3 +174,22 @@ test('휴대폰 리스트 뷰: 하단 탭에 견적·단가·주문·주문서·
   // 가로 넘침 없음
   expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
 });
+
+test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르면 연결 창이 뜨고, 사인물을 고르면 닫히며 안내가 보인다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    app.project.addObject({ photoId: app.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex' });
+  });
+  await expect(page.getByTestId('view-uv')).toHaveText('디자인');
+  await page.getByTestId('view-uv').click();
+  const panel = page.getByTestId('link-panel');
+  await expect(panel).toBeHidden();
+  await page.getByTestId('link-toggle').click();
+  await expect(panel).toBeVisible();
+  await panel.getByTestId('uv-object').first().click();
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId('design-hint')).toContainText('정면 간판');
+  await expect(page.getByTestId('link-toggle')).toContainText('정면 간판');
+});
