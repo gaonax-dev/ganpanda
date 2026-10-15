@@ -2,7 +2,7 @@
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
-import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, type WallPlane } from '../core/wallPlane';
+import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, zTowardCamera, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
@@ -43,6 +43,8 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
     const corners = quadOnWall(own, o) as [number, number][];
     warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);
+    // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면이 카메라를 보게
+    if (zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0) b.group.scale.z = -1;
     v.signsRoot.add(b.group);
     v.addSignCamera(b.group, projectionFromPlane(own, photo.w, photo.h), poseOfPlane(own, photo.w, photo.h), corners);
     built.push(b);

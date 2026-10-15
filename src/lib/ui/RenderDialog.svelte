@@ -8,7 +8,7 @@
   import type { Photo, SignObject } from '../core/model';
   import { fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
-  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
+  import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
   import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
@@ -110,6 +110,8 @@
       }
       // 그린 사각형에 정확히 맞춘다 (카메라가 벽과 어긋나도). 글자는 먼저 영역 폭에 맞춤
       warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1);
+      // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면(글자·디자인)이 카메라를 보게 (2026-10-15 사용자: "정면 페이스가 사라졌다")
+      if (zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0) b.group.scale.z = -1;
       b.setNight(night);
       v.signsRoot.add(b.group);
       v.addSignCamera(b.group, projectionFromPlane(it.plane, photo.w, photo.h), poseOfPlane(it.plane, photo.w, photo.h), it.corners);

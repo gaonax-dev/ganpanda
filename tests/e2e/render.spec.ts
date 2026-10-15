@@ -230,3 +230,28 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
   await expect(page.getByTestId('render-status')).toContainText('영역');
   await expect(page.getByTestId('render-open-camera')).toBeVisible();
 });
+
+test('원근 설정의 축 지정으로 카메라 +z 가 벽 안쪽이어도 상자 앞면(채널 글자)이 카메라 쪽에 보인다', async ({ page, request }) => {
+  await setup(page, request);
+  // 띠 사인물을 몸통(갈바) + 전광 채널 "카페"로, 원근 설정은 축을 뒤집어(-x) +z 가 벽 안쪽인 카메라로
+  const pts = await page.evaluate(async () => {
+    const sp = '/src/lib/sim/sample.ts'; const { SAMPLE } = await import(/* @vite-ignore */ sp);
+    const hp = '/src/lib/core/homography.ts'; const { applyHomography, solveHomography } = await import(/* @vite-ignore */ hp);
+    const H = solveHomography([[0, SAMPLE.wallH], [SAMPLE.wallW, SAMPLE.wallH], [SAMPLE.wallW, 0], [0, 0]], SAMPLE.corners);
+    const P = (p: [number, number]) => applyHomography(H, p) as [number, number];
+    const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; photos: { id: string }[]; project: { updateObject(id: string, p: unknown): void; updatePhoto(id: string, p: unknown): void } } }).__ganpanda;
+    app.project.updatePhoto(app.photos[0].id, { camera: { x: [{ a: P([0, 4700]), b: P([9000, 4700]) }, { a: P([0, 3700]), b: P([9000, 3700]) }], y: [{ a: P([4000, 2900]), b: P([4000, 0]) }, { a: P([5000, 2900]), b: P([5000, 0]) }], origin: P([0, 0]), ref: { axis: 'x', point: P([9000, 0]), mm: 9000 }, axes: { first: '-x', second: '+z' }, principal: 'center' } });
+    app.project.updateObject(app.objects[0].id, { productId: 'board-galva', options: { channel: '전광 채널' }, text: '카페' });
+    return { center: P([4500, 4200]) };
+  });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  await page.getByTestId('render-save').click();
+  const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
+  await expect.poll(() => page.evaluate(hook)).toMatch(/^data:image\/png/);
+  // 글자(빨강) 픽셀이 사인물 가운데 둘레에 보인다
+  const px = await samplePixels(page, await page.evaluate(hook), pts.center, 60);
+  const red = px.px.filter(([r, g, b]) => r > 170 && g < 110 && b < 110).length;
+  expect(red).toBeGreaterThan(20);
+});

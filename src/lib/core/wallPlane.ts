@@ -163,3 +163,9 @@ export function signPlaneOf(o: SignObject, cal: WallPlane | null): WallPlane | n
   }
   return wallPlaneOf([o], null);
 }
+
+/** 면 좌표의 +z 가 카메라 쪽이면 1, 반대면 -1 — 원근 설정의 카메라는 축 지정에 따라 벽 안쪽이 +z 일 수 있다. 3D 상자는 이 부호로 뒤집어 앞면이 카메라를 보게 */
+export function zTowardCamera(P: number[], at: Pt): 1 | -1 {
+  const depth = (z: number) => P[8] * at[0] + P[9] * at[1] + P[10] * z + P[11];
+  return depth(1) < depth(0) ? 1 : -1;
+}
