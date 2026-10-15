@@ -88,16 +88,28 @@ export function gizmoOf(plane: RefPlane, f: Frame, lengthMm?: number) {
   const ring = Array.from({ length: 33 }, (_, i) => { const t = (i / 32) * Math.PI * 2; return P(add(f.c, add(mul(f.ex, Math.cos(t) * R), mul(f.ey, -Math.sin(t) * R)))); });
   const ringHandleWall = add(f.c, add(mul(f.ex, Math.cos(Math.PI / 4) * R), mul(f.ey, -Math.sin(Math.PI / 4) * R)));
   let y: Pt | undefined;
+  /** 평면 판 (2026-10-15 사용자: "이동 xyz 끝은 화살표 센터에 투명한 사각형… 사각 판을 선택하면 그걸 사인물의 정면으로"): 이름 = 판의 법선 = 고르면 정면이 되는 축.
+   *  y = X·Z 사이(벽면), x = Y·Z 사이(벽에 직각인 세로면), z = X·Y 사이(수평면). 두 화살표 방향으로 길이의 0.3~0.6 */
+  let planes: { x: Pt[]; y: Pt[]; z: Pt[] } | undefined;
   if (plane.pose) {
     // 벽에서 나오는 방향 = 카메라 쪽(깊이가 줄어드는 쪽)
-    const { R: Rm, t } = plane.pose;
-    const depth = (z: number) => Rm[6] * f.c[0] + Rm[7] * f.c[1] + Rm[8] * z + t[2];
-    const z = depth(L) < depth(-L) ? L : -L;
-    if (depth(z) > 0) y = projectPoint(plane.pose, [f.c[0], f.c[1], z]);
+    const pose = plane.pose, { R: Rm, t } = pose;
+    const depth = (x: number, yy: number, z: number) => Rm[6] * x + Rm[7] * yy + Rm[8] * z + t[2];
+    const z = depth(f.c[0], f.c[1], L) < depth(f.c[0], f.c[1], -L) ? L : -L;
+    if (depth(f.c[0], f.c[1], z) > 0) y = projectPoint(pose, [f.c[0], f.c[1], z]);
+    const out = Math.sign(z), up = mul(f.ey, -1), A = L * 0.3, B = L * 0.6;
+    const sq = (at: (u: number, v: number) => [number, number, number]) => {
+      const pts = [[A, A], [B, A], [B, B], [A, B]].map(([u, v]) => at(u, v));
+      return pts.every((p) => depth(...p) > 0) ? pts.map((p) => projectPoint(pose, p)) : null;
+    };
+    const wy = sq((u, v) => { const p = add(f.c, add(mul(f.ex, u), mul(up, v))); return [p[0], p[1], 0]; });
+    const wx = sq((u, v) => { const p = add(f.c, mul(up, v)); return [p[0], p[1], out * u]; });
+    const wz = sq((u, v) => { const p = add(f.c, mul(f.ex, u)); return [p[0], p[1], out * v]; });
+    if (wx && wy && wz) planes = { x: wx, y: wy, z: wz };
   }
   return {
     lengthMm: L,
-    c: P(f.c), x: P(add(f.c, mul(f.ex, L))), z: P(sub(f.c, mul(f.ey, L))), y,
+    c: P(f.c), x: P(add(f.c, mul(f.ex, L))), z: P(sub(f.c, mul(f.ey, L))), y, planes,
     ring, ringHandle: P(ringHandleWall), ringHandleWall,
     right: P(add(f.c, mul(f.ex, f.w / 2))), top: P(sub(f.c, mul(f.ey, f.h / 2))),
     corner: P(sub(add(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2))),

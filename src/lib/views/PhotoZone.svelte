@@ -133,7 +133,7 @@
   /** 3단계: 벽에서 돌려 세우기 — 원근 설정(카메라)이 있는 사진에서만 */
   const canTurn = $derived(!!calib?.metric && !!calib.pose);
   /** 세 면 버튼 설명 */
-  const FACE_TITLE = { x: '정면 X: 벽을 따라 보는 세로면 (돌출 간판)', y: '정면 Y: 벽 밖을 보는 벽면', z: '정면 Z: 위·아래를 보는 수평면 (어닝 등)' } as const;
+  const FACE_TITLE = { x: 'Y·Z 판 → 정면 X: 벽에 직각인 세로면 (돌출 간판)', y: 'X·Z 판 → 정면 Y: 벽면', z: 'X·Y 판 → 정면 Z: 위·아래를 보는 수평면 (어닝 등)' } as const;
   /** 돌린 사인물의 경첩 틀 (끄는 중이면 그 값) */
   function turnFrameNow(o: SignObject, plane: RefPlane, q: Pt[]): TurnFrame | null {
     if (editing?.id === o.id && editing.tf0 && editing.turn) return readTurn(plane, q, editing.turn);
@@ -561,23 +561,24 @@
             {/if}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
               {@render modeChips(g.c)}
-              {#if calib?.metric && onface}
-                <!-- 세 면 (2026-10-15 사용자: "삼면 구조로 진행해줘", "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다"): 사인물이 보는 축. 누르면 그 축이 정면, 켜진 것을 다시 누르면 자동 -->
-                {@const cw = wallPlaneOf([], calib)}
-                {@const cur = faceOf({ ...o, quad: q }, cw)?.axis ?? 'none'}
-                <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis)}>
-                  {#each ['x', 'y', 'z'] as const as a, i (a)}
-                    {@const can = a === 'y' || !!faceOf({ ...o, quad: q, faceAxis: a }, cw)}
-                    {@const at = [g.c[0] + (46 + i * 20) * gu, g.c[1] + 23 * gu]}
-                    <g class="fb" class:on={cur === a} class:off={!can} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)} data-can={String(can)}
-                      onpointerdown={(e) => { e.stopPropagation(); if (!can) return; onface(o.id, o.faceAxis === a ? undefined : a); }}>
-                      <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a ? ' — 지금 정면 (다시 누르면 자동)' : ' — 지금 정면 (자동)') : can ? ' — 누르면 이 축이 정면' : ' — 이 외곽선은 그 면의 모양이 아니어서 고를 수 없습니다'}</title>
-                      <circle cx={at[0]} cy={at[1]} r={8 * gu} style:fill={AXIS_COLOR[a]} stroke-width={cur === a ? 2.5 * gu : 0} /><text x={at[0]} y={at[1] + 4 * gu} font-size={10 * gu} text-anchor="middle">{a.toUpperCase()}</text>
-                    </g>
-                  {/each}
-                </g>
-              {/if}
               {#if gizmoMode === 'move'}
+                {#if calib?.metric && onface && g.planes}
+                  <!-- 세 면 판 (2026-10-15 사용자: "이동 xyz 끝은 화살표 센터에 투명한 사각형을 위치시킨다 사각 판을 선택하면 그걸 사인물의 정면으로"):
+                       두 화살표 사이의 반투명 판 = 그 면. 색은 판의 법선 축(= 정면이 되는 축). 누르면 그 면이 정면, 켜진 판을 다시 누르면 자동 -->
+                  {@const cw = wallPlaneOf([], calib)}
+                  {@const cur = faceOf({ ...o, quad: q }, cw)?.axis ?? 'none'}
+                  {@const planes = g.planes}
+                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis)}>
+                    {#each ['x', 'y', 'z'] as const as a (a)}
+                      {@const can = a === 'y' || !!faceOf({ ...o, quad: q, faceAxis: a }, cw)}
+                      <polygon class="fp" class:on={cur === a} class:off={!can} points={planes[a].map((p) => p.join(',')).join(' ')} style:fill={AXIS_COLOR[a]} style:stroke={cur === a ? '#fff' : AXIS_COLOR[a]}
+                        stroke-width={(cur === a ? 2 : 1) * gu} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)} data-can={String(can)}
+                        onpointerdown={(e) => { e.stopPropagation(); if (!can) return; onface(o.id, o.faceAxis === a ? undefined : a); }}>
+                        <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a ? ' — 지금 정면 (다시 누르면 자동)' : ' — 지금 정면 (자동)') : can ? ' — 누르면 이 면이 정면' : ' — 이 외곽선은 그 면의 모양이 아니어서 고를 수 없습니다'}</title>
+                      </polygon>
+                    {/each}
+                  </g>
+                {/if}
                 <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={4.5 * gu} />
                 <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={2 * gu} style:stroke={AXIS_COLOR.x} />
                 <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]}   stroke-width={4.5 * gu} />
@@ -688,10 +689,11 @@
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
   /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자, 자홍 점선 = 원근 설정대로의 상자 */
   .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
-  .faces .fb { cursor: pointer; }
-  .faces .fb circle { stroke: #fff; }
-  .faces .fb text { fill: #111; font-weight: 700; pointer-events: none; }
-  .faces .fb.off { opacity: 0.35; cursor: not-allowed; }
+  .faces .fp { fill-opacity: 0.28; cursor: pointer; }
+  .faces .fp:hover { fill-opacity: 0.5; }
+  .faces .fp.on { fill-opacity: 0.6; }
+  .faces .fp.off { fill-opacity: 0.08; stroke-opacity: 0.4; cursor: not-allowed; }
+
   .boxg .edge { stroke: #fff; stroke-linecap: round; }
   .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }

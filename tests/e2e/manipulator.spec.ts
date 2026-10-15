@@ -292,7 +292,8 @@ test('돌출 간판 면에 그린 외곽선: 구도로 면 방향을 알아봐 �
   expect(await quadOf(page, id)).toEqual(drawn);
 });
 
-test('세 면: 매니퓰레이터 옆 X·Y·Z 버튼이 사인물이 보는 축을 보여 주고, 누르면 그 축이 정면 (외곽선·원근 기준은 그대로). 켜진 버튼을 다시 누르면 자동', async ({ page, request }) => {
+test('세 면: 이동 매니퓰레이터의 화살표 사이 평면 판(X·Y·Z)이 사인물이 보는 면을 보여 주고, 판을 누르면 그 면이 정면 (외곽선·원근 기준은 그대로). 켜진 판을 다시 누르면 자동', async ({ page, request }) => {
+  // 2026-10-15 사용자: "이동 xyz 끝은 화살표 센터에 투명한 사각형을 위치시킨다 사각 판을 선택하면 그걸 사인물의 정면으로"
   // 2026-10-15 사용자: "삼면 구조로 진행해줘", "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다"
   await openOwnedProject(page, request);
   await loadSample(page);
@@ -303,6 +304,8 @@ test('세 면: 매니퓰레이터 옆 X·Y·Z 버튼이 사인물이 보는 축�
   await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
   await expect(axes).toHaveAttribute('data-axis', 'y');
   await expect(page.getByTestId('face-y')).toHaveAttribute('data-on', 'true');
+  expect(await page.getByTestId('face-y').evaluate((e) => e.tagName)).toBe('polygon'); // 사각 판
+  await expect(page.getByTestId('gizmo').getByTestId('face-axes')).toHaveCount(1); // 이동 매니퓰레이터 안
   await expect(page.getByTestId('face-x')).toHaveAttribute('data-can', 'false');
   // 돌출 면에 그린 간판: 자동으로 X
   const ref = await addSign(page, await rectOnWall(page, 1500, 3800, 1200, 900));
