@@ -29,6 +29,7 @@ import { checkAccess, postApproval, postMessage, postPin, type Role } from './pr
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
+import { productById, signParts } from './core/catalog';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -210,7 +211,8 @@ class AppState {
   /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
   prices = $derived<PriceTable>(mergePrices(this.settings.prices ?? this.accountPrices));
   quote = $derived(quoteProject(
-    this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : []; }),
+    // 치수가 없어도 개(1식) 단위 종류(사인미러·전광판·지주·에어간판)는 견적에 넣는다 (2026-10-15 한울 조합형)
+    this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : productById(signParts(o).bodyId)?.unit === 'ea' ? [o] : []; }),
     this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));

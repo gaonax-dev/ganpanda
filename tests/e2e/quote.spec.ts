@@ -32,7 +32,7 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await expect(page.getByTestId('option-channel')).toHaveValue('전광 채널');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();
-  await expect(page.locator('.line').filter({ hasText: '갈바 간판' })).toHaveCount(1);
+  await expect(page.locator('.line').filter({ hasText: '갈바·스텐 전면 간판' })).toHaveCount(1);
   await expect(page.locator('.line').filter({ hasText: '전광 채널' })).toHaveCount(1);
 });
 

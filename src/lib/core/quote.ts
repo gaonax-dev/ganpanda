@@ -68,6 +68,8 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit);
     }
   }
+  // 개 단위(사인미러·전광판·지주·에어간판): 치수와 무관하게 1식
+  if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0);
   if (channelId) {
     const ch = productById(channelId)!;
     const label = `${o.name} · ${CHANNEL_OPTIONS.find((c) => c.id === channelId)?.label ?? ch.name}`;

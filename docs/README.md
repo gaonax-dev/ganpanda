@@ -20,6 +20,7 @@
   - [roadmap.md](product/roadmap.md) — 1~5차 개발 단계와 진행 상태
   - [pricing.md](product/pricing.md) — 요금제(무료·스타터·프로)와 제한 규칙
   - [decisions.md](product/decisions.md) — 사용자와 합의한 결정 기록 (날짜순)
+  - [supplier-hanwool.md](product/supplier-hanwool.md) — 발주처 한울상사 조사, 조합형 주문 구조, 3D 모델링 필요 요소, 품목 코드
 - architecture
   - [overview.md](architecture/overview.md) — 앱·서버 구성, 폴더 구조, 데이터 흐름
   - [data-model.md](architecture/data-model.md) — Yjs 프로젝트 문서 스키마

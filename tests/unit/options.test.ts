@@ -6,11 +6,11 @@ const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', na
 const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key));
 
 describe('주문 사양 옵션 스키마', () => {
-  it('후렉스 간판: 단면/양면 + 내부 조명', () => {
-    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'channel']); // 채널은 모든 몸통의 옵션
+  it('프레임(후렉스) 간판: 단면/양면 + 내부 조명 + 프레임 구조 + 출력 방식', () => {
+    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'channel']); // 채널은 모든 몸통의 옵션
   });
-  it('갈바 간판: 돌출/일체형 + 간접조명 + 도색 컬러코드(체계+코드)', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['form', 'indirect', 'paintSystem', 'paintCode', 'channel']);
+  it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 간접조명 + 도색 컬러코드(체계+코드)', () => {
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['material', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel']);
   });
   it('채널: 채널 종류 + LED 색 + 몸체 도색. 갈바 에폭시 채널(비조명)은 LED 색이 없다', () => {
     expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'bodyCode', 'chHeight']); // 옛 데이터(채널 제품이 종류)
@@ -30,7 +30,7 @@ describe('주문 사양 옵션 스키마', () => {
     expect(keys(obj({ productId: 'ch-rubber', options: { front: '없음' } }))).not.toContain('frontColor');
   });
   it('시트: 공통(보조시트·코팅) + 시트 컷팅이면 반컷팅', () => {
-    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating']);
+    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating', 'media', 'ink']); // 한울 시트지 실사 소재·잉크 (2026-10-15)
     expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['transferTape', 'coating', 'halfCut']);
     expect(keys(obj({}))).toEqual([]);
   });
@@ -62,7 +62,7 @@ describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다
   });
   it('옵션: 면(양면 기본) · 몸체(갈바 도색/후렉스/아크릴) · 내부 조명 · 갈바 도색일 때만 컬러코드 · 브라켓', () => {
     const o = obj({ productId: 'board-protrude' });
-    expect(keys(o)).toEqual(['sides', 'body', 'light', 'paintSystem', 'paintCode', 'bracket', 'channel']);
+    expect(keys(o)).toEqual(['sides', 'shape', 'body', 'light', 'paintSystem', 'paintCode', 'bracket', 'channel']); // 모양(사각/원형)은 2026-10-15 한울 조합형
     const [g] = optionGroupsFor(o);
     expect(g.fields.find((f) => f.key === 'sides')!.values![0].id).toBe('양면');
     expect(keys(obj({ productId: 'board-protrude', options: { body: '후렉스' } }))).not.toContain('paintCode');

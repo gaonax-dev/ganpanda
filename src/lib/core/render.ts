@@ -14,6 +14,13 @@ const BOARD_LOOK: Record<string, { faceColor: string; depthMm: number }> = {
   'board-flex': { faceColor: '#fff8e6', depthMm: 150 },
   'board-reface': { faceColor: '#fff8e6', depthMm: 150 }, // 천갈이: 기존 후렉스 간판과 같은 외형
   'board-protrude': { faceColor: '#fff8e6', depthMm: 150 }, // 그린 면(옆에서 보이는 면)에 상자로. 벽에 수직인 돌출 방향 표현은 후속
+  'board-lightpanel': { faceColor: '#ffffff', depthMm: 30 },
+  'board-fabric': { faceColor: '#ffffff', depthMm: 100 },
+  'board-pole': { faceColor: '#3a3f44', depthMm: 300 },
+  'board-awning': { faceColor: '#c0392b', depthMm: 800 },
+  'board-mirror': { faceColor: '#1d2226', depthMm: 30 },
+  'board-ledsign': { faceColor: '#111111', depthMm: 70 },
+  'board-air': { faceColor: '#f39c12', depthMm: 500 },
   'body-none': { faceColor: '#9aa0a6', depthMm: 20 },
 };
 const SHEET_LOOK = { faceColor: '#ffffff', depthMm: 2 };
@@ -43,7 +50,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본
-    lighting: bodyId === 'board-flex' || bodyId === 'board-reface' || bodyId === 'board-protrude' ? 'front' : 'none',
+    lighting: ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
     sideColor: letters ? '#6b7075' : l?.sideColor ?? '#6b7075',
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
