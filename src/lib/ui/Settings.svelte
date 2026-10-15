@@ -101,6 +101,10 @@
       <section>
         <h3>표시</h3>
         <label class="check"><input type="checkbox" data-testid="warn-measure" checked={app.warnMeasure} onchange={(e) => app.setWarnMeasure(e.currentTarget.checked)} /> 입력 치수가 사진 추정과 많이 다르면 경고(⚠) 표시</label>
+        <label class="check gz">매니퓰레이터 크기
+          <input type="range" data-testid="gizmo-size" min="32" max="96" step="8" value={app.gizmoSize} oninput={(e) => app.setGizmoSize(Number(e.currentTarget.value))} />
+          <span>{app.gizmoSize}px</span>
+        </label>
         <p class="hint">치수는 제작용 메모이고 3D 는 그린 영역에 맞춥니다. 경고는 참고용이라 기본은 꺼져 있습니다.</p>
       </section>
       {#each groups as g (g)}
@@ -170,6 +174,8 @@
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .gz { margin-top: 8px; }
+  .gz input { flex: 1; }
   .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 50; }
   .dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }

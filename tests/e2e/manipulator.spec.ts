@@ -222,3 +222,41 @@ test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ p
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
+
+test('원근 격자: 고르면 사인물 둘레에 면의 축대로 격자, X 를 끄는 동안 가로선이 진해진다. 버튼은 아이콘(설명은 마우스를 올리면)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  const grid = page.getByTestId('persp-grid');
+  await expect(grid).toHaveCount(1);
+  expect(Number(await grid.getAttribute('data-step'))).toBeGreaterThan(0);
+  expect(await grid.locator('line.gx').count()).toBeGreaterThan(2);
+  expect(await grid.locator('line.gz').count()).toBeGreaterThan(2);
+  // 끄는 동안 X 방향(가로선) 강조
+  const h = (await page.getByTestId('gizmo-x').boundingBox())!;
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2 + 20, h.y + h.height / 2);
+  expect(await grid.locator('line.gx.hot').count()).toBeGreaterThan(0);
+  expect(await grid.locator('line.gz.hot').count()).toBe(0);
+  await page.mouse.up();
+  // 아이콘 버튼에는 설명(title)이 있다
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('gizmo-perp').locator('title')).toHaveText(/직각/);
+  await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동');
+});
+
+test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  const arrow = async () => { const c = (await page.getByTestId('gizmo-move').boundingBox())!, x = (await page.getByTestId('gizmo-x').boundingBox())!; return Math.hypot(x.x + x.width / 2 - (c.x + c.width / 2), x.y + x.height / 2 - (c.y + c.height / 2)); };
+  const before = await arrow();
+  await page.getByTestId('open-settings').click();
+  await page.getByTestId('gizmo-size').fill('96');
+  await page.getByTestId('close-settings').click();
+  const after = await arrow();
+  expect(after / before).toBeGreaterThan(1.7);
+  expect(await page.evaluate(() => localStorage.getItem('ganpanda.gizmoSize'))).toBe('96');
+});

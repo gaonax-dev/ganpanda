@@ -118,6 +118,9 @@ class AppState {
   /** 축 선 자동 제안의 축: 실내 XY(가로+세로) / 실외 XZ(가로+높이). 기본 XY, 기기에 저장 (2026-10-15 사용자) */
   autoAxes = $state<'xy' | 'xz'>(load('ganpanda.autoAxes') === 'xz' ? 'xz' : 'xy');
   setAutoAxes(v: 'xy' | 'xz') { this.autoAxes = v; save('ganpanda.autoAxes', v); }
+  /** 매니퓰레이터 기본 크기 (화면 px, 기기에 저장, 2026-10-15 사용자: "기본 매니퓰레이터 크기 조절 가능하게") */
+  gizmoSize = $state(Math.min(96, Math.max(32, Number(load('ganpanda.gizmoSize')) || 48)));
+  setGizmoSize(v: number) { this.gizmoSize = Math.min(96, Math.max(32, Math.round(v))); save('ganpanda.gizmoSize', String(this.gizmoSize)); }
   /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
   proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */

@@ -273,6 +273,7 @@
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         calib={app.calibrations.get(p.id)}
+        gizmoPx={app.gizmoSize}
         onplace={(id, quad, turn) => { app.project.updateObject(id, { quad, turn }); app.editBoundary(); }}
         editable={app.canEdit}
         unread={app.unread}
