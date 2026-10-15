@@ -255,3 +255,24 @@ test('원근 설정의 축 지정으로 카메라 +z 가 벽 안쪽이어도 상
   const red = px.px.filter(([r, g, b]) => r > 170 && g < 110 && b < 110).length;
   expect(red).toBeGreaterThan(20);
 });
+
+test('몸통 위 채널 글자가 반사광에 씻겨 사라지지 않는다 (운영 측면 사진의 외곽선·치수 그대로: 왼쪽 글자도 빨갛게)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const buf = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 5712; c.height = 4284; const g = c.getContext('2d')!; g.fillStyle = '#556'; g.fillRect(0, 0, 5712, 4284); return c.toDataURL('image/jpeg', 0.7); });
+  await page.getByTestId('photo-input').setInputFiles({ name: '측면.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(buf.split(',')[1], 'base64') });
+  await page.getByTestId('photo-zone').waitFor();
+  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; app.project.addObject({ photoId: app.photos[0].id, name: 's', shape: 'rect', quad: [[940, 881], [4685, 994], [4678, 1431], [931, 1338]], sheetIds: [], productId: 'board-galva', options: { channel: '전광 채널' }, text: '바로바로정육점', widthMm: 6400, heightMm: 600 }); });
+  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  await page.getByTestId('render-save').click();
+  const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
+  await expect.poll(() => page.evaluate(hook)).toMatch(/^data:image\/png/);
+  const url = await page.evaluate(hook);
+  // 사진 px 기준: 왼쪽 글자(바로바로) 둘레 / 오른쪽 글자(정육점) 둘레 — 원본 5712 폭을 1600 기준으로 환산
+  const k = 1600 / 5712;
+  const redAt = async (x: number, y: number) => (await samplePixels(page, url, [x * k, y * k], 40)).px.filter(([r, g, b]) => r > 170 && r - g > 50 && r - b > 50).length; // 빨강 계열(분홍 포함)
+  const left = await redAt(2450, 1150), right = await redAt(3300, 1170);
+  expect(right).toBeGreaterThan(30);
+  expect(left / right).toBeGreaterThan(0.5);
+});
