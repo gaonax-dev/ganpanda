@@ -35,7 +35,9 @@
 - `?view=list|board|uv` 로 들어가면 그 뷰로 시작(`app.view`).
 
 ## 새 배포 안내 (2026-10-15)
-오래 열어 둔 탭이 옛 코드로 계속 동작해 "배포했는데 그대로"가 되던 문제. 운영 빌드에서 탭이 다시 보일 때·포커스 때(최대 1분에 한 번, 시작 30초 뒤 한 번) 서버 `index.html` 의 번들 이름(`/assets/index-<hash>.js`)과 실행 중인 번들을 비교(`core/version.ts`)해 다르면 상단 배너 `update-available` "새 버전이 배포되었습니다 [새로고침]". 개발 서버에서는 번들 이름이 없어 동작하지 않음. 단위 테스트 `tests/unit/version.test.ts`.
+오래 열어 둔 탭이 옛 코드로 계속 동작해 "배포했는데 그대로"가 되던 문제(2026-10-15 사용자: "아이폰 크롬이 이전 데이터를 계속 물고 있다").
+- **HTML 은 저장하지 않음**: `public/_headers` — `/`, `/index.html`, `/login` 은 `Cache-Control: no-store`, `/assets/*`(해시 이름)는 1년 immutable. 새로 열면 항상 최신 번들.
+- **열려 있던 탭**: 시작 3초 뒤·탭이 다시 보일 때·뒤로가기/탭 복원(`pageshow`)·포커스 때(최대 10초에 한 번) 서버 `index.html` 의 번들 이름과 실행 중인 번들을 비교(`core/version.ts`). 다르면 **돌아온 순간(백그라운드 복귀·복원)이거나 홈이면 바로 새로고침**(`shouldAutoReload`), 입력 중이거나 창이 열려 있으면 상단 배너 `update-available` [새로고침]. 문서는 실시간 동기화로 이미 저장되어 있어 새로고침해도 잃는 것이 없음. 개발 서버에서는 동작하지 않음. 단위 테스트 `tests/unit/version.test.ts`.
 
 ## API
 → [../server/api.md](../server/api.md) 프로젝트·초대 절

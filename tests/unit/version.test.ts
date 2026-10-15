@@ -14,3 +14,13 @@ describe('새 배포 감지', () => {
     expect(await newVersionAvailable({ scripts: [] } as unknown as Document, async () => '<script src="/assets/index-NEW00000.js">')).toBe(false);
   });
 });
+
+describe('새 버전 자동 적용', async () => {
+  const { shouldAutoReload } = await import('../../src/lib/core/version');
+  it('백그라운드에서 돌아왔거나(복원 포함) 홈이면 바로 새로고침, 입력·창이 열려 있으면 배너만', () => {
+    expect(shouldAutoReload({ returned: true, busy: false })).toBe(true);
+    expect(shouldAutoReload({ returned: false, busy: false, home: true })).toBe(true);
+    expect(shouldAutoReload({ returned: true, busy: true })).toBe(false);
+    expect(shouldAutoReload({ returned: false, busy: false })).toBe(false);
+  });
+});
