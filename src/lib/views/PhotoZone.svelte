@@ -9,9 +9,9 @@
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
-  import { axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type V3 } from '../core/boxGizmo';
+  import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint } from '../core/homography';
-  import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf, type WallPlane } from '../core/wallPlane';
+  import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
   import { app, type Tool } from '../state.svelte';
@@ -98,7 +98,7 @@
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
-  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: WallPlane; c3?: V3; box0?: V3; box?: V3 } | null = $state(null);
+  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3 } | null = $state(null);
 
   // ---------- 입체 매니퓰레이터 (2026-10-15) ----------
   /** gx·gz·gfree = 면 위 이동, grot = 면 안 회전(원근 없는 사진), gsize = 크기 손잡이, bmove = 원근 축 이동, brot = 박스 회전 */
@@ -137,14 +137,14 @@
   const has3d = $derived(!!calib?.metric && !!calib.pose);
   const calWall = $derived(calib?.metric ? wallPlaneOf([], calib) : null);
   /** 사인물 면 (구도로 정한 면, 없으면 원근 설정의 벽면) — 외곽선의 3D 자리를 읽는 데 쓴다 */
-  const face3Of = (o: SignObject, q: Pt[]): WallPlane | null => (calWall ? (faceOf({ ...o, quad: q }, calWall)?.plane ?? calWall) : null);
+  /** 매니퓰레이터 자리(3D)와 외곽선을 읽을 면. 기준 면의 지평선 너머 사인물도 자리를 잡는다 (2026-10-15 핀볼 측사면·측면) */
+  const anchor3 = (o: SignObject, q: Pt[]) => (calWall ? anchorOf(calWall, faceOf({ ...o, quad: q }, calWall)?.plane ?? calWall, q) : null);
   function boxDown(e: PointerEvent, o: SignObject, mode: 'bmove' | 'brot', axis: 'x' | 'y' | 'z') {
     if (e.button !== 0 || !editable || !calWall) return;
     e.stopPropagation();
-    const face3 = face3Of(o, o.quad);
-    const c3 = face3 ? outlineCenter3(calWall, face3, o.quad) : null;
-    if (!face3 || !c3) return;
-    editing = { id: o.id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad, axis, face3, c3, box0: boxDirOf(o, calWall) ?? undefined };
+    const a = anchor3(o, o.quad);
+    if (!a) return;
+    editing = { id: o.id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad, axis, face3: a.plane, c3: a.c3, box0: boxDirOf(o, calWall) ?? undefined };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   /** 화살표 길이(mm): 가장 잘 보이는 축이 화면에서 기본 매니퓰레이터 크기(px)가 되게 */
@@ -506,8 +506,9 @@
           <!-- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15): 축 = 원근 설정의 X·Y·Z, 자리 = 외곽선 대각선 교점(원근 중심).
                이동 = 외곽선을 원근 축을 따라 / 판 = 박스 방향을 그 축으로 / 고리 = 박스 방향만 돌림 / 크기 = 외곽선만 (네 변 가운데·네 꼭짓점) -->
           {@const pose = calib.pose}
-          {@const face3 = editing?.id === o.id && editing.face3 ? editing.face3 : face3Of(o, q)}
-          {@const c3 = face3 ? outlineCenter3(calWall, face3, q) : null}
+          {@const a3 = editing?.id === o.id && editing.face3 ? { plane: editing.face3, c3: outlineCenter3(calWall, editing.face3, q) } : anchor3(o, q)}
+          {@const face3 = a3?.plane ?? null}
+          {@const c3 = a3?.c3 ?? null}
           {@const g3 = c3 ? boxGizmoOf(pose, c3, len3(c3)) : null}
           {#if face3 && g3}
             {@const dirNow = editing?.id === o.id && editing.box ? editing.box : boxDirOf({ ...o, quad: q }, calWall)}

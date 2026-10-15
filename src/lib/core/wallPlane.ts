@@ -6,7 +6,7 @@ import { isValidQuad } from './measure';
 import type { SignObject } from './model';
 import { SKEW_ALERT, readTurn, skewOf, turnedPlane } from './manipulator';
 import { faceFrameOf, type FaceAxis, type FaceFrame } from './faces';
-import { localBoxDir, outlineCenter3, towardCamera, worldAxes } from './boxGizmo';
+import { anchorOf, localBoxDir, towardCamera, worldAxes } from './boxGizmo';
 
 export interface WallPlane {
   /** 벽면 mm → 사진 px */
@@ -190,7 +190,7 @@ export function faceOf(o: SignObject, cal: WallPlane | null): { axis: FaceAxis; 
 export function boxDirOf(o: SignObject, cal: WallPlane | null): [number, number, number] | null {
   if (!(cal?.source === 'calibration' && cal.pose)) return null;
   const pose = cal.pose, A = worldAxes(pose);
-  const face = faceOf(o, cal), at = outlineCenter3(cal, face?.plane ?? cal, o.quad) ?? undefined;
+  const face = faceOf(o, cal), at = anchorOf(cal, face?.plane ?? cal, o.quad)?.c3;
   if (o.boxDir) return towardCamera(pose, o.boxDir, at);
   if (o.faceAxis) return towardCamera(pose, A[o.faceAxis], at);
   const pl = face?.plane.pose;
@@ -208,7 +208,7 @@ export function boxLocalDirOf(o: SignObject, own: WallPlane, cal: WallPlane | nu
   const d = boxDirOf(o, cal);
   if (!d || !cal?.pose) return null;
   const face = { H: own.H, Hinv: own.Hinv, pose: own.pose ?? poseOfPlane(own, imgW, imgH) };
-  return localBoxDir(face, cal.pose, d, outlineCenter3(cal, own, o.quad) ?? undefined);
+  return localBoxDir(face, cal.pose, d, anchorOf(cal, faceOf(o, cal)?.plane ?? cal, o.quad)?.c3);
 }
 
 /**
