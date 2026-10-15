@@ -13,27 +13,32 @@ const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => {
 const toBlobUrl = (c: HTMLCanvasElement) => new Promise<string>((res, rej) => c.toBlob((b) => (b ? res(URL.createObjectURL(b)) : rej(new Error('toBlob'))), 'image/jpeg', 0.85));
 
 const displayCache = new Map<string, Promise<string | undefined>>();
-/** 줄인 사진 URL (한 장씩 차례로 만들어 동시에 원본 여러 장을 풀지 않는다) */
-let queue: Promise<unknown> = Promise.resolve();
+/**
+ * 줄인 사진 URL. 사진 줄이기와 카드 그림은 **대기열을 따로** 쓴다 — 같은 대기열이면 카드 작업이 사진 작업을 기다리며 서로 막혀
+ * 사진이 영영 안 뜨던 문제(2026-10-15 운영: "핀볼 사진이 모두 사라졌다"). 실패하면 원본 URL 로, 실패는 기억하지 않는다
+ */
+let displayQueue: Promise<unknown> = Promise.resolve();
 export function displayUrl(assetId: string): Promise<string | undefined> {
-  let p = displayCache.get(assetId);
-  if (!p) {
-    p = (queue = queue.then(async () => {
-      const url = await assetUrl(assetId);
-      if (!url) return undefined;
+  const cached = displayCache.get(assetId);
+  if (cached) return cached;
+  const job = displayQueue.then(async () => {
+    const url = await assetUrl(assetId);
+    if (!url) return undefined;
+    try {
       const img = await loadImage(url);
       const s = displaySize(img.naturalWidth, img.naturalHeight, displayMax());
       if (s.w === img.naturalWidth) return url;
       const c = document.createElement('canvas');
       c.width = s.w; c.height = s.h;
       c.getContext('2d')!.drawImage(img, 0, 0, s.w, s.h);
-      img.src = ''; // 원본 해제
       const out = await toBlobUrl(c);
       c.width = c.height = 0;
       return out;
-    }).catch(() => undefined)) as Promise<string | undefined>;
-    displayCache.set(assetId, p);
-  }
+    } catch { return url; } // 줄이기 실패 → 원본 그대로
+  });
+  displayQueue = job.catch(() => undefined);
+  const p = job.catch(() => undefined).then((u) => { if (!u) displayCache.delete(assetId); return u; });
+  displayCache.set(assetId, p);
   return p;
 }
 
@@ -58,6 +63,7 @@ function pixelsOf(assetId: string): Promise<ImageData | null> {
 }
 
 const faceCache = new Map<string, Promise<string | undefined>>();
+let faceQueue: Promise<unknown> = Promise.resolve();
 /**
  * 평면도 카드 얼굴: 사진 영역(quad, 원본 px)을 정면 직사각형(비율 w:h)으로 펼친 작은 그림(긴 변 ≤ max px)
  * photo.w = 원본 폭 (줄인 사진과의 배율 계산용)
@@ -68,7 +74,7 @@ export function faceUrl(assetId: string, photoW: number, quad: Pt[], w: number, 
   const key = `${assetId}|${photoW}|${quad.map((p) => p.map((v) => Math.round(v)).join(',')).join(';')}|${ow}x${oh}`;
   let p = faceCache.get(key);
   if (!p) {
-    p = (queue = queue.then(async () => {
+    p = (faceQueue = faceQueue.then(async () => {
       const src = await pixelsOf(assetId);
       if (!src) return undefined;
       const k = src.width / photoW;
@@ -80,6 +86,7 @@ export function faceUrl(assetId: string, photoW: number, quad: Pt[], w: number, 
       return await toBlobUrl(c);
     }).catch(() => undefined)) as Promise<string | undefined>;
     faceCache.set(key, p);
+    p.then((u) => { if (!u) faceCache.delete(key); });
   }
   return p;
 }
