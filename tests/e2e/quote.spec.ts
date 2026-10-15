@@ -32,7 +32,7 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await expect(page.getByTestId('option-channel')).toHaveValue('전광 채널');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();
-  await expect(page.locator('.line').filter({ hasText: '갈바·스텐 전면 간판' })).toHaveCount(1);
+  await expect(page.locator('.line').filter({ hasText: '· 갈바' })).toHaveCount(1);
   await expect(page.locator('.line').filter({ hasText: '전광 채널' })).toHaveCount(1);
 });
 
@@ -102,7 +102,7 @@ test('견적서 인쇄 화면', async ({ page, request }) => {
   await page.getByTestId('open-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toBeVisible();
   await expect(page.getByTestId('quote-sheet')).toContainText('행복 미용실');
-  await expect(page.getByTestId('quote-sheet')).toContainText('알루미늄 복합판 간판');
+  await expect(page.getByTestId('quote-sheet')).toContainText('알루미늄 복합판');
   await expect(page.getByTestId('quote-sheet')).toContainText('합계');
   await page.getByTestId('close-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toHaveCount(0);

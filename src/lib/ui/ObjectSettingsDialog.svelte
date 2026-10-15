@@ -1,7 +1,7 @@
 <!-- 사인물 세부 설정 창: 종류·시트·문구·치수·기준선·금액 상세·삭제 (패널의 [설정]) -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS } from '../core/catalog';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -101,7 +101,8 @@
       <section>
         <h3>시트</h3>
         <div class="chips">
-          {#each SHEETS as s (s.id)}
+          <!-- 고르는 시트는 UV 실사·단색·재질·안개 (2026-10-15). 옛 시트(원웨이·반사·투명)는 이미 붙어 있을 때만 -->
+          {#each SHEETS.filter((s) => sheetsForPicker().includes(s) || obj.sheetIds.includes(s.id)) as s (s.id)}
             <button data-testid="sheet-{s.id}" class:on={obj.sheetIds.includes(s.id)} disabled={ro} onclick={() => toggleSheet(s.id)}>{s.name}</button>
           {/each}
         </div>

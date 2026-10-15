@@ -78,7 +78,7 @@ export async function openInvited(browser: Browser, inviteUrl: string, displayNa
 
 /** 선택한 사인물의 설정 창 열기 (이미 열려 있으면 그대로) */
 /** 패널의 분류 셀렉터로 분류를 고른다. 이미 분류가 있으면 확인 창을 거친다 */
-export async function pickCategory(page: Page, g: 'sign' | 'scashi' | 'sheet') {
+export async function pickCategory(page: Page, g: 'sign' | 'sheet' | 'scashi' | 'foamex' | 'banner' | 'lightpanel' | 'frame' | 'awning' | 'mirror') {
   await page.getByTestId('category-select').selectOption(g);
   const confirm = page.getByTestId('category-confirm-ok');
   if (await confirm.count()) await confirm.click();

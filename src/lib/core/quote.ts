@@ -57,7 +57,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     lines.push({ objectId: o.id, label, detail, amount });
   };
   // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
-  const { bodyId, channelId } = signParts(o);
+  const { bodyId, channelId, scashiId } = signParts(o);
   const body = productById(bodyId);
   if (body && body.unit === 'm2') {
     const label = `${o.name} · ${body.name}`;
@@ -81,6 +81,17 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
       else finish(label, `${n}자 × 높이 ${fmt(chH)}mm × ${fmt(unit)}원/자·cm`, n * (chH / 10) * unit);
     }
+  }
+  // 간판에 붙인 스카시 (2026-10-15 사용자: "스카시도 부착된다"): 채널처럼 자·cm, 글자 높이는 스카시 글자 높이 옵션 > 간판 높이
+  if (scashiId) {
+    const sc = productById(scashiId)!;
+    const label = `${o.name} · ${sc.name}`;
+    const unit = prices.products[scashiId] ?? 0;
+    const h = Number(o.options?.scHeight) || o.heightMm;
+    const n = charCountOf(o);
+    if (!h) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
+    else if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
+    else finish(label, `${n}자 × 높이 ${fmt(h)}mm × ${fmt(unit)}원/자·cm`, n * (h / 10) * unit);
   }
   for (const id of o.sheetIds) {
     const s = sheetById(id);

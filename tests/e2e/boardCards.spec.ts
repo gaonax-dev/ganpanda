@@ -122,6 +122,6 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   const svg = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
   expect(svg).toContain('정면 간판');
   expect(svg).toContain('>3,000<');
-  expect(svg).toContain('프레임 간판 (후렉스)');
+  expect(svg).toContain('후렉스');
   await w.close();
 });

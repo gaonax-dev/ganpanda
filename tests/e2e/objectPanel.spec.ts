@@ -33,7 +33,7 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await dlg.getByTestId('sheet-sh-print').click();
   await dlg.getByTestId('width-mm').fill('1000');
   await dlg.getByTestId('height-mm').fill('500');
-  await expect(panel.getByTestId('object-summary')).toContainText('돔보 컷팅');
+  await expect(panel.getByTestId('object-summary')).toContainText('돔보 커팅');
   await expect(panel.getByTestId('object-summary')).toContainText('1,000×500');
   await page.keyboard.press('Escape');
   // 이름을 치고 바로 보드 빈 곳을 눌러 패널이 닫혀도 이름이 남는다 (입력 즉시 저장)

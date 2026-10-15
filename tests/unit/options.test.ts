@@ -7,31 +7,31 @@ const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((
 
 describe('주문 사양 옵션 스키마', () => {
   it('프레임(후렉스) 간판: 단면/양면 + 내부 조명 + 프레임 구조 + 출력 방식', () => {
-    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'channel']); // 채널은 모든 몸통의 옵션
+    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'channel', 'scashi']); // 채널·스카시 부착은 간판 옵션
   });
   it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 간접조명 + 도색 컬러코드(체계+코드)', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['material', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel']);
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel', 'scashi']);
   });
   it('채널: 채널 종류 + LED 색 + 몸체 도색. 갈바 에폭시 채널(비조명)은 LED 색이 없다', () => {
     expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'bodyCode', 'chHeight']); // 옛 데이터(채널 제품이 종류)
     expect(keys(obj({ productId: 'ch-galva' }))).not.toContain('ledColor');
   });
   it('조건부: 복합판 마감이 도색일 때만 컬러코드', () => {
-    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'finish', 'channel']);
-    expect(keys(obj({ productId: 'board-acp', options: { finish: '도색' } }))).toEqual(['sides', 'finish', 'paintSystem', 'paintCode', 'channel']);
+    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'finish', 'channel', 'scashi']);
+    expect(keys(obj({ productId: 'board-acp', options: { finish: '도색' } }))).toEqual(['sides', 'finish', 'paintSystem', 'paintCode', 'channel', 'scashi']);
   });
   it('스카시: 재질별 옵션 + 공통 시공 보조 부속품', () => {
     const rubber = optionGroupsFor(obj({ productId: 'ch-rubber' }));
     expect(rubber.map((g) => g.title)).toEqual(['고무 스카시 사양', '시공 보조 부속품']);
-    expect(rubber[0].fields.map((f) => f.key)).toEqual(['thickness', 'front', 'frontColor']);
+    expect(rubber[0].fields.map((f) => f.key)).toEqual(['thickness', 'material', 'paintSystem', 'paintCode']); // 2026-10-15 분류 재정리: 두께·재질·도색
     expect(rubber[1].fields.map((f) => f.key)).toEqual(['paperTemplate', 'acrylicGuide', 'frontSheetAttached']);
     expect(keys(obj({ productId: 'sc-titan' }))).toContain('finish');
     expect(keys(obj({ productId: 'ch-scashi' }))).toContain('thickness');
-    expect(keys(obj({ productId: 'ch-rubber', options: { front: '없음' } }))).not.toContain('frontColor');
+    expect(keys(obj({ productId: 'ch-scashi' }))).toContain('script');
   });
   it('시트: 공통(보조시트·코팅) + 시트 컷팅이면 반컷팅', () => {
-    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating', 'media', 'ink']); // 한울 시트지 실사 소재·잉크 (2026-10-15)
-    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['transferTape', 'coating', 'halfCut']);
+    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating', 'base', 'ink']); // 2026-10-15 분류 재정리: UV 실사 바탕 흰색/회색
+    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['transferTape', 'coating', 'sheetMat', 'halfCut']);
     expect(keys(obj({}))).toEqual([]);
   });
   it('요약 문구: 고른 값·켜진 토글·코드만', () => {
@@ -62,7 +62,7 @@ describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다
   });
   it('옵션: 면(양면 기본) · 몸체(갈바 도색/후렉스/아크릴) · 내부 조명 · 갈바 도색일 때만 컬러코드 · 브라켓', () => {
     const o = obj({ productId: 'board-protrude' });
-    expect(keys(o)).toEqual(['sides', 'shape', 'body', 'light', 'paintSystem', 'paintCode', 'bracket', 'channel']); // 모양(사각/원형)은 2026-10-15 한울 조합형
+    expect(keys(o)).toEqual(['sides', 'shape', 'body', 'light', 'paintSystem', 'paintCode', 'bracket', 'channel', 'scashi']); // 모양(사각/원형)은 2026-10-15 한울 조합형
     const [g] = optionGroupsFor(o);
     expect(g.fields.find((f) => f.key === 'sides')!.values![0].id).toBe('양면');
     expect(keys(obj({ productId: 'board-protrude', options: { body: '후렉스' } }))).not.toContain('paintCode');
@@ -79,14 +79,14 @@ describe('간판 천갈이 (2026-10-15 사용자: "간판 천갈이가 따로 �
   const { DEFAULT_PRICES } = await import('../../src/lib/core/pricing');
   const { quoteObject } = await import('../../src/lib/core/quote');
   const { renderSpecOf } = await import('../../src/lib/core/render');
-  it('간판 몸통 목록에 후렉스 간판 바로 다음으로 있고(㎡ 단가), 기본 단가표에도 있다', () => {
+  it('간판 분류에 있고(㎡ 단가), 기본 단가표에도 있다 (순서는 2026-10-15 분류 재정리)', () => {
     const p = productById('board-reface')!;
     expect(p).toBeTruthy();
     expect(p.name).toBe('간판 천갈이');
     expect(p.unit).toBe('m2');
     expect(groupOfProduct('board-reface')).toBe('sign');
     const ids = productsOf('sign').map((x) => x.id);
-    expect(ids.indexOf('board-reface')).toBe(ids.indexOf('board-flex') + 1);
+    expect(ids).toContain('board-reface');
     expect(CATALOG.findIndex((x) => x.id === 'board-reface')).toBeLessThan(CATALOG.findIndex((x) => x.id === 'ch-front'));
     expect(DEFAULT_PRICES.products['board-reface']).toBeGreaterThan(0);
   });
