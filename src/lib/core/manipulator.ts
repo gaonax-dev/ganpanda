@@ -251,18 +251,18 @@ export function turnedPlane(plane: RefPlane, tf: TurnFrame): { origin: V3; e1: V
   return { origin, e1, e2, pose: { ...plane.pose, R: [c1[0], c2[0], c3[0], c1[1], c2[1], c3[1], c1[2], c2[2], c3[2]], t: [o[0] + t[0], o[1] + t[1], o[2] + t[2]] } };
 }
 
-// ---------- 원근 격자 (2026-10-15 사용자: "원근이 틀리다는데 인지가 어렵다. 근처에 격자를 넣어 주면, 격자의 방향을 선택에 따라 축에 맞게") ----------
-/** 면 위 격자선: v = 세로선(면 x 고정), h = 가로선(면 y 고정). 간격의 배수에 놓고, 사진 px 로 투영한 두 끝점 */
-export function gridOf(H: number[], c: Pt, halfW: number, halfH: number, step: number) {
-  const x0 = c[0] - halfW, x1 = c[0] + halfW, y0 = c[1] - halfH, y1 = c[1] + halfH;
-  const P = (p: Pt) => applyHomography(H, p);
-  const v: { at: number; pts: [Pt, Pt] }[] = [], h: { at: number; pts: [Pt, Pt] }[] = [];
-  for (let x = Math.floor(x0 / step) * step, i = 0; x <= Math.ceil(x1 / step) * step + 1e-6 && i < 60; x += step, i++) v.push({ at: x, pts: [P([x, y0]), P([x, y1])] });
-  for (let y = Math.floor(y0 / step) * step, i = 0; y <= Math.ceil(y1 / step) * step + 1e-6 && i < 60; y += step, i++) h.push({ at: y, pts: [P([x0, y]), P([x1, y])] });
-  return { v, h };
-}
-/** 화면에서 target px 에 가까운 보기 좋은 간격(mm). pxPerMm = 화면 px / mm */
-export function niceStep(pxPerMm: number, target = 24): number {
-  const steps = [50, 100, 200, 250, 500, 1000, 2000, 5000];
-  return steps.reduce((best, s) => (Math.abs(Math.log((s * pxPerMm) / target)) < Math.abs(Math.log((best * pxPerMm) / target)) ? s : best), steps[0]);
+// ---------- 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제") ----------
+/** P(3×4, 면 mm → 사진 px)로 면 위 네 꼭짓점과, 그것을 카메라 쪽으로 depth 만큼 밀어낸 네 점을 투영. 어느 점이 카메라 뒤면 null */
+export function boxGuideOf(P: number[], base: Pt[], depth: number): { back: Pt[]; front: Pt[] } | null {
+  const proj = (x: number, y: number, z: number): Pt | null => {
+    const w = P[8] * x + P[9] * y + P[10] * z + P[11];
+    if (!(w > 1e-9)) return null;
+    return [(P[0] * x + P[1] * y + P[2] * z + P[3]) / w, (P[4] * x + P[5] * y + P[6] * z + P[7]) / w];
+  };
+  // 카메라 쪽 = 깊이(3행)가 줄어드는 z 방향
+  const c = mul(add(add(base[0], base[1]), add(base[2], base[3])), 0.25);
+  const dz = P[8] * c[0] + P[9] * c[1] + P[10] * depth + P[11] < P[8] * c[0] + P[9] * c[1] + P[11] ? depth : -depth;
+  const back = base.map(([x, y]) => proj(x, y, 0)), front = base.map(([x, y]) => proj(x, y, dz));
+  if (back.some((p) => !p) || front.some((p) => !p)) return null;
+  return { back: back as Pt[], front: front as Pt[] };
 }

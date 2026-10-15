@@ -148,23 +148,3 @@ describe('3단계: 벽에서 돌려 세우기 (돌출 간판 직각 배치)', as
     expect(turnAngleAt(plane, tf, at(0))).toBeCloseTo(0, 0);
   });
 });
-
-describe('원근 격자 (2026-10-15 사용자: "원근이 틀리다는데 인지가 어렵다. 근처에 격자를 넣어주면")', async () => {
-  const { gridOf, niceStep } = await import('../../src/lib/core/manipulator');
-  it('면의 축(가로·세로)에 맞춘 격자선: 간격의 배수에 놓이고, 범위를 덮으며, 선 끝은 면 좌표를 투영한 점', () => {
-    const g = gridOf(H, [3000, 3450], 2500, 900, 500);
-    // 세로선(가로 위치 고정) x = 500..5500, 가로선 y = 2500..4500
-    expect(g.v.length).toBe(11);
-    expect(g.h.length).toBe(5);
-    expect(g.v[0].at).toBe(500);
-    expect(g.h[0].at).toBe(2500);
-    const [a] = g.v[0].pts;
-    const want = applyHomography(H, [500, 2550]);
-    expect(Math.hypot(a[0] - want[0], a[1] - want[1])).toBeLessThan(0.5);
-  });
-  it('보기 좋은 간격: 화면에서 목표 px 에 가까운 50·100·200·250·500·1000·2000mm', () => {
-    expect(niceStep(0.05, 24)).toBe(500); // 0.05px/mm → 24px ≈ 480mm
-    expect(niceStep(0.5, 24)).toBe(50);
-    expect(niceStep(0.012, 24)).toBe(2000);
-  });
-});

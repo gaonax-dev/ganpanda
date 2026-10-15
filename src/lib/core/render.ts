@@ -48,3 +48,13 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
   };
 }
+
+/** 사인물 두께(mm): 입력 두께 > 입체 설정 > 종류 기본. 시트·분류 없음은 0 — 상자 가이드는 두께가 있는 것만 (2026-10-15) */
+export function thicknessOf(o: SignObject): number {
+  const { bodyId, channelId } = signParts(o);
+  const product = productById(bodyId);
+  if (!product && !channelId) return 0;
+  if (o.depthMm) return o.depthMm;
+  if (channelId && (!product || bodyId === 'body-none')) return o.letter3d?.depthMm ?? DEFAULT_LETTER3D.depthMm;
+  return o.letter3d?.depthMm ?? BOARD_LOOK[product!.id]?.depthMm ?? 100;
+}
