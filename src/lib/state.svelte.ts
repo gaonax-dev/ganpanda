@@ -113,6 +113,9 @@ class AppState {
   proposalOpen = $state(false);
   /** 사진과 입력 치수가 다르다는 경고 표시 (옵션, 기본 꺼짐 — 2026-10-14 사용자: "사이즈는 제작을 위한 메모, 경고는 옵션") */
   warnMeasure = $state(load('ganpanda.warnMeasure') === '1');
+  /** 축 선 자동 제안의 축: 실내 XY(가로+세로) / 실외 XZ(가로+높이). 기본 XY, 기기에 저장 (2026-10-15 사용자) */
+  autoAxes = $state<'xy' | 'xz'>(load('ganpanda.autoAxes') === 'xz' ? 'xz' : 'xy');
+  setAutoAxes(v: 'xy' | 'xz') { this.autoAxes = v; save('ganpanda.autoAxes', v); }
   /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
   proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
@@ -294,8 +297,8 @@ class AppState {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
       const found = gray && proposeAxisLines(gray);
       if (!gray || !found) return false;
-      // 처음 셋팅은 가로(X)·높이(Z): 첫 쌍 = 가로 선, 둘째 쌍 = 세로 선 (사용자 2026-10-14)
-      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: { first: '+x', second: '+z' } });
+      // 첫 쌍 = 가로 선(+X), 둘째 쌍 = 실내 XY 면 세로(+Y) / 실외 XZ 면 높이(+Z) — 옵션 app.autoAxes (기본 XY, 2026-10-15 사용자)
+      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: { first: '+x', second: this.autoAxes === 'xz' ? '+z' : '+y' } });
       return true;
     } finally { this.cameraBusy = false; }
   }
