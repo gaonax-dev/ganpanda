@@ -272,6 +272,7 @@
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
+        calib={app.calibrations.get(p.id)}
         editable={app.canEdit}
         unread={app.unread}
         pins={app.pins.filter((x) => x.photoId === p.id)}

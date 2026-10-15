@@ -8,6 +8,10 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, resizeFrame, rotateFrame, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
+  import { applyHomography } from '../core/homography';
+  import { wallPlaneOf } from '../core/wallPlane';
+  import type { Calibration } from '../core/calibration';
   import type { Tool } from '../state.svelte';
 
   let {
@@ -16,7 +20,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    overlay,
+    overlay, calib,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -72,6 +76,8 @@
     threeD?: 'ok' | 'none';
     /** 치수 경고(⚠) 표시 여부 (옵션) */
     showWarnings?: boolean;
+    /** 이 사진의 원근 설정(카메라) — 있으면 매니퓰레이터가 그 벽면을 따른다 */
+    calib?: Calibration;
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
@@ -85,7 +91,34 @@
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
-  let editing: { id: string; quad: Pt[]; mode: number | 'move'; from: Pt; orig: Pt[] } | null = $state(null);
+  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt } | null = $state(null);
+
+  // ---------- 입체 매니퓰레이터 (2026-10-15) ----------
+  type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gright' | 'gtop';
+  /** 사인물의 기준 면: 원근 설정이 있으면 그 벽면(카메라 포함), 없으면 사인물 자신의 면 */
+  function refPlaneOf(o: SignObject): RefPlane | null {
+    if (calib?.metric) { const p = wallPlaneOf([], calib); return p ? { H: p.H, Hinv: p.Hinv, pose: p.pose } : null; }
+    const p = wallPlaneOf([o], null);
+    return p ? { H: p.H, Hinv: p.Hinv } : null;
+  }
+  /** 매니퓰레이터를 붙일 수 있는 사인물 (사각·둥근 사각·원형; 다각형은 꼭짓점 편집) */
+  const gizmoable = (o: SignObject) => o.shape !== 'polygon' && o.quad.length === 4;
+  function gizmoDown(e: PointerEvent, o: SignObject, mode: GizmoMode) {
+    if (e.button !== 0 || !editable) return;
+    e.stopPropagation();
+    // 기준 면은 끌기 시작할 때 고정 (자기 면을 쓰는 사진에서 끄는 동안 면이 따라 움직이지 않게)
+    const plane = refPlaneOf(o);
+    if (!plane) return;
+    const from = toPhoto(e.clientX, e.clientY);
+    editing = { id: o.id, quad: o.quad, mode, from, orig: o.quad, plane, frame0: frameOf(plane, o.quad), wall0: applyHomography(plane.Hinv, from) };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
+  function alignToPerspective(o: SignObject) {
+    const plane = refPlaneOf(o);
+    if (!plane) return;
+    onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)))));
+  }
 
   const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : 'rect');
   const quadOf = (o: SignObject) => (editing?.id === o.id ? editing.quad : o.quad);
@@ -199,6 +232,16 @@
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
+    if (typeof editing.mode === 'string' && editing.mode !== 'move' && editing.plane && editing.frame0 && editing.wall0) {
+      // 매니퓰레이터: 면 위에서 옮기기·돌리기·늘리기 → 원근 그대로 사진 외곽선으로
+      const w = applyHomography(editing.plane.Hinv, [x, y]);
+      const d: Pt = [w[0] - editing.wall0[0], w[1] - editing.wall0[1]];
+      const f0 = editing.frame0;
+      const f = editing.mode === 'gx' ? moveFrame(f0, d, 'x') : editing.mode === 'gz' ? moveFrame(f0, d, 'z') : editing.mode === 'gfree' ? moveFrame(f0, d, 'free')
+        : editing.mode === 'grot' ? rotateFrame(f0, editing.wall0, w) : resizeFrame(f0, editing.mode === 'gright' ? 'right' : 'top', w);
+      editing.quad = frameToQuad(editing.plane, f);
+      return;
+    }
     const dx = x - editing.from[0], dy = y - editing.from[1];
     editing.quad = editing.mode === 'move'
       ? editing.orig.map(([a, b]) => [a + dx, b + dy] as Pt)
@@ -281,7 +324,7 @@
   {/if}
   <svg
     class:tiny={tiny}
-    class:hidden={!!overlay}
+    class:ghost={!!overlay}
     viewBox="0 0 {photo.w} {photo.h}"
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
@@ -352,6 +395,38 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        {#if sel && editable && tool === 'select' && gizmoable(o)}
+          {@const plane = editing?.id === o.id && editing.plane ? editing.plane : refPlaneOf(o)}
+          {#if plane}
+            {@const fr = frameOf(plane, q)}
+            {@const g = gizmoOf(plane, fr)}
+            {@const skew = skewOf(plane, q)}
+            {@const tilt = tiltOf(fr)}
+            <!-- 원근 매니퓰레이터: 외곽선이 원근에서 비틀렸거나 축에서 조금 기울었으면, 맞춘 모양을 점선으로 보여 주고 [원근에 맞추기] -->
+            {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10))}
+              {@const fixed = frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, q))))}
+              <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
+                <polygon class="guide" points={fixed.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * u} stroke-dasharray="{6 * u} {4 * u}" />
+                <g class="fix" role="button" tabindex="-1" data-testid="persp-align" onpointerdown={(e) => { e.stopPropagation(); alignToPerspective(o); }}>
+                  <rect x={fixed[2][0] + 8 * u} y={fixed[2][1] + 4 * u} width={118 * u} height={24 * u} rx={6 * u} />
+                  <text x={fixed[2][0] + 16 * u} y={fixed[2][1] + 21 * u} font-size={12 * u}>원근에 맞추기 ({Math.round(Math.max(skew, tilt))}°)</text>
+                </g>
+              </g>
+            {/if}
+            <g class="gizmo" data-testid="gizmo">
+              <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * u} />
+              <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.x} />
+              <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.z} />
+              {#if g.y}<line class="ax y" x1={g.c[0]} y1={g.c[1]} x2={g.y[0]} y2={g.y[1]} stroke-width={3 * u} style:stroke={AXIS_COLOR.y} />{/if}
+              <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={9 * u} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
+              <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={9 * u} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
+              <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 9 * u} y={g.c[1] - 9 * u} width={18 * u} height={18 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
+              <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={8 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
+              <rect class="gh size" data-testid="gizmo-width" x={g.right[0] - 6 * u} y={g.right[1] - 6 * u} width={12 * u} height={12 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gright')} />
+              <rect class="gh size" data-testid="gizmo-height" x={g.top[0] - 6 * u} y={g.top[1] - 6 * u} width={12 * u} height={12 * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gtop')} />
+            </g>
+          {/if}
+        {/if}
         {#if sel && editable && tool === 'select'}
           {#each q as p, i (i)}
             <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
@@ -410,7 +485,7 @@
   .header .name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header .x { white-space: nowrap; flex-shrink: 0; }
   .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-  .designs.hidden, svg.hidden { display: none; }
+  .designs.hidden { display: none; }
   svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
@@ -427,6 +502,21 @@
   .camera .co { fill: none; stroke: #fff; }
   .header .cam.set, .header .x.set { color: var(--ok); }
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
+  /* 입체 매니퓰레이터 */
+  .gizmo .ring { fill: none; stroke: rgba(255, 255, 255, 0.55); pointer-events: none; }
+  .gizmo .ax { pointer-events: none; stroke-linecap: round; }
+  .gizmo .gh { stroke: #fff; cursor: grab; }
+  .gizmo .gh.center { fill: rgba(255, 255, 255, 0.85); stroke: #333; }
+  .gizmo .gh.rot { fill: #ffcc00; }
+  .gizmo .gh.size { fill: #fff; stroke: #333; }
+  .persp .guide { fill: rgba(255, 77, 210, 0.08); stroke: #ff4dd2; pointer-events: none; }
+  .persp .fix { cursor: pointer; }
+  .persp .fix rect { fill: #ff4dd2; }
+  .persp .fix text { fill: #fff; stroke: none; font-weight: 700; pointer-events: none; }
+  /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
+  svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
+  svg.ghost .sign.sel polygon { stroke: var(--accent); stroke-dasharray: 6 4; }
+  svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
   .draft { fill: rgba(255, 204, 0, 0.12); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
