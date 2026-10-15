@@ -70,7 +70,8 @@ test('viewer 초대: 보고 대화할 수 있지만 편집은 못 한다', async
   await guest.getByTestId('chat-input').fill('가로 4m 맞나요?');
   await guest.getByTestId('chat-input').press('Enter');
   await expect(guest.getByTestId('chat-bubble')).toContainText('가로 4m 맞나요?');
-  await page.getByTestId('sign-shape').click();
+  // 방금 그려 선택된 사인물은 가운데에 이동 핸들(매니퓰레이터)이 있다 → 핸들 없는 왼쪽 안쪽을 누른다
+  await page.getByTestId('sign-shape').click({ position: { x: 30, y: 50 } });
   await expect(page.getByTestId('chat-bubble')).toContainText('가로 4m 맞나요?');
   await expect(page.getByTestId('chat-bubble')).not.toHaveClass(/mine/);
   await guest.ctx.close();
