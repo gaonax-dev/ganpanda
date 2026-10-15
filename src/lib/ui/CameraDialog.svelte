@@ -228,6 +228,10 @@
         <section>
           <h3>AI 제안</h3>
           <div class="row">
+            <select class="axes" data-testid="camera-auto-axes" title="자동 제안이 두 선 쌍에 붙일 축" value={app.autoAxes} disabled={ro} onchange={(e) => app.setAutoAxes(e.currentTarget.value as 'xy' | 'xz')}>
+              <option value="xy">실내 XY</option>
+              <option value="xz">실외 XZ</option>
+            </select>
             <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
             <button class="btn small" data-testid="camera-snap" disabled={ro || app.cameraBusy} title="선 끝점을 사진 속 모서리에 붙입니다" onclick={() => app.snapCamera()}>모서리에 붙이기</button>
           </div>
@@ -326,6 +330,7 @@
   .warn { color: var(--warn); font-size: 12px; margin: 0; }
   small { color: var(--muted); font-size: 11px; }
   .actions { display: flex; gap: 6px; margin-top: auto; }
+  .axes { width: auto; padding: 4px 6px; font-size: 12px; }
   @media (max-width: 720px) {
     .backdrop { place-items: stretch; }
     .dialog { width: 100vw; height: 100%; border-radius: 0; border: 0; }
