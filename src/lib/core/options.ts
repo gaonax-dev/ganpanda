@@ -2,6 +2,7 @@
 // 새 품목·옵션은 여기에 한 줄 추가. 값은 SignObject.options (키 → 값) 에 저장되고, 조합 규칙은 `when` 으로.
 import type { SignObject } from './model';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
+import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -75,6 +76,14 @@ const SCASHI_ATTACH_FIELDS: OptionField[] = [
   ]),
   ...paintOpt('scPaint', '스카시 도색', (opts) => !!scIdOf(opts)),
   txt('scHeight', '스카시 글자 높이 (mm)', '비우면 간판 높이', (opts) => !!scIdOf(opts)),
+];
+/** 간판 상단 조명 (2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링") */
+const hasTop = (opts: Options) => !!opts.topLight && opts.topLight !== TOP_LIGHT_NONE;
+const TOP_LIGHT_FIELDS: OptionField[] = [
+  sel('topLight', '상단 조명', [TOP_LIGHT_NONE, ...TOP_LIGHTS.map((t) => t.label)]),
+  txt('topCount', '투광등 개수', '비우면 가로 1.2m 마다 하나', (opts) => opts.topLight === TOP_LIGHTS[0].label),
+  sel('topArm', '팔 길이', ['300mm', '450mm', '600mm'], (opts) => opts.topLight === TOP_LIGHTS[0].label),
+  sel('topColor', '빛 색', Object.keys(TOP_COLORS), hasTop),
 ];
 /** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
 const FRAME_MAT = sel('frameMat', '프레임 재질', ['스텐', '알루미늄', '철', '텐션 천']);
@@ -179,7 +188,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const p = productById(o.productId);
   if (p) {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
-    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS] : [])]); // 채널·스카시 부착은 간판 옵션
+    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS, ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }

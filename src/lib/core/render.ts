@@ -1,5 +1,6 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
 import { categoryOf, productById, signParts } from './catalog';
+import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
 import type { Placement } from './wallPlane';
@@ -45,7 +46,9 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const product = productById(bodyId);
   const l = o.letter3d;
   const text = (o.text ?? '').trim();
-  const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111' };
+  // 상단 조명 (2026-10-16): 개수는 입력 가로(없으면 3D 배치 가로)로
+  const tl = topLightOf(o, p.w);
+  const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color } } : {}) };
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
   // 몸통 없음 + 채널 + 문구 = 입체 글자만 (글자 높이 = 그린 영역 세로)
   if (bodyId === 'body-none' && channelId && text) {
@@ -61,7 +64,8 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   return {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본
-    lighting: ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') ? 'front' : 'none',
+    // 내부 조명 옵션이 '비조명'이면 빛나지 않는다 (2026-10-16, 상단 조명은 주로 비조명 간판에)
+    lighting: ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명' ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
     sideColor: letters ? '#6b7075' : l?.sideColor ?? '#6b7075',
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움

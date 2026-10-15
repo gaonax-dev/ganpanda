@@ -24,7 +24,7 @@ export const DEFAULT_PRICES: PriceTable = {
   version: 1,
   products: {
     'board-foamex': 45000, 'board-acp': 85000, 'board-acrylic': 120000, 'board-galva': 70000, 'board-flex': 250000, 'board-truss': 200000, 'board-pipe': 220000, banner: 15000, 'frame-plain': 150000, 'frame-wood': 180000, 'board-reface': 60000, 'board-lightpanel': 350000, 'board-fabric': 300000, 'board-pole': 1500000, 'board-awning': 150000, 'board-mirror': 250000, 'board-ledsign': 600000, 'board-air': 350000, 'board-protrude': 320000,
-    'ch-front': 3200, 'ch-halo': 3800, 'ch-both': 4500, 'ch-galva': 2600, 'ch-acrylic': 4000, 'ch-bulb': 5000, 'ch-rubber': 900, 'sc-titan': 2800, 'ch-scashi': 1200,
+    'ch-front': 3200, 'ch-halo': 3800, 'ch-both': 4500, 'ch-galva': 2600, 'tl-arm': 120000, 'tl-bar': 90000, 'tl-perf': 110000, 'ch-acrylic': 4000, 'ch-bulb': 5000, 'ch-rubber': 900, 'sc-titan': 2800, 'ch-scashi': 1200,
   },
   sheets: { 'sh-cut': 35000, 'sh-print': 30000, 'sh-reflect': 55000, 'sh-frost': 40000, 'sh-trans': 38000, 'sh-perf': 45000 },
   install: 250000,
