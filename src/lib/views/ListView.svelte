@@ -54,7 +54,8 @@
     const x = Math.min(...r.map((p) => p.x)), y = Math.min(...r.map((p) => p.y));
     const w = Math.max(...r.map((p) => p.x + p.w)) - x, h = Math.max(...r.map((p) => p.y + p.h)) - y;
     const s = canvas.size();
-    viewport = fitRect({ x: x - 400, y: y - 600, w: w + 800, h: h + 1600 }, s.w - 360, s.h, 40);
+    // 데스크톱은 오른쪽 견적 창(360px)을 빼고, 휴대폰은 하단 탭(70px)을 빼고 맞춘다
+    viewport = app.compact ? fitRect({ x: x - 400, y: y - 600, w: w + 800, h: h + 1600 }, s.w, s.h - 70, 20) : fitRect({ x: x - 400, y: y - 600, w: w + 800, h: h + 1600 }, s.w - 360, s.h, 40);
   }
 
   const clip = faceClip;
@@ -82,6 +83,8 @@
 
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const inv = $derived(1 / viewport.zoom);
+  /** 휴대폰: 견적 창 접힘 / 반 / 전체 (하단 탭의 [견적]으로 열고 닫음, 창 머리의 버튼으로 확대·축소). 2026-10-15 사용자: "모바일에서 리스트 뷰도 하단에 탭을 두고 견적창 확대축소" */
+  let quoteMode = $state<'closed' | 'half' | 'full'>('closed');
 
   /** 전개도 SVG (디자인 이미지는 data URL 로 묻어 인쇄 창이 따로 불러오지 않게) */
   export async function buildSvg(): Promise<string> {
@@ -181,10 +184,27 @@
     {/snippet}
   </InfiniteCanvas>
 
-  <aside class="quote">
+  {#if app.compact}
+    <!-- 휴대폰 하단 탭 -->
+    <nav class="ltabs" data-testid="list-tabs">
+      <button class="qt" class:on={quoteMode !== 'closed'} data-testid="quote-toggle" onclick={() => (quoteMode = quoteMode === 'closed' ? 'half' : 'closed')}>
+        견적 {quoteMode === 'closed' ? '▲' : '▼'}<b>{won(quote.total)}</b>
+      </button>
+      {#if app.canEdit}<button data-testid="tab-prices" onclick={() => (app.pricesOpen = true)}>단가</button>{/if}
+      <button data-testid="tab-order" onclick={() => (app.orderOpen = true)}>주문</button>
+      <button data-testid="tab-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서</button>
+      <button data-testid="tab-pdf" disabled={!sized.length} onclick={exportPdf}>PDF</button>
+      <button title="전개도 맞춤" onclick={fit}>⤢</button>
+    </nav>
+  {/if}
+  <aside class="quote" class:hidden={app.compact && quoteMode === 'closed'} class:full={app.compact && quoteMode === 'full'} data-testid="quote-panel" data-mode={app.compact ? quoteMode : 'side'}>
     <header>
       <h2>견적</h2>
-      <span class="actions">
+      {#if app.compact}
+        <button class="icon" data-testid="quote-size" title={quoteMode === 'full' ? '줄이기' : '크게'} onclick={() => (quoteMode = quoteMode === 'full' ? 'half' : 'full')}>{quoteMode === 'full' ? '⤡' : '⤢'}</button>
+        <button class="icon" title="접기" data-testid="quote-close" onclick={() => (quoteMode = 'closed')}>✕</button>
+      {/if}
+      <span class="actions" class:hidden={app.compact}>
         {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
@@ -279,9 +299,18 @@
   .quote footer { padding: 12px 14px; border-top: 1px solid var(--line); }
   .sum { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; font-variant-numeric: tabular-nums; }
   .sum.total { font-size: 16px; font-weight: 800; color: var(--accent); margin: 4px 0 10px; }
+  .hidden { display: none !important; }
+  .ltabs { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); overflow-x: auto; scrollbar-width: none; }
+  .ltabs button { background: none; border: 0; color: var(--text); padding: 9px 10px; border-radius: 8px; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+  .ltabs button:disabled { opacity: 0.35; }
+  .ltabs .qt { display: flex; gap: 6px; align-items: center; margin-right: auto; }
+  .ltabs .qt b { color: var(--accent); }
+  .ltabs .qt.on { background: var(--hover); }
   @media (max-width: 720px) {
-    .quote { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 55%; }
-    .empty { padding-right: 0; padding-bottom: 55%; }
-    .quote header { flex-wrap: wrap; }
+    .quote { left: 8px; right: 8px; top: auto; bottom: 66px; width: auto; height: 50%; }
+    .quote.full { top: 8px; height: auto; }
+    .empty { padding-right: 0; padding-bottom: 80px; }
+    .quote header { justify-content: flex-start; }
+    .quote header h2 { flex: 1; }
   }
 </style>

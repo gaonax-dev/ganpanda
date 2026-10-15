@@ -143,3 +143,34 @@ test('창을 휴대폰 폭으로 줄였다 되돌려도 가로 스와이프(휠)
   const ob = await page.evaluate(() => [getComputedStyle(document.documentElement).overscrollBehaviorX, getComputedStyle(document.body).overscrollBehaviorX, getComputedStyle(document.querySelector('[role="toolbar"]')!).overscrollBehaviorX]);
   expect(ob).toEqual(['none', 'none', 'contain']);
 });
+
+test('휴대폰 리스트 뷰: 하단 탭에 견적·단가·주문·주문서·PDF, 견적 창은 접힘 → 반 → 전체 → 반 → 접힘', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    app.project.addObject({ photoId: app.photos[0].id, name: '간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600 });
+  });
+  await page.getByTestId('view-list').click();
+  const tabs = page.getByTestId('list-tabs');
+  await expect(tabs).toBeVisible();
+  await expect(tabs.getByTestId('quote-toggle')).toContainText('원'); // 합계
+  const panel = page.getByTestId('quote-panel');
+  await expect(panel).toBeHidden(); // 처음엔 접혀 전개도가 보인다
+  await tabs.getByTestId('quote-toggle').click();
+  await expect(panel).toBeVisible();
+  const half = (await panel.boundingBox())!.height;
+  await panel.getByTestId('quote-size').click();
+  await expect(panel).toHaveAttribute('data-mode', 'full');
+  expect((await panel.boundingBox())!.height).toBeGreaterThan(half + 100);
+  await panel.getByTestId('quote-size').click();
+  await expect(panel).toHaveAttribute('data-mode', 'half');
+  await tabs.getByTestId('quote-toggle').click();
+  await expect(panel).toBeHidden();
+  // 탭의 기능 버튼
+  await tabs.getByTestId('tab-prices').click();
+  await expect(page.getByTestId('close-prices')).toBeVisible();
+  await page.getByTestId('close-prices').click();
+  // 가로 넘침 없음
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+});
