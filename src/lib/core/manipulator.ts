@@ -223,6 +223,37 @@ export function turnGizmoOf(plane: RefPlane, tf: TurnFrame, lengthMm?: number) {
   };
 }
 
+/**
+ * 외곽선에 맞는 면 고르기 (2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다"): 벽 기준 직사각형만 제안하면
+ * 돌출 간판(벽에 직각인 면)에 그린 외곽선은 마름모가 된다. 후보 = 벽에 붙은 직사각형, 왼쪽/오른쪽 변을 벽 쪽으로 둔 직각(90°) 면.
+ * 직각 후보는 그린 가까운 변·먼 위 꼭짓점을 지나는 직각 면의 직사각형 — 브래킷으로 벽에서 떨어져 있어도 사진 위 모양은 같다
+ * (평행한 면 사이의 중심 투영은 닮음). 그린 꼭짓점과 가장 가까운 후보를 고른다. 카메라(원근 설정)가 없으면 벽 후보만
+ */
+export function fitPlacement(plane: RefPlane, quad: Pt[]): { quad: Pt[]; turn?: { deg: number; hinge: Hinge }; err: number } | null {
+  const err = (q: Pt[]) => q.reduce((s, p, i) => s + Math.hypot(p[0] - quad[i][0], p[1] - quad[i][1]), 0) / 4;
+  const wall = quadOf(plane, snapFrame(frameOf(plane, quad)));
+  let best: { quad: Pt[]; turn?: { deg: number; hinge: Hinge }; err: number } = { quad: wall, err: err(wall) };
+  if (!plane.pose) return best;
+  for (const hinge of ['left', 'right'] as const) {
+    const tf = readTurn(plane, quad, { deg: 90, hinge });
+    if (!tf) continue;
+    // 경첩 변이 수직에서 조금(10° 안) 기울었으면 수직으로 — 벽 축 맞춤과 같은 규칙
+    const a = Math.atan2(tf.up[0], tf.up[1]), snap = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+    const up: Pt = Math.abs(a - snap) <= (10 * Math.PI) / 180 ? [Math.sin(snap), Math.cos(snap)] : tf.up;
+    const right: Pt = [up[1], -up[0]];
+    const dir = hinge === 'left' ? right : mul(right, -1);
+    // 폭: 먼 위·먼 아래 꼭짓점의 시선이 직각 면과 만나는 거리의 평균 (한 점만 쓰면 손 떨림이 반대 꼭짓점에서 커진다)
+    const farBottom = hinge === 'left' ? quad[2] : quad[3];
+    const F: V3 = [0, 0, outOfWall(plane)], B3: V3 = [tf.hinge[0], tf.hinge[1], 0];
+    const Xb = hit(rayOf(plane.pose, farBottom), B3, cross3([up[0], up[1], 0], F));
+    const w = Xb && d3(sub3(Xb, B3), F) > 10 ? (tf.w + d3(sub3(Xb, B3), F)) / 2 : tf.w;
+    const q = turnedQuad(plane, { ...tf, up, dir, w });
+    const e = err(q);
+    if (e < best.err) best = { quad: q, turn: { deg: 90, hinge }, err: e };
+  }
+  return best;
+}
+
 /** 크기 모드: 왼쪽 아래 꼭짓점을 고정하고 to(면 mm)까지의 거리 비율로 가로·세로를 같이 (비율 유지) */
 export function scaleFrame(f: Frame, to: Pt): Frame {
   const anchor = add(sub(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2));

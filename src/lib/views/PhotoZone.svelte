@@ -8,7 +8,7 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
-  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, cornersOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, fitPlacement, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, readTurn, resizeFrame, rotateFrame, scaleFrame, skewOf, snapFrame, tiltOf, turnAngleAt, turnGizmoOf, turnedQuad, type Frame, type Hinge, type RefPlane, type TurnFrame } from '../core/manipulator';
   import { applyHomography } from '../core/homography';
   import { placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
@@ -180,8 +180,10 @@
     const box = boxGuideOf(projectionFromPlane(pl, photo.w, photo.h), q.map((p) => applyHomography(pl.Hinv, p)), depth);
     let target: ReturnType<typeof boxGuideOf> = null;
     if (cal && !turn && pl !== cal && skewOf(cal, q) > SKEW_ALERT) {
-      const fr = snapFrame(frameOf(cal, alignQuad(cal, q)));
-      target = boxGuideOf(projectionFromPlane(cal, photo.w, photo.h), cornersOf(fr), depth);
+      // 맞출 면(벽 또는 벽에 직각인 면) 그대로의 상자 — 돌출 간판 면에 그린 외곽선이면 직각 면의 상자
+      const fit = fitPlacement(cal, q);
+      const fp = fit && signPlaneOf({ ...o, quad: fit.quad, turn: fit.turn }, cal);
+      if (fit && fp) target = boxGuideOf(projectionFromPlane(fp, photo.w, photo.h), fit.quad.map((p) => applyHomography(fp.Hinv, p)), depth);
     }
     return box ? { box, target } : null;
   }
@@ -190,6 +192,9 @@
   function alignToPerspective(o: SignObject) {
     const plane = refPlaneOf(o);
     if (!plane) return;
+    // 돌출 간판 면에 그렸으면 직각(90°) 배치로 (2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다")
+    const fit = calib?.metric ? fitPlacement(plane, o.quad) : null;
+    if (fit?.turn && onplace) { onplace(o.id, fit.quad, fit.turn); return; }
     onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)))));
   }
 
@@ -560,10 +565,11 @@
             {@const tilt = tiltOf(fr)}
             <!-- 원근 매니퓰레이터: 외곽선이 원근에서 비틀렸거나 축에서 조금 기울었으면, 맞춘 모양을 점선으로 보여 주고 [원근에 맞추기] -->
             {#if !editing && calib?.metric && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10))}
-              {@const fixed = frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, q))))}
-              <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
+              {@const fit = fitPlacement(plane, q)}
+              {@const fixed = fit?.turn && onplace ? fit.quad : frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, q))))}
+              <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)} data-fit={fit?.turn && onplace ? 'perp' : 'wall'}>
                 <polygon class="guide" points={fixed.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * gu} stroke-dasharray="{6 * gu} {4 * gu}" />
-                {@render iconBtn([fixed[2][0] + 14 * gu, fixed[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
+                {@render iconBtn([fixed[2][0] + 14 * gu, fixed[2][1] + 14 * gu], '⊞', fit?.turn && onplace ? '벽에 직각인 면(돌출 간판)으로 맞추기' : `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
               </g>
             {/if}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>

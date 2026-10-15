@@ -262,3 +262,28 @@ test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)
   expect(after / before).toBeGreaterThan(1.7);
   expect(await page.evaluate(() => localStorage.getItem('ganpanda.gizmoSize'))).toBe('96');
 });
+
+test('돌출 간판 면에 그린 외곽선: 원근 제안이 벽 기준 마름모가 아니라 직각 면이고, [⊞]를 누르면 직각(90°) 배치가 된다', async ({ page, request }) => {
+  // 2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  // 정답 외곽선: 직각으로 세운 사인물의 사진 위 모양
+  const ref = await addSign(page, await rectOnWall(page, 1500, 3800, 1200, 900));
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, ref)).toEqual({ deg: 90, hinge: 'left' });
+  const truth = await quadOf(page, ref);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { removeObject(id: string): void } } }).__ganpanda.project.removeObject(id), ref);
+  // 사용자가 그 면을 손으로 그림 (돌리지 않은 사인물, 꼭짓점 몇 px 흔들림)
+  const drawn = truth.map(([x, y], i) => [x + [3, -2, 2, -3][i], y + [-2, 3, -3, 2][i]] as Pt);
+  const id = await addSign(page, drawn);
+  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('persp-guide')).toHaveAttribute('data-fit', 'perp');
+  await expect(page.getByTestId('persp-align').locator('title')).toHaveText(/직각/);
+  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'left' });
+  const q = await quadOf(page, id);
+  expect(Math.max(...q.map((p, i) => Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1])))).toBeLessThan(8);
+  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-turn', '90'); // 돌린 사인물 매니퓰레이터로
+});
