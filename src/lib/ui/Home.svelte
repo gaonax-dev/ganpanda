@@ -1,26 +1,36 @@
 <!--
-  홈: 로그인하면 내 프로젝트 + 프로젝트 그룹(계산서를 그룹에서 한번에), 아니면 로그인 안내.
-  2026-10-15 사용자: "프로젝트 그룹을 만들고 계산서를 그룹에서 한번에, 세부사항은 프로젝트 리스트뷰로, 상태 대기/진행중/완료,
-  정산은 받은 금액/계약 금액, 다 받으면 총금액만. 해당 내역은 오너는 기본으로, 멤버는 오너가 설정해 준다"
+  홈: 내 프로젝트 카드 + 프로젝트 그룹.
+  2026-10-15 사용자: "프로젝트를 시프트 키 상태에서 두 개를 잡고 오른쪽 마우스로 그룹 만들기. 리스트 뷰의 계산값이 계약 금액. 입금액은 표시를 클릭하면
+  입력란, 계약 금액도 사용자가 입력하면 그 금액이 표시되고 자동 계산 복구 버튼. 그룹은 두 프로젝트가 겹쳐진 것같이 표시, 클릭 시 폴딩.
+  그룹을 클릭하면 전체 정보·비용 계산서. 멤버 관리는 설정에서."
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { addGroupMember, createGroup, createProject, deleteGroup, getGroup, listGroups, listProjects, removeGroupMember, setGroupMember, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
+  import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
 
   let projects = $state<ProjectInfo[] | null>(null);
   let groups = $state<GroupInfo[]>([]);
-  /** 펼친 그룹의 상세 (프로젝트·멤버) */
   let views = $state<Record<string, GroupView>>({});
   let name = $state('');
-  let groupName = $state('');
-  let memberEmail = $state<Record<string, string>>({});
   let busy = $state(false);
+  /** 선택 모드(상단 ○ 선택 토글): 카드를 누르면 고르고, 하단 탭에 그룹·삭제 (2026-10-15 사용자: "시프트 대신 상단에 선택 버튼으로 토글하면 하단 탭에 기능 버튼 그룹, 삭제") */
+  let selectMode = $state(false);
+  let selected = $state<Set<string>>(new Set());
+  /** 하단 탭의 그룹 이름 입력 */
+  let naming = $state(false);
+  let groupName = $state('');
+  /** 펼친 그룹 */
+  let open = $state<Set<string>>(new Set());
+  /** 클릭해 입력 중인 금액 칸 */
+  let editing = $state<{ id: string; field: 'paid' | 'contract' } | null>(null);
 
   async function reload() {
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
-      for (const g of groups) views[g.id] = await getGroup(g.id);
+      const next: Record<string, GroupView> = {};
+      await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
+      views = next;
     } catch { projects ??= []; }
   }
   $effect(() => {
@@ -32,36 +42,87 @@
     const n = name.trim();
     if (!n || busy) return;
     busy = true;
-    try {
-      const p = await createProject(n);
-      location.href = `/?room=${p.id}`;
-    } finally { busy = false; }
+    try { const p = await createProject(n); location.href = `/?room=${p.id}`; } finally { busy = false; }
+  }
+  const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId));
+
+  // ---------- 선택 모드 ----------
+  function toggleSelectMode() { selectMode = !selectMode; selected = new Set(); naming = false; }
+  function toggle(id: string) {
+    const s = new Set(selected);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    selected = s;
+  }
+  function clickCard(e: MouseEvent, id: string) {
+    if (!selectMode) return; // 보통 클릭 = 링크로 이동
+    e.preventDefault();
+    toggle(id);
   }
   async function makeGroup() {
     const n = groupName.trim();
     if (!n || busy) return;
     busy = true;
-    try { await createGroup(n); groupName = ''; await reload(); } finally { busy = false; }
+    try {
+      const g = await createGroup(n, [...selected]);
+      selected = new Set(); naming = false; groupName = ''; selectMode = false;
+      await reload();
+      open = new Set([...open, g.id]);
+    } finally { busy = false; }
   }
+  async function addToGroup(groupId: string) {
+    const ids = [...selected];
+    selected = new Set(); selectMode = false;
+    for (const id of ids) await updateProject(id, { groupId });
+    await reload();
+    open = new Set([...open, groupId]);
+  }
+  async function ungroup() {
+    const ids = [...selected];
+    selected = new Set(); selectMode = false;
+    for (const id of ids) await updateProject(id, { groupId: null });
+    await reload();
+  }
+  async function removeSelected() {
+    const ids = [...selected];
+    const names = ids.map((id) => projects?.find((p) => p.id === id)?.name ?? id);
+    if (!confirm(`프로젝트 ${ids.length}개를 삭제할까요?\n${names.join(', ')}\n사진·사인물·대화가 모두 지워지고 되돌릴 수 없습니다.`)) return;
+    selected = new Set(); selectMode = false;
+    for (const id of ids) await deleteProject(id);
+    await reload();
+  }
+  const selectedGrouped = $derived([...selected].some((id) => projects?.find((p) => p.id === id)?.groupId));
+  async function removeGroup(g: GroupInfo) {
+    if (!confirm(`"${g.name}" 그룹을 지울까요? 프로젝트는 남습니다.`)) return;
+    await deleteGroup(g.id);
+    await reload();
+  }
+  function toggleGroup(id: string) {
+    const s = new Set(open);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    open = s;
+  }
+
+  // ---------- 정산 ----------
   async function patch(id: string, body: Parameters<typeof updateProject>[1]) {
     await updateProject(id, body);
     await reload();
   }
-  const date = (ts: number) => new Date(ts).toLocaleDateString('ko-KR');
   const num = (v: string) => Math.max(0, Math.round(Number(v) || 0));
-  /** 정산 표시: 다 받았으면 총금액만, 아니면 받은/계약 */
-  const settle = (p: { contractAmount?: number; paidAmount?: number }) => {
-    const c = p.contractAmount ?? 0, r = p.paidAmount ?? 0;
-    if (c > 0 && r >= c) return `총 ${won(c)}`;
-    return `${won(r)} / ${won(c)}`;
-  };
-  const paidUp = (p: { contractAmount?: number; paidAmount?: number }) => (p.contractAmount ?? 0) > 0 && (p.paidAmount ?? 0) >= (p.contractAmount ?? 0);
-  const totals = (ps: { contractAmount?: number; paidAmount?: number }[]) => {
+  const paidUp = (p: ProjectInfo) => (p.contractAmount ?? 0) > 0 && (p.paidAmount ?? 0) >= (p.contractAmount ?? 0);
+  const totals = (ps: ProjectInfo[]) => {
     const c = ps.reduce((a, p) => a + (p.contractAmount ?? 0), 0), r = ps.reduce((a, p) => a + (p.paidAmount ?? 0), 0);
-    return { c, r, due: Math.max(0, c - r) };
+    return { c, r, due: Math.max(0, c - r), allPaid: c > 0 && r >= c };
   };
-  const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId));
+  async function commitAmount(p: ProjectInfo, field: 'paid' | 'contract', value: string) {
+    editing = null;
+    const v = num(value);
+    if (field === 'paid') { if (v !== (p.paidAmount ?? 0)) await patch(p.id, { paidAmount: v }); }
+    else if (v !== (p.contractAmount ?? 0) || p.contractAuto) await patch(p.id, { contractAmount: v });
+  }
+  const date = (ts: number) => new Date(ts).toLocaleDateString('ko-KR');
 </script>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') { if (selectMode) toggleSelectMode(); editing = null; } }} />
 
 <div class="home">
   {#if !app.authReady}
@@ -72,94 +133,88 @@
       <form class="new" onsubmit={(e) => { e.preventDefault(); create(); }}>
         <input data-testid="new-project-name" placeholder="새 프로젝트 이름 (예: 간판다 카페)" bind:value={name} />
         <button class="btn primary" data-testid="new-project-submit" type="submit" disabled={busy || !name.trim()}>만들기</button>
+        {#if projects?.length}<button class="btn" type="button" class:on={selectMode} data-testid="select-mode" title="프로젝트를 골라 그룹으로 묶거나 삭제" onclick={toggleSelectMode}>{selectMode ? '◉ 선택 중' : '○ 선택'}</button>{/if}
       </form>
-      <form class="new" onsubmit={(e) => { e.preventDefault(); makeGroup(); }}>
-        <input data-testid="new-group-name" placeholder="새 그룹 이름 (예: 2026 하반기, ○○건설 발주)" bind:value={groupName} />
-        <button class="btn" data-testid="new-group-submit" type="submit" disabled={busy || !groupName.trim()}>그룹 만들기</button>
-      </form>
+      {#if selectMode}<p class="hint">카드를 눌러 고르세요. 아래 탭에서 그룹으로 묶거나 삭제합니다.</p>{/if}
 
-      {#each groups as g (g.id)}
-        {@const v = views[g.id]}
-        <article class="group" data-testid="group" data-id={g.id}>
-          <header>
-            <h2>{g.name} <small>{g.role === 'owner' ? '오너' : g.canBilling ? '멤버 · 정산 보기' : '멤버'}</small></h2>
-            {#if g.role === 'owner'}<button class="icon" title="그룹 삭제 (프로젝트는 남고 그룹에서만 빠짐)" data-testid="group-delete" onclick={async () => { if (confirm(`"${g.name}" 그룹을 지울까요? 프로젝트는 남습니다.`)) { await deleteGroup(g.id); await reload(); } }}>✕</button>{/if}
-          </header>
-          {#if v}
-            <table>
-              <thead><tr><th>프로젝트</th><th>상태</th>{#if g.canBilling}<th class="r">정산 (받은 / 계약)</th>{/if}</tr></thead>
-              <tbody>
-                {#each v.projects as p (p.id)}
-                  <tr data-testid="group-project" data-status={p.status} class:paid={paidUp(p)}>
-                    <td><a href="/?room={p.id}&view=list" title="세부 내역은 프로젝트의 리스트 뷰(견적)에서">{p.name}</a><small>{date(p.createdAt)}</small></td>
-                    <td>
-                      {#if g.role === 'owner'}
-                        <select data-testid="project-status" value={p.status} onchange={(e) => patch(p.id, { status: e.currentTarget.value as ProjectStatus })}>
-                          {#each Object.entries(STATUS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}
-                        </select>
-                      {:else}<span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span>{/if}
-                    </td>
-                    {#if g.canBilling}
-                      <td class="r">
-                        {#if g.role === 'owner'}
-                          <span class="amounts">
-                            <input data-testid="paid-amount" type="number" min="0" step="10000" value={p.paidAmount ?? 0} onchange={(e) => patch(p.id, { paidAmount: num(e.currentTarget.value) })} />
-                            <span>/</span>
-                            <input data-testid="contract-amount" type="number" min="0" step="10000" value={p.contractAmount ?? 0} onchange={(e) => patch(p.id, { contractAmount: num(e.currentTarget.value) })} />
-                          </span>
+      <div class="grid">
+        <!-- 그룹: 카드 두 장이 겹친 모양. 누르면 펼침/접힘 -->
+        {#each groups as g (g.id)}
+          {@const v = views[g.id]}
+          {@const t = v ? totals(v.projects) : null}
+          <div class="gwrap" class:open={open.has(g.id)}>
+            <button class="gcard" data-testid="group" data-id={g.id} data-open={open.has(g.id)} onclick={() => toggleGroup(g.id)} title="누르면 계산서를 펼치거나 접습니다">
+              <span class="stack"></span><span class="stack s2"></span>
+              <span class="face">
+                <b>{g.name}</b>
+                <small>{v ? `프로젝트 ${v.projects.length}개` : '…'}{g.role === 'member' ? ' · 멤버' : ''}</small>
+                {#if t && g.canBilling && v?.projects.length}<small class="sum" data-testid="group-summary">{t.allPaid ? `총 ${won(t.c)}` : `미수 ${won(t.due)}`}</small>{/if}
+              </span>
+            </button>
+            {#if open.has(g.id) && v}
+              <div class="bill" data-testid="group-bill">
+                <table>
+                  <thead><tr><th>프로젝트</th><th>상태</th>{#if g.canBilling}<th class="r">받은 금액 / 계약 금액</th>{/if}</tr></thead>
+                  <tbody>
+                    {#each v.projects as p (p.id)}
+                      <tr data-testid="group-project" data-status={p.status} class:paid={paidUp(p)} class:sel={selected.has(p.id)}>
+                        <td>{#if selectMode && g.role === 'owner'}<input type="checkbox" data-testid="row-select" checked={selected.has(p.id)} onchange={() => toggle(p.id)} /> {/if}<a href="/?room={p.id}&view=list" title="세부 내역은 프로젝트의 리스트 뷰(견적)에서">{p.name}</a><small>{date(p.createdAt)}</small></td>
+                        <td>
+                          {#if g.role === 'owner'}
+                            <select data-testid="project-status" value={p.status} onchange={(e) => patch(p.id, { status: e.currentTarget.value as ProjectStatus })}>
+                              {#each Object.entries(STATUS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}
+                            </select>
+                          {:else}<span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span>{/if}
+                        </td>
+                        {#if g.canBilling}
+                          <td class="r amounts">
+                            {#if paidUp(p) && editing?.id !== p.id}
+                              <!-- 다 받았으면 총금액만 (누르면 받은 금액 수정) -->
+                              <button class="amt total" data-testid="settle" disabled={g.role !== 'owner'} onclick={() => (editing = { id: p.id, field: 'paid' })}>총 {won(p.contractAmount ?? 0)}</button>
+                            {:else}
+                              {#if editing?.id === p.id && editing.field === 'paid'}
+                                <!-- svelte-ignore a11y_autofocus -->
+                                <input data-testid="paid-input" type="number" min="0" step="10000" value={p.paidAmount ?? 0} autofocus onkeydown={(e) => { if (e.key === 'Enter') commitAmount(p, 'paid', e.currentTarget.value); if (e.key === 'Escape') editing = null; }} onblur={(e) => commitAmount(p, 'paid', e.currentTarget.value)} />
+                              {:else}
+                                <button class="amt" data-testid="paid" disabled={g.role !== 'owner'} title="누르면 입금액 입력" onclick={() => (editing = { id: p.id, field: 'paid' })}>{won(p.paidAmount ?? 0)}</button>
+                              {/if}
+                              <span>/</span>
+                              {#if editing?.id === p.id && editing.field === 'contract'}
+                                <!-- svelte-ignore a11y_autofocus -->
+                                <input data-testid="contract-input" type="number" min="0" step="10000" value={p.contractAmount ?? 0} autofocus onkeydown={(e) => { if (e.key === 'Enter') commitAmount(p, 'contract', e.currentTarget.value); if (e.key === 'Escape') editing = null; }} onblur={(e) => commitAmount(p, 'contract', e.currentTarget.value)} />
+                              {:else}
+                                <button class="amt" data-testid="contract" data-auto={p.contractAuto} disabled={g.role !== 'owner'} title={p.contractAuto ? '리스트 뷰 견적 합계 (자동). 누르면 직접 입력' : '직접 입력한 계약 금액'} onclick={() => (editing = { id: p.id, field: 'contract' })}>{won(p.contractAmount ?? 0)}{#if p.contractAuto}<i>자동</i>{/if}</button>
+                              {/if}
+                              {#if !p.contractAuto && g.role === 'owner'}<button class="link" data-testid="contract-auto" title="리스트 뷰 견적 합계로 되돌림" onmousedown={(e) => e.preventDefault()} onclick={() => { editing = null; patch(p.id, { contractAmount: null }); }}>자동 계산 복구</button>{/if}
+                            {/if}
+                          </td>
                         {/if}
-                        <b data-testid="settle">{settle(p)}</b>
-                      </td>
-                    {/if}
-                  </tr>
-                {:else}
-                  <tr><td colspan="3" class="hint">아직 프로젝트가 없습니다. 아래 목록에서 프로젝트를 이 그룹에 넣으세요.</td></tr>
-                {/each}
-              </tbody>
-              {#if g.canBilling && v.projects.length}
-                {@const t = totals(v.projects)}
-                <tfoot><tr data-testid="group-totals"><td>계산서 합계 · {v.projects.length}건</td><td>미수 {won(t.due)}</td><td class="r"><b>{t.r >= t.c && t.c > 0 ? `총 ${won(t.c)}` : `${won(t.r)} / ${won(t.c)}`}</b></td></tr></tfoot>
-              {/if}
-            </table>
-            {#if g.role === 'owner'}
-              <div class="members">
-                <span class="label">멤버</span>
-                {#each v.members ?? [] as m (m.accountId)}
-                  <span class="member" data-testid="group-member">{m.name || m.email}
-                    <label class="chk"><input type="checkbox" data-testid="member-billing" checked={m.canBilling} onchange={async (e) => { await setGroupMember(g.id, m.accountId, e.currentTarget.checked); await reload(); }} /> 정산 보기</label>
-                    <button class="icon" title="멤버 제거" onclick={async () => { await removeGroupMember(g.id, m.accountId); await reload(); }}>✕</button>
-                  </span>
-                {/each}
-                <form class="add" onsubmit={async (e) => { e.preventDefault(); const em = (memberEmail[g.id] ?? '').trim(); if (!em) return; try { await addGroupMember(g.id, em, false); memberEmail[g.id] = ''; await reload(); } catch { app.notice = '그 이메일로 가입한 계정이 없습니다. 먼저 로그인해 계정을 만들게 해 주세요.'; } }}>
-                  <input data-testid="member-email" placeholder="멤버 이메일 (가입된 계정)" value={memberEmail[g.id] ?? ''} oninput={(e) => (memberEmail[g.id] = e.currentTarget.value)} />
-                  <button class="btn small" data-testid="member-add" type="submit">추가</button>
-                </form>
+                      </tr>
+                    {:else}
+                      <tr><td colspan="3" class="hint">프로젝트가 없습니다. 프로젝트 카드를 Shift 로 고르고 오른쪽 클릭 → 그룹에 넣기.</td></tr>
+                    {/each}
+                  </tbody>
+                  {#if g.canBilling && v.projects.length && t}
+                    <tfoot><tr data-testid="group-totals"><td>계산서 · {v.projects.length}건</td><td>미수 {won(t.due)}</td><td class="r"><b>{t.allPaid ? `총 ${won(t.c)}` : `${won(t.r)} / ${won(t.c)}`}</b></td></tr></tfoot>
+                  {/if}
+                </table>
+                {#if g.role === 'owner'}<div class="gactions"><button class="link" data-testid="group-delete" onclick={() => removeGroup(g)}>그룹 삭제 (프로젝트는 남음)</button></div>{/if}
               </div>
             {/if}
-          {:else}<p class="hint">불러오는 중…</p>{/if}
-        </article>
-      {/each}
+          </div>
+        {/each}
 
-      {#if projects === null}
-        <p class="hint">불러오는 중…</p>
-      {:else if !projects.length}
-        <p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>
-      {:else if ungrouped.length}
-        <h2 class="sub">{groups.length ? '그룹 없는 프로젝트' : '프로젝트'}</h2>
-        <ul>
-          {#each ungrouped as p (p.id)}
-            <li>
-              <a data-testid="project-item" href="/?room={p.id}"><b>{p.name}</b><small>{STATUS_LABEL[p.status]} · {date(p.createdAt)}</small></a>
-              {#if groups.some((g) => g.role === 'owner')}
-                <select class="assign" data-testid="project-group" value="" onchange={(e) => { const id = e.currentTarget.value; if (id) patch(p.id, { groupId: id }); }}>
-                  <option value="">그룹에 넣기…</option>
-                  {#each groups.filter((g) => g.role === 'owner') as g (g.id)}<option value={g.id}>{g.name}</option>{/each}
-                </select>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
+        <!-- 프로젝트 카드 (그룹 밖) -->
+        {#each ungrouped as p (p.id)}
+          <a class="pcard" data-testid="project-item" data-id={p.id} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
+            {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
+            <b>{p.name}</b>
+            <small><span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span> · {date(p.createdAt)}</small>
+          </a>
+        {/each}
+      </div>
+      {#if projects === null}<p class="hint">불러오는 중…</p>
+      {:else if !projects.length}<p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>{/if}
     </section>
   {:else}
     <section class="landing">
@@ -170,22 +225,58 @@
   {/if}
 </div>
 
+{#if selectMode}
+  <div class="bar" data-testid="select-bar">
+    <span class="count">{selected.size}개 선택</span>
+    {#if naming}
+      <form onsubmit={(e) => { e.preventDefault(); makeGroup(); }}>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input data-testid="group-name" placeholder="그룹 이름" bind:value={groupName} autofocus />
+        <button class="btn small primary" data-testid="group-create" type="submit" disabled={!groupName.trim() || busy}>만들기</button>
+        <button class="btn small" type="button" onclick={() => (naming = false)}>취소</button>
+      </form>
+    {:else}
+      <button class="btn small primary" data-testid="bar-group" disabled={!selected.size} onclick={() => (naming = true)}>그룹</button>
+      {#if groups.some((g) => g.role === 'owner')}
+        <select data-testid="bar-add-to-group" value="" disabled={!selected.size} onchange={(e) => { const id = e.currentTarget.value; if (id) addToGroup(id); }}>
+          <option value="">기존 그룹에 넣기…</option>
+          {#each groups.filter((g) => g.role === 'owner') as g (g.id)}<option value={g.id}>{g.name}</option>{/each}
+        </select>
+      {/if}
+      {#if selectedGrouped}<button class="btn small" data-testid="bar-ungroup" onclick={ungroup}>그룹에서 빼기</button>{/if}
+      <button class="btn small danger" data-testid="bar-delete" disabled={!selected.size} onclick={removeSelected}>삭제</button>
+      <button class="btn small" data-testid="bar-cancel" onclick={toggleSelectMode}>취소</button>
+    {/if}
+  </div>
+{/if}
+
 <style>
-  .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 48px 16px; }
-  section { width: min(760px, 100%); }
-  h1 { font-size: 22px; margin: 0 0 16px; }
-  h2.sub { font-size: 14px; color: var(--muted); margin: 18px 0 8px; }
-  .new { display: flex; gap: 8px; margin-bottom: 10px; }
-  ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  li { display: flex; gap: 8px; align-items: center; }
-  li a { flex: 1; display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); text-decoration: none; background: var(--panel); }
-  li a:hover { border-color: var(--accent); }
-  li small { color: var(--muted); }
-  .assign { width: 150px; }
-  .group { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-  .group header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .group h2 { margin: 0; font-size: 16px; }
-  .group h2 small { color: var(--muted); font-size: 11px; font-weight: 400; margin-left: 6px; }
+  .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
+  section { width: min(900px, 100%); }
+  h1 { font-size: 22px; margin: 0 0 14px; }
+  .new { display: flex; gap: 8px; margin-bottom: 12px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin-top: 10px; }
+  /* 프로젝트 카드 */
+  .pcard { width: 200px; min-height: 86px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); text-decoration: none; user-select: none; }
+  .pcard:hover { border-color: var(--accent); }
+  .pcard.sel { outline: 2px solid var(--accent); outline-offset: 1px; background: rgba(255, 204, 0, 0.08); }
+  .pcard b { font-size: 14px; }
+  .pcard small, .gcard small { color: var(--muted); font-size: 11px; }
+  .status[data-status='ongoing'] { color: var(--accent); }
+  .status[data-status='done'] { color: var(--ok); }
+  .status[data-status='waiting'] { color: var(--muted); }
+  /* 그룹: 카드 두 장이 겹친 모양 */
+  .gwrap { display: flex; flex-direction: column; gap: 8px; }
+  .gwrap.open { flex-basis: 100%; }
+  .gcard { position: relative; width: 200px; min-height: 86px; padding: 0; border: 0; background: none; cursor: pointer; text-align: left; font: inherit; color: var(--text); }
+  .stack { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); transform: translate(8px, -8px) rotate(2deg); opacity: 0.7; }
+  .stack.s2 { transform: translate(4px, -4px) rotate(1deg); opacity: 0.85; }
+  .face { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 86px; padding: 14px; border: 1px solid var(--accent); border-radius: 12px; background: var(--panel); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+  .gwrap.open .face { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .face b { font-size: 14px; }
+  .sum { color: var(--text) !important; font-weight: 600; }
+  .bill { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 10px 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
   td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -193,26 +284,28 @@
   td a:hover { color: var(--accent); }
   td small { display: block; color: var(--muted); font-size: 11px; }
   .r { text-align: right; }
-  .amounts { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
-  .amounts input { width: 110px; text-align: right; padding: 4px 6px; font-size: 12px; }
-  tr.paid b { color: var(--ok); }
-  .status[data-status='ongoing'] { color: var(--accent); }
-  .status[data-status='done'] { color: var(--ok); }
-  .status[data-status='waiting'] { color: var(--muted); }
-  select { width: auto; padding: 4px 6px; font-size: 12px; }
+  .amounts { white-space: nowrap; }
+  .amt { background: none; border: 1px dashed transparent; color: var(--text); font: inherit; font-size: 13px; padding: 2px 6px; border-radius: 6px; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .amt:not(:disabled):hover { border-color: var(--line); background: var(--input); }
+  .amt:disabled { cursor: default; }
+  .amt i { font-style: normal; font-size: 10px; color: var(--muted); margin-left: 4px; }
+  .amt.total { color: var(--ok); font-weight: 700; }
+  .amounts input { width: 120px; text-align: right; padding: 3px 6px; font-size: 13px; }
+  .link { background: none; border: 0; color: var(--blue); text-decoration: underline; cursor: pointer; font: inherit; font-size: 11px; padding: 0 4px; }
   tfoot td { border-bottom: 0; padding-top: 10px; font-weight: 600; }
-  .members { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
-  .members .label { color: var(--muted); }
-  .member { display: inline-flex; align-items: center; gap: 6px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 4px 2px 10px; }
-  .chk { flex-direction: row; align-items: center; gap: 4px; font-size: 11px; }
-  .members .add { display: flex; gap: 6px; margin-left: auto; }
-  .members .add input { width: 220px; padding: 5px 8px; font-size: 12px; }
+  .gactions { display: flex; justify-content: flex-end; margin-top: 6px; }
+  select { width: auto; padding: 4px 6px; font-size: 12px; }
+  /* 선택 모드 하단 탭 */
+  .bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center; }
+  .bar .count { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  .bar form { display: flex; gap: 6px; }
+  .bar form input { width: 180px; }
+  .btn.on { border-color: var(--accent); color: var(--accent); }
+  .pcard.picking { cursor: pointer; }
+  .pick { position: absolute; top: 8px; right: 10px; color: var(--accent); font-size: 14px; }
+  .pcard { position: relative; }
+  tr.sel td { background: rgba(255, 204, 0, 0.08); }
   .landing { text-align: center; margin-top: 60px; }
   .landing p { color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
-  @media (max-width: 720px) {
-    .amounts { display: flex; margin: 0 0 4px; }
-    .amounts input { width: 90px; }
-    .members .add { margin-left: 0; }
-    .members .add input { width: 160px; }
-  }
+  @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
 </style>

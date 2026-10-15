@@ -6,6 +6,7 @@ import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
 import { handleGroups } from './groups';
+import { handleTeam } from './team';
 import { handleSocial } from './social';
 import { handlePrices } from './prices';
 import { json, readJson, text } from './http';
@@ -215,6 +216,7 @@ export default {
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
+    if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
