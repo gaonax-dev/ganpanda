@@ -48,7 +48,19 @@ test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
   await expect(page.getByTestId('gizmo')).toBeVisible();
-  for (const t of ['gizmo-x', 'gizmo-z', 'gizmo-move', 'gizmo-rotate', 'gizmo-width', 'gizmo-height']) await expect(page.getByTestId(t)).toHaveCount(1);
+  // 모드: 이동(기본) → 회전 → 크기, 모드마다 손잡이가 다르다
+  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move');
+  for (const t of ['gizmo-x', 'gizmo-z', 'gizmo-move']) await expect(page.getByTestId(t)).toHaveCount(1);
+  await expect(page.getByTestId('gizmo-rotate')).toHaveCount(0);
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  for (const t of ['gizmo-rotate', 'gizmo-turn', 'gizmo-perp']) await expect(page.getByTestId(t)).toHaveCount(1);
+  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  for (const t of ['gizmo-width', 'gizmo-height', 'gizmo-scale']) await expect(page.getByTestId(t)).toHaveCount(1);
+  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
+  // 작게: X 화살표가 화면에서 약 48px
+  const c = (await page.getByTestId('gizmo-move').boundingBox())!, xh = (await page.getByTestId('gizmo-x').boundingBox())!;
+  const lenPx = Math.hypot(xh.x + xh.width / 2 - (c.x + c.width / 2), xh.y + xh.height / 2 - (c.y + c.height / 2));
+  expect(lenPx).toBeGreaterThan(35); expect(lenPx).toBeLessThan(65);
   await expect(page.getByTestId('persp-guide')).toHaveCount(0); // 원근 직사각형이면 원근 매니퓰레이터는 안 뜸
   const before = await quadOf(page, id);
   await drag(page, 'gizmo-x', 120, 30); // 세로 성분은 무시
@@ -60,7 +72,8 @@ test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡
   // 옮긴 뒤에도 원근 직사각형 그대로 (원근 매니퓰레이터 없음)
   await expect(page.getByTestId('persp-guide')).toHaveCount(0);
   // 회전 고리로 돌리면 기울어진다 → 축에서 조금 기울면 원근 매니퓰레이터가 [원근에 맞추기] 제안
-  await drag(page, 'gizmo-rotate', 0, 12);
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await drag(page, 'gizmo-rotate', 0, 8);
   await expect(page.getByTestId('persp-guide')).toBeVisible();
   await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('persp-guide')).toHaveCount(0);
@@ -123,6 +136,7 @@ test('3단계 벽에서 돌려 세우기: [⟂ 벽에 직각] → 90°(경첩 �
   await setCamera(page);
   const flat = await rectOnWall(page, 1500, 3800, 2000, 800);
   const id = await addSign(page, flat);
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('gizmo-turn')).toHaveCount(1);
   await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'left' });
@@ -153,11 +167,40 @@ test('3단계 벽에서 돌려 세우기: [⟂ 벽에 직각] → 90°(경첩 �
   await expect(page.getByTestId('gizmo-perp')).toHaveCount(1);
 });
 
+test('크기 모드: 노란 모서리 손잡이는 비율 유지, 흰 손잡이는 가로·세로 따로', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const id = await addSign(page, await rectOnWall(page, 1000, 3800, 2000, 800));
+  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  // 벽 위 크기(mm)로 잰다 — 사진 px 비율은 원근 때문에 자리마다 다르다
+  const wallSize = () => page.evaluate(async (id) => {
+    const mp = '/src/lib/core/manipulator.ts'; const { frameOf } = await import(/* @vite-ignore */ mp);
+    const wp = '/src/lib/core/wallPlane.ts'; const { wallPlaneOf } = await import(/* @vite-ignore */ wp);
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; calibrations: Map<string, unknown>; objects: { id: string; quad: Pt[] }[] } }).__ganpanda;
+    const plane = wallPlaneOf([], app.calibrations.get(app.photos[0].id));
+    const f = frameOf(plane, app.objects.find((o) => o.id === id)!.quad);
+    return [f.w, f.h] as [number, number];
+  }, id);
+  const side = async () => wallSize();
+  const [w0, h0] = await side();
+  await drag(page, 'gizmo-scale', 40, -15);
+  const [w1, h1] = await side();
+  expect(w1).toBeGreaterThan(w0 * 1.1);
+  expect(w1 / h1).toBeCloseTo(w0 / h0, 1); // 시작 외곽선은 합성 사진에서 그려 카메라 직사각형과 0.3% 정도 다르다
+  await drag(page, 'gizmo-width', 30, 0);
+  const [w2, h2] = await side();
+  expect(w2).toBeGreaterThan(w1);
+  expect(Math.abs(h2 - h1)).toBeLessThan(1);
+});
+
 test('원근 설정이 없는 사진에는 돌려 세우기 손잡이가 없다 (카메라가 있어야 정확)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
   await expect(page.getByTestId('gizmo')).toBeVisible();
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('gizmo-rotate')).toHaveCount(1);
   await expect(page.getByTestId('gizmo-turn')).toHaveCount(0);
   await expect(page.getByTestId('gizmo-perp')).toHaveCount(0);
 });
@@ -167,6 +210,7 @@ test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ p
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
+  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => turnOf(page, id)).not.toBeNull();
   await page.getByTestId('stage-3d').click();

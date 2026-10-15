@@ -1,9 +1,10 @@
 // 실사 합성(5차)용 벽면 좌표계: 사진 px ↔ 벽면 mm (X 오른쪽, Y 위, 원점 = 영역들의 좌하단)
 // 기준선 보정이 적용된 사진은 그 보정으로, 아니면 치수를 입력한 첫 영역(실측 판독과 같은 규칙)으로 벽면을 정한다.
 import type { Calibration } from './calibration';
-import { DEFAULT_FOCAL_RATIO, applyHomography, estimateFocal, recoverPose, solveHomography, type CameraPose, type Pt } from './homography';
+import { DEFAULT_FOCAL_RATIO, applyHomography, estimateFocal, projectPoint, recoverPose, solveHomography, type CameraPose, type Pt } from './homography';
 import { isValidQuad } from './measure';
 import type { SignObject } from './model';
+import { SKEW_ALERT, readTurn, skewOf, turnedPlane } from './manipulator';
 
 export interface WallPlane {
   /** 벽면 mm → 사진 px */
@@ -139,4 +140,26 @@ export function poseOfPlane(plane: WallPlane, imgW: number, imgH: number, span =
   const centered = img.map(([u, v]) => [u - imgW / 2, v - imgH / 2] as Pt);
   const f = estimateFocal(solveHomography(wall, centered), imgW, imgH) ?? DEFAULT_FOCAL_RATIO * Math.max(imgW, imgH);
   return recoverPose(img, span, span, imgW, imgH, f);
+}
+
+/**
+ * 사인물 하나를 3D 로 그릴 면 (2026-10-15 사용자: "실제 입력 길이로 인해 3D 각도에 영향을 주는 것 같아… 원근 설정되었고 오브젝트를 원근 각도에 맞춘 거면 각도는 이쪽에 우선").
+ * - 원근 설정(카메라)이 있고 외곽선이 그 원근의 직사각형이면(비틀림 ≤ 3°) → 원근 설정의 벽면·카메라 그대로. 크기는 사진에서 잰 값 (입력 치수는 각도에 영향 없음)
+ * - 벽에서 돌려 세운 사인물 → 원근 카메라를 돌린 면으로
+ * - 그 외(원근 없음, 손으로 비튼 외곽선) → 사인물 자신의 면 (그린 자리에 맞물림 우선)
+ */
+export function signPlaneOf(o: SignObject, cal: WallPlane | null): WallPlane | null {
+  if (cal?.source === 'calibration' && cal.pose && isValidQuad(o.quad)) {
+    if (o.turn) {
+      const tf = readTurn(cal, o.quad, o.turn);
+      const tp = tf && turnedPlane(cal, tf);
+      if (tf && tp) {
+        const rect: Pt[] = [[0, tf.h], [tf.w, tf.h], [tf.w, 0], [0, 0]];
+        const proj = rect.map(([x, y]) => projectPoint(tp.pose, [x, y, 0]));
+        const H = solveHomography(rect, proj), Hinv = solveHomography(proj, rect);
+        return { H, Hinv, source: 'calibration', pose: tp.pose, referenceId: o.id };
+      }
+    } else if (skewOf(cal, o.quad) <= SKEW_ALERT) return cal;
+  }
+  return wallPlaneOf([o], null);
 }
