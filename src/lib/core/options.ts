@@ -1,7 +1,7 @@
 // 주문 사양 옵션 스키마 (2026-10-14 사용자 요청: 사인물 통합 주문): 종류마다 옵션을 데이터로 두고 설정 창이 폼을 그린다.
 // 새 품목·옵션은 여기에 한 줄 추가. 값은 SignObject.options (키 → 값) 에 저장되고, 조합 규칙은 `when` 으로.
 import type { SignObject } from './model';
-import { CHANNEL_NONE, CHANNEL_OPTIONS, productById } from './catalog';
+import { CHANNEL_NONE, CHANNEL_OPTIONS, NO_CHANNEL, productById } from './catalog';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -41,6 +41,8 @@ const CHANNEL_FIELDS: OptionField[] = [
 /** 제품별 옵션 (주문 사양) */
 export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   'board-flex': [SIDES, sel('light', '내부 조명', ['LED', '형광등', '비조명'])],
+  // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
+  'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체')],
   'board-galva': [sel('form', '형태', ['돌출형', '일체형(전면)']), sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 'T5 LED 전구색', '측면 LED 바']), ...paint('paint', '도색')],
   'board-foamex': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
   'board-acp': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
@@ -84,7 +86,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const p = productById(o.productId);
   if (p) {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
-    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(p.category === 'board' ? CHANNEL_FIELDS : [])]);
+    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(p.category === 'board' && !NO_CHANNEL.has(p.id) ? CHANNEL_FIELDS : [])]);
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }
