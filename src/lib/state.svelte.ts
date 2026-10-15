@@ -220,6 +220,8 @@ class AppState {
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
+    const v = url.searchParams.get('view'); // 홈 그룹의 프로젝트 링크 → 바로 리스트 뷰(견적 세부)
+    if (v === 'list' || v === 'uv' || v === 'board') this.view = v;
     if (this.room && inviteParam) {
       save(`ganpanda.invite.${this.room}`, inviteParam);
       history.replaceState(null, '', `/?room=${this.room}${this.proposalMode ? '&proposal=1' : ''}`); // 주소에서 토큰 제거

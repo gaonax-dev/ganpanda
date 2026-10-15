@@ -5,6 +5,7 @@ import { planOf } from './plans';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
+import { handleGroups } from './groups';
 import { handleSocial } from './social';
 import { handlePrices } from './prices';
 import { json, readJson, text } from './http';
@@ -215,6 +216,7 @@ export default {
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me') return withCors(await handleAuth(req, env, pathname));
+    if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
     // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)

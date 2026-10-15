@@ -25,6 +25,13 @@
 - **viewer 화면**: 그리기 도구·사진 추가 없음("보기·대화만 가능"), 영역 이동·모서리·삭제 불가, 패널 입력칸 비활성, 전개도 위치 이동 불가. 대화·코멘트는 `POST /api/rooms/:id/messages`로 보냅니다(`app.sendMessage`).
 - **표시 이름 우선순위**: 계정 이름 > 기기에 정한 이름 > 이메일 앞부분.
 
+## 프로젝트 그룹 · 상태 · 정산 (2026-10-15)
+사용자: "프로젝트 그룹을 만들 수 있게 해 주고 계산서를 그룹에서 한번에 볼 수 있게, 세부사항은 프로젝트 리스트 뷰로, 상태 표시도 대기·진행중·완료, 정산 상태도 받은 금액/계약 금액으로 하고 다 받으면 총금액만 보이게. 해당 내역은 오너는 기본으로, 멤버는 오너가 설정해 준다."
+- **홈**(`Home.svelte`): [그룹 만들기](`new-group-name/-submit`) → 그룹 카드(`group`)에 프로젝트 표: 이름(링크 `?room=&view=list` → 바로 **리스트 뷰(견적 세부)**), **상태**(`project-status`: 대기/진행중/완료, 오너만 바꿈), **정산**(`settle`: "받은 / 계약", 다 받으면 **"총 {계약}"** 만, 오너는 `paid-amount`/`contract-amount` 입력) + **계산서 합계**(`group-totals`: 건수, 미수, 받은/계약 또는 총). 그룹 없는 프로젝트 목록에는 [그룹에 넣기…](`project-group`). 그룹 삭제는 프로젝트를 남기고 그룹만 지움.
+- **멤버**: 오너가 가입된 계정의 **이메일**로 추가(`member-email/-add`). 멤버는 그룹·프로젝트·상태를 보고, **정산 금액은 오너가 "정산 보기"(`member-billing`)를 켜 준 멤버만** 봅니다(서버가 금액을 빼고 보냄). 상태·금액·멤버 관리는 오너만. 멤버는 프로젝트를 여는 권한과는 별개(열려면 초대 링크).
+- 데이터: D1 `groups`, `group_members(can_billing)`, `projects.group_id/status/contract_amount/paid_amount` (`server/migrations/0006_groups.sql`). API → [../server/api.md](../server/api.md). 테스트: `server/test/groups.test.ts`, `tests/e2e/groups.spec.ts`.
+- `?view=list|board|uv` 로 들어가면 그 뷰로 시작(`app.view`).
+
 ## 새 배포 안내 (2026-10-15)
 오래 열어 둔 탭이 옛 코드로 계속 동작해 "배포했는데 그대로"가 되던 문제. 운영 빌드에서 탭이 다시 보일 때·포커스 때(최대 1분에 한 번, 시작 30초 뒤 한 번) 서버 `index.html` 의 번들 이름(`/assets/index-<hash>.js`)과 실행 중인 번들을 비교(`core/version.ts`)해 다르면 상단 배너 `update-available` "새 버전이 배포되었습니다 [새로고침]". 개발 서버에서는 번들 이름이 없어 동작하지 않음. 단위 테스트 `tests/unit/version.test.ts`.
 
