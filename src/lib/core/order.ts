@@ -1,7 +1,8 @@
 // 주문 (2026-10-14): 프로젝트 주문 정보 + 사인물 사양 + 파일 → 주문서·JSON
+import { partLabel, partsOf } from './parts';
 import { categoryOf, CATEGORY_GROUPS, productById, sheetById } from './catalog';
 import type { DesignSource, SignObject } from './model';
-import { describeOptions, effectiveOptions } from './options';
+import { describeOptions, effectiveOptions, effectivePartOptions } from './options';
 import type { Quote } from './quote';
 
 export type DeliveryType = 'install' | 'ship' | 'pickup';
@@ -21,6 +22,8 @@ export interface OrderInfo {
 
 export interface OrderItem {
   id: string;
+  /** 조합형 구성 요소 (2026-10-16) */
+  parts?: { kind: string; type: string; label: string; on?: string; options: Record<string, string | boolean>; items: Omit<import('./model').PartItem, 'id'>[] }[];
   name: string;
   category: string;
   type: string;
@@ -70,6 +73,8 @@ export function orderJson(args: {
       sheets: o.sheetIds.map((id) => sheetById(id)?.name ?? id),
       options: effectiveOptions(o),
       option_summary: describeOptions(o, { defaults: true }),
+      // 조합형 구성 요소 (2026-10-16): 종류·이름·옵션(기본값 포함)·글자·그림
+      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...(p.on ? { on: p.on } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
       ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), ...(o.depthMm ? { depth_mm: Math.round(o.depthMm) } : {}), estimated: sz.estimated } } : {}),
       ...(o.text ? { text: o.text } : {}),
       ...(src ? { design_file: `${src.name} (${o.design!.page + 1}쪽)` } : {}),

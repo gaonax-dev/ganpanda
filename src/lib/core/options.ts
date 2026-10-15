@@ -3,6 +3,7 @@
 import type { SignObject } from './model';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
+import { describeParts } from './parts';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -180,6 +181,25 @@ export const SHEET_OPTIONS: Record<string, OptionField[]> = {
 };
 const SCASHI_IDS = ['ch-rubber', 'sc-titan', 'ch-scashi'];
 
+/**
+ * 구성 요소의 옵션 (조합형, 2026-10-16): 채널 = 채널 세부(채널 선택 제외, 고른 채널 종류 기준 조건), 스카시 = 두께·재질·도색(+ 표면 마감·문자), 시트 = 시트 공통 + 시트별.
+ * 조건부 필드는 구성 요소 자신의 옵션 값으로 거른다
+ */
+export function partOptionFields(part: import('./model').SignPart): OptionField[] {
+  const opts: Options = { ...(part.options ?? {}) };
+  if (part.kind === 'channel') {
+    const ctx = { ...opts, channel: CHANNEL_OPTIONS.find((c) => c.id === part.type)?.label ?? CHANNEL_NONE };
+    return CHANNEL_FIELDS.slice(1).filter((f) => f.key !== 'chHeight' && (!f.when || f.when(ctx, {} as SignObject)));
+  }
+  const fs = part.kind === 'scashi' ? PRODUCT_OPTIONS[part.type] ?? [] : [...SHEET_COMMON_OPTIONS, ...(SHEET_OPTIONS[part.type] ?? [])];
+  return fs.filter((f) => !f.when || f.when(opts, {} as SignObject));
+}
+
+/** 구성 요소 옵션의 실제 값 (기본값 채움) — 주문 JSON 용 */
+export function effectivePartOptions(part: import('./model').SignPart): Options {
+  return Object.fromEntries(partOptionFields(part).map((f) => [f.key, optionValue(f, part.options ?? {})]));
+}
+
 /** 이 사인물에 보여 줄 옵션 묶음 (조건부 필드는 현재 값으로 거른다) */
 export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const opts = o.options ?? {};
@@ -188,7 +208,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const p = productById(o.productId);
   if (p) {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
-    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS, ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션
+    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...(o.parts ? [] : [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS]), ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션. 조합형(parts)이면 채널·스카시는 구성 요소 카드에서
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }
@@ -213,7 +233,11 @@ function describeField(f: OptionField, v: OptionValue | undefined): string | nul
  */
 export function describeOptions(o: SignObject, { defaults = false } = {}): string[] {
   const opts = o.options ?? {};
-  return optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s));
+  const fromOptions = optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s));
+  if (!o.parts) return fromOptions;
+  // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16)
+  const lines = describeParts(o);
+  return [...fromOptions, ...o.parts.flatMap((p, i) => [lines[i], ...partOptionFields(p).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
 }
 
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */

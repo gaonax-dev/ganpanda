@@ -26,6 +26,30 @@ export interface Photo {
 }
 
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */
+/** 내용 객체 (글자·그림): 간판 중앙 기준 위치(mm, x 오른쪽 +, y 위 +), 높이 h(글자 높이·그림 높이), 그림·시트 면적용 가로 w */
+export interface PartItem {
+  id: string;
+  kind: 'text' | 'image';
+  text?: string;
+  /** 글자수 직접 지정 (없으면 문구에서 셈) */
+  count?: number;
+  x: number;
+  y: number;
+  h: number;
+  w?: number;
+  /** 그림 소스: 디자인 파일의 페이지(영역) 또는 직접 올린 그림 */
+  image?: { sourceId: string; page: number } | { assetId: string; name?: string };
+}
+/** 구성 요소 (2026-10-16 조합형): 채널·스카시·시트. type = 채널 제품 id / 스카시 제품 id / 시트 id. 시트는 올릴 곳(on: 'frame' 또는 채널 구성 요소 id) */
+export interface SignPart {
+  id: string;
+  kind: 'channel' | 'scashi' | 'sheet';
+  type: string;
+  options?: Record<string, string | boolean>;
+  on?: string;
+  items: PartItem[];
+}
+
 export interface SignObject {
   id: string;
   /** 사진 id. '' = 사진 없이 보드에 직접 만든 사인물(평면도 카드만, quad 는 빈 배열) — 나중에 사진의 영역이 이것과 연결(sameAs)된다 */
@@ -44,6 +68,8 @@ export interface SignObject {
   faceAxis?: 'x' | 'y' | 'z';
   /** 박스 방향 (2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"): 회전 고리로 돌린 상자의 방향, 원근 설정의 벽 좌표 단위 벡터. 사진마다의 배치. 있으면 faceAxis 보다 우선 */
   boxDir?: [number, number, number];
+  /** 조합형 구성 요소 (2026-10-16): 간판 프레임에 붙는 채널·스카시·시트와 그 글자·그림. 없으면 옛 필드에서 읽는다(core/parts.ts) */
+  parts?: SignPart[];
   widthMm?: number;
   heightMm?: number;
   /** 보드 두께·돌출 깊이 (mm). 채널 글자 두께는 letter3d.depthMm (2026-10-15 사용자: "두께가 필요해") */

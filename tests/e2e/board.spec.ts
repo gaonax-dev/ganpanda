@@ -78,7 +78,7 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
   await page.getByTestId('product-select').selectOption('board-acp');
-  await page.getByTestId('sheet-sh-print').click();
+  await page.getByTestId('add-part-sheet-uv').click(); // 조합형 (2026-10-16): 간판의 시트는 구성 요소
   await page.getByTestId('close-object-settings').click();
 
   await page.getByTestId('view-list').click();

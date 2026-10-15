@@ -20,10 +20,10 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   await page.getByTestId('option-form').selectOption('일체형(전면)');
   await page.getByTestId('option-paintSystem').selectOption('RAL');
   await page.getByTestId('option-paintCode').fill('9005');
-  // 시트를 더하면 시트 옵션, 시트 컷팅이면 반컷팅
-  await page.getByTestId('sheet-sh-cut').click();
-  await expect(page.getByTestId('option-halfCut')).toBeVisible();
-  await page.getByTestId('option-halfCut').check();
+  // 시트 구성 요소(커팅)를 더하면 시트 옵션, 반컷팅 (조합형 2026-10-16)
+  await page.getByTestId('add-part-sheet-cut').click();
+  await expect(page.getByTestId('part-option-halfCut')).toBeVisible();
+  await page.getByTestId('part-option-halfCut').check();
   await page.getByTestId('sign-note').fill('배선은 왼쪽 위');
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('일체형(전면)');
@@ -59,7 +59,7 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   expect(json.order_info.customer).toBe('홍길동');
   expect(json.items[0].type).toBe('갈바');
   expect(json.items[0].options.paintCode).toBe('9005');
-  expect(json.items[0].options.halfCut).toBe(true);
+  expect(json.items[0].parts[0].options.halfCut).toBe(true);
   expect(json.items[0].size.width_mm).toBe(3000);
   expect(json.items[0].note).toBe('배선은 왼쪽 위');
   expect(json.totals.total).toBeGreaterThan(0);
@@ -76,13 +76,14 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   // 프레임 간판(기본): 프레임 구조·플렉스 출력 + 채널을 고르면 방식·제작 방식·입체 두께·서체·채널 프레임·까치발
   await expect(page.getByTestId('option-frame')).toBeVisible();
   await expect(page.getByTestId('option-print')).toBeVisible();
-  await page.getByTestId('option-channel').selectOption('전광 채널');
-  for (const k of ['chType', 'chBuild', 'chDepth', 'font', 'chFrame', 'bracket']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
-  await page.getByTestId('option-chFrame').selectOption('200폭');
-  await expect(page.getByTestId('option-chFrameColor')).toBeVisible();
-  // 스카시 부착도 간판 옵션 (2026-10-15 사용자: "스카시도 부착된다")
-  await page.getByTestId('option-scashi').selectOption('티타늄 스카시');
-  for (const k of ['scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  // 채널·스카시는 구성 요소 카드 (조합형 2026-10-16)
+  await page.getByTestId('add-part-channel').click();
+  for (const k of ['chType', 'chBuild', 'chDepth', 'font', 'chFrame', 'bracket']) await expect(page.getByTestId(`part-option-${k}`)).toBeVisible();
+  await page.getByTestId('part-option-chFrame').selectOption('200폭');
+  await expect(page.getByTestId('part-option-chFrameColor')).toBeVisible();
+  await page.getByTestId('add-part-scashi').click();
+  await page.getByTestId('part-type').nth(1).selectOption('sc-titan');
+  for (const k of ['thickness', 'material', 'paintSystem', 'paintCode']) await expect(page.getByTestId('part-card').nth(1).getByTestId(`part-option-${k}`)).toBeVisible();
   await page.getByTestId('close-object-settings').click();
   // 분류 9개 (2026-10-15 분류 재정리): 라이트패널 분류
   await expect(page.getByTestId('category-select').locator('option')).toHaveText(['분류 선택', '간판', '시트', '스카시', '포맥스', '현수막', '라이트패널', '액자', '어닝', '사인미러']);

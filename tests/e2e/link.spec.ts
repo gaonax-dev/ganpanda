@@ -41,8 +41,10 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
   await page.getByTestId('product-select').selectOption('body-none');
-  await page.getByTestId('option-channel').selectOption('전광 채널');
-  await page.getByTestId('sign-text').fill('간판다');
+  // 조합형 (2026-10-16): 채널 구성 요소 + 글자 객체
+  await page.getByTestId('add-part-channel').click();
+  await page.getByTestId('add-item-text').click();
+  await page.getByTestId('item-text').fill('간판다');
   await page.getByTestId('close-object-settings').click();
   const masterId = await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string } }).__ganpanda.selectedId);
 
@@ -66,8 +68,8 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
   await expect(page.getByTestId('object-summary')).toContainText('4,000×1,000');
   await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveValue('4000');
-  await expect(page.getByTestId('sign-text')).toHaveValue('간판다');
-  await page.getByTestId('sign-text').fill('간판다 카페'); // 원본이 바뀐다
+  await expect(page.getByTestId('item-text')).toHaveValue('간판다');
+  await page.getByTestId('item-text').fill('간판다 카페'); // 원본이 바뀐다
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('sign-linked')).toHaveCount(1);
   await expect(page.getByTestId('sign-shape')).toHaveCount(2);
