@@ -220,7 +220,7 @@
     <section class="landing">
       <h1>간판다</h1>
       <p>건물 사진 위에서 사인물을 함께 정하고 견적까지. 제작자는 로그인해 프로젝트를 만들고, 고객은 초대 링크로 들어옵니다.</p>
-      <button class="btn primary" onclick={() => (app.loginOpen = true)}>이메일로 로그인</button>
+      <button class="btn primary" onclick={() => (app.loginOpen = true)}>로그인 · 회원가입</button>
     </section>
   {/if}
 </div>
