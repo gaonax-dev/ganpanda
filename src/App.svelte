@@ -59,7 +59,8 @@
   const VIEWS: { id: ViewKind; label: string; short: string }[] = [
     { id: 'board', label: '사진 보드', short: '보드' },
     { id: 'list', label: '사인물 리스트', short: '리스트' },
-    { id: 'uv', label: 'UV 뷰', short: 'UV' },
+    // 'UV 뷰' → '디자인 파일' (2026-10-15 사용자: "uv맵이라고 했는데 디자인 파일 또는 소스 이미지로"). id 'uv' 는 데이터·테스트 호환상 유지
+    { id: 'uv', label: '디자인 파일', short: '디자인' },
   ];
   const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;

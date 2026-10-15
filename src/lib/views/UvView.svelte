@@ -1,4 +1,4 @@
-<!-- UV 뷰 (3차): 디자인 소스 페이지 위에서 영역을 잘라 사인물에 입힌다 -->
+<!-- 디자인 파일 화면 (옛 'UV 뷰', 3차): 디자인 소스 페이지 위에서 영역을 잘라 사인물에 입힌다 -->
 <script lang="ts">
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
@@ -35,7 +35,7 @@
     const x = Math.min(...layout.map((l) => l.x)), y = Math.min(...layout.map((l) => l.y));
     const w = Math.max(...layout.map((l) => l.x + l.w)) - x, h = Math.max(...layout.map((l) => l.y + l.h)) - y;
     const s = canvas.size();
-    viewport = fitRect({ x, y: y - 40, w, h: h + 40 }, s.w - 300, s.h, 60);
+    viewport = app.compact ? fitRect({ x, y: y - 40, w, h: h + 40 }, s.w, s.h - 70, 20) : fitRect({ x, y: y - 40, w, h: h + 40 }, s.w - 300, s.h, 60);
   }
 
   const selected = $derived(app.uvObjectId ? app.objects.find((o) => o.id === app.uvObjectId) ?? null : null);
@@ -74,6 +74,12 @@
   const time = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const sourceName = (id: string) => app.sources.find((s) => s.id === id)?.name ?? '(삭제된 소스)';
   const inv = $derived(1 / viewport.zoom);
+  /** 휴대폰: 사인물 연결 창(아래 시트)을 열었는가. 하단 탭 [사인물 연결]로 열고, 사인물을 고르면 닫혀 페이지에서 영역을 그린다 */
+  let linkOpen = $state(false);
+  function pick(id: string) {
+    app.uvObjectId = app.uvObjectId === id ? null : id;
+    if (app.compact && app.uvObjectId) linkOpen = false;
+  }
 </script>
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape' && app.view === 'uv') app.uvObjectId = null; }} />
@@ -109,22 +115,33 @@
           <small>일러스트레이터(.ai, PDF 호환 저장) · PDF · SVG · PNG · JPG</small>
         </div>
       {/if}
-      <div class="tools">
+      <div class="tools" class:hidden={app.compact}>
         {#if app.canEdit}
           <label class="file">＋ 디자인 파일<input data-testid={app.sources.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
         {/if}
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
         <button onclick={fit} title="전체 보기">⤢</button>
-        <span class="muted">{selected ? (app.canEdit ? `"${selected.name}" — 페이지 위를 드래그해 입힐 영역을 그리세요` : `"${selected.name}"`) : '오른쪽에서 사인물을 고르세요'}</span>
+        <span class="muted">{selected ? (app.canEdit ? `"${selected.name}" — 페이지 위를 드래그해 입힐 영역을 그리세요` : `"${selected.name}"`) : '오른쪽 [사인물 연결]에서 사인물을 고르세요'}</span>
       </div>
     {/snippet}
   </InfiniteCanvas>
 
-  <aside class="side">
-    <h2>사인물</h2>
+  {#if app.compact}
+    <!-- 휴대폰 하단 탭: 사인물 연결 창 · 파일 올리기 · 전체 보기 -->
+    <nav class="utabs" data-testid="design-tabs">
+      <button class="lk" class:on={linkOpen} data-testid="link-toggle" onclick={() => (linkOpen = !linkOpen)}>
+        사인물 연결 {linkOpen ? '▼' : '▲'}{#if selected}<b>{selected.name}</b>{/if}
+      </button>
+      {#if app.canEdit}<label class="file">＋ 파일<input data-testid="source-input-m" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
+      <button onclick={fit} title="전체 보기">⤢</button>
+    </nav>
+    {#if selected && !linkOpen}<div class="hintbar" data-testid="design-hint">{app.canEdit ? `"${selected.name}" — 페이지를 끌어 입힐 영역을 그리세요` : `"${selected.name}"`}</div>{/if}
+  {/if}
+  <aside class="side" class:hidden={app.compact && !linkOpen} data-testid="link-panel">
+    <h2>사인물 연결 {#if app.compact}<button class="icon" title="닫기" onclick={() => (linkOpen = false)}>✕</button>{/if}</h2>
     <ul>
       {#each app.signs as o (o.id)}
-        <li><button data-testid="uv-object" class:on={o.id === app.uvObjectId} onclick={() => (app.uvObjectId = app.uvObjectId === o.id ? null : o.id)}>
+        <li><button data-testid="uv-object" class:on={o.id === app.uvObjectId} onclick={() => pick(o.id)}>
           <span>{o.name}</span>{#if o.design}<small>{sourceName(o.design.sourceId)}</small>{:else}<small class="none">디자인 없음</small>{/if}
         </button></li>
       {:else}<li class="hint">사진 보드에서 사인물을 먼저 만드세요.</li>{/each}
@@ -176,4 +193,16 @@
   li small.none { color: var(--warn); }
   .history li button { flex-direction: column; align-items: flex-start; }
   .hint { color: var(--muted); font-size: 12px; }
+  .hidden { display: none !important; }
+  h2 { display: flex; justify-content: space-between; align-items: center; }
+  .utabs { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); }
+  .utabs button, .utabs .file { background: none; border: 0; color: var(--text); padding: 9px 10px; border-radius: 8px; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+  .utabs .lk { display: flex; gap: 6px; align-items: center; margin-right: auto; min-width: 0; }
+  .utabs .lk b { color: var(--accent); overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+  .utabs .lk.on { background: var(--hover); }
+  .hintbar { position: absolute; left: 8px; right: 8px; bottom: 66px; z-index: 5; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 12px; font-size: 12px; }
+  @media (max-width: 720px) {
+    .side { left: 8px; right: 8px; top: auto; bottom: 66px; width: auto; max-height: 60%; z-index: 7; }
+    .empty { padding-right: 0; padding-bottom: 80px; }
+  }
 </style>
