@@ -100,3 +100,20 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await page.getByTestId('view-list').click();
   await expect(page.locator('.line').filter({ hasText: 'LED 사인미러' })).toContainText('1식');
 });
+
+test('간판 상단 조명: 옵션을 고르면 개수·팔 길이·빛 색이 나오고, 견적에 조명 줄이 생긴다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링" → "진행해줘"
+  await openOwnedProject(page, request, '상단 조명');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await page.getByTestId('width-mm').fill('4800');
+  await page.getByTestId('height-mm').fill('900');
+  await page.getByTestId('option-topLight').selectOption('돌출 투광등');
+  for (const k of ['topCount', 'topArm', 'topColor']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('view-list').click();
+  await expect(page.locator('.line').filter({ hasText: '돌출 투광등' })).toContainText('4개');
+});

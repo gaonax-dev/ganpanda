@@ -85,7 +85,93 @@ export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
  * 사양대로 만든다: 채널 = 입체 글자, 박스 = 상자, 박스 + letters = 상자 앞면 위에 입체 글자(간판 몸통 + 채널 옵션).
  * 글자는 박스 폭의 90% 안에 맞추고 가운데에 놓는다
  */
+/**
+ * 간판 상단 조명 3D (2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링"):
+ * 사인물 좌표(가로 중심 0, 위 끝 = h/2, 벽 z=0 → 앞면 z=d)에 부품을 만든다. 그린 사각형 맞춤(warpToQuad)이 정점에 적용되므로
+ * 모든 변환은 정점에 굽고 메쉬는 위치·회전 없이 둔다. 낮에는 기구만, 밤에는 빛 줄기·면 번짐·점이 켜진다
+ */
+export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, w: number, h: number, d: number): { meshes: THREE.Mesh[]; setNight(night: boolean): void; dispose(): void } {
+  const meshes: THREE.Mesh[] = [];
+  const light = new THREE.Color(tl.color);
+  const metal = new THREE.MeshStandardMaterial({ color: tl.kind === 'perf' ? '#2b2f33' : '#4a4f55', metalness: 0.7, roughness: 0.4 });
+  const glowMat = new THREE.MeshStandardMaterial({ color: '#dddddd', emissive: light, emissiveIntensity: 0, roughness: 0.5 });
+  const beamMat = new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const washMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, part: string) => { const m = new THREE.Mesh(geo, mat); m.userData.part = part; m.castShadow = part !== 'beam' && part !== 'wash'; meshes.push(m); return m; };
+  /** 위가 밝고 아래로 사라지는 면 번짐 (정점 색, 더하기 합성) */
+  const wash = (strength: number) => {
+    const g = new THREE.PlaneGeometry(w, h * 0.7, 1, 8);
+    g.translate(0, h / 2 - h * 0.35, d + 1.5);
+    const pos = g.attributes.position, cols: number[] = [];
+    for (let i = 0; i < pos.count; i++) { const t = Math.max(0, (pos.getY(i) - (h / 2 - h * 0.7)) / (h * 0.7)) ** 2 * strength; cols.push(light.r * t, light.g * t, light.b * t); }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    add(g, washMat, 'wash');
+  };
+  const barY = h / 2 + 32.5, barZ = d + 35;
+  if (tl.kind === 'arm') {
+    const n = Math.max(1, tl.count);
+    for (let i = 0; i < n; i++) {
+      const x = -w / 2 + ((i + 0.5) * w) / n;
+      const A = new THREE.Vector3(x, h / 2 + 20, d * 0.5), B = new THREE.Vector3(x, h / 2 + 120, d + tl.armMm);
+      const dir = B.clone().sub(A), len = dir.length();
+      const arm = new THREE.BoxGeometry(24, 24, len);
+      arm.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.clone().normalize()));
+      arm.translate((A.x + B.x) / 2, (A.y + B.y) / 2, (A.z + B.z) / 2);
+      add(arm, metal, 'arm');
+      const head = new THREE.BoxGeometry(160, 50, 90);
+      head.rotateX(0.6); // 간판 쪽으로 숙임
+      head.translate(B.x, B.y, B.z);
+      add(head, glowMat, 'head');
+      // 빛 줄기: 등기구 → 간판 위쪽 1/3 지점
+      const T = new THREE.Vector3(x, h / 2 - h * 0.35, d + 5), bd = T.clone().sub(B), L = bd.length();
+      const beam = new THREE.ConeGeometry(Math.max(150, Math.min(w / n, h) * 0.45), L, 24, 1, true);
+      beam.translate(0, -L / 2, 0);
+      beam.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), bd.normalize()));
+      beam.translate(B.x, B.y, B.z);
+      add(beam, beamMat, 'beam');
+    }
+    wash(0.5);
+  } else {
+    const bar = new THREE.BoxGeometry(w, 45, 70);
+    bar.translate(0, barY, barZ);
+    add(bar, metal, 'bar');
+    if (tl.kind === 'bar') {
+      const led = new THREE.BoxGeometry(w * 0.98, 6, 30);
+      led.translate(0, h / 2 + 7, d + 50);
+      add(led, glowMat, 'led');
+      wash(0.9);
+    } else {
+      const n = Math.floor(w / 120);
+      for (let i = 0; i < n; i++) {
+        const dot = new THREE.BoxGeometry(22, 22, 6);
+        dot.translate(-w / 2 + ((i + 0.5) * w) / n, barY, d + 73);
+        add(dot, glowMat, 'dot');
+      }
+      wash(0.45);
+    }
+  }
+  return {
+    meshes,
+    setNight(night) {
+      glowMat.emissiveIntensity = night ? 2 : 0;
+      beamMat.opacity = night ? 0.1 : 0; // 원뿔 안·밖 두 겹이 더해져 실제로는 더 밝다 — 글자를 덮지 않게
+      washMat.opacity = night ? 0.85 : 0;
+    },
+    dispose() { for (const m of meshes) m.geometry.dispose(); metal.dispose(); glowMat.dispose(); beamMat.dispose(); washMat.dispose(); },
+  };
+}
+/** 만든 간판에 상단 조명을 더한다 (사양에 있을 때) */
+function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
+  if (!spec.topLight) return b;
+  const t = topLightMeshes(spec.topLight, spec.widthMm, spec.heightMm, spec.depthMm);
+  for (const m of t.meshes) b.group.add(m);
+  return { ...b, setNight(night) { b.setNight(night); t.setNight(night); }, dispose() { b.dispose(); t.dispose(); } };
+}
+
 export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage): BuiltSign {
+  return withTopLights(buildSignBody(spec, font, fontFamily, face), spec);
+}
+function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage): BuiltSign {
   if (spec.kind === 'channel') return buildChannel(spec, font);
   const box = buildLightbox(spec, fontFamily, face);
   const L = spec.letters;

@@ -1,4 +1,5 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
+import { topLightOf } from './topLight';
 import { CHANNEL_OPTIONS, productById, sheetById, signParts } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
@@ -92,6 +93,14 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     if (!h) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
     else if (!n) lines.push({ objectId: o.id, label, detail: '문구 또는 글자수 필요', amount: 0 });
     else finish(label, `${n}자 × 높이 ${fmt(h)}mm × ${fmt(unit)}원/자·cm`, n * (h / 10) * unit);
+  }
+  // 상단 조명 (2026-10-16): 투광등 = 개수 × 원/개, 트러스 = 간판 가로(m) × 원/m
+  const tl = topLightOf(o);
+  if (tl) {
+    const label = `${o.name} · ${tl.label}`, unit = prices.products[tl.priceId] ?? 0;
+    if (tl.kind === 'arm') finish(label, `${tl.count}개 × ${fmt(unit)}원`, tl.count * unit);
+    else if (!o.widthMm) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
+    else finish(label, `가로 ${(o.widthMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (o.widthMm / 1000) * unit);
   }
   for (const id of o.sheetIds) {
     const s = sheetById(id);

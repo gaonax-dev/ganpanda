@@ -27,10 +27,10 @@ describe('간판 = 몸통 + 채널 옵션 (2026-10-15 사용자: "몸통 선택�
     expect(signParts(obj({ productId: 'ch-halo' }))).toEqual({ bodyId: 'body-none', channelId: 'ch-halo', scashiId: null });
   });
   it('옵션: 몸통 옵션 + 채널 선택, 채널을 고르면 채널 종류·LED 색·도색·글자 높이가 따라온다', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel', 'scashi']); // 2026-10-15 분류 재정리: 프레임 재질, 스카시 부착
-    expect(keys(obj({ productId: 'board-galva', options: { channel: '전광 채널' } }))).toEqual(['frameMat', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel', 'chType', 'chBuild', 'chDepth', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chHeight', 'chFrame', 'bracket', 'scashi']); // 채널 조합 (2026-10-15 한울)
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel', 'scashi', 'topLight']); // 2026-10-15 분류 재정리: 프레임 재질, 스카시 부착
+    expect(keys(obj({ productId: 'board-galva', options: { channel: '전광 채널' } }))).toEqual(['frameMat', 'form', 'indirect', 'paintSystem', 'paintCode', 'channel', 'chType', 'chBuild', 'chDepth', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chHeight', 'chFrame', 'bracket', 'scashi', 'topLight']); // 채널 조합 (2026-10-15 한울)
     expect(keys(obj({ productId: 'board-galva', options: { channel: '갈바 에폭시 채널 (비조명)' } }))).not.toContain('ledColor');
-    expect(keys(obj({ productId: 'body-none' }))).toEqual(['channel', 'scashi']);
+    expect(keys(obj({ productId: 'body-none' }))).toEqual(['channel', 'scashi', 'topLight']);
   });
   it('견적: 몸통 ㎡ 줄 + 채널 자·cm 줄 (글자 높이 옵션, 없으면 간판 높이). 몸통 없음은 채널 줄만', () => {
     const o = obj({ name: 'A', productId: 'board-galva', widthMm: 3000, heightMm: 600, text: '간판다', options: { channel: '전광 채널', chHeight: '400' } });

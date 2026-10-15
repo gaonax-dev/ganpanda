@@ -24,6 +24,8 @@ export interface SignSpec {
   textColor: string;
   /** 박스 위에 얹는 입체 글자 (간판 몸통 + 채널 옵션). 없으면 박스만 */
   letters?: { text: string; heightMm: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number };
+  /** 간판 상단 조명 (2026-10-16): 돌출 투광등 / 트러스 바 간접 / 트러스 타공 */
+  topLight?: import('../core/topLight').TopLightSpec;
   /** 벽 좌표 중심 (mm) */
   x: number;
   y: number;

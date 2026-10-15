@@ -1,7 +1,7 @@
 // 간판·시트 종류 (이름과 단위). 금액은 단가표(pricing.ts)에서.
-export type Category = 'board' | 'channel';
+export type Category = 'board' | 'channel' | 'light';
 /** m2 = 원/㎡, charCm = 원/자/cm(글자 높이), ea = 원/개(1식, 치수와 무관), none = 금액 없음(몸통 없음) */
-export type Unit = 'm2' | 'charCm' | 'ea' | 'none';
+export type Unit = 'm2' | 'charCm' | 'ea' | 'm' | 'none';
 
 export interface Product { id: string; category: Category; name: string; unit: Unit }
 export interface Sheet { id: string; name: string }
@@ -42,6 +42,10 @@ export const CATALOG: Product[] = [
   { id: 'ch-rubber', category: 'channel', name: '고무 스카시', unit: 'charCm' },
   { id: 'sc-titan', category: 'channel', name: '티타늄 스카시', unit: 'charCm' },
   { id: 'ch-scashi', category: 'channel', name: '아크릴 스카시', unit: 'charCm' },
+  // 간판 상단 조명 (옵션의 단가, 2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링") — 종류 목록에는 안 나온다
+  { id: 'tl-arm', category: 'light', name: '돌출 투광등', unit: 'ea' },
+  { id: 'tl-bar', category: 'light', name: '트러스 바 간접조명', unit: 'm' },
+  { id: 'tl-perf', category: 'light', name: '트러스 타공 조명', unit: 'm' },
 ];
 
 // 시트 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개 / 시트커팅: 돔보(uv실사), 커팅(단색,재질시트)") — 커팅 방식은 종류에 따라 정해져 이름에 표시.
@@ -59,8 +63,8 @@ export const productById = (id?: string) => CATALOG.find((p) => p.id === id);
 export const sheetById = (id: string) => SHEETS.find((s) => s.id === id);
 /** 설정 창에서 고르는 시트 (옛 시트는 이미 붙어 있을 때만 보인다) */
 export const sheetsForPicker = (): Sheet[] => SHEETS.filter((s) => ['sh-print', 'sh-cut', 'sh-frost'].includes(s.id));
-export const CATEGORY_LABEL: Record<Category, string> = { board: '간판 몸통', channel: '채널 (옵션)' };
-export const UNIT_LABEL: Record<Unit, string> = { m2: '원/㎡', charCm: '원/자·cm', ea: '원/개', none: '—' };
+export const CATEGORY_LABEL: Record<Category, string> = { board: '간판 몸통', channel: '채널 (옵션)', light: '상단 조명 (옵션)' };
+export const UNIT_LABEL: Record<Unit, string> = { m2: '원/㎡', charCm: '원/자·cm', ea: '원/개', m: '원/m', none: '—' };
 
 // ---------- 사인물 분류 (패널에서 고르는 큰 묶음) ----------
 // 2026-10-15 사용자: "간판,시트,스카시,포맥스,현수막,라이트패널,액자,어닝" + "사인미러는 따로"
@@ -84,7 +88,7 @@ const GROUP_OF: Record<string, Group> = {
 const SCASHI_IDS = new Set(['ch-rubber', 'sc-titan', 'ch-scashi']);
 
 export const groupOfProduct = (id: string): Group => GROUP_OF[id] ?? 'sign';
-export const productsOf = (g: Group): Product[] => (g === 'sheet' ? [] : CATALOG.filter((p) => groupOfProduct(p.id) === g && !isChannelProduct(p.id))); // 간판 = 몸통만 (채널은 옵션)
+export const productsOf = (g: Group): Product[] => (g === 'sheet' ? [] : CATALOG.filter((p) => groupOfProduct(p.id) === g && !isChannelProduct(p.id) && p.category !== 'light')); // 간판 = 몸통만 (채널·상단 조명은 옵션)
 /** 분류의 기본 종류 = 목록 첫 종류 (시트는 제품 없음) */
 export const defaultProductFor = (g: Group): string | undefined => productsOf(g)[0]?.id;
 /** 제품이 있으면 그 분류, 없고 시트만 있으면 시트, 아무것도 없으면 null */
