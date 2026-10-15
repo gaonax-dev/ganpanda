@@ -28,6 +28,12 @@ ganpanda/
 - **메인 번들 ≈ 380KB**(전에는 1.28MB): three.js·폰트 파서·렌더링(`sim/`, `render/`, `core/textShapes.ts`)은 **필요할 때 따로 내려받습니다** — 렌더링 창·원근 창·입체 보기·제안 도구는 `App.svelte` 에서 `import()` 로, 보드 3D 단계의 합성기는 `BoardView` 에서 처음 켤 때. `core/letter3d.ts` 는 three 를 쓰지 않도록 폭 계산(`sim/letterWidth.ts`)을 분리. 디자인 PDF 변환(`pdf-*.js`, `pdf.worker`)과 AI 분리 워커도 이미 별도.
 - **로딩 표시**: `index.html` 의 정적 스플래시(앱 코드가 내려올 때까지, `main.ts` 가 제거) → 방 확인 "프로젝트 확인 중…" → 문서 "프로젝트 불러오는 중…"(`app.ready` 전) → 무거운 창은 "… 불러오는 중…"(`Loading.svelte`, `data-testid="loading"`). 사진은 `PhotoZone` "불러오는 중…", 3D 단계는 "3D 합성 중…". E2E `tests/e2e/loading.spec.ts`.
 
+## 휴대폰 메모리 (2026-10-15 사용자: "마지막에 죽어버린다. 사진이 많아서인지")
+- 휴대폰 사진(12MP)은 풀면 장당 ~48MB. 보드의 사진마다 원본, 그리고 **평면도·리스트 카드마다 원본 전체를 `matrix3d` 로 겹치던 것**(카드 수만큼 큰 GPU 레이어)이 메모리를 넘겨 탭이 죽었습니다.
+- **표시용 사진**(`src/lib/photoDisplay.ts` `displayUrl`): 긴 변을 휴대폰 1600 / 그 외 2400px 로 줄인 JPEG 사본(blob URL)을 한 장씩 차례로 만들어 보드에 씁니다. 원본은 렌더링·원근 창·제안 이미지에서만.
+- **카드 얼굴**(`faceUrl`, `core/warpPixels.ts`): 사진 영역을 정면 직사각형으로 펼친 작은 그림(보드 카드 긴 변 360px, 리스트 640px)을 만들어 그대로 `<img>` 로. 변형 레이어 없음. 줄인 사진 픽셀은 최근 1장만 들고 있음.
+- 테스트: `tests/unit/warpPixels.test.ts`, `tests/e2e/memory.spec.ts`(4000×3000 사진 → 표시 ≤ 2400, 카드 얼굴 360px·변형 없음·색 일치).
+
 ## 핵심 모듈 (`src/lib/core/`)
 
 | 파일 | 역할 |
