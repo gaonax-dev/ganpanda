@@ -114,10 +114,10 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.85, roughness: 0.32 });
   const face =
     spec.lighting === 'front'
-      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.25, clearcoat: 0.6 })
+      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.6, clearcoat: 0.1 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
         ? new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.9, roughness: 0.22 })
-        : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.4, clearcoat: 0.4 });
+        : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.6, clearcoat: 0.1 });
   // ExtrudeGeometry 그룹 0 = 앞/뒷면, 1 = 옆면
   const mesh = new THREE.Mesh(geo, [face, side]);
   mesh.castShadow = true;
@@ -240,7 +240,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
 
   const lit = spec.lighting !== 'none';
   const front = new THREE.MeshPhysicalMaterial({
-    map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.3, clearcoat: 0.5,
+    map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.65, clearcoat: 0.1, // 앞면 반사광이 디자인·글자를 덮지 않게
   });
   const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.7, roughness: 0.4 });
   const geo = lightboxGeometry(w, h, d, spec.corner);

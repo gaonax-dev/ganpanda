@@ -102,3 +102,18 @@ describe('3D 상자는 항상 카메라 쪽으로 (2026-10-15 사용자: "정면
     expect(zTowardCamera(flipped, [3000, 3450])).toBe(-s);
   });
 });
+
+describe('자신의 면으로 그릴 때도 입력 가로는 3D 각도에 영향 없음 (2026-10-15 측면 사진: 6400×600 입력, 그린 비율 8.3:1 → 글자 앞면이 돌아가 사라짐)', async () => {
+  const { poseOfPlane } = await import('../../src/lib/core/wallPlane');
+  const quad: Pt[] = [[940, 881], [4685, 994], [4678, 1431], [931, 1338]];
+  it('입력 가로가 달라도 면의 회전(포즈)은 같고, 거의 정면이다. 세로는 입력 세로(mm)', () => {
+    const a = signPlaneOf(obj({ quad, widthMm: 6400, heightMm: 600 }), null)!;
+    const b = signPlaneOf(obj({ quad, widthMm: 4000, heightMm: 600 }), null)!;
+    const pa = poseOfPlane(a, 5712, 4284), pb = poseOfPlane(b, 5712, 4284);
+    pa.R.forEach((v, i) => expect(v).toBeCloseTo(pb.R[i], 6));
+    // 벽 법선(R 의 3열)이 카메라 축과 이루는 각 < 25°
+    const nz = Math.abs(pa.R[8]);
+    expect((Math.acos(Math.min(1, nz)) * 180) / Math.PI).toBeLessThan(25);
+    expect(placeOnWall(a, { quad }).h).toBeCloseTo(600, 0);
+  });
+});
