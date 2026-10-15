@@ -10,7 +10,7 @@ export const DEFAULT_LETTER3D: Letter3D = { depthMm: 80, faceColor: '#ff3b30', s
 
 /** 채널 id → 조명: 전광 채널은 면 발광, 후광 채널은 벽면 반사, 그 외 비조명 */
 export function lightingOf(channelId: string | null | undefined): Lighting {
-  if (channelId === 'ch-front' || channelId === 'ch-both') return 'front';
+  if (channelId === 'ch-front' || channelId === 'ch-both' || channelId === 'ch-acrylic' || channelId === 'ch-bulb') return 'front';
   if (channelId === 'ch-halo') return 'halo';
   return 'none';
 }

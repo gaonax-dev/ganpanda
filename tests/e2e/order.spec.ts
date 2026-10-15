@@ -57,10 +57,38 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   expect(download.suggestedFilename()).toMatch(/\.json$/);
   const json = JSON.parse(await (await download.createReadStream()).toArray().then((b) => Buffer.concat(b).toString('utf-8')));
   expect(json.order_info.customer).toBe('홍길동');
-  expect(json.items[0].type).toBe('갈바 간판');
+  expect(json.items[0].type).toBe('갈바·스텐 전면 간판');
   expect(json.items[0].options.paintCode).toBe('9005');
   expect(json.items[0].options.halfCut).toBe(true);
   expect(json.items[0].size.width_mm).toBe(3000);
   expect(json.items[0].note).toBe('배선은 왼쪽 위');
   expect(json.totals.total).toBeGreaterThan(0);
+});
+
+test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조합 옵션이 폼에 나오고, 개 단위는 1식으로 견적', async ({ page, request }) => {
+  // 2026-10-15 사용자: "hanwoolcorp… 조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘"
+  await openOwnedProject(page, request, '한울상사');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  // 프레임 간판(기본): 프레임 구조·플렉스 출력 + 채널을 고르면 방식·제작 방식·입체 두께·서체·채널 프레임·까치발
+  await expect(page.getByTestId('option-frame')).toBeVisible();
+  await expect(page.getByTestId('option-print')).toBeVisible();
+  await page.getByTestId('option-channel').selectOption('전광 채널');
+  for (const k of ['chType', 'chBuild', 'chDepth', 'font', 'chFrame', 'bracket']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  await page.getByTestId('option-chFrame').selectOption('200폭');
+  await expect(page.getByTestId('option-chFrameColor')).toBeVisible();
+  // 라이트패널
+  await page.getByTestId('product-select').selectOption('board-lightpanel');
+  for (const k of ['smps', 'place', 'frameColor']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  // LED 사인미러: 채널 없음, 개(1식) 단가
+  await page.getByTestId('product-select').selectOption('board-mirror');
+  await expect(page.getByTestId('option-channel')).toHaveCount(0);
+  await page.getByTestId('option-led').selectOption('전구색 4000K');
+  await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('object-summary')).toContainText('전구색 4000K');
+  await page.getByTestId('view-list').click();
+  await expect(page.locator('.line').filter({ hasText: 'LED 사인미러' })).toContainText('1식');
 });
