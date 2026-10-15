@@ -100,3 +100,51 @@ describe('원근 매니퓰레이터: 방향 맞추기', async () => {
     expect(snapFrame(big).ex[0]).toBeCloseTo(Math.cos(0.5), 6);
   });
 });
+
+describe('3단계: 벽에서 돌려 세우기 (돌출 간판 직각 배치)', async () => {
+  const { turnFrameOf, turnedQuad, readTurn, turnAngleAt, outOfWall } = await import('../../src/lib/core/manipulator');
+  const sign = rectOn(1000, 3000, 2000, 900);
+  const fr = frameOf(plane, sign);
+
+  it('0° 는 원래 외곽선 그대로, 90° 는 벽에 직각 (경첩 변은 벽에 붙은 채)', () => {
+    const tf = turnFrameOf(fr, 'left');
+    expect(near(turnedQuad(plane, { ...tf, deg: 0 }), sign)).toBe(true);
+    const q90 = turnedQuad(plane, { ...tf, deg: 90 });
+    // 경첩(왼쪽 변) 그대로
+    expect(near([q90[0], q90[3]], [sign[0], sign[3]])).toBe(true);
+    // 먼 변은 벽에서 2000mm 나온 3D 점의 투영
+    const n = outOfWall(plane);
+    const far = projectPoint(pose, [1000, 3900, 2000 * n]);
+    expect(Math.hypot(q90[1][0] - far[0], q90[1][1] - far[1])).toBeLessThan(0.5);
+  });
+
+  it('오른쪽 경첩: 오른쪽 변이 벽에 붙고 왼쪽으로 뻗는다', () => {
+    const tf = turnFrameOf(fr, 'right');
+    expect(near(turnedQuad(plane, { ...tf, deg: 0 }), sign)).toBe(true);
+    const q = turnedQuad(plane, { ...tf, deg: 60 });
+    expect(near([q[1], q[2]], [sign[1], sign[2]])).toBe(true);
+  });
+
+  it('돌린 외곽선에서 경첩·크기를 다시 읽는다 (왕복)', () => {
+    // 카메라가 사인물 면 안에 있으면(옆에서 정확히 보면) 외곽선이 선이 되어 읽을 수 없다 — 그 경우를 피한 자리
+    const fr2 = frameOf(plane, rectOn(500, 3000, 2000, 900));
+    for (const hinge of ['left', 'right'] as const) {
+      for (const deg of [30, 90]) {
+        const tf = { ...turnFrameOf(fr2, hinge), deg };
+        const back = readTurn(plane, turnedQuad(plane, tf), { deg, hinge })!;
+        expect(back.w).toBeCloseTo(2000, 0);
+        expect(back.h).toBeCloseTo(900, 0);
+        expect(Math.hypot(back.hinge[0] - tf.hinge[0], back.hinge[1] - tf.hinge[1])).toBeLessThan(1);
+      }
+    }
+  });
+
+  it('포인터 위치 → 돌린 각도 (경첩 높이의 수평면에서), 0~90° 로 제한', () => {
+    const tf = turnFrameOf(fr, 'left');
+    const n = outOfWall(plane);
+    const at = (deg: number) => { const r = (deg * Math.PI) / 180; return projectPoint(pose, [1000 + 1500 * Math.cos(r), 3450, 1500 * Math.sin(r) * n]); };
+    expect(turnAngleAt(plane, tf, at(45))).toBeCloseTo(45, 0);
+    expect(turnAngleAt(plane, tf, at(90))).toBeCloseTo(90, 0);
+    expect(turnAngleAt(plane, tf, at(0))).toBeCloseTo(0, 0);
+  });
+});

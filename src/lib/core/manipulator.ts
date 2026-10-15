@@ -118,3 +118,106 @@ export function snapFrame(f: Frame, limit = 10): Frame {
   const d = target - a;
   return { ...f, ex: rot(f.ex, d), ey: rot(f.ey, d) };
 }
+
+// ---------- 3단계: 벽에서 돌려 세우기 (2026-10-15 사용자: "3단계도 진행해줘") ----------
+// 한쪽 변(경첩)을 벽에 붙인 채 수직축으로 돌린다. 0° = 벽에 붙음, 90° = 벽에 직각(돌출 간판). 카메라(원근 설정)가 있어야 한다.
+type V3 = [number, number, number];
+export type Hinge = 'left' | 'right';
+/** 돌린 사인물: hinge = 경첩 변의 아래 끝(벽 mm), up = 벽 위 방향, dir = 0° 일 때 사인물이 뻗는 벽 방향, w·h, deg, side = 경첩 쪽 */
+export interface TurnFrame { hinge: Pt; up: Pt; dir: Pt; w: number; h: number; deg: number; side: Hinge }
+
+/** 벽에서 카메라 쪽(나오는 방향)의 z 부호 */
+export function outOfWall(plane: RefPlane): 1 | -1 {
+  const p = plane.pose!;
+  const depth = (z: number) => p.R[6] * 0 + p.R[7] * 0 + p.R[8] * z + p.t[2];
+  return depth(1) < depth(0) ? 1 : -1;
+}
+
+/** 벽 위 틀 → 경첩 틀 (0°) */
+export function turnFrameOf(f: Frame, side: Hinge): TurnFrame {
+  const up = mul(f.ey, -1);
+  const hinge = side === 'left' ? add(sub(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2)) : add(add(f.c, mul(f.ex, f.w / 2)), mul(f.ey, f.h / 2));
+  return { hinge, up, dir: side === 'left' ? f.ex : mul(f.ex, -1), w: f.w, h: f.h, deg: 0, side };
+}
+
+function corners3(plane: RefPlane, tf: TurnFrame): { T0: V3; T1: V3; B0: V3; B1: V3 } {
+  const n = outOfWall(plane);
+  const r = (tf.deg * Math.PI) / 180;
+  const F: V3 = [Math.cos(r) * tf.dir[0], Math.cos(r) * tf.dir[1], Math.sin(r) * n];
+  const B0: V3 = [tf.hinge[0], tf.hinge[1], 0];
+  const T0: V3 = [tf.hinge[0] + tf.up[0] * tf.h, tf.hinge[1] + tf.up[1] * tf.h, 0];
+  const far = (p: V3): V3 => [p[0] + F[0] * tf.w, p[1] + F[1] * tf.w, p[2] + F[2] * tf.w];
+  return { T0, T1: far(T0), B0, B1: far(B0) };
+}
+
+/** 돌린 사인물의 사진 외곽선 (TL,TR,BR,BL) */
+export function turnedQuad(plane: RefPlane, tf: TurnFrame): Pt[] {
+  const { T0, T1, B0, B1 } = corners3(plane, tf);
+  const P = (p: V3) => projectPoint(plane.pose!, p);
+  return tf.side === 'left' ? [P(T0), P(T1), P(B1), P(B0)] : [P(T1), P(T0), P(B0), P(B1)];
+}
+
+/** 사진 px → 카메라에서 나가는 반직선 (벽 좌표) */
+function rayOf(pose: CameraPose, px: Pt): { o: V3; d: V3 } {
+  const { R, t, f, imgW, imgH } = pose;
+  const [cx, cy] = pose.pp ?? [imgW / 2, imgH / 2];
+  const dc: V3 = [(px[0] - cx) / f, (px[1] - cy) / f, 1];
+  const Rt = (v: V3): V3 => [R[0] * v[0] + R[3] * v[1] + R[6] * v[2], R[1] * v[0] + R[4] * v[1] + R[7] * v[2], R[2] * v[0] + R[5] * v[1] + R[8] * v[2]];
+  const o = Rt(t);
+  return { o: [-o[0], -o[1], -o[2]], d: Rt(dc) };
+}
+const d3 = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+/** 반직선과 평면(점 p, 법선 nrm)의 만나는 점 */
+function hit(ray: { o: V3; d: V3 }, p: V3, nrm: V3): V3 | null {
+  const den = d3(ray.d, nrm);
+  if (Math.abs(den) < 1e-12) return null;
+  const s = d3(sub3(p, ray.o), nrm) / den;
+  return [ray.o[0] + ray.d[0] * s, ray.o[1] + ray.d[1] * s, ray.o[2] + ray.d[2] * s];
+}
+
+/** 돌린 외곽선에서 경첩 틀을 다시 읽는다: 경첩 변은 벽 위(면 투영), 먼 변은 돌린 면과 시선의 교점 */
+export function readTurn(plane: RefPlane, quad: Pt[], turn: { deg: number; hinge: Hinge }): TurnFrame | null {
+  if (!plane.pose) return null;
+  const [top, bottom, farTop] = turn.hinge === 'left' ? [quad[0], quad[3], quad[1]] : [quad[1], quad[2], quad[0]];
+  const B0 = applyHomography(plane.Hinv, bottom), T0 = applyHomography(plane.Hinv, top);
+  const h = Math.hypot(T0[0] - B0[0], T0[1] - B0[1]);
+  const up = unit(sub(T0, B0));
+  const right: Pt = [up[1], -up[0]];
+  const dir = turn.hinge === 'left' ? right : mul(right, -1);
+  const n = outOfWall(plane);
+  const r = (turn.deg * Math.PI) / 180;
+  const F: V3 = [Math.cos(r) * dir[0], Math.cos(r) * dir[1], Math.sin(r) * n];
+  const up3: V3 = [up[0], up[1], 0];
+  const T03: V3 = [T0[0], T0[1], 0];
+  const X = hit(rayOf(plane.pose, farTop), T03, cross3(up3, F));
+  if (!X) return null;
+  return { hinge: B0, up, dir, w: Math.max(10, d3(sub3(X, T03), F)), h, deg: turn.deg, side: turn.hinge };
+}
+
+/** 포인터(사진 px) → 돌린 각도(°, 0~90): 경첩 가운데 높이의 수평면에서 경첩 기준 방향 */
+export function turnAngleAt(plane: RefPlane, tf: TurnFrame, px: Pt): number {
+  if (!plane.pose) return tf.deg;
+  const n = outOfWall(plane);
+  const M: V3 = [tf.hinge[0] + tf.up[0] * tf.h / 2, tf.hinge[1] + tf.up[1] * tf.h / 2, 0];
+  const X = hit(rayOf(plane.pose, px), M, [tf.up[0], tf.up[1], 0]);
+  if (!X) return tf.deg;
+  const v = sub3(X, M);
+  const a = (Math.atan2(v[2] * n, d3(v, [tf.dir[0], tf.dir[1], 0])) * 180) / Math.PI;
+  return Math.max(0, Math.min(90, a));
+}
+
+/** 돌린 사인물의 매니퓰레이터 점들: 경첩 가운데, 위, 벽 가로(경첩 이동), 돌리기 손잡이(먼 변 가운데) */
+export function turnGizmoOf(plane: RefPlane, tf: TurnFrame) {
+  const { T0, T1, B0, B1 } = corners3(plane, tf);
+  const P = (p: V3) => projectPoint(plane.pose!, p);
+  const L = Math.max(tf.w, tf.h) * 0.35;
+  const M: V3 = [(T0[0] + B0[0]) / 2, (T0[1] + B0[1]) / 2, 0];
+  return {
+    c: P(M),
+    z: P([M[0] + tf.up[0] * L, M[1] + tf.up[1] * L, 0]),
+    x: P([M[0] + tf.dir[0] * L * (tf.side === 'left' ? -1 : 1) * -1, M[1] + tf.dir[1] * L * (tf.side === 'left' ? -1 : 1) * -1, 0]),
+    turn: P([(T1[0] + B1[0]) / 2, (T1[1] + B1[1]) / 2, (T1[2] + B1[2]) / 2]),
+  };
+}

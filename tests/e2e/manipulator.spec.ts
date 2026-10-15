@@ -114,3 +114,61 @@ test('3D 단계: 사인물을 눌러 고르면 매니퓰레이터가 뜨고, 옮
   expect((await quadOf(page, id))[0][0]).toBeGreaterThan(before[0][0]);
   await expect.poll(() => overlay.getAttribute('src'), { timeout: 30_000 }).not.toBe(first);
 });
+
+const turnOf = (page: Page, id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; turn?: { deg: number; hinge: string } }[] } }).__ganpanda.objects.find((o) => o.id === id)!.turn ?? null, id);
+
+test('3단계 벽에서 돌려 세우기: [⟂ 벽에 직각] → 90°(경첩 변은 그대로), 경첩 바꾸기, 초록 손잡이로 각도, [벽에 붙이기]로 원래대로', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const flat = await rectOnWall(page, 1500, 3800, 2000, 800);
+  const id = await addSign(page, flat);
+  await expect(page.getByTestId('gizmo-turn')).toHaveCount(1);
+  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'left' });
+  const q90 = await quadOf(page, id);
+  // 왼쪽 변(경첩)은 그대로, 먼 변은 벽에서 나와 다른 자리
+  expect(Math.hypot(q90[0][0] - flat[0][0], q90[0][1] - flat[0][1])).toBeLessThan(1);
+  expect(Math.hypot(q90[3][0] - flat[3][0], q90[3][1] - flat[3][1])).toBeLessThan(1);
+  expect(Math.hypot(q90[1][0] - flat[1][0], q90[1][1] - flat[1][1])).toBeGreaterThan(20);
+  const g = page.getByTestId('gizmo');
+  await expect(g).toHaveAttribute('data-turn', '90');
+  await expect(page.getByTestId('sign-handle')).toHaveCount(0); // 돌린 사인물은 꼭짓점 편집 대신 매니퓰레이터
+  await expect(page.getByTestId('persp-guide')).toHaveCount(0);
+  // 경첩 바꾸기 → 오른쪽 변이 벽에 붙는다
+  await page.getByTestId('gizmo-hinge').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'right' });
+  const qr = await quadOf(page, id);
+  // 먼 변은 풀린 카메라로 다시 계산되므로(합성 사진은 카메라와 조금 다름) 경첩 변만큼 정확하지는 않다
+  expect(Math.hypot(qr[1][0] - flat[1][0], qr[1][1] - flat[1][1])).toBeLessThan(15);
+  // 초록 손잡이를 끌어 각도를 줄인다
+  await drag(page, 'gizmo-turn', -60, 0);
+  const t = await turnOf(page, id);
+  expect(t === null || t.deg < 90).toBe(true);
+  // 벽에 붙이기 → turn 없음, 외곽선은 벽 위 직사각형
+  if (t) {
+    await page.getByTestId('gizmo-flat').dispatchEvent('pointerdown', { button: 0 });
+    await expect.poll(() => turnOf(page, id)).toBeNull();
+  }
+  await expect(page.getByTestId('gizmo-perp')).toHaveCount(1);
+});
+
+test('원근 설정이 없는 사진에는 돌려 세우기 손잡이가 없다 (카메라가 있어야 정확)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
+  await expect(page.getByTestId('gizmo')).toBeVisible();
+  await expect(page.getByTestId('gizmo-turn')).toHaveCount(0);
+  await expect(page.getByTestId('gizmo-perp')).toHaveCount(0);
+});
+
+test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const id = await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
+  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => turnOf(page, id)).not.toBeNull();
+  await page.getByTestId('stage-3d').click();
+  await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
+});
