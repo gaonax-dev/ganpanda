@@ -30,7 +30,7 @@
 
   /** 조합형 (2026-10-16): 간판 프레임은 채널·스카시·시트·문구를 구성 요소 카드에서 */
   const composable = $derived(takesLetters(obj.productId));
-  const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scHeight']);
+  const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight']);
   const optionGroups = $derived(optionGroupsFor(obj).map((g) => (composable ? { ...g, fields: g.fields.filter((f) => !LETTER_KEYS.has(f.key)) } : g)).filter((g) => g.fields.length && !(composable && g.title === '시트 옵션')));
   function setOption(f: OptionField, v: string | boolean) {
     const next = { ...normalizeOptions(obj), [f.key]: v };

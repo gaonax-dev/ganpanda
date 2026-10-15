@@ -17,8 +17,8 @@
 
   const parts = $derived(partsOf(obj));
   /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
-  const LEGACY_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
-    'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut'];
+  const LEGACY_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
+    'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut'];
   const clone = (): SignPart[] => JSON.parse(JSON.stringify(parts));
   function commit(next: SignPart[]) {
     const options = Object.fromEntries(Object.entries(obj.options ?? {}).filter(([k]) => !LEGACY_KEYS.includes(k)));

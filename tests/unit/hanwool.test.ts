@@ -48,7 +48,7 @@ describe('종류별 조합 옵션', () => {
     expect(values(o, 'print')).toEqual(['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력']);
   });
   it('갈바: 프레임 재질 (2026-10-15 분류 재정리)', () => {
-    expect(values(obj({ productId: 'board-galva' }), 'frameMat')).toEqual(['스텐', '알루미늄', '철', '텐션 천']);
+    expect(values(obj({ productId: 'board-galva' }), 'frameMat')).toEqual(['스텐', '철', '알루미늄', '텐션 천']);
   });
   it('돌출 간판: 모양(사각/원형) · 몸체에 스텐', () => {
     const o = obj({ productId: 'board-protrude' });

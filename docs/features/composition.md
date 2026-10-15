@@ -39,5 +39,12 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - 내용 객체: [+ 글자] [+ 그림]. 글자: 글자(`item-text`)·글자수(`item-count`, 비우면 자동)·높이·X·Y. 그림: 디자인 파일 페이지(`item-image-source`) 또는 그림 올리기(`item-image-file`), 높이·가로·X·Y. 새 객체는 간판 중앙(0, 0), 높이 300mm.
 - 요약·주문서: 구성 요소마다 `이름 "글자" 높이mm … 그림 n` + 옵션 값(주문서는 기본값까지). 주문 JSON 품목에 `parts`(종류·이름·올릴 곳·옵션(기본값 채움)·객체).
 
+## 재질 객체 · 도색 객체 (`core/materials.ts`, 2026-10-16)
+사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다. 체널, 스카시, 도색이 필요한 곳에 도색 객체를 넣는다. 체널 전광의 경우 pc판도 선택할 수 있다. 조합 가능한 건 객체를 구성하고 추후 제공되는 자제를 공급업체별로 구성하려한다."
+- **재질 객체**(`material()` in `options.ts`): 재질 선택 + 도색 가능한 재질이면 도색 객체. 재질 목록 `MATERIALS`: 스텐 `stain` · 철 `iron` · 알루미늄 `alu` · 갈바 `galva`(도색 가능) · 텐션 천 `tension`(도색 없음). 채널 앞면 판 `FACE_MATERIALS`: 아크릴 `acrylic` · PC판 `pc`.
+- **도색 객체**(`paint()`): 색상 체계(도색 없음 기본 / PANTONE / RAL / KCC) → 고르면 컬러코드 · 광택(유광/반광/무광). 키 `<prefix>System·Code·Gloss`.
+- 쓰는 곳: 간판 프레임 재질(갈바·트러스·파이프 간접: `frameMat` + `framePaint*`), 갈바 판 도색(`paint*`), 돌출·복합판 도색, 채널 **측면 재질**(`chSideMat`: 알루미늄/스텐/철/갈바) + 측면 도색(`body*`), 채널 **앞면 판**(`chFace`: 아크릴/PC판, 전광·전후광만), 스카시 도색(`paint*`), 간판에 붙인 스카시 도색(`scPaint*`).
+- **공급업체 자재(계획)**: 옵션 값은 이름으로 저장하고 재질 id 는 나중에 공급업체별 자재(품목 코드·단가)를 붙일 자리입니다(예: 한울 품목 코드 → [../product/supplier-hanwool.md](../product/supplier-hanwool.md)).
+
 ## 관련 테스트
-`tests/unit/parts.test.ts`, `tests/e2e/parts.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)
+`tests/unit/parts.test.ts`, `tests/unit/materials.test.ts`, `tests/e2e/parts.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)

@@ -50,7 +50,7 @@ describe('간판', () => {
     expect(keys(obj({ productId: 'board-flex' }))).not.toContain('frameMat');
   });
   it('후렉스 외 프레임 스타일: 프레임 재질 스텐 / 알루미늄 / 철 / 텐션 천', () => {
-    for (const id of ['board-galva', 'board-truss', 'board-pipe']) expect(values(obj({ productId: id }), 'frameMat')).toEqual(['스텐', '알루미늄', '철', '텐션 천']);
+    for (const id of ['board-galva', 'board-truss', 'board-pipe']) expect(values(obj({ productId: id }), 'frameMat')).toEqual(['스텐', '철', '알루미늄', '텐션 천']);
   });
   it('간판 옵션: 채널 + 스카시 부착 (고르면 두께·재질·도색)', () => {
     const o = obj({ productId: 'board-galva' });
@@ -58,7 +58,7 @@ describe('간판', () => {
     expect(values(o, 'scashi')).toEqual(['없음', '고무 스카시', '티타늄 스카시', '아크릴 스카시']);
     expect(keys(o)).not.toContain('scThick');
     const s = obj({ productId: 'board-galva', options: { scashi: '고무 스카시' } });
-    expect(keys(s)).toEqual(expect.arrayContaining(['scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode']));
+    expect(keys(s)).toEqual(expect.arrayContaining(['scThick', 'scMaterial', 'scPaintSystem'])); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
     expect(values(s, 'scThick')).toEqual(['10T', '20T', '30T', '50T']);
   });
   it('스카시 부착은 견적에 스카시 줄, 3D 에 비조명 입체 글자', () => {
@@ -74,7 +74,7 @@ describe('스카시: 두께 · 재질 · 도색 컬러코드', () => {
   for (const [id, th] of [['ch-rubber', ['10T', '20T', '30T', '50T']], ['sc-titan', ['1.2T', '10T', '20T']], ['ch-scashi', ['3T', '5T', '8T', '10T']]] as const) {
     it(id, () => {
       const o = obj({ productId: id });
-      expect(keys(o).slice(0, 4)).toEqual(['thickness', 'material', 'paintSystem', 'paintCode']);
+      expect(keys(o).slice(0, 3)).toEqual(['thickness', 'material', 'paintSystem']); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
       expect(values(o, 'thickness')).toEqual(th);
     });
   }

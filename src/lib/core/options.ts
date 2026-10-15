@@ -4,6 +4,7 @@ import type { SignObject } from './model';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
 import { describeParts } from './parts';
+import { GLOSSES, PAINT_SYSTEMS, labelsOf, materialByLabel } from './materials';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -23,10 +24,20 @@ const sel = (key: string, label: string, values: string[], when?: OptionField['w
 const tog = (key: string, label: string, when?: OptionField['when']): OptionField => ({ key, label, kind: 'toggle', when });
 const txt = (key: string, label: string, placeholder: string, when?: OptionField['when']): OptionField => ({ key, label, kind: 'text', placeholder, when });
 
-const COLOR_SYSTEMS = ['PANTONE', 'RAL', 'KCC'];
+/**
+ * 도색 객체 (2026-10-16 사용자: "체널, 스카시, 도색이 필요한 곳에 도색 객체를 넣는다"): 색상 체계(도색 없음/PANTONE/RAL/KCC) → 고르면 컬러코드·광택.
+ * 키 = `${prefix}System` · `${prefix}Code` · `${prefix}Gloss`
+ */
+const painted = (prefix: string) => (opts: Options) => !!opts[`${prefix}System`] && opts[`${prefix}System`] !== PAINT_SYSTEMS[0];
 const paint = (prefix: string, label: string, when?: OptionField['when']): OptionField[] => [
-  sel(`${prefix}System`, `${label} 색상 체계`, COLOR_SYSTEMS, when),
-  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', when),
+  sel(`${prefix}System`, `${label} 색상 체계`, PAINT_SYSTEMS, when),
+  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)),
+  sel(`${prefix}Gloss`, `${label} 광택`, GLOSSES, (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)),
+];
+/** 재질 객체 (2026-10-16 사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다"): 재질 선택 + 도색 가능한 재질이면 도색 객체 */
+const material = (key: string, label: string, ids: string[], paintPrefix: string, paintLabel: string, when?: OptionField['when']): OptionField[] => [
+  sel(key, label, labelsOf(ids), when),
+  ...paint(paintPrefix, paintLabel, (opts, o) => (!when || when(opts, o)) && !!materialByLabel(opts[key] ?? labelsOf(ids)[0])?.paintable),
 ];
 const SIDES = sel('sides', '면', ['단면', '양면']);
 /** 채널 옵션 (모든 간판 몸통에): 없음 또는 채널 종류. 고르면 세부 옵션이 따라온다 */
@@ -48,7 +59,9 @@ const CHANNEL_FIELDS: OptionField[] = [
   tog('chDouble', '양면 (돌출용 전후광)', (opts) => opts.channel === CHANNEL_OPTIONS[2].label),
   sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], (opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('font', '서체', ['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)'], hasChannel),
-  ...paint('body', '알루미늄·측면·프레임 도색', hasChannel),
+  // 측면 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다")
+  ...material('chSideMat', '측면 재질', ['alu', 'stain', 'iron', 'galva'], 'body', '측면', hasChannel),
+  sel('chFace', '앞면 판', ['아크릴', 'PC판'], (opts) => opts.channel === CHANNEL_OPTIONS[0].label || opts.channel === CHANNEL_OPTIONS[2].label),
   txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이', hasChannel),
   sel('chFrame', '알루미늄 채널 프레임', ['없음', '150폭', '200폭', '250폭', '300폭', '400폭'], hasChannel),
   sel('chFrameColor', '채널 프레임 색', ['진회색', '연회색', '검정', '백색'], (opts) => hasChannel(opts) && !!opts.chFrame && opts.chFrame !== '없음'),
@@ -62,11 +75,7 @@ const SCASHI_SPEC: Record<string, { thick: string[]; material: string[] }> = {
   'ch-scashi': { thick: ['3T', '5T', '8T', '10T'], material: ['캐스팅', '압출', '펄', '미러', '한지'] },
 };
 /** 도색: 체계(도색 없음/PANTONE/RAL/KCC) + 코드 (비우면 요약에 안 나온다) */
-const paintOpt = (prefix: string, label: string, when?: OptionField['when']): OptionField[] => [
-  sel(`${prefix}System`, `${label} 색상 체계`, ['도색 없음', ...COLOR_SYSTEMS], when),
-  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', when),
-];
-const scashiFields = (id: string): OptionField[] => [sel('thickness', '두께', SCASHI_SPEC[id].thick), sel('material', '재질', SCASHI_SPEC[id].material), ...paintOpt('paint', '도색')];
+const scashiFields = (id: string): OptionField[] => [sel('thickness', '두께', SCASHI_SPEC[id].thick), sel('material', '재질', SCASHI_SPEC[id].material), ...paint('paint', '도색')];
 /** 간판에 붙이는 스카시 (2026-10-15 사용자: "스카시도 부착된다"): 고르면 그 스카시의 두께·재질·도색, 글자 높이 */
 const scIdOf = (opts: Options) => SCASHI_OPTIONS.find((c) => c.label === opts.scashi)?.id;
 const SCASHI_ATTACH_FIELDS: OptionField[] = [
@@ -75,7 +84,7 @@ const SCASHI_ATTACH_FIELDS: OptionField[] = [
     sel('scThick', '스카시 두께', SCASHI_SPEC[c.id].thick, (opts) => scIdOf(opts) === c.id),
     sel('scMaterial', '스카시 재질', SCASHI_SPEC[c.id].material, (opts) => scIdOf(opts) === c.id),
   ]),
-  ...paintOpt('scPaint', '스카시 도색', (opts) => !!scIdOf(opts)),
+  ...paint('scPaint', '스카시 도색', (opts) => !!scIdOf(opts)),
   txt('scHeight', '스카시 글자 높이 (mm)', '비우면 간판 높이', (opts) => !!scIdOf(opts)),
 ];
 /** 간판 상단 조명 (2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링") */
@@ -87,7 +96,7 @@ const TOP_LIGHT_FIELDS: OptionField[] = [
   sel('topColor', '빛 색', Object.keys(TOP_COLORS), hasTop),
 ];
 /** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
-const FRAME_MAT = sel('frameMat', '프레임 재질', ['스텐', '알루미늄', '철', '텐션 천']);
+const FRAME_MAT = material('frameMat', '프레임 재질', ['stain', 'iron', 'alu', 'tension'], 'framePaint', '프레임 도색');
 const INDIRECT = sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 'T5 LED 전구색', '측면 LED 바']);
 
 /** 제품별 옵션 (주문 사양) */
@@ -98,10 +107,10 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
   'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
-  'board-galva': [FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), INDIRECT, ...paint('paint', '도색')],
+  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), INDIRECT, ...paint('paint', '도색')],
   // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접
-  'board-truss': [FRAME_MAT, sel('light', '조명', ['비조명', '간접 조명'])],
-  'board-pipe': [FRAME_MAT, INDIRECT],
+  'board-truss': [...FRAME_MAT, sel('light', '조명', ['비조명', '간접 조명'])],
+  'board-pipe': [...FRAME_MAT, INDIRECT],
   // 포맥스 (2026-10-15 사용자: "포멕스:uv시트부착")
   'board-foamex': [sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']), tog('uvSheet', 'UV 시트 부착')],
   // 현수막 (한울: 일반·솔벤 출력, 기본 마감(재단·막대·타공·끈고리 4개) + 추가 마감)

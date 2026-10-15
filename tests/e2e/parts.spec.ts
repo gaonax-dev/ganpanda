@@ -71,3 +71,28 @@ test('옛 사인물(채널 옵션 + 문구)은 구성 요소로 보이고, 고�
   expect(o.options?.channel).toBeUndefined();
   expect(o.parts[0]).toMatchObject({ kind: 'channel', type: 'ch-halo', options: { chType: '캡' } });
 });
+
+test('재질·도색 객체: 채널 측면 재질 + 도색(체계 → 코드·광택), 전광은 앞면 아크릴/PC판, 간판 프레임 재질 + 도색', async ({ page, request }) => {
+  // 2026-10-16 사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다… 체널 전광의 경우 pc판도 선택할 수 있다"
+  await openOwnedProject(page, request, '재질 도색');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await page.getByTestId('product-select').selectOption('board-truss');
+  await expect(page.getByTestId('option-frameMat').locator('option')).toHaveText(['스텐', '철', '알루미늄', '텐션 천']);
+  await page.getByTestId('option-framePaintSystem').selectOption('RAL');
+  await expect(page.getByTestId('option-framePaintCode')).toBeVisible();
+  await page.getByTestId('option-frameMat').selectOption('텐션 천');
+  await expect(page.getByTestId('option-framePaintSystem')).toHaveCount(0); // 천은 도색 없음
+  await page.getByTestId('add-part-channel').click();
+  const ch = page.getByTestId('part-card').first();
+  await expect(ch.getByTestId('part-option-chSideMat')).toBeVisible();
+  await expect(ch.getByTestId('part-option-bodyCode')).toHaveCount(0);
+  await ch.getByTestId('part-option-bodySystem').selectOption('KCC');
+  await expect(ch.getByTestId('part-option-bodyGloss')).toBeVisible();
+  await ch.getByTestId('part-option-chFace').selectOption('PC판');
+  await ch.getByTestId('part-type').selectOption('ch-halo');
+  await expect(ch.getByTestId('part-option-chFace')).toHaveCount(0); // 후광은 앞면 판 없음
+});
