@@ -30,7 +30,8 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await expect(overlay).toHaveCount(1, { timeout: 30_000 });
   await expect(overlay).toHaveAttribute('src', /^data:image\/png/);
   const first = await overlay.getAttribute('src');
-  await expect(page.getByTestId('sign-shape')).toBeHidden(); // 영역·핸들 숨김 (편집 없음)
+  // 영역은 보이지 않게(투명) 남아 눌러 고를 수 있다 — 라벨은 숨김
+  expect(await page.getByTestId('sign-shape').evaluate((e) => getComputedStyle(e).stroke)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
   // 사인물 내용이 바뀌면 그 사진만 다시 합성
   await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { text: '카페' }); });
   await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(first);
