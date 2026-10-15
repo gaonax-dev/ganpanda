@@ -255,6 +255,7 @@ class AppState {
         const r = await verifyLink(token);
         this.applyAccount(r.account);
         if (r.reset) this.passwordOpen = 'reset'; // 비밀번호 재설정 링크 → 새 비밀번호 정하기
+        else if (url.searchParams.get('verify') === '1') this.notice = '이메일 인증이 끝났습니다. 가입을 환영합니다!';
       } catch (e) {
         this.authError = describeAuthError(e);
         this.loginOpen = true;
