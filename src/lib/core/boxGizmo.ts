@@ -3,7 +3,7 @@
 // 축 = 원근 설정의 벽 좌표 (x 벽 가로, y 벽 밖(카메라 쪽), z 위). 외곽선은 사진 위 2D — 이동은 원근 축을 따라 외곽선을 옮기고,
 // 회전은 박스 방향(상자가 외곽선에서 뻗는 방향)만 돌린다.
 import { applyHomography, projectPoint, type CameraPose, type Pt } from './homography';
-import { outSign, rayOf } from './faces';
+import { frameFrom, outSign, rayOf } from './faces';
 import { quadCenter } from './manipulator';
 
 export type V3 = [number, number, number];
@@ -38,6 +38,27 @@ export function outlinePoints3(cal: PosedPlane & { pose?: CameraPose }, face: Po
 export function outlineCenter3(cal: PosedPlane, face: PosedPlane, quad: Pt[]): V3 | null {
   if (!cal.pose) return null;
   return toWorld(cal.pose, face, applyHomography(face.Hinv, quadCenter(quad)));
+}
+
+/**
+ * 매니퓰레이터 자리와 외곽선을 읽을 면 (2026-10-15 사용자: "메니폴레이터가 나타나지 않는 사인물이 있다. 핀볼에서 확인해줘").
+ * 외곽선의 시선이 사인물 면(어느 면도 아니면 원근 설정의 기준 면)과 카메라 앞에서 만나면 그 면. 기준 면이 바닥(축 X·Y)이고 사인물이
+ * 그 지평선 위에 있으면 시선이 카메라 뒤에서 만나 자리가 없었다 → 그때는 원점과 같은 깊이에서 카메라를 보는 면(대각선 교점을 지남).
+ * 축 방향은 깊이와 무관하게 원근대로이고, 옮기기도 그 면의 3D 자리에서 원근대로 된다
+ */
+export function anchorOf(cal: PosedPlane, face: PosedPlane, quad: Pt[]): { c3: V3; plane: PosedPlane } | null {
+  const pose = cal.pose;
+  if (!pose) return null;
+  const pts = quad.map((q) => toWorld(pose, face, applyHomography(face.Hinv, q)));
+  const c3 = toWorld(pose, face, applyHomography(face.Hinv, quadCenter(quad)));
+  if (depthOf(pose, c3) > 0 && pts.every((p) => depthOf(pose, p) > 0)) return { c3, plane: face };
+  const D = Math.max(1000, depthOf(pose, [0, 0, 0]));
+  const { f, imgW, imgH } = pose, [cx, cy] = pose.pp ?? [imgW / 2, imgH / 2], q = quadCenter(quad);
+  const cam: V3 = [((q[0] - cx) / f) * D, ((q[1] - cy) / f) * D, D];
+  const at = RTv(pose.R, sub(cam, pose.t as V3));
+  const e1 = RTv(pose.R, [1, 0, 0]), e2 = RTv(pose.R, [0, -1, 0]);
+  const fr = frameFrom(pose, at, e1, e2, 1000, 1000);
+  return { c3: at, plane: { H: fr.H, Hinv: fr.Hinv, pose: fr.pose } };
 }
 
 /** 직선(c + dir·t) 위에서 반직선과 가장 가까운 점의 t */

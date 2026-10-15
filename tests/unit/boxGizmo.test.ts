@@ -97,3 +97,37 @@ describe('매니퓰레이터 그림', () => {
     expect(Math.hypot(g.arrows.x[1][0] - e[0], g.arrows.x[1][1] - e[1])).toBeLessThan(0.5);
   });
 });
+
+describe('기준 면의 지평선 너머 사인물도 매니퓰레이터가 뜬다 (2026-10-15 사용자: "메니폴레이터가 나타나지 않는 사인물이 있다. 핀볼에서 확인해줘")', async () => {
+  // 핀볼 측사면·측면: 원근 축이 X·Y 라 기준 면이 바닥(수평). 그 위 벽의 사인물은 중심 시선이 바닥과 카메라 뒤에서 만나 매니퓰레이터가 없었다
+  const { anchorOf } = await import('../../src/lib/core/boxGizmo');
+  const R = [1, 0, 0, 0, 0, -1, 0, 1, 0]; // 수평으로 바라보는 카메라: x = 가로, 화면 아래 = −z(높이), 앞 = +y
+  const C = [0, -5000, 1600];
+  const t = [0, 1, 2].map((i) => -(R[i * 3] * C[0] + R[i * 3 + 1] * C[1] + R[i * 3 + 2] * C[2])) as [number, number, number];
+  const floorPose: CameraPose = { f: 3000, R, t, imgW: 4000, imgH: 3000 };
+  const F = (x: number, y: number): Pt => projectPoint(floorPose, [x, y, 0]);
+  const fr: Pt[] = [[-3000, 0], [3000, 0], [3000, 6000], [-3000, 6000]];
+  const floor: WallPlane = { H: solveHomography(fr, fr.map(([x, y]) => F(x, y))), Hinv: solveHomography(fr.map(([x, y]) => F(x, y)), fr), source: 'calibration', pose: floorPose };
+  const sky: Pt[] = [[1700, 600], [2300, 600], [2300, 900], [1700, 900]]; // 지평선(y=1500) 위
+  it('기준 면과 카메라 뒤에서 만나면, 원점 깊이에서 카메라를 보는 면으로 자리를 잡는다 — 중심은 대각선 교점 그대로', () => {
+    const a = anchorOf(floor, floor, sky)!;
+    const depth = R[6] * a.c3[0] + R[7] * a.c3[1] + R[8] * a.c3[2] + t[2];
+    expect(depth).toBeGreaterThan(0);
+    const c = projectPoint(floorPose, a.c3), q = quadCenter(sky);
+    expect(Math.hypot(c[0] - q[0], c[1] - q[1])).toBeLessThan(0.5);
+    expect(boxGizmoOf(floorPose, a.c3, 500)).not.toBeNull();
+  });
+  it('그 자리에서도 원근 축을 따라 옮길 수 있다', () => {
+    const a = anchorOf(floor, floor, sky)!;
+    const A = worldAxes(floorPose);
+    const moved = moveOutline(floorPose, a.plane, sky, A.x, projectPoint(floorPose, a.c3), projectPoint(floorPose, add(a.c3, A.x, 500) as [number, number, number]));
+    expect(moved).not.toBeNull();
+    expect(moved![0][0]).toBeGreaterThan(sky[0][0]);
+  });
+  it('기준 면 앞에서 만나면 그 면 그대로', () => {
+    const q: Pt[] = [F(-500, 2000), F(500, 2000), F(500, 1000), F(-500, 1000)];
+    const a = anchorOf(floor, floor, q)!;
+    expect(a.plane).toBe(floor);
+    expect(a.c3[2]).toBeCloseTo(0, 3);
+  });
+});
