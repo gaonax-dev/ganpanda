@@ -182,4 +182,18 @@ describe('접속자 상태의 주인 추적 (y-websocket 은 남의 상태를 �
     expect(names(c)).toEqual(['A']);
     a.close(); c.close();
   });
+
+  it('닫힘 신호 없이 30초 넘게 조용한 접속자(사라진 휴대폰 탭)는 나중에 온 사람에게 보내지 않는다', async () => {
+    const id = await room();
+    const a = await TestClient.connect(id);
+    a.setPresence({ name: 'A' });
+    await new Promise((r) => setTimeout(r, 100));
+    // A 의 마지막 갱신을 31초 전으로 (소켓은 살아 있는 채)
+    const stub = env.ROOM.getByName(id);
+    await runInDurableObject(stub, (_r: Room, state) => { state.storage.sql.exec('UPDATE awareness SET updated_at = ?', Date.now() - 31_000); });
+    const c = await TestClient.connect(id);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(names(c)).toEqual([]);
+    a.close(); c.close();
+  });
 });

@@ -24,7 +24,9 @@ export interface Attachment { assetId: string; name: string; type: string; size:
 export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval'; ts: number; attachments?: Attachment[] }
 /** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
 export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string }
-type AwRow = { client_id: number; sock: string; clock: number; state: string };
+type AwRow = { client_id: number; sock: string; clock: number; state: string; updated_at?: number };
+/** y-protocols 와 같은 기준: 클라이언트는 15초마다 갱신하므로 30초 넘게 조용한 상태는 죽은 것 (닫힘 신호 없이 사라진 휴대폰 탭 등) */
+const AWARENESS_TTL = 30_000;
 
 export class Room extends DurableObject<Env> {
   private doc = new Y.Doc({ gc: true });
@@ -37,6 +39,7 @@ export class Room extends DurableObject<Env> {
       sql.exec('CREATE TABLE IF NOT EXISTS updates (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB NOT NULL)');
       // 접속자 상태의 주인(소켓) 기록 — y-websocket 은 남의 상태도 되돌려 보내므로 "처음 보낸 소켓 = 주인"으로 추적
       sql.exec('CREATE TABLE IF NOT EXISTS awareness (client_id INTEGER PRIMARY KEY, sock TEXT NOT NULL, clock INTEGER NOT NULL, state TEXT NOT NULL)');
+      try { sql.exec('ALTER TABLE awareness ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0'); } catch { /* 이미 있음 */ }
       const rows = sql.exec<{ data: ArrayBuffer }>('SELECT data FROM updates ORDER BY id').toArray();
       Y.transact(this.doc, () => {
         for (const r of rows) Y.applyUpdate(this.doc, new Uint8Array(r.data), LOAD);
@@ -210,8 +213,8 @@ export class Room extends DurableObject<Env> {
         if (row) sql.exec('DELETE FROM awareness WHERE client_id = ?', e.clientId);
       } else {
         sql.exec(
-          'INSERT INTO awareness (client_id, sock, clock, state) VALUES (?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET sock = excluded.sock, clock = excluded.clock, state = excluded.state',
-          e.clientId, sid, e.clock, e.state,
+          'INSERT INTO awareness (client_id, sock, clock, state, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(client_id) DO UPDATE SET sock = excluded.sock, clock = excluded.clock, state = excluded.state, updated_at = excluded.updated_at',
+          e.clientId, sid, e.clock, e.state, Date.now(),
         );
       }
       accepted.push(e);
@@ -237,6 +240,8 @@ export class Room extends DurableObject<Env> {
   }
 
   private sendAwarenessOfOthers(to: WebSocket, sid: string) {
+    // 오래 조용한 상태(닫힘 신호 없이 사라진 탭)는 정리하고 보내지 않는다
+    this.ctx.storage.sql.exec('DELETE FROM awareness WHERE updated_at < ?', Date.now() - AWARENESS_TTL);
     const rows = this.ctx.storage.sql.exec<AwRow>('SELECT * FROM awareness WHERE sock != ?', sid).toArray().filter((r) => this.isLive(r.sock));
     if (rows.length) to.send(encodeAwareness(rows.map((r) => ({ clientId: r.client_id, clock: r.clock, state: r.state }))));
   }

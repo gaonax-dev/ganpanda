@@ -41,3 +41,10 @@
 ## 관련 코드·테스트
 - `src/lib/ui/Chat.svelte`, `src/lib/core/project.ts` (`addMessage`, `messagesOf`)
 - `tests/unit/project.test.ts`, `tests/e2e/board.spec.ts` "오브젝트별 대화"
+
+## 접속자 표시가 남지 않게 (2026-10-15 사용자: "실시간 변경 잘 연동되는데 사용자가 나가도 표시가 계속 남는다")
+- 브라우저(특히 휴대폰)는 탭을 숨기거나 닫을 때 소켓을 바로 닫지 않는 일이 많아, 서버가 "나감"을 몰랐습니다(y-websocket 은 브라우저 종료를 알리지 않음).
+- **앱**(`src/lib/sync.ts`): 탭이 숨으면(`visibilitychange` hidden) 내 표시를 지우고 다시 보이면 복원, 페이지를 떠나면(`pagehide`) 표시를 지우고 연결을 끊음, 뒤로가기 복원(`pageshow` persisted)이면 다시 연결.
+- **서버**(`Room`): 접속자 상태에 `updated_at` 을 두고, 30초 넘게 갱신 없는 상태(클라이언트는 15초마다 갱신)는 새로 들어온 사람에게 보내지 않고 정리.
+- 테스트: `tests/e2e/realtime.spec.ts`(숨김·떠남), `server/test/sync.test.ts`(30초 조용한 상태).
+
