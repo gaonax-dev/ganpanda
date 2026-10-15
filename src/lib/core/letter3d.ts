@@ -1,8 +1,6 @@
 // 입체 간판 (4차): 사인물 → 3D 글자 사양, 폰트 기준 폭 계산
-import type { Font } from 'opentype.js';
 import type { SignObject } from './model';
 import type { Lighting, SignSpec } from '../sim/types';
-import { channelGeometry } from '../sim/signs';
 import { signParts } from './catalog';
 
 /** 사인물에 저장하는 입체 설정 */
@@ -31,12 +29,4 @@ export function specFromObject(o: SignObject): SignSpec | null {
     letterSpacing: l.letterSpacing, lighting: lightingOf(channelId), faceColor: l.faceColor, sideColor: l.sideColor,
     textColor: '#ffffff', x: 0, y: 0,
   };
-}
-
-/** 폰트로 조판했을 때 전체 폭(mm) — 채널 간판 폭 자동 산출 */
-export function measureTextWidthMm(font: Font, text: string, heightMm: number, letterSpacing: number): number {
-  if (!text.trim() || !heightMm) return 0;
-  const { geometry, measured } = channelGeometry({ ...DEFAULT_LETTER3D, id: 'm', kind: 'channel', text, heightMm, widthMm: 0, letterSpacing, lighting: 'none', textColor: '#fff', x: 0, y: 0 }, font);
-  geometry.dispose();
-  return measured.widthMm;
 }

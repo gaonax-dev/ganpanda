@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LETTER3D, lightingOf, measureTextWidthMm, specFromObject } from '../../src/lib/core/letter3d';
+import { DEFAULT_LETTER3D, lightingOf, specFromObject } from '../../src/lib/core/letter3d';
+import { measureTextWidthMm } from '../../src/lib/sim/letterWidth';
 import { font } from './fixtures';
 import type { SignObject } from '../../src/lib/core/model';
 
