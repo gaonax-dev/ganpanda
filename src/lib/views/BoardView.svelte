@@ -116,6 +116,10 @@
     if (!app.canEdit) return;
     if (action === 'undo') { e.preventDefault(); app.undo(); return; }
     if (action === 'redo') { e.preventDefault(); app.redo(); return; }
+    // 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다")
+    if (action === 'copy') { if (app.copySelected()) e.preventDefault(); return; }
+    if (action === 'paste') { if (app.clipboard) { e.preventDefault(); app.pasteClipboard(); } return; }
+    if (action === 'duplicate') { e.preventDefault(); app.duplicateSelected(); return; }
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }

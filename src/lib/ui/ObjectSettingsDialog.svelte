@@ -174,7 +174,7 @@
       {/if}
     </div>
     <footer>
-      {#if !ro}<button class="btn small danger" data-testid="delSign" onclick={remove}>사인물 삭제</button>{/if}
+      {#if !ro}<button class="btn small" data-testid="duplicate-sign" title="바로 옆에 같은 사인물 하나 더 (⌘/Ctrl+D)" onclick={() => { close(); app.selectObject(obj.id); app.duplicateSelected(); }}>복제</button><button class="btn small danger" data-testid="delSign" onclick={remove}>사인물 삭제</button>{/if}
       <span class="sp"></span>
       <button class="btn small" onclick={close}>닫기</button>
     </footer>

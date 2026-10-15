@@ -4,7 +4,7 @@
 export type Action =
   | 'zoomIn' | 'zoomOut' | 'zoomFit' | 'panHold'
   | 'toolSelect' | 'toolRect' | 'toolEllipse' | 'toolPin' | 'toolMagic' | 'toolZone'
-  | 'deleteSelection' | 'undo' | 'redo';
+  | 'deleteSelection' | 'undo' | 'redo' | 'copy' | 'paste' | 'duplicate';
 
 export type Keymap = Record<Action, string[]>;
 
@@ -32,6 +32,9 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'deleteSelection', label: '선택한 사인물 삭제', group: '편집' },
   { id: 'undo', label: '실행 취소', group: '편집' },
   { id: 'redo', label: '다시 실행', group: '편집' },
+  { id: 'copy', label: '사인물 복사', group: '편집' },
+  { id: 'paste', label: '사인물 붙여넣기', group: '편집' },
+  { id: 'duplicate', label: '사인물 복제', group: '편집' },
 ];
 
 /** xlpop 캔버스와 같은 화면 조작 */
@@ -50,6 +53,9 @@ export const DEFAULT_KEYMAP: Keymap = {
   deleteSelection: ['Delete', 'Backspace'],
   undo: ['Mod+Z'],
   redo: ['Mod+Shift+Z', 'Mod+Y'],
+  copy: ['Mod+C'],
+  paste: ['Mod+V'],
+  duplicate: ['Mod+D'],
 };
 
 const PUNCT: Record<string, string> = {
