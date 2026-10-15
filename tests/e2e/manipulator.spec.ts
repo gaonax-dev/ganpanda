@@ -79,7 +79,7 @@ test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡
   await expect(page.getByTestId('persp-guide')).toHaveCount(0);
 });
 
-test('원근 매니퓰레이터: 손으로 비튼 외곽선은 맞춘 모양(점선)과 [원근에 맞추기]가 뜨고, 누르면 설정한 원근의 직사각형이 된다', async ({ page, request }) => {
+test('원근 매니퓰레이터: 손으로 비튼 외곽선은 [⊞ 원근에 맞추기]만 뜨고(점선 제안 없음), 누르면 설정한 원근의 직사각형이 된다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -89,6 +89,7 @@ test('원근 매니퓰레이터: 손으로 비튼 외곽선은 맞춘 모양(점
   const guide = page.getByTestId('persp-guide');
   await expect(guide).toBeVisible();
   expect(Number(await guide.getAttribute('data-skew'))).toBeGreaterThan(3);
+  await expect(guide.locator('polygon')).toHaveCount(0); // 2026-10-15 "너무 복잡해": 맞춘 모양 점선은 그리지 않는다
   await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
   await expect(guide).toHaveCount(0);
   const fixed = await quadOf(page, id);
@@ -223,7 +224,7 @@ test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ p
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
 
-test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보이고, 원근에서 비틀린 외곽선이면 원근 설정대로의 상자(자홍 점선)가 함께. 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {
+test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보인다(자홍 점선 제안 상자는 없음). 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -233,11 +234,10 @@ test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 �
   await expect(box).toHaveCount(1);
   expect(await box.locator('line.edge').count()).toBe(12);
   await expect(page.getByTestId('box-guide-target')).toHaveCount(0); // 원근에 맞음
-  // 손으로 비튼 외곽선 → 올바른 상자(자홍 점선)도
+  // 손으로 비튼 외곽선이어도 제안 상자는 없다 (2026-10-15 사용자: "너무 복잡해")
   const hand: Pt[] = [[q[0][0], q[0][1] - 30], q[1], [q[2][0] + 25, q[2][1]], q[3]];
   await page.evaluate(({ id, hand }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { quad: hand }), { id, hand });
-  await expect(page.getByTestId('box-guide-target')).toHaveCount(1);
-  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('persp-align')).toHaveCount(1);
   await expect(page.getByTestId('box-guide-target')).toHaveCount(0);
   // 시트(두께 없음)는 상자 없음
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { productId: undefined, sheetIds: ['sh-cut'] }), id);
@@ -263,8 +263,8 @@ test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)
   expect(await page.evaluate(() => localStorage.getItem('ganpanda.gizmoSize'))).toBe('96');
 });
 
-test('돌출 간판 면에 그린 외곽선: 원근 제안이 벽 기준 마름모가 아니라 직각 면이고, [⊞]를 누르면 직각(90°) 배치가 된다', async ({ page, request }) => {
-  // 2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다"
+test('돌출 간판 면에 그린 외곽선: 구도로 면 방향을 알아봐 상자는 벽에 직각, 외곽선은 그린 그대로이고 맞추기 제안은 없다', async ({ page, request }) => {
+  // 2026-10-15 사용자: "간판처럼 해줘 너무 복잡해. 구도를 보고 면 방향을 인식할 수 있잖아"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -274,16 +274,20 @@ test('돌출 간판 면에 그린 외곽선: 원근 제안이 벽 기준 마름�
   await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => turnOf(page, ref)).toEqual({ deg: 90, hinge: 'left' });
   const truth = await quadOf(page, ref);
+  const box90 = await page.getByTestId('box-guide').locator('polygon.face').getAttribute('points');
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { removeObject(id: string): void } } }).__ganpanda.project.removeObject(id), ref);
-  // 사용자가 그 면을 손으로 그림 (돌리지 않은 사인물, 꼭짓점 몇 px 흔들림)
+  // 사용자가 그 면을 손으로 그림 (돌리기 조작 없음)
   const drawn = truth.map(([x, y], i) => [x + [3, -2, 2, -3][i], y + [-2, 3, -3, 2][i]] as Pt);
   const id = await addSign(page, drawn);
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
-  await expect(page.getByTestId('persp-guide')).toHaveAttribute('data-fit', 'perp');
-  await expect(page.getByTestId('persp-align').locator('title')).toHaveText(/직각/);
-  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'left' });
-  const q = await quadOf(page, id);
-  expect(Math.max(...q.map((p, i) => Math.hypot(p[0] - truth[i][0], p[1] - truth[i][1])))).toBeLessThan(8);
-  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-turn', '90'); // 돌린 사인물 매니퓰레이터로
+  await expect(page.getByTestId('persp-align')).toHaveCount(0);
+  await expect(page.getByTestId('box-guide-target')).toHaveCount(0);
+  // 흰 상자가 뻗는 방향(뒷면 외곽선 → 앞면)이 직각으로 세운 것과 같다. 깊이는 짧은 변이라 가는 띠에서는 손 떨림에 따라 달라 비교하지 않음
+  const pts = (s: string | null) => s!.trim().split(' ').map((p) => p.split(',').map(Number));
+  const face = pts(await page.getByTestId('box-guide').locator('polygon.face').getAttribute('points')), want = pts(box90);
+  const angle = (fr: number[][], back: Pt[]) => { const dx = fr.reduce((a, p, i) => a + p[0] - back[i][0], 0), dy = fr.reduce((a, p, i) => a + p[1] - back[i][1], 0); return Math.atan2(dy, dx); };
+  const d = Math.abs(angle(face, drawn) - angle(want, truth));
+  expect(Math.min(d, 2 * Math.PI - d)).toBeLessThan((15 * Math.PI) / 180);
+  expect(await turnOf(page, id)).toBeNull();
+  expect(await quadOf(page, id)).toEqual(drawn);
 });
