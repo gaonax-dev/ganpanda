@@ -185,22 +185,47 @@ export function lightboxGeometry(w: number, h: number, d: number, corner = 0): T
  */
 export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [number, number][], scale = 1) {
   const H = solveHomography([[-w / 2, h / 2], [w / 2, h / 2], [w / 2, -h / 2], [-w / 2, -h / 2]], corners);
+  // 벽 좌표가 거울상(원근 축 하나를 리버스)이면 꼭짓점이 뒤집혀 놓여 삼각형 감김이 반대가 된다 → 감김을 되돌린다
+  // (2026-10-15 사용자: "원근에서 x축 방향으로 리버스하면 3d가 뒤집어진다"). 중심에서의 야코비안 부호 = det(H)/d³
+  const det = H[0] * (H[4] * H[8] - H[5] * H[7]) - H[1] * (H[3] * H[8] - H[5] * H[6]) + H[2] * (H[3] * H[7] - H[4] * H[6]);
+  const mirrored = det / H[8] ** 3 < 0;
+  const done = new Set<THREE.BufferGeometry>(); // 같은 지오메트리를 두 메쉬가 나눠 쓰면 한 번만
   group.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
     const g = mesh.geometry as THREE.BufferGeometry;
+    if (done.has(g)) return;
+    done.add(g);
     const pos = g.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i) * scale, y = pos.getY(i) * scale;
       const d = H[6] * x + H[7] * y + H[8];
       pos.setXY(i, (H[0] * x + H[1] * y + H[2]) / d, (H[3] * x + H[4] * y + H[5]) / d);
     }
+    if (mirrored) reverseWinding(g);
     pos.needsUpdate = true;
     g.computeVertexNormals();
     g.computeBoundingBox(); g.computeBoundingSphere();
   });
   group.position.set(0, 0, 0);
   group.scale.setScalar(1);
+}
+
+/** 삼각형마다 두 꼭짓점을 바꿔 감김(앞뒤)을 뒤집는다. 인덱스가 있으면 인덱스만, 없으면 모든 속성을 */
+function reverseWinding(g: THREE.BufferGeometry) {
+  if (g.index) {
+    const idx = g.index;
+    for (let t = 0; t + 2 < idx.count; t += 3) { const b = idx.getX(t + 1); idx.setX(t + 1, idx.getX(t + 2)); idx.setX(t + 2, b); }
+    idx.needsUpdate = true;
+    return;
+  }
+  for (const name of Object.keys(g.attributes)) {
+    const a = g.attributes[name] as THREE.BufferAttribute;
+    for (let t = 0; t + 2 < a.count; t += 3) for (let k = 0; k < a.itemSize; k++) {
+      const b = a.getComponent(t + 1, k); a.setComponent(t + 1, k, a.getComponent(t + 2, k)); a.setComponent(t + 2, k, b);
+    }
+    a.needsUpdate = true;
+  }
 }
 
 /** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */
