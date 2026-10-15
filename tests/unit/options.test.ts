@@ -73,3 +73,48 @@ describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다
     expect(lines[0].amount).toBe(Math.round(0.54 * DEFAULT_PRICES.products['board-protrude'] / 1000) * 1000);
   });
 });
+
+describe('간판 천갈이 (2026-10-15 사용자: "간판 천갈이가 따로 있다")', async () => {
+  const { CATALOG, productById, groupOfProduct, productsOf } = await import('../../src/lib/core/catalog');
+  const { DEFAULT_PRICES } = await import('../../src/lib/core/pricing');
+  const { quoteObject } = await import('../../src/lib/core/quote');
+  const { renderSpecOf } = await import('../../src/lib/core/render');
+  it('간판 몸통 목록에 후렉스 간판 바로 다음으로 있고(㎡ 단가), 기본 단가표에도 있다', () => {
+    const p = productById('board-reface')!;
+    expect(p).toBeTruthy();
+    expect(p.name).toBe('간판 천갈이');
+    expect(p.unit).toBe('m2');
+    expect(groupOfProduct('board-reface')).toBe('sign');
+    const ids = productsOf('sign').map((x) => x.id);
+    expect(ids.indexOf('board-reface')).toBe(ids.indexOf('board-flex') + 1);
+    expect(CATALOG.findIndex((x) => x.id === 'board-reface')).toBeLessThan(CATALOG.findIndex((x) => x.id === 'ch-front'));
+    expect(DEFAULT_PRICES.products['board-reface']).toBeGreaterThan(0);
+  });
+  it('옵션: 면 · 원단 · 기존 원단 철거 · 내부 LED 교체', () => {
+    const o = obj({ productId: 'board-reface' });
+    expect(keys(o)).toEqual(['sides', 'fabric', 'removeOld', 'ledReplace']);
+    const [g] = optionGroupsFor(o);
+    expect(g.fields.find((f) => f.key === 'fabric')!.values!.map((v) => v.id)).toEqual(['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']);
+  });
+  it('견적: ㎡ 단가로 계산된다', () => {
+    const o = obj({ productId: 'board-reface', widthMm: 5000, heightMm: 900 });
+    const lines = quoteObject(o, DEFAULT_PRICES);
+    expect(lines[0].amount).toBe(Math.round(4.5 * DEFAULT_PRICES.products['board-reface'] / 1000) * 1000);
+  });
+  it('3D: 후렉스 간판처럼 전광 상자로 보인다', () => {
+    const spec = renderSpecOf(obj({ productId: 'board-reface' }), { cx: 0, cy: 0, w: 5000, h: 900 } as never)!;
+    expect(spec.kind).toBe('lightbox');
+    expect(spec.lighting).toBe('front');
+  });
+});
+
+describe('간판 천갈이는 채널 옵션이 없다 (원단만 교체)', async () => {
+  const { signParts } = await import('../../src/lib/core/catalog');
+  const { DEFAULT_PRICES } = await import('../../src/lib/core/pricing');
+  const { quoteObject } = await import('../../src/lib/core/quote');
+  it('채널 값이 남아 있어도(다른 몸통에서 바꿈) 채널로 읽지 않고 견적에도 안 넣는다', () => {
+    const o = obj({ productId: 'board-reface', widthMm: 5000, heightMm: 900, options: { channel: '전광 채널' }, text: '바로바로' });
+    expect(signParts(o).channelId).toBeNull();
+    expect(quoteObject(o, DEFAULT_PRICES)).toHaveLength(1);
+  });
+});

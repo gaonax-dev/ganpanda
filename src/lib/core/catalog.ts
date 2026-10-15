@@ -8,6 +8,7 @@ export interface Sheet { id: string; name: string }
 
 export const CATALOG: Product[] = [
   { id: 'board-flex', category: 'board', name: '후렉스 간판', unit: 'm2' },
+  { id: 'board-reface', category: 'board', name: '간판 천갈이', unit: 'm2' }, // 기존 프레임은 두고 면(후렉스 원단)만 교체 (2026-10-15 사용자: "간판 천갈이가 따로 있다")
   { id: 'board-galva', category: 'board', name: '갈바 간판', unit: 'm2' },
   { id: 'board-acp', category: 'board', name: '알루미늄 복합판 간판', unit: 'm2' },
   { id: 'board-foamex', category: 'board', name: '포맥스 간판', unit: 'm2' },
@@ -68,8 +69,11 @@ export const CHANNEL_OPTIONS: { id: string; label: string }[] = [
 export const CHANNEL_NONE = '없음';
 export const isChannelProduct = (id?: string) => !!id && CATALOG.some((p) => p.id === id && p.category === 'channel' && !SCASHI_IDS.has(id));
 /** 사인물의 몸통 id 와 채널 id. 옛 데이터(채널 제품이 종류)는 몸통 없음 + 그 채널 */
+/** 채널 옵션이 없는 몸통: 천갈이는 기존 프레임에 원단만 바꾸므로 입체 글자가 붙지 않는다 */
+export const NO_CHANNEL = new Set(['board-reface']);
 export function signParts(o: { productId?: string; options?: Record<string, string | boolean> }): { bodyId: string | undefined; channelId: string | null } {
   if (isChannelProduct(o.productId)) return { bodyId: 'body-none', channelId: o.productId! };
+  if (o.productId && NO_CHANNEL.has(o.productId)) return { bodyId: o.productId, channelId: null };
   const label = o.options?.channel;
   const ch = typeof label === 'string' ? CHANNEL_OPTIONS.find((c) => c.label === label) : undefined;
   return { bodyId: o.productId, channelId: ch ? ch.id : null };

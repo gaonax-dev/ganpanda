@@ -82,7 +82,7 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
 
   // 고객도 본다
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
-  await expect(guest.getByTestId('design-image')).toHaveCount(1);
+  await expect(guest.getByTestId('photo-zone').getByTestId('design-image')).toHaveCount(1); // 보드 평면도 카드에도 한 번 더 보인다
   await guest.ctx.close();
 });
 
