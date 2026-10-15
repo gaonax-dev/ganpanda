@@ -42,7 +42,8 @@ async function setCamera(page: Page) {
   await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
 }
 
-test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡이가 뜨고, X 로 끌면 벽을 따라 원근대로 옮겨진다 (멀어지면 작아짐)', async ({ page, request }) => {
+test('매니퓰레이터: 원근 축 X·Y·Z 화살표 / 회전 고리 3개 / 크기 손잡이 8개. X 로 끌면 외곽선이 벽을 따라 원근대로 옮겨진다 (멀어지면 작아짐)', async ({ page, request }) => {
+  // 2026-10-15 사용자: "크기는 각면 중앙과 꼭지에 있어야 한다. 로테이트는 3면 모두에", "메니폴레이터는 원근의 값을 기준으로 작동해야한다"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -50,12 +51,13 @@ test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡
   await expect(page.getByTestId('gizmo')).toBeVisible();
   // 모드: 이동(기본) → 회전 → 크기, 모드마다 손잡이가 다르다
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move');
-  for (const t of ['gizmo-x', 'gizmo-z', 'gizmo-move']) await expect(page.getByTestId(t)).toHaveCount(1);
-  await expect(page.getByTestId('gizmo-rotate')).toHaveCount(0);
+  for (const t of ['gizmo-x', 'gizmo-y', 'gizmo-z', 'gizmo-move']) await expect(page.getByTestId(t)).toHaveCount(1);
+  await expect(page.getByTestId('gizmo-rot-x')).toHaveCount(0);
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  for (const t of ['gizmo-rotate', 'gizmo-turn', 'gizmo-perp']) await expect(page.getByTestId(t)).toHaveCount(1);
+  for (const t of ['gizmo-rot-x', 'gizmo-rot-y', 'gizmo-rot-z', 'gizmo-ring-x', 'gizmo-ring-y', 'gizmo-ring-z']) await expect(page.getByTestId(t)).toHaveCount(1);
   await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
-  for (const t of ['gizmo-width', 'gizmo-height', 'gizmo-scale']) await expect(page.getByTestId(t)).toHaveCount(1);
+  await expect(page.getByTestId('gizmo').locator('[data-testid^="gizmo-size-"]')).toHaveCount(8);
+  await expect(page.getByTestId('sign-handle')).toHaveCount(0); // 크기 모드에선 꼭짓점 손잡이 대신 크기 손잡이
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
   // 작게: X 화살표가 화면에서 약 48px
   const c = (await page.getByTestId('gizmo-move').boundingBox())!, xh = (await page.getByTestId('gizmo-x').boundingBox())!;
@@ -71,12 +73,21 @@ test('매니퓰레이터: 고르면 3축 화살표·회전 고리·크기 손잡
   expect(hgt(after)).not.toBeCloseTo(hgt(before), 0);
   // 옮긴 뒤에도 원근 직사각형 그대로 (원근 매니퓰레이터 없음)
   await expect(page.getByTestId('persp-guide')).toHaveCount(0);
-  // 회전 고리로 돌리면 기울어진다 → 축에서 조금 기울면 원근 매니퓰레이터가 [원근에 맞추기] 제안
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await drag(page, 'gizmo-rotate', 0, 8);
-  await expect(page.getByTestId('persp-guide')).toBeVisible();
-  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
-  await expect(page.getByTestId('persp-guide')).toHaveCount(0);
+});
+
+test('매니퓰레이터 자리 = 외곽선 대각선 교점 (새로 그린 사인물도)', async ({ page, request }) => {
+  // 2026-10-15 사용자: "새로 생성하는 사인물툴의 메니폴레이터가 엉뚱한곳에 나타나"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  // 사진에 그냥 그린 사각형(벽 원근과 다름)
+  const id = await addSign(page, [[500, 120], [760, 140], [770, 260], [490, 250]]);
+  const q = await quadOf(page, id);
+  const at = await page.evaluate(async (q) => { const mp = '/src/lib/core/manipulator.ts'; const { quadCenter } = await import(/* @vite-ignore */ mp); return quadCenter(q) as Pt; }, q);
+  const c = (await page.getByTestId('gizmo-move').boundingBox())!;
+  const z = await page.evaluate(() => { const svg = document.querySelector('[data-testid="photo-zone"] svg') as SVGSVGElement; const m = svg.getScreenCTM()!; return { a: m.a, e: m.e, d: m.d, f: m.f }; });
+  expect(Math.abs(c.x + c.width / 2 - (z.a * at[0] + z.e))).toBeLessThan(2);
+  expect(Math.abs(c.y + c.height / 2 - (z.d * at[1] + z.f))).toBeLessThan(2);
 });
 
 test('원근 매니퓰레이터: 손으로 비튼 외곽선은 [⊞ 원근에 맞추기]만 뜨고(점선 제안 없음), 누르면 설정한 원근의 직사각형이 된다', async ({ page, request }) => {
@@ -135,46 +146,21 @@ test('3D 단계: 사인물을 눌러 고르면 매니퓰레이터가 뜨고, 옮
   await expect.poll(() => overlay.getAttribute('src'), { timeout: 30_000 }).not.toBe(first);
 });
 
-const turnOf = (page: Page, id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; turn?: { deg: number; hinge: string } }[] } }).__ganpanda.objects.find((o) => o.id === id)!.turn ?? null, id);
+const fieldOf = (page: Page, id: string, k: string) => page.evaluate(({ id, k }) => ((window as unknown as { __ganpanda: { objects: Record<string, unknown>[] } }).__ganpanda.objects.find((o) => o.id === id)![k] ?? null), { id, k });
+/** 원근 설정의 카메라로 본, 벽(x)에 직각으로 붙은 판의 사진 외곽선 (높이 y0~y0+h, 벽에서 out0~out0+w) */
+const sideQuad = (page: Page, x: number, y0: number, h: number, out0: number, w: number) => page.evaluate(async (a) => {
+  const cp = '/src/lib/core/camera.ts'; const { solveCamera } = await import(/* @vite-ignore */ cp);
+  const fp = '/src/lib/core/faces.ts'; const { outSign } = await import(/* @vite-ignore */ fp);
+  const hp = '/src/lib/core/homography.ts'; const { projectPoint } = await import(/* @vite-ignore */ hp);
+  const ph = (window as unknown as { __ganpanda: { photos: { camera: unknown; w: number; h: number }[] } }).__ganpanda.photos[0];
+  const pose = solveCamera(ph.camera, ph.w, ph.h).pose, n = outSign(pose);
+  const P3 = (x: number, y: number, o: number) => projectPoint(pose, [x, y, o * n]) as Pt;
+  const nt = P3(a.x, a.y0 + a.h, a.out0), nb = P3(a.x, a.y0, a.out0), ft = P3(a.x, a.y0 + a.h, a.out0 + a.w), fb = P3(a.x, a.y0, a.out0 + a.w);
+  return nt[0] < ft[0] ? [nt, ft, fb, nb] : [ft, nt, nb, fb];
+}, { x, y0, h, out0, w });
 
-test('3단계 벽에서 돌려 세우기: [⟂ 벽에 직각] → 90°(경첩 변은 그대로), 경첩 바꾸기, 초록 손잡이로 각도, [벽에 붙이기]로 원래대로', async ({ page, request }) => {
-  await openOwnedProject(page, request);
-  await loadSample(page);
-  await setCamera(page);
-  const flat = await rectOnWall(page, 1500, 3800, 2000, 800);
-  const id = await addSign(page, flat);
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await expect(page.getByTestId('gizmo-turn')).toHaveCount(1);
-  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'left' });
-  const q90 = await quadOf(page, id);
-  // 왼쪽 변(경첩)은 그대로, 먼 변은 벽에서 나와 다른 자리
-  expect(Math.hypot(q90[0][0] - flat[0][0], q90[0][1] - flat[0][1])).toBeLessThan(1);
-  expect(Math.hypot(q90[3][0] - flat[3][0], q90[3][1] - flat[3][1])).toBeLessThan(1);
-  expect(Math.hypot(q90[1][0] - flat[1][0], q90[1][1] - flat[1][1])).toBeGreaterThan(20);
-  const g = page.getByTestId('gizmo');
-  await expect(g).toHaveAttribute('data-turn', '90');
-  await expect(page.getByTestId('sign-handle')).toHaveCount(0); // 돌린 사인물은 꼭짓점 편집 대신 매니퓰레이터
-  await expect(page.getByTestId('persp-guide')).toHaveCount(0);
-  // 경첩 바꾸기 → 오른쪽 변이 벽에 붙는다
-  await page.getByTestId('gizmo-hinge').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, id)).toEqual({ deg: 90, hinge: 'right' });
-  const qr = await quadOf(page, id);
-  // 먼 변은 풀린 카메라로 다시 계산되므로(합성 사진은 카메라와 조금 다름) 경첩 변만큼 정확하지는 않다
-  expect(Math.hypot(qr[1][0] - flat[1][0], qr[1][1] - flat[1][1])).toBeLessThan(15);
-  // 초록 손잡이를 끌어 각도를 줄인다
-  await drag(page, 'gizmo-turn', -60, 0);
-  const t = await turnOf(page, id);
-  expect(t === null || t.deg < 90).toBe(true);
-  // 벽에 붙이기 → turn 없음, 외곽선은 벽 위 직사각형
-  if (t) {
-    await page.getByTestId('gizmo-flat').dispatchEvent('pointerdown', { button: 0 });
-    await expect.poll(() => turnOf(page, id)).toBeNull();
-  }
-  await expect(page.getByTestId('gizmo-perp')).toHaveCount(1);
-});
-
-test('크기 모드: 노란 모서리 손잡이는 비율 유지, 흰 손잡이는 가로·세로 따로', async ({ page, request }) => {
+test('크기 모드(외곽선만): 노란 꼭짓점 손잡이는 비율 유지, 흰 변 가운데 손잡이는 가로·세로 따로, 반대쪽 변은 그대로', async ({ page, request }) => {
+  // 2026-10-15 사용자: "크기는 각면 중앙과 꼭지에 있어야 한다", "크기는 외곽선만"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -191,35 +177,47 @@ test('크기 모드: 노란 모서리 손잡이는 비율 유지, 흰 손잡이�
   }, id);
   const side = async () => wallSize();
   const [w0, h0] = await side();
-  await drag(page, 'gizmo-scale', 40, -15);
+  await drag(page, 'gizmo-size-1_1', 40, -15);
   const [w1, h1] = await side();
   expect(w1).toBeGreaterThan(w0 * 1.1);
   expect(w1 / h1).toBeCloseTo(w0 / h0, 1); // 시작 외곽선은 합성 사진에서 그려 카메라 직사각형과 0.3% 정도 다르다
-  await drag(page, 'gizmo-width', 30, 0);
+  await drag(page, 'gizmo-size-1_0', 30, 0);
   const [w2, h2] = await side();
   expect(w2).toBeGreaterThan(w1);
   expect(Math.abs(h2 - h1)).toBeLessThan(1);
+  // 왼쪽 변 가운데: 오른쪽 변(TR·BR)은 그대로
+  const q2 = await quadOf(page, id);
+  await drag(page, 'gizmo-size--1_0', -30, 0);
+  const q3 = await quadOf(page, id);
+  expect(Math.hypot(q3[1][0] - q2[1][0], q3[1][1] - q2[1][1])).toBeLessThan(1.5);
+  expect(q3[0][0]).toBeLessThan(q2[0][0] - 5);
+  // 아래 변 가운데: 세로만
+  await drag(page, 'gizmo-size-0_-1', 0, 20);
+  const [, h4] = await side();
+  expect(h4).toBeGreaterThan(h2 + 10);
 });
 
-test('원근 설정이 없는 사진에는 돌려 세우기 손잡이가 없다 (카메라가 있어야 정확)', async ({ page, request }) => {
+test('원근 설정이 없는 사진: 박스 회전 고리·평면 판이 없다 (원근 축이 없으므로). 크기 손잡이 8개는 있다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
   await expect(page.getByTestId('gizmo')).toBeVisible();
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('gizmo-rotate')).toHaveCount(1);
-  await expect(page.getByTestId('gizmo-turn')).toHaveCount(0);
-  await expect(page.getByTestId('gizmo-perp')).toHaveCount(0);
+  await expect(page.getByTestId('gizmo-rot-x')).toHaveCount(0);
+  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('face-axes')).toHaveCount(0);
+  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('gizmo').locator('[data-testid^="gizmo-size-"]')).toHaveCount(8);
 });
 
-test('직각으로 세운 사인물도 3D 단계에서 그려진다', async ({ page, request }) => {
+test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, id)).not.toBeNull();
+  await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
@@ -244,7 +242,7 @@ test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 �
   await expect(page.getByTestId('box-guide')).toHaveCount(0);
   // 아이콘 버튼에는 설명(title)
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await expect(page.getByTestId('gizmo-perp').locator('title')).toHaveText(/직각/);
+  await expect(page.getByTestId('gizmo-rot-z').locator('title')).toHaveText(/박스/);
   await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동');
 });
 
@@ -263,72 +261,46 @@ test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)
   expect(await page.evaluate(() => localStorage.getItem('ganpanda.gizmoSize'))).toBe('96');
 });
 
-test('돌출 간판 면에 그린 외곽선: 구도로 면 방향을 알아봐 상자는 벽에 직각, 외곽선은 그린 그대로이고 맞추기 제안은 없다', async ({ page, request }) => {
+test('돌출 간판 면에 그린 외곽선: 박스는 벽 가로(X) 방향으로 자동, 외곽선은 그대로이고 맞추기 제안은 없다', async ({ page, request }) => {
   // 2026-10-15 사용자: "간판처럼 해줘 너무 복잡해. 구도를 보고 면 방향을 인식할 수 있잖아"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
-  // 정답 외곽선: 직각으로 세운 사인물의 사진 위 모양
-  const ref = await addSign(page, await rectOnWall(page, 1500, 3800, 1200, 900));
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, ref)).toEqual({ deg: 90, hinge: 'left' });
-  const truth = await quadOf(page, ref);
-  const box90 = await page.getByTestId('box-guide').locator('polygon.face').getAttribute('points');
-  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { removeObject(id: string): void } } }).__ganpanda.project.removeObject(id), ref);
-  // 사용자가 그 면을 손으로 그림 (돌리기 조작 없음)
-  const drawn = truth.map(([x, y], i) => [x + [3, -2, 2, -3][i], y + [-2, 3, -3, 2][i]] as Pt);
-  const id = await addSign(page, drawn);
-  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
+  const q = await sideQuad(page, 300, 3000, 900, 0, 1200);
+  const id = await addSign(page, q);
+  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-box', 'x');
   await expect(page.getByTestId('persp-align')).toHaveCount(0);
-  await expect(page.getByTestId('box-guide-target')).toHaveCount(0);
-  // 흰 상자가 뻗는 방향(뒷면 외곽선 → 앞면)이 직각으로 세운 것과 같다. 깊이는 짧은 변이라 가는 띠에서는 손 떨림에 따라 달라 비교하지 않음
-  const pts = (s: string | null) => s!.trim().split(' ').map((p) => p.split(',').map(Number));
-  const face = pts(await page.getByTestId('box-guide').locator('polygon.face').getAttribute('points')), want = pts(box90);
-  const angle = (fr: number[][], back: Pt[]) => { const dx = fr.reduce((a, p, i) => a + p[0] - back[i][0], 0), dy = fr.reduce((a, p, i) => a + p[1] - back[i][1], 0); return Math.atan2(dy, dx); };
-  const d = Math.abs(angle(face, drawn) - angle(want, truth));
-  expect(Math.min(d, 2 * Math.PI - d)).toBeLessThan((15 * Math.PI) / 180);
-  expect(await turnOf(page, id)).toBeNull();
-  expect(await quadOf(page, id)).toEqual(drawn);
+  expect(await quadOf(page, id)).toEqual(q);
 });
 
-test('세 면: 이동 매니퓰레이터의 화살표 사이 평면 판(X·Y·Z)이 사인물이 보는 면을 보여 주고, 판을 누르면 그 면이 정면 (외곽선·원근 기준은 그대로). 켜진 판을 다시 누르면 자동', async ({ page, request }) => {
-  // 2026-10-15 사용자: "이동 xyz 끝은 화살표 센터에 투명한 사각형을 위치시킨다 사각 판을 선택하면 그걸 사인물의 정면으로"
-  // 2026-10-15 사용자: "삼면 구조로 진행해줘", "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다"
+test('평면 판·회전 고리는 박스 방향만 바꾼다: 외곽선·사인물 크기는 그대로, 상자만 그 방향. 켜진 판을 다시 누르면 자동', async ({ page, request }) => {
+  // 2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다", "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
-  const faceOf = (id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; faceAxis?: string }[] } }).__ganpanda.objects.find((o) => o.id === id)!.faceAxis ?? null, id);
-  const axes = page.getByTestId('face-axes');
-  // 벽에 그린 간판: Y. 정면으로 그린 직사각형은 벽에 직각인 면의 사진일 수 없어 X 는 못 고른다
-  await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
-  await expect(axes).toHaveAttribute('data-axis', 'y');
+  const q = await rectOnWall(page, 1000, 3800, 3000, 800);
+  const id = await addSign(page, q);
+  const g = page.getByTestId('gizmo'), face = page.getByTestId('box-guide').locator('polygon.face');
+  await expect(g).toHaveAttribute('data-box', 'y');
   await expect(page.getByTestId('face-y')).toHaveAttribute('data-on', 'true');
   expect(await page.getByTestId('face-y').evaluate((e) => e.tagName)).toBe('polygon'); // 사각 판
-  await expect(page.getByTestId('gizmo').getByTestId('face-axes')).toHaveCount(1); // 이동 매니퓰레이터 안
-  await expect(page.getByTestId('face-x')).toHaveAttribute('data-can', 'false');
-  // 돌출 면에 그린 간판: 자동으로 X
-  const ref = await addSign(page, await rectOnWall(page, 1500, 3800, 1200, 900));
+  const boxY = await face.getAttribute('points');
+  // X 판: 박스가 벽 가로로 — 외곽선 그대로, 상자만 바뀜
+  await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
+  await expect(g).toHaveAttribute('data-box', 'x');
+  expect(await quadOf(page, id)).toEqual(q);
+  await expect(face).not.toHaveAttribute('points', boxY!);
+  // 켜진 X 판을 다시 누르면 자동(Y)
+  await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
+  await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBeNull();
+  await expect(face).toHaveAttribute('points', boxY!);
+  // Z 고리로 박스를 돌린다 — 외곽선은 그대로, 방향은 축 사이(none)
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
-  await page.getByTestId('gizmo-perp').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => turnOf(page, ref)).toEqual({ deg: 90, hinge: 'left' });
-  const truth = await quadOf(page, ref);
-  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { removeObject(id: string): void } } }).__ganpanda.project.removeObject(id), ref);
-  const id = await addSign(page, truth);
+  await drag(page, 'gizmo-rot-z', 12, 6);
+  await expect.poll(() => fieldOf(page, id, 'boxDir')).not.toBeNull();
+  expect(await quadOf(page, id)).toEqual(q);
+  await expect(face).not.toHaveAttribute('points', boxY!);
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
-  await expect(axes).toHaveAttribute('data-axis', 'x');
-  const face = page.getByTestId('box-guide').locator('polygon.face');
-  const boxX = await face.getAttribute('points');
-  // Y 를 누르면 벽면이 정면 — 외곽선은 그대로, 상자는 벽면 쪽으로
-  await page.getByTestId('face-y').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => faceOf(id)).toBe('y');
-  await expect(axes).toHaveAttribute('data-axis', 'y');
-  expect(await quadOf(page, id)).toEqual(truth);
-  expect(await turnOf(page, id)).toBeNull();
-  await expect(face).not.toHaveAttribute('points', boxX!);
-  // 켜진 Y 를 다시 누르면 자동(다시 X)
-  await page.getByTestId('face-y').dispatchEvent('pointerdown', { button: 0 });
-  await expect.poll(() => faceOf(id)).toBeNull();
-  await expect(axes).toHaveAttribute('data-axis', 'x');
-  await expect(face).toHaveAttribute('points', boxX!);
+  await expect(g).toHaveAttribute('data-box', 'none');
 });

@@ -2,9 +2,9 @@
 import type { Font } from 'opentype.js';
 import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
-import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, zTowardCamera, type WallPlane } from '../core/wallPlane';
+import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, zTowardCamera, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
-import { buildLightbox, buildSign, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
+import { buildLightbox, buildSign, orientBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
@@ -35,7 +35,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
   const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
   v.applyProjection(projectionFromPlane(plane, photo.w, photo.h), poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
   for (const { o, plane: own, at } of placed) {
-    const spec = renderSpecOf(o, at);
+    const spec = renderSpecOf(o, sizedAt(o, at, plane)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
     if (!spec) continue;
     const face = opts.designs && spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
     let b: BuiltSign;
@@ -43,8 +43,8 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
     const corners = quadOnWall(own, o) as [number, number][];
     warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);
-    // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면이 카메라를 보게
-    if (zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0) b.group.scale.z = -1;
+    // 박스 방향으로 (정면 축·회전 고리, 2026-10-15). 없으면 법선 — 원근 카메라의 +z 가 벽 안쪽이면 뒤집어 앞면이 카메라를 보게
+    orientBox(b.group, boxLocalDirOf(o, own, plane, photo.w, photo.h), zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0);
     v.signsRoot.add(b.group);
     v.addSignCamera(b.group, projectionFromPlane(own, photo.w, photo.h), poseOfPlane(own, photo.w, photo.h), corners);
     built.push(b);

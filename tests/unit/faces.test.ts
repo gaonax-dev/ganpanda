@@ -71,16 +71,34 @@ describe('세 면: 정면 축을 구도로 알아본다', () => {
   });
 });
 
-describe('세 면: 사용자가 정면 축을 고르면 그 면 (외곽선·원근 기준은 그대로)', () => {
-  it('돌출 간판 외곽선을 y 로 고르면 벽면', () => {
-    expect(faceOf(obj(sideQ, { faceAxis: 'y' }), cal)!.plane).toBe(cal);
-  });
-  it('정면으로 그린 벽면 직사각형을 x 로 고를 수는 없다(벽에 직각인 면의 사진일 수 없음) → 면 없음', () => {
-    expect(faceOf(obj(wallQ, { faceAxis: 'x' }), cal)).toBeNull();
-  });
-  it('signPlaneOf 도 같은 면을 쓴다 (3D·상자)', () => {
+describe('정면 축은 상자 방향만 — 사인물 면은 구도로 정한 그대로 (2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다", "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만")', async () => {
+  const { boxDirOf, contentSizeOf } = await import('../../src/lib/core/wallPlane');
+  const { worldAxes } = await import('../../src/lib/core/boxGizmo');
+  const A = worldAxes(pose);
+  const close = (a: number[], b: number[]) => Math.abs(Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) - 1) < 1e-6;
+  it('정면 축을 골라도 면·크기는 그대로', () => {
+    for (const faceAxis of ['x', 'y', 'z'] as const) {
+      expect(faceOf(obj(sideQ, { faceAxis }), cal)).toEqual(faceOf(obj(sideQ), cal));
+      expect(contentSizeOf(obj(sideQ, { faceAxis }), cal)).toEqual(contentSizeOf(obj(sideQ), cal));
+    }
     expect(signPlaneOf(obj(sideQ), cal)).toEqual(faceOf(obj(sideQ), cal)!.plane);
-    expect(signPlaneOf(obj(soffitQ, { faceAxis: 'z' }), cal)).toEqual(faceOf(obj(soffitQ), cal)!.plane);
+  });
+  it('상자 방향: 자동은 면의 법선(돌출 간판 = X, 벽면 = Y, 어닝 = Z), 고르면 그 축, 회전한 방향이 있으면 그것', () => {
+    expect(close(boxDirOf(obj(sideQ), cal)!, A.x)).toBe(true);
+    expect(close(boxDirOf(obj(wallQ), cal)!, A.y)).toBe(true);
+    expect(close(boxDirOf(obj(soffitQ), cal)!, A.z)).toBe(true);
+    expect(close(boxDirOf(obj(sideQ, { faceAxis: 'y' }), cal)!, A.y)).toBe(true);
+    const d = [0.6, 0, 0.8 * A.y[2]] as [number, number, number];
+    expect(boxDirOf(obj(sideQ, { faceAxis: 'y', boxDir: d }), cal)).toEqual(d);
+  });
+  it('상자 방향은 사인물에서 카메라 쪽으로 (어닝 아랫면은 아래로)', async () => {
+    const { outlineCenter3 } = await import('../../src/lib/core/boxGizmo');
+    const C = [0, 1, 2].map((i) => -(pose.R[i] * pose.t[0] + pose.R[3 + i] * pose.t[1] + pose.R[6 + i] * pose.t[2])); // 카메라 위치(벽 좌표)
+    for (const o of [obj(sideQ), obj(wallQ), obj(soffitQ), obj(wallQ, { faceAxis: 'x' })]) {
+      const d = boxDirOf(o, cal)!, c = outlineCenter3(cal, faceOf(o, cal)?.plane ?? cal, o.quad)!;
+      expect(d[0] * (C[0] - c[0]) + d[1] * (C[1] - c[1]) + d[2] * (C[2] - c[2])).toBeGreaterThan(0);
+    }
+    expect(boxDirOf(obj(soffitQ), cal)![1]).toBeLessThan(0);
   });
 });
 
@@ -95,5 +113,28 @@ describe('세 면: 치수 추정도 그 면에서', async () => {
     expect(Math.abs(est('s').widthMm - 900) / 900).toBeLessThan(0.05);
     expect(Math.abs(est('a').widthMm - 3000) / 3000).toBeLessThan(0.05);
     expect(Math.abs(est('a').heightMm - 1500) / 1500).toBeLessThan(0.05);
+  });
+});
+
+describe('사인물 자체 크기는 정면 축과 무관 (2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다")', async () => {
+  const { contentSizeOf } = await import('../../src/lib/core/wallPlane');
+  it('구도로 알아본 면에서 잰 크기 — 입력 치수가 그린 비율과 달라도 같다 (글자가 찌그러지지 않게)', () => {
+    const auto = contentSizeOf(obj(sideQ), cal)!;
+    expect(Math.abs(auto.w - 900) / 900).toBeLessThan(0.05);
+    expect(contentSizeOf(obj(sideQ, { widthMm: 1200, heightMm: 600 }), cal)).toEqual(auto);
+  });
+});
+
+describe('3D·상자 가이드가 쓰는 박스 방향 (사인물 면 좌표)', async () => {
+  const { boxLocalDirOf } = await import('../../src/lib/core/wallPlane');
+  it('벽면 사인물: 자동이면 면의 법선, X 를 고르면 면 안의 가로 방향(기울어진 상자)', () => {
+    const own = signPlaneOf(obj(wallQ), cal)!;
+    const auto = boxLocalDirOf(obj(wallQ), own, cal, imgW, imgH)!;
+    expect(Math.abs(auto[2])).toBeCloseTo(1, 6);
+    const x = boxLocalDirOf(obj(wallQ, { faceAxis: 'x' }), own, cal, imgW, imgH)!;
+    expect(Math.abs(x[0])).toBeCloseTo(1, 6);
+  });
+  it('원근 설정이 없으면 null (면의 법선으로 그림)', () => {
+    expect(boxLocalDirOf(obj(wallQ), cal, null, imgW, imgH)).toBeNull();
   });
 });

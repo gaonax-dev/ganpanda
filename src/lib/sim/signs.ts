@@ -211,6 +211,19 @@ export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [n
   group.scale.setScalar(1);
 }
 
+/**
+ * 상자를 박스 방향으로 (2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"): 면 좌표 z(두께)를 dir 방향으로 뻗게 한다 — 앞면(외곽선)은 그대로,
+ * 두께만 기운다. dir 은 면 좌표의 단위 벡터(카메라 쪽). 없으면 면의 법선이고, 법선이 벽 안쪽이면(flip) 뒤집는다.
+ * 박스 방향이 면과 거의 나란하면(두께가 사라짐) z 성분을 0.15 로 둔다
+ */
+export function orientBox(group: THREE.Group, dir: [number, number, number] | null, flip: boolean) {
+  if (!dir) { if (flip) group.scale.z = -1; return; }
+  const dz = Math.sign(dir[2] || 1) * Math.max(Math.abs(dir[2]), 0.15);
+  group.matrixAutoUpdate = false;
+  group.matrix.set(1, 0, dir[0], 0, 0, 1, dir[1], 0, 0, 0, dz, 0, 0, 0, 0, 1);
+  group.matrixWorldNeedsUpdate = true;
+}
+
 /** 삼각형마다 두 꼭짓점을 바꿔 감김(앞뒤)을 뒤집는다. 인덱스가 있으면 인덱스만, 없으면 모든 속성을 */
 function reverseWinding(g: THREE.BufferGeometry) {
   if (g.index) {

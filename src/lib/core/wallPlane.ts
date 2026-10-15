@@ -6,6 +6,7 @@ import { isValidQuad } from './measure';
 import type { SignObject } from './model';
 import { SKEW_ALERT, readTurn, skewOf, turnedPlane } from './manipulator';
 import { faceFrameOf, type FaceAxis, type FaceFrame } from './faces';
+import { localBoxDir, outlineCenter3, towardCamera, worldAxes } from './boxGizmo';
 
 export interface WallPlane {
   /** 벽면 mm → 사진 px */
@@ -158,7 +159,7 @@ const AUTO_FACE_ERR = 0.05;
 /**
  * 사인물의 정면 축과 그 면 (2026-10-15 사용자: "삼면 구조로 진행해줘"; "사인물의 정면을 바꾸자는 의미지 기준을 변경하자는 건 아니다").
  * - 돌려 세운 사인물(turn) → 돌린 면 (45° 넘으면 x)
- * - 사용자가 고른 축(faceAxis) → 그 면. 그 면의 사진일 수 없는 외곽선이면 null
+ * (정면 축 faceAxis·박스 방향 boxDir 은 면을 바꾸지 않는다 — 박스 방향만. 2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다")
  * - 자동: 외곽선이 벽면의 직사각형이면(비틀림 ≤ 3°) y, 아니면 x·z 중 바른 직사각형으로 폈을 때 가장 덜 벗어나는 면(대각선 5% 안). 둘 다 아니면 null
  * 원근 설정이 없으면 null
  */
@@ -173,11 +174,6 @@ export function faceOf(o: SignObject, cal: WallPlane | null): { axis: FaceAxis; 
     return { axis: o.turn.deg > 45 ? 'x' : 'y', plane: { H: solveHomography(rect, proj), Hinv: solveHomography(proj, rect), source: 'calibration', pose: tp.pose, referenceId: o.id } };
   }
   const asPlane = (ff: FaceFrame): WallPlane => ({ H: ff.H, Hinv: ff.Hinv, source: 'calibration', pose: ff.pose, referenceId: o.id });
-  if (o.faceAxis === 'y') return { axis: 'y', plane: cal };
-  if (o.faceAxis === 'x' || o.faceAxis === 'z') {
-    const ff = faceFrameOf(cal, o.quad, o.faceAxis);
-    return ff ? { axis: o.faceAxis, plane: asPlane(ff) } : null;
-  }
   if (skewOf(cal, o.quad) <= SKEW_ALERT) return { axis: 'y', plane: cal };
   let best: { axis: FaceAxis; ff: FaceFrame } | null = null;
   for (const axis of ['x', 'z'] as const) {
@@ -185,6 +181,50 @@ export function faceOf(o: SignObject, cal: WallPlane | null): { axis: FaceAxis; 
     if (ff && ff.err <= AUTO_FACE_ERR && (!best || ff.err < best.ff.err)) best = { axis, ff };
   }
   return best ? { axis: best.axis, plane: asPlane(best.ff) } : null;
+}
+
+/**
+ * 박스 방향 (원근 설정의 벽 좌표 단위 벡터, 카메라 쪽): 회전 고리로 돌린 방향 > 고른 정면 축 > 사인물 면의 법선(자동). 원근 설정이 없으면 null
+ * (2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만")
+ */
+export function boxDirOf(o: SignObject, cal: WallPlane | null): [number, number, number] | null {
+  if (!(cal?.source === 'calibration' && cal.pose)) return null;
+  const pose = cal.pose, A = worldAxes(pose);
+  const face = faceOf(o, cal), at = outlineCenter3(cal, face?.plane ?? cal, o.quad) ?? undefined;
+  if (o.boxDir) return towardCamera(pose, o.boxDir, at);
+  if (o.faceAxis) return towardCamera(pose, A[o.faceAxis], at);
+  const pl = face?.plane.pose;
+  if (!pl) return towardCamera(pose, A.y, at);
+  // 면의 법선(면 좌표 z)을 벽 좌표로: n_cam = R'·[0,0,1], n = Rᵀ·n_cam
+  const nc: [number, number, number] = [pl.R[2], pl.R[5], pl.R[8]], R = pose.R;
+  return towardCamera(pose, [R[0] * nc[0] + R[3] * nc[1] + R[6] * nc[2], R[1] * nc[0] + R[4] * nc[1] + R[7] * nc[2], R[2] * nc[0] + R[5] * nc[1] + R[8] * nc[2]], at);
+}
+
+/**
+ * 박스 방향을 사인물 면 좌표로 (3D 렌더링·상자 가이드): 면 좌표의 z = 면의 법선. 카메라 쪽을 향한다.
+ * own = 그 사인물을 그릴 면(signPlaneOf). 원근 설정이 없으면 null (면의 법선으로 그린다)
+ */
+export function boxLocalDirOf(o: SignObject, own: WallPlane, cal: WallPlane | null, imgW: number, imgH: number): [number, number, number] | null {
+  const d = boxDirOf(o, cal);
+  if (!d || !cal?.pose) return null;
+  const face = { H: own.H, Hinv: own.Hinv, pose: own.pose ?? poseOfPlane(own, imgW, imgH) };
+  return localBoxDir(face, cal.pose, d, outlineCenter3(cal, own, o.quad) ?? undefined);
+}
+
+/**
+ * 3D 로 만들 사인물 자체의 크기(글자·디자인 배치 기준, mm) = 구도로 정한 면에서 잰 크기 (없으면 자신의 면).
+ * 정면 축·박스 방향·입력 치수와 무관 (2026-10-15 사용자: "정면을 바꾸면 박스 구조만 변경되고 원 사인물은 형태를 유지해야한다")
+ */
+export function contentSizeOf(o: SignObject, cal: WallPlane | null): { w: number; h: number } | null {
+  const pl = signPlaneOf(o, cal);
+  if (!pl) return null;
+  const at = placeOnWall(pl, o);
+  return { w: at.w, h: at.h };
+}
+/** 3D 배치(위치는 그 면의 자리)에 사인물 자체 크기를 씌운다 */
+export function sizedAt(o: SignObject, at: Placement, cal: WallPlane | null): Placement {
+  const cs = contentSizeOf(o, cal);
+  return cs ? { ...at, w: cs.w, h: cs.h } : at;
 }
 
 /** 벽면(y)이 아닌 면에 놓인 사인물의 크기(mm, 그 면에서 잰 값). 벽면이면 undefined(벽면 측정 그대로), 어느 면도 아니면 null(측정 없음) */

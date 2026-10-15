@@ -32,7 +32,7 @@ export function outSign(pose: CameraPose): 1 | -1 {
   return pose.R[8] * 1 + pose.t[2] < pose.t[2] ? 1 : -1;
 }
 /** 사진 px → 카메라에서 나가는 반직선 (벽 좌표) */
-function rayOf(pose: CameraPose, px: Pt): { o: V3; d: V3 } {
+export function rayOf(pose: CameraPose, px: Pt): { o: V3; d: V3 } {
   const { R, t, f, imgW, imgH } = pose;
   const [cx, cy] = pose.pp ?? [imgW / 2, imgH / 2];
   const dc: V3 = [(px[0] - cx) / f, (px[1] - cy) / f, 1];
@@ -42,7 +42,7 @@ function rayOf(pose: CameraPose, px: Pt): { o: V3; d: V3 } {
 }
 
 /** 벽 좌표의 3D 면(원점 O, 가로 e1, 세로 e2) → 면 좌표 카메라·호모그래피 */
-function frameFrom(pose: CameraPose, O: V3, e1: V3, e2: V3, w: number, h: number): { H: number[]; Hinv: number[]; pose: CameraPose } {
+export function frameFrom(pose: CameraPose, O: V3, e1: V3, e2: V3, w: number, h: number): { H: number[]; Hinv: number[]; pose: CameraPose } {
   const e3 = cross(e1, e2);
   const { R, t } = pose;
   const col = (v: V3): V3 => [R[0] * v[0] + R[1] * v[1] + R[2] * v[2], R[3] * v[0] + R[4] * v[1] + R[5] * v[2], R[6] * v[0] + R[7] * v[1] + R[8] * v[2]];
