@@ -89,3 +89,16 @@ describe('상자 가이드 (2026-10-15 사용자: "격자도 어렵다. 정육�
     expect(thicknessOf(obj({}))).toBe(0);
   });
 });
+
+describe('3D 상자는 항상 카메라 쪽으로 (2026-10-15 사용자: "정면 페이스가 사라졌다")', async () => {
+  const { zTowardCamera } = await import('../../src/lib/core/wallPlane');
+  it('면 좌표의 +z 가 카메라 쪽이면 1, 벽 안쪽이면 -1 (그때는 상자를 뒤집어 앞면이 카메라를 보게)', () => {
+    const Pm = projectionFromPlane(cal, imgW, imgH);
+    const s = zTowardCamera(Pm, [3000, 3450]);
+    const depth = (z: number) => Pm[8] * 3000 + Pm[9] * 3450 + Pm[10] * z + Pm[11];
+    expect(depth(s * 100)).toBeLessThan(depth(0));
+    // z 를 뒤집은 투영이면 부호도 뒤집힌다
+    const flipped = Pm.map((v, i) => (i % 4 === 2 ? -v : v));
+    expect(zTowardCamera(flipped, [3000, 3450])).toBe(-s);
+  });
+});
