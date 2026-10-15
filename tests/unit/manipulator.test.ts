@@ -148,3 +148,32 @@ describe('3단계: 벽에서 돌려 세우기 (돌출 간판 직각 배치)', as
     expect(turnAngleAt(plane, tf, at(0))).toBeCloseTo(0, 0);
   });
 });
+
+describe('외곽선에 맞는 면 고르기 (2026-10-15 사용자: "의도한 대로 면을 맞추지 못하고 있다" — 돌출 간판 면을 그렸는데 벽 기준 마름모를 제안)', async () => {
+  const { fitPlacement, outOfWall } = await import('../../src/lib/core/manipulator');
+  const n = outOfWall(plane);
+  const P3 = (x: number, y: number, z: number): Pt => projectPoint(pose, [x, y, z * n]);
+  /** 벽(x=wallX)에서 브래킷만큼 떨어져 직각으로 걸린 간판의 사진 외곽선 (TL,TR,BR,BL) */
+  function protruding(wallX: number, y0: number, h: number, z0: number, w: number) {
+    const nt = P3(wallX, y0 + h, z0), nb = P3(wallX, y0, z0), ft = P3(wallX, y0 + h, z0 + w), fb = P3(wallX, y0, z0 + w);
+    return nt[0] < ft[0] ? { quad: [nt, ft, fb, nb], hinge: 'left' as const } : { quad: [ft, nt, nb, fb], hinge: 'right' as const };
+  }
+  const jitter = (q: Pt[]): Pt[] => q.map(([x, y], i) => [x + [5, -4, 3, -6][i], y + [-3, 6, -5, 4][i]]);
+  const dist = (a: Pt[], b: Pt[]) => Math.max(...a.map((p, i) => Math.hypot(p[0] - b[i][0], p[1] - b[i][1])));
+
+  for (const wallX of [2000, 7000]) {
+    it(`벽에 직각인 면에 그린 외곽선은 직각(90°) 배치로 맞춘다 — 벽 x=${wallX}`, () => {
+      const truth = protruding(wallX, 3000, 900, 300, 900);
+      const fit = fitPlacement(plane, jitter(truth.quad))!;
+      expect(fit.turn?.deg).toBe(90);
+      expect(fit.turn?.hinge).toBe(truth.hinge);
+      expect(dist(fit.quad, truth.quad)).toBeLessThan(15);
+    });
+  }
+  it('벽에 붙은 사인물은 벽 기준 직사각형으로 맞춘다 (돌리지 않음)', () => {
+    const sign = rectOn(1000, 3000, 4000, 900);
+    const fit = fitPlacement(plane, jitter(sign))!;
+    expect(fit.turn).toBeUndefined();
+    expect(dist(fit.quad, sign)).toBeLessThan(15);
+  });
+});
