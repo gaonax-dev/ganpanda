@@ -29,8 +29,8 @@ export const partLabel = (p: SignPart) =>
   : p.kind === 'scashi' ? productById(p.type)?.name ?? p.type
   : sheetById(p.type)?.name ?? p.type;
 
-const CH_KEYS = ['chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'bodySystem', 'bodyCode', 'chFrame', 'chFrameColor', 'bracket'];
-const SC_KEYS: Record<string, string> = { scThick: 'thickness', scMaterial: 'material', scPaintSystem: 'paintSystem', scPaintCode: 'paintCode' };
+const CH_KEYS = ['chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chFrame', 'chFrameColor', 'bracket'];
+const SC_KEYS: Record<string, string> = { scThick: 'thickness', scMaterial: 'material', scPaintSystem: 'paintSystem', scPaintCode: 'paintCode', scPaintGloss: 'paintGloss' };
 const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.fromEntries(keys.filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]));
 
 /** 이 사인물의 구성 요소. 저장된 것이 있으면 그것, 없으면 옛 필드에서. 간판 분류가 아니면 없음 */

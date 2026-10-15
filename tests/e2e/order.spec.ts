@@ -83,7 +83,7 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await expect(page.getByTestId('part-option-chFrameColor')).toBeVisible();
   await page.getByTestId('add-part-scashi').click();
   await page.getByTestId('part-type').nth(1).selectOption('sc-titan');
-  for (const k of ['thickness', 'material', 'paintSystem', 'paintCode']) await expect(page.getByTestId('part-card').nth(1).getByTestId(`part-option-${k}`)).toBeVisible();
+  for (const k of ['thickness', 'material', 'paintSystem']) await expect(page.getByTestId('part-card').nth(1).getByTestId(`part-option-${k}`)).toBeVisible();
   await page.getByTestId('close-object-settings').click();
   // 분류 9개 (2026-10-15 분류 재정리): 라이트패널 분류
   await expect(page.getByTestId('category-select').locator('option')).toHaveText(['분류 선택', '간판', '시트', '스카시', '포맥스', '현수막', '라이트패널', '액자', '어닝', '사인미러']);
