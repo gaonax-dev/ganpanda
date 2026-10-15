@@ -148,3 +148,29 @@ describe('3단계: 벽에서 돌려 세우기 (돌출 간판 직각 배치)', as
     expect(turnAngleAt(plane, tf, at(0))).toBeCloseTo(0, 0);
   });
 });
+
+describe('매니퓰레이터 평면 판 (2026-10-15 사용자: "이동 xyz 끝은 화살표 센터에 투명한 사각형을 위치시킨다 사각 판을 선택하면 그걸 사인물의 정면으로")', () => {
+  // 판 이름 = 그 판을 고르면 정면이 되는 축(판의 법선): y = X·Z 사이(벽면), x = Y·Z 사이(벽에 직각인 세로면), z = X·Y 사이(수평면)
+  const fr = frameOf(plane, rectOn(1000, 3000, 4000, 900));
+  const g = gizmoOf(plane, fr, 600);
+  it('카메라가 있으면 판 세 개, 각각 사진 위 네 점', () => {
+    expect(g.planes).toBeDefined();
+    for (const k of ['x', 'y', 'z'] as const) expect(g.planes![k]).toHaveLength(4);
+  });
+  it('벽면 판(y)은 벽 위, 중심에서 X·Z 화살표 방향으로 화살표 길이의 0.3~0.6 사이', () => {
+    const w = g.planes!.y.map((p) => applyHomography(Hinv, p));
+    for (const [x, y] of w) {
+      expect(x - fr.c[0]).toBeGreaterThan(600 * 0.29); expect(x - fr.c[0]).toBeLessThan(600 * 0.61);
+      expect(y - fr.c[1]).toBeGreaterThan(600 * 0.29); expect(y - fr.c[1]).toBeLessThan(600 * 0.61); // 벽 좌표 y = 위
+    }
+  });
+  it('다른 두 판은 벽에서 나온 쪽(Y 화살표 쪽)에 있어 벽면 판과 다른 자리', () => {
+    const cy = (q: Pt[]) => q.reduce((a, p) => [a[0] + p[0] / 4, a[1] + p[1] / 4], [0, 0]);
+    const [a, b, c] = [cy(g.planes!.x), cy(g.planes!.y), cy(g.planes!.z)];
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThan(3);
+    expect(Math.hypot(c[0] - b[0], c[1] - b[1])).toBeGreaterThan(3);
+  });
+  it('카메라가 없으면 판 없음', () => {
+    expect(gizmoOf({ H, Hinv }, fr, 600).planes).toBeUndefined();
+  });
+});
