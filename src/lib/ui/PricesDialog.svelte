@@ -1,11 +1,13 @@
 <!-- 단가 설정 (편집 권한): 프로젝트 단가표 수정, 소유자는 계정 기본값으로 저장.
-  2026-10-16: 공급 단가표(한울 등, 읽기 전용)를 아래에 보이고, 내 단가 항목을 공급 품목에 연결하면 그 단가를 가져오고 꼬리표가 붙는다. 직접 고치면 연결이 풀린다. -->
+  2026-10-16: 공급 단가표(한울 등, 읽기 전용)를 아래에 보이고, 내 단가 항목을 공급 품목에 연결하면 그 단가를 가져오고 꼬리표가 붙는다. 직접 고치면 연결이 풀린다.
+  공급사 계산법(글자 크기 구간·폭 구간·헤베+기본가·면적 구간)을 고르면 견적이 그 계산법 × 배수로 나온다("공급사별 계산법을 사용할 수 있게해줘"). -->
 <script lang="ts">
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, UNIT_LABEL } from '../core/catalog';
   import { ROUNDING_OPTIONS, type PriceTable } from '../core/pricing';
   import { savePrices } from '../auth';
   import { applyMarkup, isDirect, linkedPrice } from '../core/markup';
+  import { findMethod, methodsFor } from '../core/calcMethods';
   import { SUPPLIER_LISTS, findSupplierItem, linkableItems, supplierItemLabel, type SupplierItem, type SupplierPriceList } from '../core/supplierPrices';
 
   let saved = $state(false);
@@ -15,18 +17,30 @@
   function set(patch: Partial<PriceTable>) {
     const next = { ...p, ...patch };
     if (!next.links) delete next.links; // 동기화 문서에 undefined 를 남기지 않는다
+    if (!next.methods) delete next.methods;
     app.setPrices(next);
   }
   const num = (v: string, fallback: number) => { const n = Number(v); return v.trim() === '' || !isFinite(n) || n < 0 ? fallback : n; };
-  const unlinked = (id: string) => { const { [id]: _, ...rest } = p.links ?? {}; return Object.keys(rest).length ? rest : undefined; };
-  // 직접 고치면 공급 단가 연결이 풀린다 (꼬리표 = 공급업체 단가 그대로라는 뜻)
-  const setProduct = (id: string, v: string) => set({ products: { ...p.products, [id]: num(v, p.products[id]) }, links: unlinked(id) });
-  const setSheet = (id: string, v: string) => set({ sheets: { ...p.sheets, [id]: num(v, p.sheets[id]) }, links: unlinked(id) });
-  /** 공급 품목 연결: 단가를 가져오고 연결을 남긴다. '' = 직접 입력 */
+  const without = (m: Record<string, string> | undefined, id: string) => { const { [id]: _, ...rest } = m ?? {}; return Object.keys(rest).length ? rest : undefined; };
+  // 직접 고치면 공급 단가 연결·계산법이 풀린다 (꼬리표 = 공급업체 단가 그대로라는 뜻)
+  const setProduct = (id: string, v: string) => set({ products: { ...p.products, [id]: num(v, p.products[id]) }, links: without(p.links, id), methods: without(p.methods, id) });
+  const setSheet = (id: string, v: string) => set({ sheets: { ...p.sheets, [id]: num(v, p.sheets[id]) }, links: without(p.links, id), methods: without(p.methods, id) });
+  /** 공급 선택: '' = 직접 입력, 'm:<계산법 id>' = 공급사 계산법, 그 밖 = 공급 품목 연결(단가를 가져옴) */
   function link(id: string, kind: 'products' | 'sheets', v: string) {
+    if (v.startsWith('m:') && findMethod(v.slice(2))) { set({ methods: { ...(p.methods ?? {}), [id]: v.slice(2) }, links: without(p.links, id) }); return; }
     const hit = findSupplierItem(v);
-    if (!hit) { set({ links: unlinked(id) }); return; }
-    set({ [kind]: { ...p[kind], [id]: linkedPrice(p, v) ?? hit.item.price }, links: { ...(p.links ?? {}), [id]: v } } as Partial<PriceTable>);
+    if (!hit) { set({ links: without(p.links, id), methods: without(p.methods, id) }); return; }
+    set({ [kind]: { ...p[kind], [id]: linkedPrice(p, v) ?? hit.item.price }, links: { ...(p.links ?? {}), [id]: v }, methods: without(p.methods, id) } as Partial<PriceTable>);
+  }
+  /** 계산법 선택지: 공급업체별로 묶음 */
+  function methodChoices(unit: string) {
+    const groups = new Map<string, { value: string; label: string }[]>();
+    for (const m of methodsFor(unit, p)) {
+      const g = `${m.supplier.tag} 계산법`;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g)!.push({ value: `m:${m.id}`, label: m.label });
+    }
+    return [...groups];
   }
   /** 배수(사용자가 정함): 비우면 전체 배수를 따른다. 바꾸면 연결된 항목을 다시 계산 */
   const ratio = (v: string): number | null => { const n = Number(v); return v.trim() !== '' && isFinite(n) && n > 0 && n <= 10 ? n : null; };
@@ -60,7 +74,8 @@
     }
     return [...groups];
   }
-  const tagOf = (id: string) => findSupplierItem(p.links?.[id])?.list.supplier.tag;
+  const tagOf = (id: string) => findMethod(p.methods?.[id])?.supplier.tag ?? findSupplierItem(p.links?.[id])?.list.supplier.tag;
+  const tagTitle = (id: string) => findMethod(p.methods?.[id])?.label ?? (findSupplierItem(p.links?.[id]) ? supplierItemLabel(findSupplierItem(p.links?.[id])!.item) : '');
   const groupsOf = (l: SupplierPriceList) => [...new Set(l.items.map((i) => i.group))];
   let openList = $state<string | null>(null);
 
@@ -73,14 +88,21 @@
 
 {#snippet row(id: string, name: string, unit: string, unitLabel: string, kind: 'products' | 'sheets')}
   {@const opts = choices(unit)}
+  {@const mopts = methodChoices(unit)}
   {@const tag = tagOf(id)}
+  {@const method = findMethod(p.methods?.[id])}
   <div class="row">
-    <span>{name}{#if tag} <span class="tag" data-testid="price-tag-{id}" title={supplierItemLabel(findSupplierItem(p.links?.[id])!.item)}>{tag}</span>{/if}</span>
-    <input data-testid="price-{id}" type="number" min="0" step="100" value={p[kind][id]} oninput={(e) => (kind === 'products' ? setProduct : setSheet)(id, e.currentTarget.value)} />
+    <span>{name}{#if tag} <span class="tag" data-testid="price-tag-{id}" title={tagTitle(id)}>{tag}</span>{/if}</span>
+    {#if method}
+      <input data-testid="price-{id}" disabled value="" placeholder="계산법" title={method.label} />
+    {:else}
+      <input data-testid="price-{id}" type="number" min="0" step="100" value={p[kind][id]} oninput={(e) => (kind === 'products' ? setProduct : setSheet)(id, e.currentTarget.value)} />
+    {/if}
     <small>{unitLabel}</small>
-    {#if opts.length}
-      <select data-testid="price-link-{id}" title="공급 단가 연결" value={p.links?.[id] ?? ''} onchange={(e) => link(id, kind, e.currentTarget.value)}>
+    {#if opts.length || mopts.length}
+      <select data-testid="price-link-{id}" title="공급 단가 연결·계산법" value={method ? `m:${method.id}` : (p.links?.[id] ?? '')} onchange={(e) => link(id, kind, e.currentTarget.value)}>
         <option value="">직접 입력</option>
+        {#each mopts as [g, xs] (g)}<optgroup label={g}>{#each xs as x (x.value)}<option value={x.value}>{x.label}</option>{/each}</optgroup>{/each}
         {#each opts as [g, xs] (g)}<optgroup label={g}>{#each xs as x (x.link)}<option value={x.link}>{x.label}</option>{/each}</optgroup>{/each}
       </select>
     {:else}<span></span>{/if}
@@ -106,7 +128,7 @@
         {/each}
       </section>
       <section data-testid="supplier-lists">
-        <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 "공급 단가"에서 연결하면 공급 단가 × 배수와 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
+        <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 선택에서 공급 품목(단가 × 배수)이나 공급사 계산법(구간·기본가 × 배수)을 고르면 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
         <div class="markup" data-testid="markup">
           <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} onchange={(e) => setAll(e.currentTarget.value)} /></label>
           <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수(공급업체를 펼쳐 분류마다)를 비우면 전체 배수. 직접 출력 분류는 연결하지 않고 직접 입력합니다</small>

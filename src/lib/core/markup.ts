@@ -3,6 +3,7 @@
 // 배수는 사용자가 정한다("단가는 사용가 설정할거고"). 배수를 바꾸면 연결된 항목만 다시 계산한다.
 import type { Markup, PriceTable } from './pricing';
 import { findSupplierItem, type SupplierItem } from './supplierPrices';
+import { findMethod } from './calcMethods';
 
 export function markupFor(prices: Pick<PriceTable, 'markup'>, item: SupplierItem): number {
   return prices.markup?.groups?.[item.group] ?? prices.markup?.all ?? 1;
@@ -29,5 +30,8 @@ export function applyMarkup(prices: PriceTable, markup: Markup | undefined): Pri
     if (id in next.sheets) next.sheets[id] = v; else next.products[id] = v;
   }
   if (Object.keys(links).length) next.links = links; else delete next.links;
+  // 직접 출력이 된 분류의 계산법도 푼다
+  const methods = Object.fromEntries(Object.entries(prices.methods ?? {}).filter(([, id]) => { const m = findMethod(id); return m && !isDirect(next, m.items[0]); }));
+  if (Object.keys(methods).length) next.methods = methods; else delete next.methods;
   return next;
 }

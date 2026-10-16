@@ -169,3 +169,39 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await expect(page.getByTestId('price-board-flex')).toHaveValue('71000');
   await expect(page.getByTestId('price-tag-board-flex')).toHaveText('알리다');
 });
+
+test('공급사 계산법: 채널 단가를 알리다 글자 크기 구간 자당으로 고르면 견적이 그 계산법으로 나온다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "공급사별 계산법을 사용할 수 있게해줘"
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await page.getByTestId('width-mm').fill('3000');
+  await page.getByTestId('height-mm').fill('600');
+  await page.getByTestId('product-select').selectOption('body-none');
+  await page.getByTestId('add-part-channel').click();
+  await page.getByTestId('add-item-text').click();
+  await page.getByTestId('item-text').fill('바로바로');
+  await page.getByTestId('item-h').fill('600');
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('view-list').click();
+  await page.getByTestId('open-prices').click();
+  await page.getByTestId('price-minimum').fill('0');
+  await page.getByTestId('price-link-ch-front').selectOption('m:alida:letters:알미늄 캡 채널|광확산PC 채널|LED조립');
+  await expect(page.getByTestId('price-ch-front')).toBeDisabled();
+  await expect(page.getByTestId('price-tag-ch-front')).toHaveText('알리다');
+  await page.getByTestId('close-prices').click();
+  // 60cm LED조립 37,400원/자 × 4자 = 149,600 → 1,000원 반올림 150,000
+  const line = page.locator('.line').filter({ hasText: '전광 채널' });
+  await expect(line).toContainText('60cm');
+  await expect(line).toContainText('알리다 단가');
+  await expect(line).toContainText('150,000원');
+  // 직접 입력으로 되돌리면 원/자·cm
+  await page.getByTestId('open-prices').click();
+  await page.getByTestId('price-link-ch-front').selectOption('');
+  await expect(page.getByTestId('price-ch-front')).toBeEnabled();
+  await page.getByTestId('close-prices').click();
+  await expect(line).toContainText('원/자·cm');
+});
