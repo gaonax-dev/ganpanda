@@ -1,6 +1,7 @@
 // 주문 사양 옵션 스키마 (2026-10-14 사용자 요청: 사인물 통합 주문): 종류마다 옵션을 데이터로 두고 설정 창이 폼을 그린다.
 // 새 품목·옵션은 여기에 한 줄 추가. 값은 SignObject.options (키 → 값) 에 저장되고, 조합 규칙은 `when` 으로.
 import type { SignObject } from './model';
+import { thicknessLabel } from './catalog';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
 import { describeParts, partsOf } from './parts';
@@ -254,7 +255,8 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
   const legacy = (LEGACY_FIELDS[o.productId ?? ''] ?? [])
     .filter((f) => opts[f.key] !== undefined && !['없음', '비조명'].includes(String(opts[f.key])) && !(f.key === 'thick' && o.depthMm))
     .map((f) => `${f.label} ${opts[f.key]}`);
-  const fromOptions = [...optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
+  const thick = thicknessLabel(o); // 두께는 소재 옆에 (치수는 가로×세로만)
+  const fromOptions = [...(thick ? [thick] : []), ...optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
   // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16). 스카시 분류는 옛 데이터도 구성 요소로
   const ps = o.parts ?? (o.productId && SCASHI_IDS.includes(o.productId) ? partsOf(o) : undefined);
   if (!ps) return fromOptions;

@@ -118,18 +118,26 @@ test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께
   await openObjectSettings(page);
   await expect(page.getByTestId('option-thick')).toHaveCount(0);
   await expect(page.getByTestId('option-uvSheet')).toHaveCount(0);
-  await page.getByTestId('thick-5').click();
-  await expect(page.getByTestId('depth-mm')).toHaveValue('5');
+  // 두께는 소재(종류) 아래, 치수는 가로·세로만 (2026-10-16 "두께는 소재에 붙이는게 맞을 거 같은데")
+  await expect(page.getByTestId('size-section').getByTestId('depth-mm')).toHaveCount(0);
+  await page.getByTestId('thickness').getByTestId('thick-5').click();
+  await expect(page.getByTestId('thickness').getByTestId('depth-mm')).toHaveValue('5');
+  await page.getByTestId('width-mm').fill('600');
+  await page.getByTestId('height-mm').fill('400');
   // 포맥스: 시트·스카시만
   await expect(page.getByTestId('add-part-channel')).toHaveCount(0);
   await page.getByTestId('add-part-sheet-uv').click();
   await page.getByTestId('add-part-scashi').click();
   await expect(page.getByTestId('part-card')).toHaveCount(2);
   await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('object-summary')).toContainText('포맥스 · 5T');
+  await expect(page.getByTestId('object-summary')).toContainText('600×400mm');
+  await expect(page.getByTestId('object-summary')).not.toContainText('×5mm');
   // 현수막으로 바꾸면 구성 요소가 없다 (현수막 자체가 출력물)
   await pickCategory(page, 'banner');
   await openObjectSettings(page);
   await expect(page.getByTestId('parts-section')).toHaveCount(0);
+  await expect(page.getByTestId('thickness')).toHaveCount(0); // 현수막은 두께 없음
   await page.getByTestId('close-object-settings').click();
   // 시트 분류: 시트 구성 요소 카드, 시트 칩·문구 칸 없음
   await pickCategory(page, 'sheet');

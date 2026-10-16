@@ -46,8 +46,7 @@
     pending = null;
   }
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
-  const isBoard = $derived(productById(obj.productId)?.category === 'board');
-  const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}${obj.depthMm ? `×${fmt(obj.depthMm)}` : ''}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
+  const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
 </script>
 
 <div class="quick" data-testid="quick-bar">
@@ -83,11 +82,6 @@
       <span>×</span>
       <input data-testid="quick-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
         placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '세로'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
-      {#if isBoard}
-        <span>×</span>
-        <input data-testid="quick-depth" type="number" inputmode="decimal" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="두께"
-          oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
-      {/if}
       <span>mm</span>
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
     </div>
