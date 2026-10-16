@@ -15,7 +15,8 @@
 | 견적 줄 꼬리표(`QuoteLine.supplier`, 상세 문구 `· 한울 단가`) | 구현됨 (2026-10-16) |
 | 업로드·API 형식 검증(`parseSupplierList`) | 구현됨 (함수만, 화면·서버 없음) |
 | 단가표 업로드(엑셀·JSON)·거래업체 API 수신, 서버 보관, 버전(적용일) 관리 | 계획 |
-| 단가 변경 알림(연결된 내 단가와 공급 단가가 달라졌을 때), 마진(공급가 × 배수)으로 내 단가 계산 | 계획 |
+| 배수: 연결 단가 = 공급 단가 × 배수(분류 배수 > 전체 배수 > 1), 100원 단위. 배수를 바꾸면 연결 항목 다시 계산 (`core/markup.ts`) | 구현됨 (2026-10-16) |
+| 단가 변경 알림(연결된 내 단가와 공급 단가가 달라졌을 때) | 계획 |
 | 추가금(코팅·LG·마감)·폭 구간 자동 적용, 주문서에 공급 품목 표기 | 계획 |
 
 ## 데이터 (`src/lib/core/supplierPrices.ts`)
@@ -28,6 +29,12 @@ PriceTable.links?: Record<단가 항목 id, '<공급업체 id>:<품목 id>'>
 - `mergePrices` 는 알 수 없는 항목 id·없는 품목을 가리키는 연결을 버립니다. 서버(`/api/me/prices`)는 `links` 를 문자열 맵(100개, 200자 이하)으로만 검사합니다.
 - `parseSupplierList(raw)`: 공급업체(id 소문자·숫자·-, 이름, 꼬리표)·적용일이 없으면 거부. 품목은 id 중복·이름 없음·모르는 단위·음수 단가를 이유와 함께 빼고 나머지를 받습니다.
 
+## 배수 (`core/markup.ts`, 2026-10-16)
+사용자: "이건 소비자가 예시로 한울 가격을 몇배로 할지 조정해봐" → "단가는 사용가 설정할거고 나는 그냥 샘플이 필요할 뿐이야".
+- `PriceTable.markup = { all, groups? }` — 배수는 사용자가 단가 설정 창에서 정합니다(전체 `markup-all`, 분류별 `markup-<분류>`, 비우면 전체 배수). 0 초과 10 이하.
+- 연결 단가 = 공급 단가 × 배수를 100원 단위로 반올림(`linkedPrice`). 배수를 바꾸면 연결 항목만 다시 계산(`applyMarkup`), 직접 입력 항목은 그대로.
+- 샘플 참고(코드에 넣지 않음): 가오낙스 판매 단가표(단가표.xlsx, 2025-11)의 같은 품목 22개를 한울 단가와 비교하면 중앙값이 시트 출력(UV·반사) ≈ ×1.0, 후렉스 출력·수성 배너 ≈ ×0.8, 후렉스 마감(클램프·고주파) ×1.0, 전체 ≈ ×1.0. 프레임 간판(헤베당 틀 등급)·광확산 PC 채널(크기별 개당)은 한울 단가표에 없어 비교하지 않았습니다.
+
 ## 한울 단가표 (2026-03-27)
 분류: 수성 · UV · 솔벤 · 플렉스 · 플렉스 마감 · 라텍스 · UV시트평판 · 컷팅. 원본 표와 비고는 [../product/supplier-hanwool.md](../product/supplier-hanwool.md#단가표-2026-03-27).
 
@@ -36,4 +43,4 @@ PriceTable.links?: Record<단가 항목 id, '<공급업체 id>:<품목 id>'>
 - 아래 **공급 단가표**(`supplier-lists`): 공급업체마다 꼬리표·이름·적용일·품목 수, 누르면(`supplier-toggle-<id>`) 분류별 표(이름·세부·최대폭·단가/단위, 추가금은 `+`).
 
 ## 관련 테스트
-`tests/unit/supplierPrices.test.ts`, `server/test/prices.test.ts`, `tests/e2e/quote.spec.ts` (공급 단가표)
+`tests/unit/supplierPrices.test.ts`, `tests/unit/markup.test.ts`, `server/test/prices.test.ts`, `tests/e2e/quote.spec.ts` (공급 단가표)

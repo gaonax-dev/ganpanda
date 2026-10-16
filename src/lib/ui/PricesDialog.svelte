@@ -5,6 +5,7 @@
   import { CATALOG, CATEGORY_LABEL, SHEETS, UNIT_LABEL } from '../core/catalog';
   import { ROUNDING_OPTIONS, type PriceTable } from '../core/pricing';
   import { savePrices } from '../auth';
+  import { applyMarkup, linkedPrice } from '../core/markup';
   import { SUPPLIER_LISTS, findSupplierItem, linkableItems, supplierItemLabel, type SupplierPriceList } from '../core/supplierPrices';
 
   let saved = $state(false);
@@ -25,8 +26,18 @@
   function link(id: string, kind: 'products' | 'sheets', v: string) {
     const hit = findSupplierItem(v);
     if (!hit) { set({ links: unlinked(id) }); return; }
-    set({ [kind]: { ...p[kind], [id]: hit.item.price }, links: { ...(p.links ?? {}), [id]: v } } as Partial<PriceTable>);
+    set({ [kind]: { ...p[kind], [id]: linkedPrice(p, v) ?? hit.item.price }, links: { ...(p.links ?? {}), [id]: v } } as Partial<PriceTable>);
   }
+  /** 배수(사용자가 정함): 비우면 전체 배수를 따른다. 바꾸면 연결된 항목을 다시 계산 */
+  const ratio = (v: string): number | null => { const n = Number(v); return v.trim() !== '' && isFinite(n) && n > 0 && n <= 10 ? n : null; };
+  function setAll(v: string) { const n = ratio(v); if (n !== null) app.setPrices(applyMarkup(p, { ...(p.markup ?? {}), all: n })); }
+  function setGroup(g: string, v: string) {
+    const n = ratio(v);
+    const groups = { ...(p.markup?.groups ?? {}) };
+    if (n === null) delete groups[g]; else groups[g] = n;
+    app.setPrices(applyMarkup(p, { all: p.markup?.all ?? 1, ...(Object.keys(groups).length ? { groups } : {}) }));
+  }
+  const allGroups = $derived([...new Set(SUPPLIER_LISTS.flatMap((l) => l.items.map((i) => i.group)))]);
   /** 연결 선택지: 공급업체·분류별로 묶음 */
   function choices(unit: string) {
     const groups = new Map<string, { link: string; label: string }[]>();
@@ -83,7 +94,14 @@
         {/each}
       </section>
       <section data-testid="supplier-lists">
-        <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 "공급 단가"에서 연결하면 그 단가와 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
+        <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 "공급 단가"에서 연결하면 공급 단가 × 배수와 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
+        <div class="markup" data-testid="markup">
+          <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} onchange={(e) => setAll(e.currentTarget.value)} /></label>
+          {#each allGroups as g (g)}
+            <label>{g} ×<input data-testid="markup-{g}" type="number" min="0.1" max="10" step="0.05" placeholder={String(p.markup?.all ?? 1)} value={p.markup?.groups?.[g] ?? ''} onchange={(e) => setGroup(g, e.currentTarget.value)} /></label>
+          {/each}
+          <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수를 비우면 전체 배수</small>
+        </div>
         {#each SUPPLIER_LISTS as l (l.supplier.id)}
           <div class="supplier" data-testid="supplier-list-{l.supplier.id}">
             <button class="sup-head" data-testid="supplier-toggle-{l.supplier.id}" onclick={() => (openList = openList === l.supplier.id ? null : l.supplier.id)}>
@@ -142,6 +160,10 @@
   @media (max-width: 560px) { .row { grid-template-columns: 1fr 100px 50px; } .row select { grid-column: 1 / -1; } }
   .tag { display: inline-block; padding: 0 5px; border-radius: 4px; background: var(--accent, #3b82f6); color: #fff; font-size: 10px; font-weight: 700; vertical-align: 1px; }
   .sub { font-weight: 400; margin-left: 4px; }
+  .markup { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 4px 0 8px; font-size: 12px; color: var(--text); }
+  .markup label { display: flex; align-items: center; gap: 3px; }
+  .markup input { width: 58px; }
+  .markup small { flex-basis: 100%; color: var(--muted); font-size: 11px; }
   .supplier { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; }
   .sup-head { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; color: var(--text); padding: 8px; font-size: 13px; cursor: pointer; text-align: left; }
   .sup-head small { color: var(--muted); }
