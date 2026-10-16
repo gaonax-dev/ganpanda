@@ -44,7 +44,8 @@ export const DEFAULT_PRICES: PriceTable = {
   minimum: 0, // 기본은 최소 금액 없음 (제작자가 정하면 적용)
   rounding: 1000,
   vatIncluded: false,
-  markup: { all: 1, direct: ['UV', '플렉스', 'UV시트평판'] }, // 샘플: UV 실사·후렉스 출력은 직접 출력
+  // 샘플: 시트·후렉스·UV 실사 출력은 직접 출력 (한울 분류 + 알리다 분류)
+  markup: { all: 1, direct: ['UV', '플렉스', 'UV시트평판', 'UV 후렉스 출력', 'UV 대형 후렉스 출력', '라텍스 후렉스 출력', 'UV시트 출력', 'UV투명시트 출력', '라텍스시트 출력', '솔벤시트 출력', 'UV 평판 출력'] },
 };
 
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) && v >= 0 ? v : null);

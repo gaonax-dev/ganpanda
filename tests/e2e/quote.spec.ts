@@ -147,6 +147,7 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await page.getByTestId('markup-all').fill('2');
   await page.getByTestId('markup-all').press('Enter');
   await expect(page.getByTestId('price-sh-print')).toHaveValue('15000');
+  await page.getByTestId('supplier-toggle-hanwool').click(); // 분류 배수·직접 출력은 공급업체를 펼쳐서
   await page.getByTestId('markup-솔벤').fill('1.3');
   await page.getByTestId('markup-솔벤').press('Enter');
   await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
@@ -158,4 +159,13 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await page.getByTestId('direct-솔벤').check();
   await expect(page.getByTestId('price-tag-sh-print')).toHaveCount(0);
   await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
+  // 알리다(2026-10-16 "간판제작사에 제공하는 단가"): 펼쳐 찾기, 꼬리표로 연결
+  await page.getByTestId('supplier-toggle-alida').click();
+  await page.getByTestId('supplier-search').fill('광확산PC 80cm');
+  await expect(page.getByTestId('supplier-item').first()).toContainText('42,000원/자');
+  await expect(page.getByTestId('direct-UV 후렉스 출력')).toHaveCount(0); // 찾기에 안 맞는 분류는 숨김
+  // 후렉스 간판 ㎡ ← 알리다 조명용 프레임 간판(UV 주야 양면 출력 포함, 35,500원/헤베), 배수 ×2 → 71,000
+  await page.getByTestId('price-link-board-flex').selectOption('alida:alida.frame.light.UV 주야모드 양면출력');
+  await expect(page.getByTestId('price-board-flex')).toHaveValue('71000');
+  await expect(page.getByTestId('price-tag-board-flex')).toHaveText('알리다');
 });
