@@ -9,7 +9,7 @@
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import type { PartItem, SignObject, SignPart } from '../core/model';
-  import { PART_KIND_LABEL, PART_TYPES, newItem, newPart, partLabel, partsOf } from '../core/parts';
+  import { PART_KIND_LABEL, PART_TYPES, newItem, newPart, partLabel, partSpecOf, partsOf } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
 
@@ -19,7 +19,7 @@
   const parts = $derived(partsOf(obj));
   /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
   const LEGACY_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
-    'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut'];
+    'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
   const clone = (): SignPart[] => JSON.parse(JSON.stringify(parts));
   function commit(next: SignPart[]) {
     const options = Object.fromEntries(Object.entries(obj.options ?? {}).filter(([k]) => !LEGACY_KEYS.includes(k)));
@@ -61,17 +61,19 @@
       {#if kinds.includes('channel')}<button class="btn small" data-testid="add-part-channel" onclick={() => addPart('channel')}>+ 채널</button>{/if}
       {#if kinds.includes('scashi')}<button class="btn small" data-testid="add-part-scashi" onclick={() => addPart('scashi')}>+ 스카시</button>{/if}
       {#if kinds.includes('sheet')}
-        <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 커팅 시트</button>
-        <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력 시트</button>
+        <!-- 시트 = UV 출력 / 재질 시트, 커팅(돔보컷팅·커팅, 완컷·반컷, 보조시트)은 카드의 옵션 (2026-10-16) -->
+        <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력</button>
+        <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 재질 시트</button>
       {/if}
     </div>
   {/if}
   {#each parts as p, i (p.id)}
     <div class="card" data-testid="part-card">
       <div class="head" data-kind={p.kind}>
-        <b>{PART_KIND_LABEL[p.kind]}</b>
+        <b>{PART_KIND_LABEL[p.kind]}</b>{#if p.kind === 'sheet'}<span class="spec" data-testid="part-spec">{partSpecOf(p)}</span>{/if}
         <select data-testid="part-type" value={p.type} disabled={ro} onchange={(e) => setPart(i, { type: e.currentTarget.value, options: {} })}>
           {#each PART_TYPES[p.kind] as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
+          {#if !PART_TYPES[p.kind].some((t) => t.id === p.type)}<option value={p.type}>{partLabel(p)}</option>{/if}
         </select>
         {#if p.kind === 'sheet'}
           <label class="on">올릴 곳
@@ -146,5 +148,6 @@
   .item .txt { flex: 1; min-width: 120px; }
   .file input { width: 160px; }
   .fname { font-size: 12px; opacity: 0.8; }
+  .spec { font-size: 11px; color: var(--muted, #8b93a3); }
   .on { font-size: 12px; display: flex; align-items: center; gap: 4px; }
 </style>

@@ -51,9 +51,10 @@ export const CATALOG: Product[] = [
 // 시트 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개 / 시트커팅: 돔보(uv실사), 커팅(단색,재질시트)") — 커팅 방식은 종류에 따라 정해져 이름에 표시.
 // 원웨이·반사·투명은 옛 데이터 호환용으로 남기고 고르는 목록(sheetsForPicker)에는 안 나온다 (반사·투명은 단색·재질 시트의 재질로)
 export const SHEETS: Sheet[] = [
-  { id: 'sh-print', name: 'UV 실사 (돔보 커팅)' },
-  { id: 'sh-cut', name: '단색·재질 시트 (커팅)' },
-  { id: 'sh-frost', name: '안개 시트 (커팅)' },
+  // 시트 = UV 출력 / 재질 시트, 커팅은 옵션 (2026-10-16 사용자: "시트는 uv출력, 재질로 분류하고 여기에서 커팅(uv실사에 맞게 컷팅하는 것을 돔보컷팅이라한다)을 옵션으로")
+  { id: 'sh-print', name: 'UV 출력' },
+  { id: 'sh-cut', name: '재질 시트' },
+  { id: 'sh-frost', name: '안개 시트' }, // 옛 데이터 — 지금은 재질 시트의 재질 "안개"
   { id: 'sh-perf', name: '원웨이 시트 (타공 실사)' },
   { id: 'sh-reflect', name: '반사 시트' },
   { id: 'sh-trans', name: '투명·반투명 시트' },
@@ -62,7 +63,7 @@ export const SHEETS: Sheet[] = [
 export const productById = (id?: string) => CATALOG.find((p) => p.id === id);
 export const sheetById = (id: string) => SHEETS.find((s) => s.id === id);
 /** 설정 창에서 고르는 시트 (옛 시트는 이미 붙어 있을 때만 보인다) */
-export const sheetsForPicker = (): Sheet[] => SHEETS.filter((s) => ['sh-print', 'sh-cut', 'sh-frost'].includes(s.id));
+export const sheetsForPicker = (): Sheet[] => SHEETS.filter((s) => ['sh-print', 'sh-cut'].includes(s.id));
 export const CATEGORY_LABEL: Record<Category, string> = { board: '간판 몸통', channel: '채널 (옵션)', light: '상단 조명 (옵션)' };
 export const UNIT_LABEL: Record<Unit, string> = { m2: '원/㎡', charCm: '원/자·cm', ea: '원/개', m: '원/m', none: '—' };
 

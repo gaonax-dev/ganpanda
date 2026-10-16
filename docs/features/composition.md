@@ -47,6 +47,13 @@
 
 견적: 조합형 분류는 시트도 구성 요소로만 계산(옛 시트 목록과 이중 계산 없음). 주의: 수동 금액을 넣은 시트 분류 줄은 줄 키가 `:sheet:` → `:part:` 로 바뀌어 다시 입력해야 할 수 있음.
 
+## 시트 = UV 출력 / 재질 시트, 컷팅은 옵션 (2026-10-16)
+사용자: "시트는 uv출력, 재질로 분류하고 여기에서 커팅(uv실사에 맞게 컷팅하는 것을 돔보컷팅이라한다)을 옵션으로 넣는다. 컷팅에는 반컷, 완컷(보조시트 체크) 그리고 문구가 없으면 구성내역을 문자에 넣는다. uv출력 돔보컷팅 완컷".
+- 종류(`PART_TYPES.sheet`): **UV 출력** `sh-print`(바탕 흰색/회색·잉크) · **재질 시트** `sh-cut`(재질 단색/반사/투명/메탈/홀로그램/**안개**). 옛 안개 시트 `sh-frost` 는 그대로 읽고 이름만 보임. 단가 id 는 그대로(이름만 바뀜: 단가 설정에도 "UV 출력"·"재질 시트").
+- 컷팅 옵션(`options.ts` `CUT`): `cut` = UV 출력 **돔보컷팅**(출력물 윤곽대로) / 재질 시트 **커팅**, 또는 컷팅 없음 → `cutMode` **완컷 / 반컷** → 완컷이면 `transferTape` **보조시트** 체크. 코팅은 공통. 옛 `halfCut`(반컷팅) = 반컷(`fixSheetOpts`, 읽을 때).
+- **구성내역**(`partSpecOf`): 시트 = 종류 + (재질) + 컷팅 + 컷 방식 + (보조시트) — 예 "UV 출력 돔보컷팅 완컷", "재질 시트 반사 커팅 반컷". 카드 머리(`part-spec`), 요약(구성내역 한 줄, 같은 값을 옵션으로 또 적지 않음), 견적 줄 이름("A · UV 출력 돔보컷팅 완컷").
+- **문구**(`signTextOf`): 사인물 문구 > 구성 요소의 글자 객체 > 구성내역(" + "로 이음). 견적서·제안 페이지의 “…”, 주문 JSON·제안 스냅샷의 `text`.
+
 ## 데이터 (`core/model.ts`, `core/parts.ts`)
 ```ts
 SignPart { id, kind: 'channel' | 'scashi' | 'sheet', type, options?, on?, items: PartItem[] }
@@ -80,4 +87,4 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - **공급업체 자재(계획)**: 옵션 값은 이름으로 저장하고 재질 id 는 나중에 공급업체별 자재(품목 코드·단가)를 붙일 자리입니다(예: 한울 품목 코드 → [../product/supplier-hanwool.md](../product/supplier-hanwool.md)).
 
 ## 관련 테스트
-`tests/unit/parts.test.ts`, `tests/unit/composeAll.test.ts`, `tests/unit/materials.test.ts`, `tests/e2e/parts.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)
+`tests/unit/parts.test.ts`, `tests/unit/composeAll.test.ts`, `tests/unit/sheetCut.test.ts`, `tests/unit/materials.test.ts`, `tests/e2e/parts.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)

@@ -30,14 +30,14 @@ describe('주문 사양 옵션 스키마', () => {
     expect(partKeys('ch-scashi')).toEqual(expect.arrayContaining(['thickness', 'script']));
     expect(describeOptions(obj({ productId: 'ch-rubber', options: { thickness: '30T' } }))).toContain('30T'); // 옛 값은 구성 요소로 요약
   });
-  it('시트: 공통(보조시트·코팅) + 시트 컷팅이면 반컷팅', () => {
-    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating', 'base', 'ink']); // 2026-10-15 분류 재정리: UV 실사 바탕 흰색/회색
-    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['transferTape', 'coating', 'sheetMat', 'halfCut']);
+  it('시트: 코팅 + 종류별 + 컷팅(컷팅·컷 방식·완컷이면 보조시트) — 2026-10-16 컷팅은 옵션', () => {
+    expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['coating', 'base', 'ink', 'cut', 'cutMode', 'transferTape']);
+    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['coating', 'sheetMat', 'cut', 'cutMode', 'transferTape']);
     expect(keys(obj({}))).toEqual([]);
   });
   it('요약 문구: 고른 값·켜진 토글·코드만', () => {
     const o = obj({ productId: 'board-galva', sheetIds: ['sh-cut'], options: { form: '돌출형', indirect: '없음', paintSystem: 'RAL', paintCode: '9005', transferTape: true, coating: '무광', halfCut: false } });
-    expect(describeOptions(o)).toEqual(['돌출형', 'RAL', '도색 컬러코드 9005', '보조시트(어플리케이션 테이프) 포함', '무광']); // 옛 간접조명 '없음'은 요약에 안 나옴
+    expect(describeOptions(o)).toEqual(['돌출형', 'RAL', '도색 컬러코드 9005', '무광', '보조시트 (어플리케이션 테이프)']); // 옛 간접조명 '없음'은 요약에 안 나옴
   });
   it('종류를 바꾸면 안 보이는 옵션은 버린다, 기본값은 첫 값/false', () => {
     const o = obj({ productId: 'board-flex', options: { sides: '양면', thickness: '30T' } });

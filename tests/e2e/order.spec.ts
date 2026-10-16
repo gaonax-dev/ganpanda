@@ -20,14 +20,14 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   await page.getByTestId('option-form').selectOption('일체형(전면)');
   await page.getByTestId('option-paintSystem').selectOption('RAL');
   await page.getByTestId('option-paintCode').fill('9005');
-  // 시트 구성 요소(커팅)를 더하면 시트 옵션, 반컷팅 (조합형 2026-10-16)
+  // 재질 시트를 더하면 시트 옵션, 컷 방식 반컷 (조합형·컷팅 옵션 2026-10-16)
   await page.getByTestId('add-part-sheet-cut').click();
-  await expect(page.getByTestId('part-option-halfCut')).toBeVisible();
-  await page.getByTestId('part-option-halfCut').check();
+  await expect(page.getByTestId('part-option-cutMode')).toBeVisible();
+  await page.getByTestId('part-option-cutMode').selectOption('반컷');
   await page.getByTestId('sign-note').fill('배선은 왼쪽 위');
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('일체형(전면)');
-  await expect(page.getByTestId('object-summary')).toContainText('반컷팅');
+  await expect(page.getByTestId('object-summary')).toContainText('재질 시트 단색 커팅 반컷');
 
   // 주문 정보 → 주문서
   await page.getByTestId('view-list').click();
@@ -47,7 +47,7 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   await expect(sheet).toContainText('2026-10-25');
   await expect(sheet).toContainText('RAL');
   await expect(sheet).toContainText('9005');
-  await expect(sheet).toContainText('반컷팅');
+  await expect(sheet).toContainText('반컷');
   await expect(sheet).toContainText('배선은 왼쪽 위');
   await expect(sheet).toContainText('크레인 진입 확인');
   await expect(sheet).toContainText('CMYK');
@@ -59,7 +59,7 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   expect(json.order_info.customer).toBe('홍길동');
   expect(json.items[0].type).toBe('갈바');
   expect(json.items[0].options.paintCode).toBe('9005');
-  expect(json.items[0].parts[0].options.halfCut).toBe(true);
+  expect(json.items[0].parts[0].options.cutMode).toBe('반컷');
   expect(json.items[0].size.width_mm).toBe(3000);
   expect(json.items[0].note).toBe('배선은 왼쪽 위');
   expect(json.totals.total).toBeGreaterThan(0);
