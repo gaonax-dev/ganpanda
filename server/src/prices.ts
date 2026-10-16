@@ -17,6 +17,12 @@ function validPrices(v: unknown): boolean {
     return entries.length <= MAX_KEYS && entries.every(([, n]) => typeof n === 'number' && isFinite(n) && n >= 0);
   };
   if (!numMap(p.products) || !numMap(p.sheets)) return false;
+  // 단가 항목 → 공급 품목 연결 (`<공급업체>:<품목 id>`)
+  if (p.links !== undefined) {
+    if (!p.links || typeof p.links !== 'object') return false;
+    const links = Object.entries(p.links as Record<string, unknown>);
+    if (links.length > MAX_KEYS || !links.every(([, v]) => typeof v === 'string' && v.length <= 200)) return false;
+  }
   for (const k of ['install', 'minimum']) if (p[k] !== undefined && !(typeof p[k] === 'number' && isFinite(p[k] as number) && (p[k] as number) >= 0)) return false;
   if (p.rounding !== undefined && !ROUNDINGS.has(p.rounding as number)) return false;
   if (p.vatIncluded !== undefined && typeof p.vatIncluded !== 'boolean') return false;

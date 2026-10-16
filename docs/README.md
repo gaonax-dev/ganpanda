@@ -31,6 +31,7 @@
   - [shortcuts.md](features/shortcuts.md) — 화면 조작(xlpop과 동일)과 단축키 설정
   - [measurement.md](features/measurement.md) — 카메라 설정(축 선·원점·기준 길이), 실측 판독과 경고 규칙
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
+  - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(한울 꼬리표)와 내 단가표 연결, 업로드·API 형식
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)

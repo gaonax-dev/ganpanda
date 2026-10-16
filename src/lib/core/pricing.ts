@@ -1,5 +1,6 @@
 // 단가표 (2-1): 제작자가 정하는 숫자. 카탈로그는 이름·단위만 갖고 금액은 여기서 온다.
 import { CATALOG, SHEETS } from './catalog';
+import { findSupplierItem } from './supplierPrices';
 
 export interface PriceTable {
   version: 1;
@@ -15,6 +16,8 @@ export interface PriceTable {
   rounding: 1 | 10 | 100 | 1000 | 10000;
   /** true = 단가가 부가세 포함가 (합계 = 공급가, 부가세는 안내용 역산) */
   vatIncluded: boolean;
+  /** 단가 항목(제품·시트 id) → 공급 품목 연결 `<공급업체 id>:<품목 id>`. 연결된 단가는 견적에 공급업체 꼬리표가 붙는다 (2026-10-16) */
+  links?: Record<string, string>;
 }
 
 const ROUNDINGS = [1, 10, 100, 1000, 10000] as const;
@@ -53,6 +56,11 @@ export function mergePrices(saved: unknown): PriceTable {
   const minimum = num(s.minimum); if (minimum !== null) out.minimum = minimum;
   if ((ROUNDINGS as readonly number[]).includes(s.rounding as number)) out.rounding = s.rounding as PriceTable['rounding'];
   if (typeof s.vatIncluded === 'boolean') out.vatIncluded = s.vatIncluded;
+  if (s.links && typeof s.links === 'object') {
+    const ids = new Set([...CATALOG.map((p) => p.id), ...SHEETS.map((x) => x.id)]);
+    const links = Object.fromEntries(Object.entries(s.links as Record<string, unknown>).filter(([k, v]) => ids.has(k) && typeof v === 'string' && findSupplierItem(v))) as Record<string, string>;
+    if (Object.keys(links).length) out.links = links;
+  }
   return out;
 }
 
