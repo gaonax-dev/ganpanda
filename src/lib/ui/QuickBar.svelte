@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import type { SignObject } from '../core/model';
 
@@ -41,7 +42,7 @@
   }
   function apply(g: Group) {
     // 시트는 제품 없이 시트 컷팅으로 시작(시트가 하나도 없으면 분류가 비어 보이므로), 나머지는 분류 기본 제품. 옵션은 비운다
-    update({ productId: defaultProductFor(g), options: undefined, ...(g === 'sheet' && !obj.sheetIds.length ? { sheetIds: ['sh-cut'] } : {}) });
+    update(categoryPatch(obj, g, defaultProductFor(g))); // 못 붙는 구성 요소는 정리 (2026-10-16 모든 분류 조합형)
     pending = null;
   }
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';

@@ -30,7 +30,7 @@ describe('주문서 JSON', () => {
     const b = json.items[1];
     expect(b.category).toBe('시트'); expect(b.sheets).toEqual(['단색·재질 시트 (커팅)']); expect(b.option_summary).toContain('반컷팅');
     const c = json.items[2];
-    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['30T', '칼라 알루미늄', '도색 없음', '시공용 1:1 종이 도안', '부착 출고']);
+    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['시공용 1:1 종이 도안', '부착 출고', '고무 스카시 "OPEN" 300mm', '30T', '칼라 알루미늄', '도색 없음']); // 스카시 사양은 스카시 구성 요소로 (2026-10-16)
     expect(json.files).toEqual([{ name: 'design_v1.ai', pages: 1 }]);
     expect(json.file_check.length).toBeGreaterThan(2);
     expect(json.totals.total).toBe(quote.total);

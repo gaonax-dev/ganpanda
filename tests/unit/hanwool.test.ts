@@ -1,5 +1,8 @@
 // 한울상사(hanwoolcorp.co.kr) 조합형 주문 구성 (2026-10-15 사용자: "여기에서 사인물 나중에 주문할거야… 조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘")
 // 조합 = 종류(몸통) + 소재·두께 + 가공 + 출력·마감 + 조명 + 채널(입체 글자) + 설치·부속
+import { thickPresetsFor } from '../../src/lib/core/catalog';
+import { partsOf } from '../../src/lib/core/parts';
+import { partOptionFields } from '../../src/lib/core/options';
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor } from '../../src/lib/core/options';
@@ -10,7 +13,8 @@ import { lightingOf } from '../../src/lib/core/letter3d';
 import { renderSpecOf } from '../../src/lib/core/render';
 
 const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], createdAt: 0, ...o });
-const fields = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields);
+// 스카시 분류의 두께·재질·도색은 스카시 구성 요소에 (2026-10-16 겹침 정리)
+const fields = (o: SignObject) => [...optionGroupsFor(o).flatMap((g) => g.fields), ...(['ch-rubber', 'sc-titan', 'ch-scashi'].includes(o.productId ?? '') ? partOptionFields(partsOf(o)[0]) : [])];
 const keys = (o: SignObject) => fields(o).map((f) => f.key);
 const values = (o: SignObject, k: string) => fields(o).find((f) => f.key === k)?.values?.map((v) => v.id);
 
@@ -81,15 +85,15 @@ describe('종류별 조합 옵션', () => {
     expect(keys(o)).toEqual(['color', 'module', 'sides']);
     expect(values(o, 'module')).toEqual(['200mm', '240mm', '320mm']);
   });
-  it('아크릴 액자·현판: 형태 · 소재 · 두께 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음)', () => {
+  it('아크릴 액자·현판: 형태 · 소재 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음, 두께는 치수 두께 — 2026-10-16 중복 정리)', () => {
     const o = obj({ productId: 'board-acrylic' });
-    expect(keys(o)).toEqual(['form', 'material', 'thick', 'layers', 'mount']);
+    expect(keys(o)).toEqual(['form', 'material', 'layers', 'mount']);
     expect(keys(obj({ productId: 'board-acrylic', options: { layers: '컬러+화이트 (2레이어)' } }))).toContain('primer'); // 출력할 때만 전처리
     expect(values(o, 'form')).toEqual(['일반 판', '현판', '게시판', '액자', '번호판·층수·호수']);
     expect(values(o, 'layers')).toEqual(['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']);
   });
-  it('포맥스: 두께', () => {
-    expect(values(obj({ productId: 'board-foamex' }), 'thick')).toEqual(['3T', '5T', '8T', '10T', '15T', '20T', '30T']);
+  it('포맥스: 두께 = 치수 두께 빠른 선택 (2026-10-16 "실측에 두께가 있어 포멕스 두께가 따로표시 중복")', () => {
+    expect(thickPresetsFor('board-foamex')).toEqual([3, 5, 8, 10, 15, 20, 30]);
   });
 });
 

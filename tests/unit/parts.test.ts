@@ -28,9 +28,9 @@ describe('기존 데이터 → 구성 요소 (읽을 때 변환)', () => {
   it('옛 채널 제품(몸통 없음 + 채널) 도 채널 구성 요소', () => {
     expect(partsOf(obj({ productId: 'ch-halo', text: 'AB', heightMm: 300 }))[0]).toMatchObject({ kind: 'channel', type: 'ch-halo' });
   });
-  it('간판이 아닌 분류(액자·시트만)는 구성 요소를 쓰지 않는다', () => {
+  it('구성 요소가 없는 종류(나무틀 패브릭 액자)는 없음, 시트 분류는 시트 구성 요소 (2026-10-16 모든 분류 조합형)', () => {
     expect(partsOf(obj({ productId: 'frame-wood', sheetIds: ['sh-print'] }))).toEqual([]);
-    expect(partsOf(obj({ sheetIds: ['sh-cut'] }))).toEqual([]);
+    expect(partsOf(obj({ sheetIds: ['sh-cut'] })).map((p) => p.type)).toEqual(['sh-cut']);
   });
   it('저장된 구성 요소가 있으면 그것 (옛 옵션은 무시)', () => {
     const parts = [newPart('scashi', 'sc-titan')];

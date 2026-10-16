@@ -30,7 +30,7 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await page.getByTestId('object-settings-open').click();
   const dlg = page.getByTestId('object-settings');
   await expect(dlg).toBeVisible();
-  await dlg.getByTestId('sheet-sh-print').click();
+  await dlg.getByTestId('part-type').selectOption('sh-print'); // 시트 분류 = 시트 구성 요소 (2026-10-16)
   await dlg.getByTestId('width-mm').fill('1000');
   await dlg.getByTestId('height-mm').fill('500');
   await expect(panel.getByTestId('object-summary')).toContainText('돔보 커팅');
