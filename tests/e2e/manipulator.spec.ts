@@ -326,3 +326,28 @@ test('QWER: Q 선택 도구, W 이동, E 회전, R 크기 (매니퓰레이터 �
   await page.keyboard.press('t'); await expect(page.getByTestId('tool-rect')).toHaveClass(/on/);
   await page.keyboard.press('q'); await expect(page.getByTestId('tool-select')).toHaveClass(/on/);
 });
+
+test('매니퓰레이터 아래 메뉴(모드·X/Y/Z 단추)는 항상 맨 위라 누를 수 있고, 외곽선 아래에 있다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "메니폴레이터 선이 두껍고 메이폴레이터로 인해서 하단 매뉴를 누를 수 없게될 때가 있다"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  await addSign(page, await rectOnWall(page, 1000, 3800, 700, 300)); // 작은 사인물 = 손잡이·고리가 메뉴와 겹치기 쉬움
+  const topAt = (testid: string) => page.evaluate((tid) => {
+    const el = document.querySelector(`[data-testid="${tid}"]`)!;
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return hit?.closest('[data-testid]')?.getAttribute('data-testid') ?? null;
+  }, testid);
+  const click = async (testid: string) => { const b = (await page.getByTestId(testid).boundingBox())!; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); };
+  for (const m of ['rotate', 'scale', 'move'] as const) {
+    for (const c of ['gizmo-mode-move', 'gizmo-mode-rotate', 'gizmo-mode-scale']) expect(await topAt(c)).toBe(c);
+    await click(`gizmo-mode-${m}`);
+    await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', m);
+  }
+  for (const f of ['face-x', 'face-y', 'face-z']) expect(await topAt(f)).toBe(f);
+  // 메뉴는 외곽선 아래
+  const outline = (await page.locator('[data-testid="sign-shape"][data-selected]').boundingBox())!;
+  const chip = (await page.getByTestId('gizmo-mode-move').boundingBox())!;
+  expect(chip.y).toBeGreaterThan(outline.y + outline.height - 1);
+});
