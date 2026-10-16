@@ -110,3 +110,28 @@ test('견적서 인쇄 화면', async ({ page, request }) => {
   await page.getByTestId('close-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toHaveCount(0);
 });
+
+test('공급 단가표(한울): 내 단가 항목을 연결하면 단가를 가져오고 꼬리표가 붙고, 직접 고치면 풀린다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "한울 단가표이다. 해당 단가는 한울 꼬리표가 있어야 한다… 지금은 개발중으로 둘다 구성하고 추후 업로드나 api로… 사용자가 입력가능하게"
+  await openOwnedProject(page, request);
+  await makeSign(page);
+  await page.getByTestId('view-list').click();
+  await page.getByTestId('open-prices').click();
+  // 공급 단가표(읽기 전용)를 펼쳐 볼 수 있다
+  await page.getByTestId('supplier-toggle-hanwool').click();
+  await expect(page.getByTestId('supplier-list-hanwool')).toContainText('2026-03-27');
+  await expect(page.getByTestId('supplier-item').filter({ hasText: '백색시트' }).first()).toContainText('7,500원/회배');
+  // 알루미늄 복합판 ㎡ 단가 ← 한울 UV 백색시트(예시 연결)
+  await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.uv.백색시트');
+  await expect(page.getByTestId('price-board-acp')).toHaveValue('7500');
+  await expect(page.getByTestId('price-tag-board-acp')).toHaveText('한울');
+  await page.getByTestId('close-prices').click();
+  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).toContainText('한울 단가');
+  // 직접 입력하면 연결·꼬리표가 풀린다
+  await page.getByTestId('open-prices').click();
+  await page.getByTestId('price-board-acp').fill('90000');
+  await expect(page.getByTestId('price-tag-board-acp')).toHaveCount(0);
+  await expect(page.getByTestId('price-link-board-acp')).toHaveValue('');
+  await page.getByTestId('close-prices').click();
+  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).not.toContainText('한울');
+});
