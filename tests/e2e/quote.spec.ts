@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiCreateProject, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 async function makeSign(page: import('@playwright/test').Page) {
   await uploadPhoto(page);
@@ -43,6 +43,7 @@ test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객도
   const { session, projectId } = await openOwnedProject(page, request);
   await makeSign(page);
   await page.getByTestId('view-list').click();
+  await page.getByTestId('quote-auto-all').click(); // 새 프로젝트는 줄 금액 수동 입력 (2026-10-16) → 자동으로
   const before = await page.getByTestId('quote-total').textContent();
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-board-acp').fill('100000');
@@ -64,6 +65,7 @@ test('설치비·추가 항목·부가세 포함 표시', async ({ page, request
   await openOwnedProject(page, request);
   await makeSign(page);
   await page.getByTestId('view-list').click();
+  await page.getByTestId('quote-auto-all').click();
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-board-acp').fill('100000');
   await page.getByTestId('price-minimum').fill('0');
@@ -187,6 +189,7 @@ test('공급사 계산법: 채널 단가를 알리다 글자 크기 구간 자�
   await page.getByTestId('item-h').fill('600');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();
+  await page.getByTestId('quote-auto-all').click();
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-minimum').fill('0');
   await page.getByTestId('price-link-ch-front').selectOption('m:alida:letters:알미늄 캡 채널|광확산PC 채널|LED조립');
@@ -197,11 +200,69 @@ test('공급사 계산법: 채널 단가를 알리다 글자 크기 구간 자�
   const line = page.locator('.line').filter({ hasText: '전광 채널' });
   await expect(line).toContainText('60cm');
   await expect(line).toContainText('알리다 단가');
-  await expect(line).toContainText('150,000원');
+  await expect(line.getByTestId('line-amount')).toHaveValue('150000');
   // 직접 입력으로 되돌리면 원/자·cm
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-link-ch-front').selectOption('');
   await expect(page.getByTestId('price-ch-front')).toBeEnabled();
   await page.getByTestId('close-prices').click();
   await expect(line).toContainText('원/자·cm');
+});
+
+test('견적 줄 금액: 새 프로젝트는 직접 입력, [자동]으로 계산 금액, 원가·이익율은 오너와 정산 보기 멤버만 (멤버는 손해 표시)', async ({ page, request, browser }) => {
+  // 2026-10-16 사용자: "사인물 견적서는 수동으로 입력되어야한다. 수동입력후 자동전환버튼 / 해당 목록을 선택하면 구성품들과 단가연결 해당 품목 / 단가 연결이 공급사 금액"
+  //  → "원가와 판매가로 이익율이 확인되어야한다. 오너와 맴버(허가시)에게만보이게 맴버의 경우 손해인 상태를 표시"
+  const { session, projectId } = await openOwnedProject(page, request);
+  await makeSign(page); // 알루미늄 복합판 2㎡
+  await page.getByTestId('view-list').click();
+  const line = page.getByTestId('quote-line').first();
+  await expect(line.getByTestId('line-amount')).toHaveValue('');
+  await expect(page.getByTestId('quote-needs-input')).toContainText('1건');
+  // 원가: 알루미늄 복합판 단가를 한울 솔벤 백색시트(7,500원/회배)에 연결 → 2㎡ 원가 15,000
+  await page.getByTestId('open-prices').click();
+  await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.solvent.백색시트');
+  await page.getByTestId('close-prices').click();
+  await line.getByTestId('line-amount').fill('100000');
+  await line.getByTestId('line-amount').press('Enter');
+  await expect(page.getByTestId('quote-needs-input')).toHaveCount(0);
+  await expect(line.getByTestId('line-margin')).toContainText('원가 15,000원');
+  await expect(line.getByTestId('line-margin')).toContainText('이익율 85%');
+  await expect(page.getByTestId('quote-margin')).toContainText('이익 85,000원');
+  // 줄을 누르면 구성품·단가 연결·공급사 금액
+  await line.getByTestId('line-open').click();
+  await expect(page.getByTestId('line-parts')).toContainText('한울');
+  await expect(page.getByTestId('line-parts')).toContainText('15,000원');
+  // [자동] → 단가표 금액(연결 단가 7,500 × 2㎡ = 15,000)
+  await line.getByTestId('line-auto').click();
+  await expect(line.getByTestId('line-amount')).toHaveValue('15000');
+  await expect(line.getByTestId('line-is-auto')).toBeVisible();
+  // 손해: 원가보다 낮게
+  await line.getByTestId('line-amount').fill('10000');
+  await line.getByTestId('line-amount').press('Enter');
+  await expect(line.getByTestId('line-loss')).toBeVisible();
+  await expect(page.getByTestId('quote-loss')).toBeVisible();
+
+  // 정산 보기 켠 팀 멤버(편집 초대): 이익율·손해만, 원가 금액은 안 보임
+  const memberEmail = `mem-${Math.random().toString(36).slice(2, 8)}@example.com`;
+  const member = await apiLogin(request, memberEmail);
+  await request.post('http://localhost:8787/api/me/team', { data: { email: memberEmail, canBilling: true }, headers: { authorization: `Bearer ${session}` } });
+  const inv = await apiCreateInvite(request, session, projectId, 'editor');
+  const m = await openInvited(browser, inv, '멤버', member);
+  await m.getByTestId('view-list').click();
+  await expect(m.getByTestId('line-loss')).toBeVisible();
+  await expect(m.getByTestId('line-margin')).not.toContainText('원가');
+  await expect(m.getByTestId('quote-margin')).not.toContainText('원가');
+  await m.ctx.close();
+  // 정산 보기 없는 편집자, 고객: 이익율 없음
+  const e = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'editor'), '편집자');
+  await e.getByTestId('view-list').click();
+  await expect(e.getByTestId('quote-line')).toHaveCount(1);
+  await expect(e.getByTestId('quote-margin')).toHaveCount(0);
+  await expect(e.getByTestId('line-loss')).toHaveCount(0);
+  await e.ctx.close();
+  const v = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
+  await v.getByTestId('view-list').click();
+  await expect(v.getByTestId('quote-margin')).toHaveCount(0);
+  await expect(v.getByTestId('quote-line')).toContainText('10,000원');
+  await v.ctx.close();
 });

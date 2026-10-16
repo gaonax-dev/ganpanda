@@ -147,6 +147,10 @@ export interface ProjectSettings {
   proposal?: import('./proposal').ProposalInfo;
   /** 승인 기록 (서버가 추가, 최신이 뒤) */
   approvals?: import('./proposal').Approval[];
+  /** 견적 줄 금액: manual = 직접 입력(새 프로젝트), 없으면 auto(기존 프로젝트) — 2026-10-16 */
+  quoteMode?: 'manual' | 'auto';
+  /** 줄 키 → 수동 금액 또는 'auto'(자동 전환) */
+  lineAmounts?: Record<string, number | 'auto'>;
 }
 
 export interface Message {

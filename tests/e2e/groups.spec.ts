@@ -98,6 +98,8 @@ test('계약 금액은 프로젝트 리스트 뷰의 견적 합계가 자동으�
     const photoId = app.project.addPhoto({ name: 'p.png', assetId: 'none', w: 1600, h: 1000, x: 0, y: 0, width: 1200 });
     app.project.addObject({ photoId, name: '간판', shape: 'rect', quad: [[100, 100], [700, 100], [700, 300], [100, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600 });
   });
+  await page.getByTestId('view-list').click();
+  await page.getByTestId('quote-auto-all').click(); // 새 프로젝트는 줄 금액 수동 입력 (2026-10-16) → 자동
   // 후렉스 1.8㎡ × 250,000 = 450,000 + 설치 250,000 = 700,000, 부가세 포함 770,000
   await expect.poll(async () => { const r = await request.get('http://localhost:8787/api/projects', { headers: { authorization: `Bearer ${session}` } }); return (await r.json()).projects[0].quoteTotal; }, { timeout: 10_000 }).toBe(770000);
   await apiCreateProject(request, session, '둘째');

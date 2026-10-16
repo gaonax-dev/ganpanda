@@ -42,7 +42,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -213,7 +213,7 @@ class AppState {
   quote = $derived(quoteProject(
     // 치수가 없어도 개(1식) 단위 종류(사인미러·전광판·지주·에어간판)는 견적에 넣는다 (2026-10-15 한울 조합형)
     this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : productById(signParts(o).bodyId)?.unit === 'ea' ? [o] : []; }),
-    this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null },
+    this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null, mode: this.settings.quoteMode ?? 'auto', lineAmounts: this.settings.lineAmounts ?? {} },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
   /** 승인 대상 내용의 해시 (사인물 규격·치수·디자인·금액) */
@@ -224,6 +224,10 @@ class AppState {
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
   canEdit = $derived(this.role === 'owner' || this.role === 'editor');
+  /** 원가(공급사 금액)·이익 금액은 오너만 (2026-10-16 "원가와 판매가로 이익율이 확인되어야한다. 오너와 맴버(허가시)에게만보이게") */
+  seesCost = $derived(this.role === 'owner');
+  /** 이익율·손해 표시: 오너, 또는 설정의 팀 멤버 중 "정산 보기"를 켠 사람(편집 초대로 들어옴) */
+  seesMargin = $derived(this.role === 'owner' || (this.role === 'editor' && this.access.status === 'ok' && !!this.access.billing));
 
   constructor() {
     this.project.onChange(() => this.version++);
@@ -408,6 +412,16 @@ class AppState {
   }
   setPrices(prices: PriceTable) { this.updateSettings({ prices }); }
   setExtras(extras: ExtraItem[]) { this.updateSettings({ extras }); }
+  /** 견적 줄 금액: 숫자 = 수동, 'auto' = 자동 전환, null = 지움(프로젝트 기본) */
+  setLineAmount(key: string, v: number | 'auto' | null) {
+    const next = { ...(this.settings.lineAmounts ?? {}) };
+    if (v === null) delete next[key]; else next[key] = v;
+    this.updateSettings({ lineAmounts: next });
+  }
+  /** 지금 보이는 모든 줄을 자동으로 */
+  autoAllLines() {
+    this.updateSettings({ lineAmounts: { ...(this.settings.lineAmounts ?? {}), ...Object.fromEntries(this.quote.lines.map((l) => [l.key, 'auto' as const])) } });
+  }
 
   /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
   private async initRoom(room: string) {
@@ -415,7 +429,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
@@ -439,7 +453,8 @@ class AppState {
     this.client.whenOnline(flushPendingUploads);
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
     this.client.whenOnline(() => {
-      if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.accountPrices) });
+      // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")
+      if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.accountPrices), quoteMode: 'manual' });
     });
     this.client.setName(this.nickname);
   }

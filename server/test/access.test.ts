@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { exports } from 'cloudflare:workers';
 import { TestClient, until } from './client';
-import { createInvite, createProject, json, login } from './helpers';
+import { createInvite, createProject, get, json, login } from './helpers';
 
 let owner = '';
 let project = { id: '', name: '' };
@@ -111,5 +111,21 @@ describe('메시지 첨부 (viewer 대화 API)', () => {
     expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: [{ assetId: 'short', name: 'n', type: 'image/png', size: 1 }] })).status).toBe(400);
     expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: Array(6).fill(att) })).status).toBe(400);
     expect((await json(q, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat', attachments: [{ ...att, type: 'text/html' }] })).status).toBe(400);
+  });
+});
+
+describe('방 권한의 정산 보기 (2026-10-16 이익율: "오너와 맴버(허가시)에게만보이게")', () => {
+  it('오너는 billing, 정산 보기 켠 팀 멤버(편집 초대)만 billing, 나머지는 아님', async () => {
+    const access = (q: string, session?: string) => get(`/api/projects/${project.id}/access${q}`, session).then((r) => r.json() as Promise<{ role: string; billing: boolean }>);
+    expect((await access('', owner)).billing).toBe(true);
+    const inv = await createInvite(owner, project.id, 'editor');
+    const memberEmail = `mem-${crypto.randomUUID().slice(0, 8)}@example.com`;
+    const member = await login(memberEmail);
+    expect((await access(`?invite=${inv.token}`, member)).billing).toBe(false); // 팀 멤버 아님
+    await json('/api/me/team', { email: memberEmail, canBilling: false }, owner);
+    expect((await access(`?invite=${inv.token}`, member)).billing).toBe(false); // 멤버지만 정산 보기 꺼짐
+    await json('/api/me/team', { email: memberEmail, canBilling: true }, owner);
+    expect((await access(`?invite=${inv.token}`, member)).billing).toBe(true);
+    expect((await access(`?invite=${inv.token}`)).billing).toBe(false); // 로그인 안 한 초대
   });
 });
