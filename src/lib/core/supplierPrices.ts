@@ -2,6 +2,7 @@
 // 현재는 사용자가 등록한 단가표로 구성해 해당 사용자만의 단가표이다. 지금은 개발중으로 둘다 구성하고 추후 업로드나 api로 단가를 공급받고 사용자가 입력가능하게")
 // 공급 단가표는 읽기 전용 참고값이고, 견적은 언제나 사용자 단가표(`PriceTable`)로 낸다. 사용자 단가 항목은 공급 품목에 연결(link)할 수 있고,
 // 연결하면 그 값을 가져다 쓰며 견적 줄에 공급업체 꼬리표가 붙는다. 업로드·API 로 받는 단가표는 `parseSupplierList` 로 검증한다.
+import alidaRaw from './suppliers/alida-2025-03.json';
 
 /** 단가 단위: 회배 = 1m × 1m = 1㎡ */
 export type SupplierUnit = '회배' | '장' | '개' | 'm';
@@ -123,8 +124,6 @@ export const HANWOOL: SupplierPriceList = {
   }))),
 };
 
-/** 지금 쓰는 공급 단가표 (나중에 업로드·API 로 받은 것이 더해진다) */
-export const SUPPLIER_LISTS: SupplierPriceList[] = [HANWOOL];
 
 /** 연결 값 `<공급업체 id>:<품목 id>` */
 export const linkOf = (list: SupplierPriceList, item: SupplierItem) => `${list.supplier.id}:${item.id}`;
@@ -144,12 +143,13 @@ export const supplierTagOf = (link: string | undefined, lists?: SupplierPriceLis
 export function linkableItems(unit: string, lists: SupplierPriceList[] = SUPPLIER_LISTS): { list: SupplierPriceList; item: SupplierItem; link: string }[] {
   const want: SupplierUnit | null = unit === 'm2' ? '회배' : unit === 'm' ? 'm' : unit === 'ea' ? '개' : null;
   if (!want) return [];
-  return lists.flatMap((list) => list.items.filter((x) => x.unit === want && !x.surcharge).map((item) => ({ list, item, link: linkOf(list, item) })));
+  // 자당(글자 1자) 단가는 개 단위 제품(1식)에 맞지 않는다
+  return lists.flatMap((list) => list.items.filter((x) => x.unit === want && !x.surcharge && !x.note?.includes('자당')).map((item) => ({ list, item, link: linkOf(list, item) })));
 }
 
 export const supplierItemLabel = (it: SupplierItem) => `${it.group} · ${it.name}${it.option ? ` (${it.option})` : ''}`;
 
-const str = (v: unknown, max = 200): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
+const str = (v: unknown, max = 300): v is string => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 
 /** 업로드·API 로 받은 단가표 검증. 공급업체 정보가 틀리면 list = null, 잘못된 품목은 errors 에 이유를 남기고 뺀다 */
 export function parseSupplierList(raw: unknown): { list: SupplierPriceList | null; errors: string[] } {
@@ -181,3 +181,11 @@ export function parseSupplierList(raw: unknown): { list: SupplierPriceList | nul
   });
   return { list: { supplier: { id: s.id, name: s.name, tag: s.tag }, effectiveDate: r.effectiveDate, source, items }, errors };
 }
+
+/** 알리다솔루션 단가표 2025년 3월 1호 (PDF 4~21쪽, 2026-10-16 사용자: "간판제작사에 제공하는 단가야"). 업로드와 같은 형식(JSON)을 같은 검증으로 읽는다 */
+const alida = parseSupplierList(alidaRaw);
+export const ALIDA: SupplierPriceList = alida.list!;
+export const ALIDA_ERRORS = alida.errors;
+
+/** 지금 쓰는 공급 단가표 (나중에 업로드·API 로 받은 것이 더해진다) */
+export const SUPPLIER_LISTS: SupplierPriceList[] = [HANWOOL, ALIDA];

@@ -6,7 +6,7 @@
   import { ROUNDING_OPTIONS, type PriceTable } from '../core/pricing';
   import { savePrices } from '../auth';
   import { applyMarkup, isDirect, linkedPrice } from '../core/markup';
-  import { SUPPLIER_LISTS, findSupplierItem, linkableItems, supplierItemLabel, type SupplierPriceList } from '../core/supplierPrices';
+  import { SUPPLIER_LISTS, findSupplierItem, linkableItems, supplierItemLabel, type SupplierItem, type SupplierPriceList } from '../core/supplierPrices';
 
   let saved = $state(false);
   let saving = $state(false);
@@ -44,7 +44,12 @@
     app.setPrices(applyMarkup(p, { ...(p.markup ?? { all: 1 }), direct }));
   }
   const directOf = (g: string) => !!p.markup?.direct?.includes(g);
-  const allGroups = $derived([...new Set(SUPPLIER_LISTS.flatMap((l) => l.items.map((i) => i.group)))]);
+  let query = $state('');
+  /** 품목 찾기: 띄어쓰기로 나눈 낱말이 모두 분류·이름·세부·비고에 들어 있으면 */
+  const matches = (it: SupplierItem) => {
+    const hay = `${it.group} ${it.name} ${it.option ?? ''} ${it.note ?? ''}`;
+    return query.trim().split(/\s+/).every((w) => !w || hay.includes(w));
+  };
   /** 연결 선택지: 공급업체·분류별로 묶음 */
   function choices(unit: string) {
     const groups = new Map<string, { link: string; label: string }[]>();
@@ -104,14 +109,7 @@
         <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 "공급 단가"에서 연결하면 공급 단가 × 배수와 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
         <div class="markup" data-testid="markup">
           <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} onchange={(e) => setAll(e.currentTarget.value)} /></label>
-          {#each allGroups as g (g)}
-            <span class="grp">
-              <b>{g}</b>
-              <label class="d"><input type="checkbox" data-testid="direct-{g}" checked={directOf(g)} onchange={(e) => setDirect(g, e.currentTarget.checked)} /> 직접 출력</label>
-              {#if !directOf(g)}<label>×<input data-testid="markup-{g}" type="number" min="0.1" max="10" step="0.05" placeholder={String(p.markup?.all ?? 1)} value={p.markup?.groups?.[g] ?? ''} onchange={(e) => setGroup(g, e.currentTarget.value)} /></label>{/if}
-            </span>
-          {/each}
-          <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수를 비우면 전체 배수. 직접 출력 분류는 연결하지 않고 직접 입력합니다</small>
+          <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수(공급업체를 펼쳐 분류마다)를 비우면 전체 배수. 직접 출력 분류는 연결하지 않고 직접 입력합니다</small>
         </div>
         {#each SUPPLIER_LISTS as l (l.supplier.id)}
           <div class="supplier" data-testid="supplier-list-{l.supplier.id}">
@@ -119,17 +117,25 @@
               <span class="tag">{l.supplier.tag}</span> {l.supplier.name} <small>{l.effectiveDate} · {l.items.length}품목</small><span class="caret">{openList === l.supplier.id ? '▾' : '▸'}</span>
             </button>
             {#if openList === l.supplier.id}
+              <input class="search" data-testid="supplier-search" placeholder="품목 찾기 (예: 채널, 80cm, 백색)" bind:value={query} />
               {#each groupsOf(l) as g (g)}
-                <h4>{g}{#if directOf(g)} <span class="direct">직접 출력</span>{/if}</h4>
+                {@const rows = l.items.filter((i) => i.group === g && matches(i))}
+                {#if rows.length}
+                <div class="gh">
+                  <h4>{g}</h4>
+                  <label class="d"><input type="checkbox" data-testid="direct-{g}" checked={directOf(g)} onchange={(e) => setDirect(g, e.currentTarget.checked)} /> 직접 출력</label>
+                  {#if !directOf(g)}<label class="d">×<input data-testid="markup-{g}" type="number" min="0.1" max="10" step="0.05" placeholder={String(p.markup?.all ?? 1)} value={p.markup?.groups?.[g] ?? ''} onchange={(e) => setGroup(g, e.currentTarget.value)} /></label>{/if}
+                </div>
                 <table><tbody>
-                  {#each l.items.filter((i) => i.group === g) as it (it.id)}
+                  {#each rows as it (it.id)}
                     <tr data-testid="supplier-item" title={it.note ?? ''}>
                       <td>{it.name}{#if it.option} <small>({it.option})</small>{/if}{#if it.surcharge} <em>추가</em>{/if}</td>
                       <td class="w">{it.maxWidthMm ? `${it.maxWidthMm.toLocaleString('ko-KR')}폭` : ''}</td>
-                      <td class="r">{it.surcharge ? '+' : ''}{it.price.toLocaleString('ko-KR')}원/{it.unit}</td>
+                      <td class="r">{it.surcharge ? '+' : ''}{it.price.toLocaleString('ko-KR')}원/{it.note?.includes('자당') ? '자' : it.unit}</td>
                     </tr>
                   {/each}
                 </tbody></table>
+                {/if}
               {/each}
             {/if}
           </div>
@@ -172,17 +178,18 @@
   .tag { display: inline-block; padding: 0 5px; border-radius: 4px; background: var(--accent, #3b82f6); color: #fff; font-size: 10px; font-weight: 700; vertical-align: 1px; }
   .sub { font-weight: 400; margin-left: 4px; }
   .markup { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 4px 0 8px; font-size: 12px; color: var(--text); }
-  .markup label { display: flex; align-items: center; gap: 3px; }
+  .markup label { display: flex; flex-direction: row; align-items: center; gap: 3px; }
   .markup input { width: 58px; }
-  .grp { display: flex; align-items: center; gap: 6px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; }
-  .grp .d { font-size: 11px; color: var(--muted); }
-  .direct { font-weight: 400; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
   .markup small { flex-basis: 100%; color: var(--muted); font-size: 11px; }
   .supplier { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; }
   .sup-head { display: flex; align-items: center; gap: 6px; width: 100%; background: none; border: 0; color: var(--text); padding: 8px; font-size: 13px; cursor: pointer; text-align: left; }
   .sup-head small { color: var(--muted); }
   .caret { margin-left: auto; color: var(--muted); }
-  h4 { font-size: 11px; color: var(--muted); margin: 8px 8px 2px; }
+  h4 { font-size: 11px; color: var(--muted); margin: 0; }
+  .gh { display: flex; align-items: center; gap: 10px; margin: 10px 8px 2px; }
+  .gh .d { display: flex; flex-direction: row; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); }
+  .gh input[type='number'] { width: 56px; }
+  .search { margin: 0 8px 4px; width: calc(100% - 16px); }
   table { width: calc(100% - 16px); margin: 0 8px 4px; border-collapse: collapse; font-size: 12px; }
   td { padding: 2px 4px; border-top: 1px solid var(--line); color: var(--text); }
   td small, td em { color: var(--muted); font-style: normal; font-size: 11px; }

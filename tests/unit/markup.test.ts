@@ -32,8 +32,10 @@ describe('배수', () => {
 });
 
 describe('직접 출력 (2026-10-16 사용자: "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수를 적용해야한다")', () => {
-  it('샘플 기본값: UV 실사·후렉스·UV시트평판은 직접 출력', () => {
-    expect(DEFAULT_PRICES.markup).toEqual({ all: 1, direct: ['UV', '플렉스', 'UV시트평판'] });
+  it('샘플 기본값: 시트·후렉스·UV 실사 출력은 직접 출력 (한울·알리다)', () => {
+    expect(DEFAULT_PRICES.markup!.all).toBe(1);
+    expect(DEFAULT_PRICES.markup!.direct).toEqual(expect.arrayContaining(['UV', '플렉스', 'UV시트평판', 'UV 후렉스 출력', 'UV 대형 후렉스 출력', '라텍스 후렉스 출력', 'UV시트 출력', 'UV투명시트 출력', '라텍스시트 출력', '솔벤시트 출력', 'UV 평판 출력']));
+    expect(DEFAULT_PRICES.markup!.direct).not.toContain('고무 스카시');
     expect(isDirect(DEFAULT_PRICES, item('hanwool:hanwool.uv.백색시트'))).toBe(true);
     expect(isDirect(DEFAULT_PRICES, item('hanwool:hanwool.solvent.백색시트'))).toBe(false);
   });
