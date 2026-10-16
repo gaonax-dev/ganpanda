@@ -84,6 +84,7 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-card')).toHaveCount(1);
   await expect(page.getByTestId('list-card')).toContainText('4,000 × 1,000');
+  if (await page.getByTestId('quote-auto-all').count()) await page.getByTestId('quote-auto-all').click(); // 새 프로젝트는 수동 입력 → 자동
   // 알루미늄 복합판 4㎡ × 85,000 + 실사 시트 4㎡ × 30,000 = 460,000 + 기본 설치비 250,000 = 710,000 → VAT 포함 781,000
   await expect(page.getByTestId('quote-total')).toContainText('781,000원');
 });

@@ -8,7 +8,9 @@
   import { describeOptions } from '../core/options';
   import { faceClip } from '../core/cardFace';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
-  import { quoteObject, won } from '../core/quote';
+  import { quoteObject, won, type QuoteLine } from '../core/quote';
+  import { findMethod } from '../core/calcMethods';
+  import { findSupplierItem, supplierItemLabel } from '../core/supplierPrices';
   import type { ExtraItem } from '../core/model';
   import DesignFace from '../ui/DesignFace.svelte';
   import { fitRect, type Viewport } from '../core/viewport';
@@ -29,6 +31,17 @@
   const setExtra = (id: string, patch: Partial<ExtraItem>) => app.setExtras(extras.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   const addExtra = () => app.setExtras([...extras, { id: Math.random().toString(36).slice(2, 9), label: '', amount: 0 }]);
   const removeExtra = (id: string) => app.setExtras(extras.filter((e) => e.id !== id));
+  // 줄 금액 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다. 수동입력후 자동전환버튼"): 비우면 프로젝트 기본(새 프로젝트는 입력 필요)
+  const setLine = (key: string, v: string) => app.setLineAmount(key, v.trim() === '' ? null : Math.max(0, Number(v) || 0));
+  /** 줄을 누르면 그 사인물의 구성품·단가 연결·공급사 금액(원가) (오너·허가 멤버) */
+  let openObj = $state<string | null>(null);
+  const linkOf = (l: QuoteLine) => {
+    const m = l.priceId ? findMethod(app.prices.methods?.[l.priceId]) : undefined;
+    if (m) return `${m.supplier.tag} 계산법 · ${m.label}`;
+    const hit = l.priceId ? findSupplierItem(app.prices.links?.[l.priceId]) : null;
+    return hit ? `${hit.list.supplier.tag} · ${supplierItemLabel(hit.item)}` : '직접 입력 단가 (원가 없음)';
+  };
+  const pct = (r: number | null) => (r === null ? '—' : `${Math.round(r * 1000) / 10}%`);
   const setInstall = (v: string) => app.updateSettings({ installFee: v.trim() === '' ? undefined : Math.max(0, Number(v) || 0) });
 
   $effect(() => {
@@ -213,11 +226,38 @@
       </span>
     </header>
     <div class="lines">
+      {#if app.canEdit && quote.lines.some((l) => l.manual)}
+        <button class="link" data-testid="quote-auto-all" onclick={() => app.autoAllLines()}>전체 자동 금액으로</button>
+      {/if}
       {#each quote.lines as l, i (i)}
-        <div class="line" class:zero={!l.amount}>
-          <div><span>{l.label}</span><small>{l.detail}</small></div>
-          <b>{won(l.amount)}</b>
+        <div class="line" class:zero={!l.amount} class:loss={app.seesMargin && l.loss} data-testid="quote-line" data-key={l.key}>
+          <button class="info" data-testid="line-open" disabled={!app.seesMargin} onclick={() => (openObj = openObj === l.objectId ? null : l.objectId)}><span>{l.label}</span><small>{l.detail}</small>
+            {#if app.seesMargin && l.cost !== undefined && !l.needsInput}
+              <small class="mg" data-testid="line-margin">{app.seesCost ? `원가 ${won(l.cost)} · ` : ''}이익율 {pct(l.amount ? (l.amount - l.cost) / l.amount : null)}{#if l.loss} <b class="lossb" data-testid="line-loss">손해</b>{/if}</small>
+            {/if}
+          </button>
+          {#if app.canEdit}
+            <span class="amtcell">
+              <input class="amt" data-testid="line-amount" type="number" min="0" step="1000" value={l.needsInput ? '' : l.amount} placeholder="금액 입력" title={`자동 금액 ${won(l.auto ?? 0)}`} onchange={(e) => setLine(l.key, e.currentTarget.value)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+              {#if l.manual}<button class="btn small" data-testid="line-auto" title={`자동 금액 ${won(l.auto ?? 0)}으로`} onclick={() => app.setLineAmount(l.key, 'auto')}>자동</button>{:else}<span class="autob" data-testid="line-is-auto">자동</span>{/if}
+            </span>
+          {:else}<b>{won(l.amount)}</b>{/if}
         </div>
+        {#if app.seesMargin && openObj === l.objectId && quote.lines.findIndex((x) => x.objectId === l.objectId) === i}
+          <table class="parts" data-testid="line-parts">
+            <thead><tr><th>구성품</th><th>단가 연결</th>{#if app.seesCost}<th>공급사 금액</th>{/if}<th>판매가</th><th>이익율</th></tr></thead>
+            <tbody>
+              {#each quote.lines.filter((x) => x.objectId === l.objectId) as x (x.key)}
+                <tr class:loss={x.loss}>
+                  <td>{x.label.split(' · ').slice(1).join(' · ')}</td><td>{linkOf(x)}</td>
+                  {#if app.seesCost}<td class="r">{x.cost !== undefined ? won(x.cost) : '—'}</td>{/if}
+                  <td class="r">{x.needsInput ? '입력 필요' : won(x.amount)}</td>
+                  <td class="r">{x.cost !== undefined && !x.needsInput && x.amount ? pct((x.amount - x.cost) / x.amount) : '—'}{#if x.loss} 손해{/if}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
       {:else}
         <p class="hint">종류·시트를 지정한 사인물이 없습니다.</p>
       {/each}
@@ -254,6 +294,14 @@
         <div class="sum"><span data-testid="quote-vat-note">부가세 (10%)</span><span>{won(quote.vat)}</span></div>
       {/if}
       <div class="sum total"><span>합계</span><span data-testid="quote-total">{won(quote.total)}</span></div>
+      {#if quote.lines.some((l) => l.needsInput)}<p class="hint warn" data-testid="quote-needs-input">금액을 넣지 않은 줄 {quote.lines.filter((l) => l.needsInput).length}건</p>{/if}
+      {#if app.seesMargin}
+        <div class="margin" class:loss={quote.margin.profit < 0} data-testid="quote-margin">
+          {#if app.seesCost}<span>원가 {won(quote.margin.cost)} · 이익 {won(quote.margin.profit)}</span>{/if}
+          <span>이익율 <b data-testid="quote-margin-rate">{pct(quote.margin.rate)}</b>{#if quote.margin.profit < 0} <b class="lossb" data-testid="quote-loss">손해</b>{/if}</span>
+          {#if quote.margin.uncosted}<small>원가 없는 줄 {quote.margin.uncosted}건 제외 (직접 입력 단가)</small>{/if}
+        </div>
+      {/if}
       <button class="btn small" onclick={copyQuote}>견적 텍스트 복사</button>
       <p class="hint">{app.settings.prices ? '이 프로젝트의 단가표 기준' : '※ 예시 단가 — 단가 설정에서 바꾸세요'}</p>
     </footer>
@@ -300,6 +348,20 @@
   .sum { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; font-variant-numeric: tabular-nums; }
   .sum.total { font-size: 16px; font-weight: 800; color: var(--accent); margin: 4px 0 10px; }
   .hidden { display: none !important; }
+  .line .info { all: unset; display: flex; flex-direction: column; flex: 1; min-width: 0; cursor: pointer; }
+  .line .info:disabled { cursor: default; }
+  .amtcell { display: flex; align-items: center; gap: 4px; }
+  .autob { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .mg { color: var(--muted); }
+  .line.loss { background: rgba(229, 72, 77, 0.08); }
+  .lossb { color: #e5484d; font-size: 11px; }
+  .parts { width: 100%; font-size: 11px; border-collapse: collapse; margin: 0 0 8px; }
+  .parts th, .parts td { padding: 2px 4px; border-top: 1px solid var(--line); text-align: left; }
+  .parts .r { text-align: right; white-space: nowrap; }
+  .parts tr.loss td { color: #e5484d; }
+  .margin { display: flex; flex-direction: column; gap: 2px; font-size: 12px; margin: 4px 0; }
+  .margin.loss b { color: #e5484d; }
+  .warn { color: #e5a00d; }
   .ltabs { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); overflow-x: auto; scrollbar-width: none; }
   .ltabs button { background: none; border: 0; color: var(--text); padding: 9px 10px; border-radius: 8px; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
   .ltabs button:disabled { opacity: 0.35; }

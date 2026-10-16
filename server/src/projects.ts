@@ -1,5 +1,6 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
 import { authenticate, type Account } from './auth';
+import { teamAccess } from './team';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { planOf } from './plans';
 
@@ -70,7 +71,9 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     if (typeof r === 'number') return text('no access', r);
     const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(r.project.owner_id).first<{ plan: string }>();
     const seats = { used: await env.ACCOUNT.getByName(r.project.owner_id).usedSeats(), limit: planOf(owner?.plan ?? 'free').seats };
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats });
+    // 정산 보기(이익율): 오너, 또는 오너 팀에서 "정산 보기"를 켠 멤버가 편집 초대로 들어온 경우 (2026-10-16)
+    const billing = r.role === 'owner' || (r.role === 'editor' && !!r.account && !!(await teamAccess(env, r.project.owner_id, r.account))?.canBilling);
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats, billing });
   }
 
   const me = await authenticate(req, env);

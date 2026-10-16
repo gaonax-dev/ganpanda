@@ -66,11 +66,11 @@ export async function openOwnedProject(page: Page, request: APIRequestContext, n
 }
 
 /** 새 브라우저 컨텍스트에서 초대 링크로 들어온 페이지 */
-export async function openInvited(browser: Browser, inviteUrl: string, displayName = '고객'): Promise<Page & { ctx: BrowserContext }> {
+export async function openInvited(browser: Browser, inviteUrl: string, displayName = '고객', session?: string): Promise<Page & { ctx: BrowserContext }> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto('/');
-  await page.evaluate((n) => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', n); }, displayName);
+  await page.evaluate(([n, s]) => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', n); if (s) localStorage.setItem('ganpanda.session', s); }, [displayName, session ?? ''] as const);
   await page.goto(new URL(inviteUrl).pathname + new URL(inviteUrl).search);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   return Object.assign(page, { ctx });
