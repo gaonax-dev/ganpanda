@@ -113,6 +113,16 @@ export const isChannelProduct = (id?: string) => !!id && CATALOG.some((p) => p.i
 /** 치수 두께 빠른 선택 (mm) — 판 두께를 옵션으로 따로 두지 않는다 (2026-10-16 "포맥스의 경우 실측에 두께가 있어 포멕스 두께가 따로표시 중복된다") */
 const PLATE_THICK = [3, 5, 8, 10, 15, 20, 30];
 export const thickPresetsFor = (id?: string): number[] => (id === 'board-foamex' || id === 'board-acrylic' ? PLATE_THICK : []);
+/** 두께는 소재에 (2026-10-16 사용자: "사인물 가로세로만 표시하고 두께는 소재에 붙이는게 맞을 거 같은데"): 받는 종류와 이름·단위. 현수막·어닝·에어간판·몸통 없음·스카시(카드에 두께)는 없음 */
+const NO_THICK = new Set(['banner', 'board-awning', 'board-air', 'body-none']);
+export function thicknessFieldOf(id?: string): { label: string; unit: 'T' | 'mm' } | null {
+  if (!id || !productById(id) || NO_THICK.has(id) || isChannelProduct(id) || SCASHI_IDS.has(id)) return null;
+  return thickPresetsFor(id).length ? { label: '판 두께', unit: 'T' } : { label: '두께', unit: 'mm' };
+}
+export const thicknessLabel = (o: { productId?: string; depthMm?: number }): string | null => {
+  const t = thicknessFieldOf(o.productId);
+  return t && o.depthMm ? (t.unit === 'T' ? `${o.depthMm}T` : `두께 ${o.depthMm.toLocaleString('ko-KR')}mm`) : null;
+};
 export const NO_CHANNEL = new Set(['board-reface', 'board-ledsign', 'board-air']); // 천갈이·전광판·에어간판은 채널이 붙지 않는다
 /** 채널·스카시 부착은 간판의 옵션 (2026-10-15 사용자: "간판옵션이다. 그리고 스카시도 부착된다") — 간판 분류이고 NO_CHANNEL 이 아닌 몸통만 */
 export const takesLetters = (id?: string) => !!id && groupOfProduct(id) === 'sign' && !NO_CHANNEL.has(id) && !isChannelProduct(id);

@@ -99,12 +99,11 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   await page.getByTestId('quick-kind').selectOption('sheet');
   await page.getByTestId('category-confirm-ok').click();
   await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.productId).toBeUndefined();
-  // 간판(보드 기본 제품)으로 돌리면 사이즈 입력 줄에 두께가 생긴다
+  // 간판으로 돌려도 사이즈 입력 줄은 가로×세로만 (두께는 소재에, 2026-10-16 "사인물 가로세로만 표시하고 두께는 소재에 붙이는게 맞을 거 같은데")
   await page.getByTestId('quick-kind').selectOption('sign');
   await page.getByTestId('category-confirm-ok').click();
   await page.getByTestId('quick-size').click();
-  await page.getByTestId('quick-depth').fill('150');
-  await expect.poll(async () => (await objs()).find((o) => o.name === '첫째')?.depthMm).toBe(150);
+  await expect(page.getByTestId('quick-depth')).toHaveCount(0);
   await page.getByTestId('quick-size').click(); // 닫기
   // [이름] → 간단 입력
   await page.getByTestId('quick-name').click();
@@ -116,7 +115,7 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   await page.getByTestId('quick-width').fill('3000');
   await page.getByTestId('quick-height').fill('600');
   await expect.poll(async () => (await objs()).find((o) => o.name === '출입문 시트')?.widthMm).toBe(3000);
-  await expect(page.getByTestId('quick-size')).toHaveText('3,000×600×150');
+  await expect(page.getByTestId('quick-size')).toHaveText('3,000×600');
   await page.getByTestId('quick-next').click();
   await expect(page.getByTestId('quick-name')).toHaveText('둘째');
   await page.getByTestId('quick-width').fill('2500');

@@ -1,7 +1,7 @@
 <!-- 사인물 세부 설정 창: 종류·시트·문구·치수·기준선·금액 상세·삭제 (패널의 [설정]) -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, SCASHI_OPTIONS } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, thicknessFieldOf } from '../core/catalog';
   import { partKindsFor, partsForProduct } from '../core/parts';
   import PartsEditor from './PartsEditor.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
@@ -12,7 +12,6 @@
   let { obj }: { obj: SignObject } = $props();
 
   const category = $derived(categoryOf(obj));
-  const product = $derived(productById(obj.productId));
   const m = $derived(app.measures.get(obj.id));
   // 입력 치수가 없으면 판독 추정 치수로 계산 (리스트 견적과 동일 규칙)
   const size = $derived(app.sizeOf(obj));
@@ -33,9 +32,9 @@
       ("사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘") */
   const partKinds = $derived(partKindsFor(obj));
   const composable = $derived(partKinds.length > 0);
-  /** 스카시 분류는 두께가 스카시 구성 요소에 있어 치수 두께를 따로 받지 않는다 (겹침 정리) */
-  const isScashiBody = $derived(SCASHI_OPTIONS.some((c) => c.id === obj.productId));
   const thickPresets = $derived(thickPresetsFor(obj.productId));
+  /** 두께는 치수가 아니라 소재(종류)에 — 받는 종류만 (thicknessFieldOf) */
+  const thick = $derived(thicknessFieldOf(obj.productId));
   const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight']);
   const optionGroups = $derived(optionGroupsFor(obj).map((g) => (composable ? { ...g, fields: g.fields.filter((f) => !LETTER_KEYS.has(f.key)) } : g)).filter((g) => g.fields.length && !(composable && g.title === '시트 옵션')));
   function setOption(f: OptionField, v: string | boolean) {
@@ -74,13 +73,6 @@
               placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
               oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
           </label>
-          {#if product && bodyId !== 'body-none' && !isScashiBody}
-            <label>두께
-              <input data-testid="depth-mm" type="number" min="0" step={thickPresets.length ? 1 : 10} value={obj.depthMm ?? ''} disabled={ro}
-                placeholder={obj.options?.thick ? `${obj.options.thick} (예전 값)` : thickPresets.length ? '판 두께' : '보드 두께·돌출 깊이'}
-                oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
-            </label>
-          {/if}
           {#if isChannel && !composable}
             <label>글자수
               <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}
@@ -88,12 +80,6 @@
             </label>
           {/if}
         </div>
-        {#if thickPresets.length && !ro}
-          <!-- 판 두께 빠른 선택 = 치수 두께 (포맥스·아크릴의 따로 있던 두께 선택과 겹쳐서 하나로, 2026-10-16) -->
-          <div class="chips thick" data-testid="thick-presets">
-            {#each thickPresets as t (t)}<button data-testid="thick-{t}" class:on={obj.depthMm === t} onclick={() => update({ depthMm: t })}>{t}T</button>{/each}
-          </div>
-        {/if}
         {#each (app.warnMeasure ? m?.warnings ?? [] : []) as w, i (i)}
           <div class="warning" data-testid="measure-warning">
             <b>⚠ 실측 확인 필요</b>
@@ -117,6 +103,22 @@
               <option value={p.id}>{p.name}</option>
             {/each}
           </select>
+        {/if}
+        {#if thick}
+          <!-- 두께는 소재에 (2026-10-16 사용자: "사인물 가로세로만 표시하고 두께는 소재에 붙이는게 맞을 거 같은데"). 판재는 빠른 선택 3~30T -->
+          <div class="thickrow" data-testid="thickness">
+            <label>{thick.label}
+              <input data-testid="depth-mm" type="number" min="0" step={thick.unit === 'T' ? 1 : 10} value={obj.depthMm ?? ''} disabled={ro}
+                placeholder={obj.options?.thick ? `${obj.options.thick} (예전 값)` : thick.unit === 'T' ? '예: 5' : '프레임·돌출 깊이'}
+                oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
+              <small>{thick.unit === 'T' ? 'T (mm)' : 'mm'}</small>
+            </label>
+            {#if thickPresets.length && !ro}
+              <div class="chips thick" data-testid="thick-presets">
+                {#each thickPresets as t (t)}<button data-testid="thick-{t}" class:on={obj.depthMm === t} onclick={() => update({ depthMm: t })}>{t}T</button>{/each}
+              </div>
+            {/if}
+          </div>
         {/if}
         {#if can3d}
           <button class="btn small" data-testid="open-letter3d" onclick={() => (app.letter3dOpen = true)}>입체 보기 (3D)</button>
@@ -224,6 +226,9 @@
   .badge { background: var(--blue); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
   select { margin-top: 8px; }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .thickrow { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .thickrow label { display: flex; align-items: center; gap: 6px; }
+  .thickrow input { width: 100px; }
   .chips button {
     background: var(--input); border: 1px solid var(--line); color: var(--muted); border-radius: 14px;
     padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;

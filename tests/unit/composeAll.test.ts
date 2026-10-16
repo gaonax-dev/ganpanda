@@ -94,3 +94,17 @@ describe('분류 유지·변경', () => {
     expect(optionGroupsFor(obj({ sheetIds: ['sh-cut'], parts: [] })).map((g) => g.title)).not.toContain('시트 옵션');
   });
 });
+
+describe('두께는 소재에 (2026-10-16 사용자: "사인물 가로세로만 표시하고 두께는 소재에 붙이는게 맞을 거 같은데")', () => {
+  it('두께를 받는 종류와 이름: 판재는 "판 두께"(T), 그 밖은 "두께"(mm), 현수막·어닝·에어간판·몸통 없음·스카시는 없음', async () => {
+    const { thicknessFieldOf: thicknessOf } = await import('../../src/lib/core/catalog');
+    expect(thicknessOf('board-foamex')).toEqual({ label: '판 두께', unit: 'T' });
+    expect(thicknessOf('board-flex')).toEqual({ label: '두께', unit: 'mm' });
+    for (const id of ['banner', 'board-awning', 'board-air', 'body-none', 'ch-rubber', undefined]) expect(thicknessOf(id)).toBeNull();
+  });
+  it('요약: 두께는 소재 옆에', () => {
+    expect(describeOptions(obj({ productId: 'board-foamex', depthMm: 5 }))[0]).toBe('5T');
+    expect(describeOptions(obj({ productId: 'board-flex', depthMm: 150 }))[0]).toBe('두께 150mm');
+    expect(describeOptions(obj({ productId: 'banner', depthMm: 3 }))).not.toContain('두께 3mm');
+  });
+});
