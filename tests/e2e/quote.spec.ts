@@ -135,3 +135,19 @@ test('공급 단가표(한울): 내 단가 항목을 연결하면 단가를 가�
   await page.getByTestId('close-prices').click();
   await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).not.toContainText('한울');
 });
+
+test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)로 다시 계산된다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "한울 가격을 몇배로 할지 조정해봐" → "단가는 사용가 설정할거고"
+  await openOwnedProject(page, request);
+  await page.getByTestId('view-list').click();
+  await page.getByTestId('open-prices').click();
+  await page.getByTestId('price-link-sh-print').selectOption('hanwool:hanwool.uv.백색시트');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('7500');
+  await page.getByTestId('markup-all').fill('2');
+  await page.getByTestId('markup-all').press('Enter');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('15000');
+  await page.getByTestId('markup-UV').fill('1.3');
+  await page.getByTestId('markup-UV').press('Enter');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
+  await expect(page.getByTestId('price-sh-cut')).toHaveValue('35000'); // 연결 안 한 항목은 그대로
+});
