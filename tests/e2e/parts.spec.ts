@@ -96,3 +96,14 @@ test('재질·도색 객체: 채널 측면 재질 + 도색(체계 → 코드·�
   await ch.getByTestId('part-type').selectOption('ch-halo');
   await expect(ch.getByTestId('part-option-chFace')).toHaveCount(0); // 후광은 앞면 판 없음
 });
+
+test('사인물 설정 창: 전체 치수가 맨 위', async ({ page, request }) => {
+  // 2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에"
+  await openOwnedProject(page, request, '치수 위치');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await expect(page.getByTestId('object-settings').locator('.body > section').first().locator('h3')).toContainText('치수');
+});

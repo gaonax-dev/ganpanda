@@ -52,6 +52,49 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="사인물 설정" data-testid="object-settings">
     <header><h2>{obj.name} 설정</h2><button class="icon" data-testid="close-object-settings" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
+      <section data-testid="size-section"> <!-- 사인물 전체 치수는 맨 위 (2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에") -->
+        <h3>
+          치수 (mm)
+          {#if m?.reference}<span class="badge" data-testid="reference-badge" title="이 사진의 다른 영역은 이 치수를 기준으로 추정합니다">기준 영역</span>{/if}
+        </h3>
+        <div class="grid2">
+          <label>가로
+            <input data-testid="width-mm" type="number" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro}
+              placeholder={m?.estimate ? `≈ ${fmt(m.estimate.widthMm)}` : '입력'}
+              oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} />
+          </label>
+          <label>세로
+            <input data-testid="height-mm" type="number" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
+              placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
+              oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
+          </label>
+          {#if product && bodyId !== 'body-none'}
+            <label>두께
+              <input data-testid="depth-mm" type="number" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="보드 두께·돌출 깊이"
+                oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
+            </label>
+          {/if}
+          {#if isChannel && !composable}
+            <label>글자수
+              <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}
+                placeholder={autoChars ? `자동 ${autoChars}` : '문구 입력'} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
+            </label>
+          {/if}
+        </div>
+        {#each (app.warnMeasure ? m?.warnings ?? [] : []) as w, i (i)}
+          <div class="warning" data-testid="measure-warning">
+            <b>⚠ 실측 확인 필요</b>
+            <p>{w.message}</p>
+            <button data-testid="apply-estimate" class="btn small" disabled={ro}
+              onclick={() => update({ widthMm: Math.round(w.expected.widthMm / 10) * 10, heightMm: Math.round(w.expected.heightMm / 10) * 10 })}>
+              추정값 적용 ({fmt(w.expected.widthMm)}×{fmt(w.expected.heightMm)})
+            </button>
+          </div>
+        {/each}
+        {#if !obj.widthMm && !obj.heightMm && !m?.estimate}
+          <p class="hint">한 영역의 실제 치수를 입력하면, 같은 사진의 다른 영역 크기를 자동으로 추정하고 잘못 입력한 치수를 경고합니다.</p>
+        {/if}
+      </section>
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}
@@ -122,49 +165,6 @@
       </section>
       {/if}
 
-      <section>
-        <h3>
-          치수 (mm)
-          {#if m?.reference}<span class="badge" data-testid="reference-badge" title="이 사진의 다른 영역은 이 치수를 기준으로 추정합니다">기준 영역</span>{/if}
-        </h3>
-        <div class="grid2">
-          <label>가로
-            <input data-testid="width-mm" type="number" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro}
-              placeholder={m?.estimate ? `≈ ${fmt(m.estimate.widthMm)}` : '입력'}
-              oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} />
-          </label>
-          <label>세로
-            <input data-testid="height-mm" type="number" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
-              placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
-              oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
-          </label>
-          {#if product && bodyId !== 'body-none'}
-            <label>두께
-              <input data-testid="depth-mm" type="number" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="보드 두께·돌출 깊이"
-                oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
-            </label>
-          {/if}
-          {#if isChannel && !composable}
-            <label>글자수
-              <input data-testid="char-count" type="number" min="0" value={obj.charCount ?? ''} disabled={ro}
-                placeholder={autoChars ? `자동 ${autoChars}` : '문구 입력'} oninput={(e) => update({ charCount: num(e.currentTarget.value) })} />
-            </label>
-          {/if}
-        </div>
-        {#each (app.warnMeasure ? m?.warnings ?? [] : []) as w, i (i)}
-          <div class="warning" data-testid="measure-warning">
-            <b>⚠ 실측 확인 필요</b>
-            <p>{w.message}</p>
-            <button data-testid="apply-estimate" class="btn small" disabled={ro}
-              onclick={() => update({ widthMm: Math.round(w.expected.widthMm / 10) * 10, heightMm: Math.round(w.expected.heightMm / 10) * 10 })}>
-              추정값 적용 ({fmt(w.expected.widthMm)}×{fmt(w.expected.heightMm)})
-            </button>
-          </div>
-        {/each}
-        {#if !obj.widthMm && !obj.heightMm && !m?.estimate}
-          <p class="hint">한 영역의 실제 치수를 입력하면, 같은 사진의 다른 영역 크기를 자동으로 추정하고 잘못 입력한 치수를 경고합니다.</p>
-        {/if}
-      </section>
 
       <section>
         <h3>요청사항</h3>
