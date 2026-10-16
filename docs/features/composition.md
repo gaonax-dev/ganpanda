@@ -12,7 +12,7 @@
 | 1 | 데이터 구조(`SignObject.parts`), 옛 데이터 변환(읽을 때), 구성 요소별 견적·요약·주문 JSON·3D 연결 | 구현됨 (2026-10-16) |
 | 2 | 설정 창의 구성 요소 UI (추가·삭제·세부 종류·옵션·글자/그림 객체·위치/크기 mm·시트 올릴 곳) | 구현됨 (2026-10-16) |
 | 2b | **모든 분류 조합형** + 중복 정리 (아래) | 구현됨 (2026-10-16) |
-| 3 | 정면도 편집기 (끌어 배치·크기·정렬·스냅) | 계획 |
+| 3 | 정면도 편집기 — **설정 창 안**(끌어 배치·크기·정렬·스냅·방향키) | 구현됨 (2026-10-16) |
 | 4 | 3D·평면도·PDF·사진 합성에 객체 위치 반영 (지금 3D 는 첫 채널(없으면 스카시)의 글자를 이어 붙이고 가장 큰 높이) | 계획 |
 | 5 | 라이브러리: 세트 저장(썸네일 아이콘), 팀 공유, 가져다 쓰면 비율 유지로 맞춤 | 계획 |
 
@@ -79,6 +79,16 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - 내용 객체: [+ 글자] [+ 그림]. 글자: 글자(`item-text`)·글자수(`item-count`, 비우면 자동)·높이·X·Y. 그림: 디자인 파일 페이지(`item-image-source`) 또는 그림 올리기(`item-image-file`), 높이·가로·X·Y. 새 객체는 간판 중앙(0, 0), 높이 300mm.
 - 요약·주문서: 구성 요소마다 `이름 "글자" 높이mm … 그림 n` + 옵션 값(주문서는 기본값까지). 주문 JSON 품목에 `parts`(종류·이름·올릴 곳·옵션(기본값 채움)·객체).
 
+## 정면도 편집기 (`ui/FrontEditor.svelte`, `core/frontView.ts`, 2026-10-16)
+사용자: 편집 위치는 "2" — 보드·리스트의 평면도 카드가 아니라 **설정 창 안에 따로**. 평면도 카드는 결과만 보여 준다(객체 위치 반영은 4단계).
+- 구성 요소 단추 아래, 객체가 하나라도 있으면 나타남(`front-editor`). 설정 창 본문 위에 붙어 있어(sticky) 카드를 고치는 동안에도 보인다. 높이는 사인물 비율에 맞추되 120~240px.
+- 그림: 프레임 = 사인물 가로×세로(치수가 없으면 1000mm 점선), 객체 = 실측 비율 상자. 글자는 구성 요소 색(채널 빨강·스카시 금색·시트 파랑)으로, 그림은 디자인 파일 페이지·올린 그림 그대로. 프레임 밖 객체도 보이게 범위를 넓힌다(`viewOf`).
+- 글자 폭(추정) = 글자수(공백 제외) × 높이 × **0.9**(`TEXT_CHAR_ASPECT`), 가로를 넣었으면 그 값. 그림은 가로가 없으면 정사각(`itemBox`). 실제 글꼴 폭은 4단계(3D·출력)에서.
+- 조작: 끌어 옮기기, 선택 상자 오른쪽 아래 손잡이로 크기(중심에서의 거리 비율, 가로가 있으면 비율 유지, 최소 10mm, `resizeItem`), 정렬 6개(프레임 기준 왼쪽·가운데·오른쪽·위·가운데·아래, `alignBox`), 방향키 10mm / Shift 100mm(보드 단축키로 가지 않음).
+- 붙기(`snapMove`): 객체의 왼끝·중앙·오른끝(위·중앙·아래)이 프레임과 다른 객체의 끝·중앙선에서 **8px**(`SNAP_PX`, 화면 기준) 안이면 붙고 분홍 안내선. Alt 를 누르고 끌면 붙지 않음. 값은 mm 정수.
+- 끄는 동안은 화면에서만 움직이고 **놓을 때 한 번 저장**(실행 취소 한 단계). 축척은 저장된 값으로만 계산해 끄는 중 화면이 출렁이지 않음.
+- 선택은 정면도와 카드가 함께 씀: 정면도에서 누르면 카드의 객체 줄이 강조(`sel`), 객체 줄을 누르면 정면도에서 선택. 보기 전용(고객)은 선택만.
+
 ## 재질 객체 · 도색 객체 (`core/materials.ts`, 2026-10-16)
 사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다. 체널, 스카시, 도색이 필요한 곳에 도색 객체를 넣는다. 체널 전광의 경우 pc판도 선택할 수 있다. 조합 가능한 건 객체를 구성하고 추후 제공되는 자제를 공급업체별로 구성하려한다."
 - **재질 객체**(`material()` in `options.ts`): 재질 선택 + 도색 가능한 재질이면 도색 객체. 재질 목록 `MATERIALS`: 스텐 `stain` · 철 `iron` · 알루미늄 `alu` · 갈바 `galva`(도색 가능) · 텐션 천 `tension`(도색 없음). 채널 앞면 판 `FACE_MATERIALS`: 아크릴 `acrylic` · PC판 `pc`.
@@ -87,4 +97,4 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - **공급업체 자재(계획)**: 옵션 값은 이름으로 저장하고 재질 id 는 나중에 공급업체별 자재(품목 코드·단가)를 붙일 자리입니다(예: 한울 품목 코드 → [../product/supplier-hanwool.md](../product/supplier-hanwool.md)).
 
 ## 관련 테스트
-`tests/unit/parts.test.ts`, `tests/unit/composeAll.test.ts`, `tests/unit/sheetCut.test.ts`, `tests/unit/materials.test.ts`, `tests/e2e/parts.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)
+`tests/unit/parts.test.ts`, `tests/unit/composeAll.test.ts`, `tests/unit/sheetCut.test.ts`, `tests/unit/materials.test.ts`, `tests/unit/frontView.test.ts`, `tests/e2e/parts.spec.ts`, `tests/e2e/frontEditor.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)

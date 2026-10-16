@@ -12,6 +12,7 @@
   import { PART_KIND_LABEL, PART_TYPES, newItem, newPart, partLabel, partSpecOf, partsOf } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
+  import FrontEditor from './FrontEditor.svelte';
 
   /** kinds = 이 분류에 붙일 수 있는 구성 요소 (partKindsFor) */
   let { obj, ro, update, kinds = ['channel', 'scashi', 'sheet'] }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; kinds?: SignPart['kind'][] } = $props();
@@ -37,6 +38,14 @@
   const addItem = (i: number, kind: PartItem['kind']) => edit((ps) => ps[i].items.push(newItem(kind)));
   const setItem = (i: number, j: number, patch: Partial<PartItem>) => edit((ps) => Object.assign(ps[i].items[j], patch));
   const delItem = (i: number, j: number) => edit((ps) => ps[i].items.splice(j, 1));
+  /** 정면도에서 고칠 때 (구성 요소·객체 id 로) */
+  const setItemById = (partId: string, itemId: string, patch: Partial<PartItem>) => edit((ps) => {
+    const it = ps.find((p) => p.id === partId)?.items.find((x) => x.id === itemId);
+    if (it) Object.assign(it, patch);
+  });
+  /** 정면도와 카드가 함께 쓰는 선택 */
+  let sel = $state<{ part: string; item: string } | null>(null);
+  const hasItems = $derived(parts.some((p) => p.items.length));
   const num = (v: string): number => (v.trim() === '' || Number.isNaN(Number(v)) ? 0 : Number(v));
 
   /** 디자인 파일 페이지 → 그림 소스 */
@@ -67,6 +76,7 @@
       {/if}
     </div>
   {/if}
+  {#if hasItems}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}
   {#each parts as p, i (p.id)}
     <div class="card" data-testid="part-card">
       <div class="head" data-kind={p.kind}>
@@ -103,7 +113,8 @@
       </div>
       <div class="items">
         {#each p.items as it, j (it.id)}
-          <div class="item" data-testid="part-item" data-kind={it.kind}>
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+          <div class="item" class:sel={sel?.part === p.id && sel?.item === it.id} data-testid="part-item" data-kind={it.kind} onclick={() => (sel = { part: p.id, item: it.id })}>
             {#if it.kind === 'text'}
               <input class="txt" data-testid="item-text" value={it.text ?? ''} placeholder="글자" disabled={ro} oninput={(e) => setItem(i, j, { text: e.currentTarget.value })} />
               <label title="비우면 글자에서 셉니다 (공백 제외)">글자수<input type="number" data-testid="item-count" value={it.count ?? ''} placeholder={String(charCountOf({ text: it.text }))} disabled={ro} oninput={(e) => setItem(i, j, { count: num(e.currentTarget.value) || undefined })} /></label>
@@ -143,6 +154,7 @@
   .opt { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 4px; }
   .item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px dashed var(--border, #2a2f37); }
+  .item.sel { background: rgba(90, 168, 255, 0.08); }
   .item label { display: flex; align-items: center; gap: 3px; font-size: 12px; }
   .item input[type='number'] { width: 70px; }
   .item .txt { flex: 1; min-width: 120px; }
