@@ -5,6 +5,8 @@ import { isChannelProduct, productById, sheetById, signParts, takesLetters } fro
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
 import { supplierTagOf } from './supplierPrices';
+import { evalArea, evalLetter, findMethod } from './calcMethods';
+import { markupFor } from './markup';
 import { polygonArea, quadToRect } from './perspective';
 import { applyHomography } from './homography';
 
@@ -49,6 +51,8 @@ export function shapeAreaM2(o: SignObject): number {
 }
 
 const roundTo = (n: number, unit: number) => Math.round(n / unit) * unit;
+/** 계산법 설명의 공급 단가(숫자원)를 배수 적용 단가로 바꿔 보인다 — 고객에게 공급가·배수를 드러내지 않는다 */
+const scaled = (detail: string, mk: number) => (mk === 1 ? detail : detail.replace(/([\d,]+)원/g, (_, n: string) => `${fmt(Number(n.replace(/,/g, '')) * mk)}원`));
 
 export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const lines: QuoteLine[] = [];
@@ -57,7 +61,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const finish = (label: string, detail: string, raw: number, priceId?: string) => {
     let amount = roundTo(raw, prices.rounding);
     if (amount < prices.minimum) { amount = prices.minimum; detail += ` · 최소 ${fmt(prices.minimum)}원 적용`; }
-    const supplier = supplierTagOf(priceId && prices.links?.[priceId]);
+    const supplier = (priceId && findMethod(prices.methods?.[priceId])?.supplier.tag) || supplierTagOf(priceId && prices.links?.[priceId]);
     lines.push({ objectId: o.id, label, detail: supplier ? `${detail} · ${supplier} 단가` : detail, amount, ...(supplier ? { supplier } : {}) });
   };
   // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
@@ -66,8 +70,14 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   if (body && body.unit === 'm2') {
     const label = `${o.name} · ${body.name}`;
     const unit = prices.products[body.id] ?? 0;
+    const method = findMethod(prices.methods?.[body.id]);
     if (!sized) lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else {
+    else if (method) {
+      // 공급사 계산법 (2026-10-16): 공급 단가 계산 × 배수
+      const r = evalArea(method, o.widthMm!, o.heightMm!);
+      const mk = markupFor(prices, r.item);
+      finish(label, `${size} · ${scaled(r.detail, mk)}`, r.raw * mk, body.id);
+    } else {
       const m2 = (o.widthMm! * o.heightMm!) / 1e6;
       finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit, body.id);
     }
@@ -82,6 +92,15 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     const texts = p.items.filter((it) => it.kind === 'text').map((it) => ({ t: (it.text ?? '').trim(), n: it.count ?? charCountOf({ text: it.text }), h: it.h || o.heightMm || 0 })).filter((x) => x.n > 0);
     if (!texts.length) { lines.push({ objectId: o.id, label, detail: o.heightMm || p.items.some((it) => it.h) ? '문구 또는 글자수 필요' : '치수 필요', amount: 0 }); continue; }
     if (texts.some((x) => !x.h)) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
+    const method = findMethod(prices.methods?.[p.type]);
+    if (method && method.kind === 'letters') {
+      // 공급사 계산법: 글자 크기 구간 자당 × 배수
+      const rs = texts.map((x) => { const r = evalLetter(method, x.h, x.t)!; const each = r.item.price * markupFor(prices, r.item); return { ...x, r, each }; });
+      const desc = (x: (typeof rs)[number]) => `${x.r.item.option} ${fmt(x.each)}원/자${x.r.over ? ' (최대 구간 초과)' : ''}`;
+      const detail = rs.length === 1 ? `${rs[0].n}자 × ${desc(rs[0])}` : rs.map((x) => `"${x.t}" ${x.n}자 × ${desc(x)}`).join(' + ');
+      finish(label, detail, rs.reduce((a, x) => a + x.n * x.each, 0), p.type);
+      continue;
+    }
     const raw = texts.reduce((a, x) => a + x.n * (x.h / 10) * unit, 0);
     const detail = texts.length === 1 ? `${texts[0].n}자 × 높이 ${fmt(texts[0].h)}mm × ${fmt(unit)}원/자·cm` : `${texts.map((x) => `"${x.t}" ${x.n}자×${fmt(x.h)}mm`).join(' + ')} × ${fmt(unit)}원/자·cm`;
     finish(label, detail, raw, p.type);
@@ -101,6 +120,13 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     const label = `${o.name} · ${sh.name}`, unit = prices.sheets[p.type] ?? 0;
     const sizedItems = p.items.filter((it) => it.w && it.h);
     if (!sizedItems.length && !sized) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
+    const method = findMethod(prices.methods?.[p.type]);
+    if (method && method.kind !== 'letters') {
+      const rs = sizedItems.length ? sizedItems.map((it) => evalArea(method, it.w!, it.h)) : [evalArea(method, o.widthMm!, o.heightMm!, shapeAreaM2(o))];
+      const amt = rs.reduce((a, r) => a + r.raw * markupFor(prices, r.item), 0);
+      finish(label, rs.map((r) => scaled(r.detail, markupFor(prices, r.item))).join(' + '), amt, p.type);
+      continue;
+    }
     const m2 = sizedItems.length ? sizedItems.reduce((a, it) => a + (it.w! * it.h) / 1e6, 0) : shapeAreaM2(o);
     finish(label, `${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit, p.type);
   }
@@ -109,6 +135,13 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     if (!s) continue;
     const label = `${o.name} · ${s.name}`;
     if (!sized) { lines.push({ objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
+    const method = findMethod(prices.methods?.[id]);
+    if (method && method.kind !== 'letters') {
+      const r = evalArea(method, o.widthMm!, o.heightMm!, shapeAreaM2(o));
+      const mk = markupFor(prices, r.item);
+      finish(label, scaled(r.detail, mk), r.raw * mk, id);
+      continue;
+    }
     const m2 = shapeAreaM2(o);
     finish(label, `${m2.toFixed(2)}㎡ × ${fmt(prices.sheets[id] ?? 0)}원`, m2 * (prices.sheets[id] ?? 0), id);
   }

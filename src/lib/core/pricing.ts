@@ -1,6 +1,7 @@
 // 단가표 (2-1): 제작자가 정하는 숫자. 카탈로그는 이름·단위만 갖고 금액은 여기서 온다.
 import { CATALOG, SHEETS } from './catalog';
 import { findSupplierItem } from './supplierPrices';
+import { findMethod } from './calcMethods';
 
 export interface PriceTable {
   version: 1;
@@ -18,6 +19,8 @@ export interface PriceTable {
   vatIncluded: boolean;
   /** 단가 항목(제품·시트 id) → 공급 품목 연결 `<공급업체 id>:<품목 id>`. 연결된 단가는 견적에 공급업체 꼬리표가 붙는다 (2026-10-16) */
   links?: Record<string, string>;
+  /** 단가 항목 → 공급사 계산법 id (`calcMethods.ts`). 연결(links)보다 우선. 금액 = 계산법 × 배수 (2026-10-16) */
+  methods?: Record<string, string>;
   /** 연결 단가 배수: 공급 단가 × (분류 배수 > 전체 배수) = 내 단가 (2026-10-16) */
   markup?: Markup;
 }
@@ -72,6 +75,11 @@ export function mergePrices(saved: unknown): PriceTable {
     const ids = new Set([...CATALOG.map((p) => p.id), ...SHEETS.map((x) => x.id)]);
     const links = Object.fromEntries(Object.entries(s.links as Record<string, unknown>).filter(([k, v]) => ids.has(k) && typeof v === 'string' && findSupplierItem(v))) as Record<string, string>;
     if (Object.keys(links).length) out.links = links;
+  }
+  if (s.methods && typeof s.methods === 'object') {
+    const ids = new Set([...CATALOG.map((p) => p.id), ...SHEETS.map((x) => x.id)]);
+    const methods = Object.fromEntries(Object.entries(s.methods as Record<string, unknown>).filter(([k, v]) => ids.has(k) && typeof v === 'string' && findMethod(v))) as Record<string, string>;
+    if (Object.keys(methods).length) out.methods = methods;
   }
   if (s.markup && typeof s.markup === 'object') {
     const m = s.markup as Record<string, unknown>;
