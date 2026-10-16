@@ -3,6 +3,9 @@
 // 시트커팅: 돔보(uv실사), 커팅(단색,재질시트) / 포멕스:uv시트부착 / 어닝: 고정형,접이식(수동,자동, 펼침, 제작사, 천코드,핸들좌우,핸들길이)"
 // 답: "1. 간판옵션이다. 그리고 스카시도 부착된다 2. 돌출, 알루미늄 복합판, 몸통 없음, 지주, 전광판 간판에 있고 사인미러는 따로
 // 3. 트러스트는 체널을 잡는 프레임보다 가느다란 프레임(용어가 틀렸다면 수정해줘, 텐션 천 간판) 4 어닝 벽에서 나오는 길이, 직접입력 5 그래 그런데 액자에 나무틀 패브릭도")
+import { partKindsFor } from '../../src/lib/core/parts';
+import { partsOf } from '../../src/lib/core/parts';
+import { partOptionFields } from '../../src/lib/core/options';
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor } from '../../src/lib/core/options';
@@ -12,7 +15,8 @@ import { quoteObject } from '../../src/lib/core/quote';
 import { renderSpecOf } from '../../src/lib/core/render';
 
 const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], createdAt: 0, ...o });
-const fields = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields);
+// 스카시 분류의 두께·재질·도색은 스카시 구성 요소에 (2026-10-16 겹침 정리)
+const fields = (o: SignObject) => [...optionGroupsFor(o).flatMap((g) => g.fields), ...(['ch-rubber', 'sc-titan', 'ch-scashi'].includes(o.productId ?? '') ? partOptionFields(partsOf(o)[0]) : [])];
 const keys = (o: SignObject) => fields(o).map((f) => f.key);
 const values = (o: SignObject, k: string) => fields(o).find((f) => f.key === k)?.values?.map((v) => v.id);
 const ids = (g: Parameters<typeof productsOf>[0]) => productsOf(g).map((p) => p.id);
@@ -74,7 +78,7 @@ describe('스카시: 두께 · 재질 · 도색 컬러코드', () => {
   for (const [id, th] of [['ch-rubber', ['10T', '20T', '30T', '50T']], ['sc-titan', ['1.2T', '10T', '20T']], ['ch-scashi', ['3T', '5T', '8T', '10T']]] as const) {
     it(id, () => {
       const o = obj({ productId: id });
-      expect(keys(o).slice(0, 3)).toEqual(['thickness', 'material', 'paintSystem']); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
+      expect(keys(o).filter((k) => ['thickness', 'material', 'paintSystem'].includes(k))).toEqual(['thickness', 'material', 'paintSystem']); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
       expect(values(o, 'thickness')).toEqual(th);
     });
   }
@@ -94,8 +98,9 @@ describe('시트: UV 실사(흰색/회색) · 단색(재질) · 안개, 커팅�
 });
 
 describe('포맥스 · 현수막 · 라이트패널 · 액자 · 어닝', () => {
-  it('포맥스: UV 시트 부착', () => {
-    expect(keys(obj({ productId: 'board-foamex' }))).toContain('uvSheet');
+  it('포맥스: UV 시트 부착 = 시트 구성 요소 (2026-10-16 조합형·중복 정리)', () => {
+    expect(partKindsFor(obj({ productId: 'board-foamex' }))).toContain('sheet');
+    expect(keys(obj({ productId: 'board-foamex' }))).not.toContain('uvSheet');
   });
   it('현수막: 출력 · 추가 마감', () => {
     const o = obj({ productId: 'banner' });

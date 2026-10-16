@@ -1,7 +1,7 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { topLightOf } from './topLight';
-import { partLabel, partsOf } from './parts';
-import { isChannelProduct, productById, sheetById, signParts, takesLetters } from './catalog';
+import { partKindsFor, partLabel, partsOf } from './parts';
+import { productById, sheetById, signParts } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
 import { findSupplierItem, supplierTagOf } from './supplierPrices';
@@ -123,7 +123,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0, body.id);
   // 조합형 (2026-10-16): 채널·스카시 구성 요소마다 글자 객체의 (글자수 × 높이 cm × 원/자·cm) 합. 옛 데이터는 읽을 때 구성 요소로 바뀐다
   const parts = partsOf(o);
-  const usesParts = takesLetters(o.productId) || isChannelProduct(o.productId);
+  const usesParts = partKindsFor(o).length > 0; // 조합형 분류는 시트도 구성 요소로 (2026-10-16 모든 분류 조합형)
   for (const p of parts.filter((x) => x.kind !== 'sheet')) {
     key = `${o.id}:part:${p.id}`;
     const label = `${o.name} · ${partLabel(p)}`, unit = prices.products[p.type] ?? 0;

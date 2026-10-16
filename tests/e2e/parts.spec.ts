@@ -107,3 +107,46 @@ test('사인물 설정 창: 전체 치수가 맨 위', async ({ page, request })
   await openObjectSettings(page);
   await expect(page.getByTestId('object-settings').locator('.body > section').first().locator('h3')).toContainText('치수');
 });
+
+test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께 하나, 분류마다 붙일 수 있는 구성 요소만', async ({ page, request }) => {
+  // 2026-10-16 사용자: "사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘 포맥스의 경우 실측에 두께가 있어 포멕스 두께가 따로표시 중복된다."
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'foamex');
+  await openObjectSettings(page);
+  await expect(page.getByTestId('option-thick')).toHaveCount(0);
+  await expect(page.getByTestId('option-uvSheet')).toHaveCount(0);
+  await page.getByTestId('thick-5').click();
+  await expect(page.getByTestId('depth-mm')).toHaveValue('5');
+  // 포맥스: 시트·스카시만
+  await expect(page.getByTestId('add-part-channel')).toHaveCount(0);
+  await page.getByTestId('add-part-sheet-uv').click();
+  await page.getByTestId('add-part-scashi').click();
+  await expect(page.getByTestId('part-card')).toHaveCount(2);
+  await page.getByTestId('close-object-settings').click();
+  // 현수막으로 바꾸면 구성 요소가 없다 (현수막 자체가 출력물)
+  await pickCategory(page, 'banner');
+  await openObjectSettings(page);
+  await expect(page.getByTestId('parts-section')).toHaveCount(0);
+  await page.getByTestId('close-object-settings').click();
+  // 시트 분류: 시트 구성 요소 카드, 시트 칩·문구 칸 없음
+  await pickCategory(page, 'sheet');
+  await openObjectSettings(page);
+  await expect(page.getByTestId('part-card')).toHaveCount(1);
+  await expect(page.getByTestId('add-part-scashi')).toHaveCount(0);
+  await expect(page.getByTestId('sign-text')).toHaveCount(0);
+  await page.getByTestId('add-part-sheet-uv').click();
+  await expect(page.getByTestId('part-card')).toHaveCount(2);
+  await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('category-select')).toHaveValue('sheet'); // 시트가 구성 요소로 옮겨져도 시트 분류
+  // 스카시 분류: 스카시 구성 요소, 치수 두께 칸 없음(스카시 두께와 겹침)
+  await pickCategory(page, 'scashi');
+  await openObjectSettings(page);
+  await expect(page.getByTestId('depth-mm')).toHaveCount(0);
+  await expect(page.getByTestId('add-part-channel')).toHaveCount(0);
+  await expect(page.getByTestId('part-card')).toHaveCount(1); // 스카시 분류는 스카시 카드 하나로 시작 (사인물 자체가 스카시)
+  await expect(page.getByTestId('part-card').getByTestId('part-option-thickness')).toBeVisible();
+  await expect(page.getByTestId('option-thickness')).toHaveCount(0); // 몸통 쪽 두께와 겹치지 않음
+});

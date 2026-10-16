@@ -1,6 +1,7 @@
 <!-- 선택한 사인물: 이름·분류(간판/스카시/시트)·한 줄 요약 + 대화. 세부 설정은 ObjectSettingsDialog -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import { copiesOf } from '../core/link';
   import { quoteObject, won } from '../core/quote';
@@ -48,7 +49,7 @@
   }
   function apply(g: Group) {
     // 시트는 제품 없이 시트만, 나머지는 분류의 기본 제품으로 시작. 옵션은 종류가 바뀌므로 비운다
-    update({ productId: defaultProductFor(g), options: undefined, ...(g === 'sheet' && !obj.sheetIds.length ? { sheetIds: ['sh-cut'] } : {}) }); // 시트는 시트 컷팅으로 시작
+    update(categoryPatch(obj, g, defaultProductFor(g))); // 못 붙는 구성 요소는 정리 (2026-10-16 모든 분류 조합형) // 시트는 시트 컷팅으로 시작
     pending = null;
   }
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';

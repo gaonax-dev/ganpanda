@@ -3,7 +3,7 @@
 import type { SignObject } from './model';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
-import { describeParts } from './parts';
+import { describeParts, partsOf } from './parts';
 import { GLOSSES, PAINT_SYSTEMS, labelsOf, materialByLabel } from './materials';
 
 export type OptionValue = string | boolean;
@@ -97,6 +97,7 @@ const TOP_LIGHT_FIELDS: OptionField[] = [
 ];
 /** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
 const FRAME_MAT = material('frameMat', '프레임 재질', ['stain', 'iron', 'alu', 'tension'], 'framePaint', '프레임 도색');
+/** 옛 간접조명 선택 — 상단 조명(트러스 바 간접조명 등)과 겹쳐 없앰(2026-10-16). 옛 값은 요약에만 */
 const INDIRECT = sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 'T5 LED 전구색', '측면 LED 바']);
 
 /** 제품별 옵션 (주문 사양) */
@@ -107,23 +108,23 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
   'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
-  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), INDIRECT, ...paint('paint', '도색')],
+  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), ...paint('paint', '도색')], // 간접조명은 상단 조명으로
   // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접
-  'board-truss': [...FRAME_MAT, sel('light', '조명', ['비조명', '간접 조명'])],
-  'board-pipe': [...FRAME_MAT, INDIRECT],
+  'board-truss': [...FRAME_MAT], // 조명은 상단 조명으로
+  'board-pipe': [...FRAME_MAT],
   // 포맥스 (2026-10-15 사용자: "포멕스:uv시트부착")
-  'board-foamex': [sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']), tog('uvSheet', 'UV 시트 부착')],
+  // 두께 = 치수 두께(빠른 선택 3~30T), UV 시트 = 구성 요소 (2026-10-16 중복 정리)
+  'board-foamex': [],
   // 현수막 (한울: 일반·솔벤 출력, 기본 마감(재단·막대·타공·끈고리 4개) + 추가 마감)
   banner: [sel('print', '출력', ['일반', '솔벤']), tog('stitch', '줄미싱'), tog('endStitch', '양끝미싱'), tog('join', '장폭이음·사방미싱'), tog('band', '밴드미싱')],
   // 액자 (2026-10-15 사용자: "액자에 나무틀 패브릭도")
-  'frame-plain': [sel('frameColor', '프레임 색', ['실버', '화이트', '블랙']), sel('print', '출력', ['실사 출력', '시트'])],
+  'frame-plain': [sel('frameColor', '프레임 색', ['실버', '화이트', '블랙'])], // 출력물 = 시트 구성 요소
   'frame-wood': [sel('wood', '나무틀', ['원목', '화이트', '블랙', '월넛']), sel('fabric', '패브릭', ['UV 패브릭 출력'])],
-  'board-acp': [SIDES, sel('finish', '마감', ['실사 출력', '시트 컷팅', '도색']), ...paint('paint', '도색', (opts) => opts.finish === '도색')],
+  'board-acp': [SIDES, ...paint('paint', '도색')], // 실사·시트 마감 = 시트 구성 요소
   // 아크릴 간판·현판 (한울 아크릴가공: 현판·게시판·액자·번호판/층수/호수, 판재 출력 레이어, 전처리 프라이머)
   'board-acrylic': [
     sel('form', '형태', ['일반 판', '현판', '게시판', '액자', '번호판·층수·호수']),
     sel('material', '아크릴', ['캐스팅', '압출', '펄', '미러', '한지']),
-    sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']),
     sel('layers', '판재 출력', ['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']),
     tog('primer', '전처리 프라이머 (잉크 부착·스크래치 방지)', (opts) => !!opts.layers && opts.layers !== '출력 없음'),
     sel('mount', '부착', ['다보', '양면 테이프', '실리콘 직접 부착']),
@@ -173,6 +174,12 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   'sc-titan': [...scashiFields('sc-titan'), sel('finish', '표면 마감', ['헤어라인(무광)', '미러(유광)'])],
   'ch-scashi': [...scashiFields('ch-scashi'), sel('script', '문자', ['한글', '영문'])],
 };
+/** 없앤 옵션(겹침) — 저장된 값이 있으면 요약에만 보인다 (두께는 치수 두께가 없을 때만) */
+const PLATE_THICK_FIELD = sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T', '20T', '30T']);
+const LEGACY_FIELDS: Record<string, OptionField[]> = {
+  'board-foamex': [PLATE_THICK_FIELD], 'board-acrylic': [PLATE_THICK_FIELD],
+  'board-galva': [INDIRECT], 'board-pipe': [INDIRECT], 'board-truss': [sel('light', '조명', ['비조명', '간접 조명'])],
+};
 /** 스카시 공통: 시공 보조 부속품 */
 export const SCASHI_ACCESSORY_OPTIONS: OptionField[] = [
   tog('paperTemplate', '시공용 1:1 종이 도안'),
@@ -217,11 +224,13 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
   const p = productById(o.productId);
   if (p) {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
-    const fs = vis([...(PRODUCT_OPTIONS[p.id] ?? []), ...(takesLetters(p.id) ? [...(o.parts ? [] : [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS]), ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션. 조합형(parts)이면 채널·스카시는 구성 요소 카드에서
+    // 스카시 분류: 두께·재질·도색은 스카시 구성 요소에 (옛 값도 읽을 때 구성 요소로 옮겨짐 — 겹침 정리 2026-10-16)
+    const own = SCASHI_IDS.includes(p.id) ? [] : PRODUCT_OPTIONS[p.id] ?? [];
+    const fs = vis([...own, ...(takesLetters(p.id) ? [...(o.parts ? [] : [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS]), ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션. 조합형(parts)이면 채널·스카시는 구성 요소 카드에서
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }
-  if (o.sheetIds.length) {
+  if (o.sheetIds.length && !o.parts) { // 조합형이면 시트 옵션은 시트 구성 요소에
     const fs = [...SHEET_COMMON_OPTIONS, ...o.sheetIds.flatMap((id) => SHEET_OPTIONS[id] ?? [])];
     groups.push({ title: '시트 옵션', fields: vis(fs) });
   }
@@ -242,11 +251,15 @@ function describeField(f: OptionField, v: OptionValue | undefined): string | nul
  */
 export function describeOptions(o: SignObject, { defaults = false } = {}): string[] {
   const opts = o.options ?? {};
-  const fromOptions = optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s));
-  if (!o.parts) return fromOptions;
-  // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16)
+  const legacy = (LEGACY_FIELDS[o.productId ?? ''] ?? [])
+    .filter((f) => opts[f.key] !== undefined && !['없음', '비조명'].includes(String(opts[f.key])) && !(f.key === 'thick' && o.depthMm))
+    .map((f) => `${f.label} ${opts[f.key]}`);
+  const fromOptions = [...optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
+  // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16). 스카시 분류는 옛 데이터도 구성 요소로
+  const ps = o.parts ?? (o.productId && SCASHI_IDS.includes(o.productId) ? partsOf(o) : undefined);
+  if (!ps) return fromOptions;
   const lines = describeParts(o);
-  return [...fromOptions, ...o.parts.flatMap((p, i) => [lines[i], ...partOptionFields(p).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
+  return [...fromOptions, ...ps.flatMap((p, i) => [lines[i], ...partOptionFields(p).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
 }
 
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */

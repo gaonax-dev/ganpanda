@@ -92,9 +92,9 @@ export const productsOf = (g: Group): Product[] => (g === 'sheet' ? [] : CATALOG
 /** 분류의 기본 종류 = 목록 첫 종류 (시트는 제품 없음) */
 export const defaultProductFor = (g: Group): string | undefined => productsOf(g)[0]?.id;
 /** 제품이 있으면 그 분류, 없고 시트만 있으면 시트, 아무것도 없으면 null */
-export function categoryOf(o: { productId?: string; sheetIds: string[] }): Group | null {
+export function categoryOf(o: { productId?: string; sheetIds: string[]; parts?: { kind: string }[] }): Group | null {
   if (o.productId && productById(o.productId)) return groupOfProduct(o.productId);
-  return o.sheetIds.length ? 'sheet' : null;
+  return o.sheetIds.length || o.parts?.some((p) => p.kind === 'sheet') ? 'sheet' : null; // 시트 분류: 시트가 구성 요소로 옮겨져도
 }
 
 /** 채널 옵션 값 ↔ 채널 제품(단가) */
@@ -110,6 +110,9 @@ export const CHANNEL_NONE = '없음';
 export const isChannelProduct = (id?: string) => !!id && CATALOG.some((p) => p.id === id && p.category === 'channel' && !SCASHI_IDS.has(id));
 /** 사인물의 몸통 id 와 채널 id. 옛 데이터(채널 제품이 종류)는 몸통 없음 + 그 채널 */
 /** 채널 옵션이 없는 몸통: 천갈이는 기존 프레임에 원단만 바꾸므로 입체 글자가 붙지 않는다 */
+/** 치수 두께 빠른 선택 (mm) — 판 두께를 옵션으로 따로 두지 않는다 (2026-10-16 "포맥스의 경우 실측에 두께가 있어 포멕스 두께가 따로표시 중복된다") */
+const PLATE_THICK = [3, 5, 8, 10, 15, 20, 30];
+export const thickPresetsFor = (id?: string): number[] => (id === 'board-foamex' || id === 'board-acrylic' ? PLATE_THICK : []);
 export const NO_CHANNEL = new Set(['board-reface', 'board-ledsign', 'board-air']); // 천갈이·전광판·에어간판은 채널이 붙지 않는다
 /** 채널·스카시 부착은 간판의 옵션 (2026-10-15 사용자: "간판옵션이다. 그리고 스카시도 부착된다") — 간판 분류이고 NO_CHANNEL 이 아닌 몸통만 */
 export const takesLetters = (id?: string) => !!id && groupOfProduct(id) === 'sign' && !NO_CHANNEL.has(id) && !isChannelProduct(id);

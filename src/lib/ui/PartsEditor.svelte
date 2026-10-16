@@ -13,7 +13,8 @@
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
 
-  let { obj, ro, update }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void } = $props();
+  /** kinds = 이 분류에 붙일 수 있는 구성 요소 (partKindsFor) */
+  let { obj, ro, update, kinds = ['channel', 'scashi', 'sheet'] }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; kinds?: SignPart['kind'][] } = $props();
 
   const parts = $derived(partsOf(obj));
   /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
@@ -22,7 +23,7 @@
   const clone = (): SignPart[] => JSON.parse(JSON.stringify(parts));
   function commit(next: SignPart[]) {
     const options = Object.fromEntries(Object.entries(obj.options ?? {}).filter(([k]) => !LEGACY_KEYS.includes(k)));
-    update({ parts: next, options, sheetIds: [] });
+    update({ parts: next, options, sheetIds: [] }); // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf)
   }
   const edit = (fn: (ps: SignPart[]) => void) => { const ps = clone(); fn(ps); commit(ps); };
   const addPart = (kind: SignPart['kind'], type?: string) => edit((ps) => ps.push(newPart(kind, type)));
@@ -54,13 +55,15 @@
 </script>
 
 <section data-testid="parts-section">
-  <h3>구성 요소 <span class="hint">간판 프레임에 붙는 채널·스카시·시트와 그 글자·그림 (위치는 간판 중앙 기준 mm, 위 +)</span></h3>
+  <h3>구성 요소 <span class="hint">이 사인물에 붙는 {kinds.map((k) => PART_KIND_LABEL[k]).join('·')}와 그 글자·그림 (위치는 사인물 중앙 기준 mm, 위 +)</span></h3>
   {#if !ro}
     <div class="adds">
-      <button class="btn small" data-testid="add-part-channel" onclick={() => addPart('channel')}>+ 채널</button>
-      <button class="btn small" data-testid="add-part-scashi" onclick={() => addPart('scashi')}>+ 스카시</button>
-      <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 커팅 시트</button>
-      <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력 시트</button>
+      {#if kinds.includes('channel')}<button class="btn small" data-testid="add-part-channel" onclick={() => addPart('channel')}>+ 채널</button>{/if}
+      {#if kinds.includes('scashi')}<button class="btn small" data-testid="add-part-scashi" onclick={() => addPart('scashi')}>+ 스카시</button>{/if}
+      {#if kinds.includes('sheet')}
+        <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 커팅 시트</button>
+        <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력 시트</button>
+      {/if}
     </div>
   {/if}
   {#each parts as p, i (p.id)}

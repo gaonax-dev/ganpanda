@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { partsOf } from '../../src/lib/core/parts';
 import type { SignObject } from '../../src/lib/core/model';
-import { describeOptions, normalizeOptions, optionGroupsFor, optionValue } from '../../src/lib/core/options';
+import { describeOptions, partOptionFields, normalizeOptions, optionGroupsFor, optionValue } from '../../src/lib/core/options';
 
 const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], createdAt: 0, ...o });
 const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key));
@@ -9,25 +10,25 @@ describe('주문 사양 옵션 스키마', () => {
   it('프레임(후렉스) 간판: 단면/양면 + 내부 조명 + 프레임 구조 + 출력 방식', () => {
     expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'channel', 'scashi', 'topLight']); // 채널·스카시 부착은 간판 옵션
   });
-  it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 간접조명 + 도색 컬러코드(체계+코드)', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'indirect', 'paintSystem', 'channel', 'scashi', 'topLight']);
+  it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 도색 컬러코드(체계+코드), 간접조명은 상단 조명 (2026-10-16)', () => {
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'paintSystem', 'channel', 'scashi', 'topLight']);
   });
   it('채널: 채널 종류 + LED 색 + 몸체 도색. 갈바 에폭시 채널(비조명)은 LED 색이 없다', () => {
     expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'chHeight']); // 옛 데이터(채널 제품이 종류)
     expect(keys(obj({ productId: 'ch-galva' }))).not.toContain('ledColor');
   });
-  it('조건부: 복합판 마감이 도색일 때만 컬러코드', () => {
-    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'finish', 'channel', 'scashi', 'topLight']);
-    expect(keys(obj({ productId: 'board-acp', options: { finish: '도색' } }))).toEqual(['sides', 'finish', 'paintSystem', 'channel', 'scashi', 'topLight']);
+  it('복합판: 마감 선택 없이 도색 바로 (실사·시트 마감은 시트 구성 요소, 2026-10-16)', () => {
+    expect(keys(obj({ productId: 'board-acp' }))).toEqual(['sides', 'paintSystem', 'channel', 'scashi', 'topLight']);
   });
-  it('스카시: 재질별 옵션 + 공통 시공 보조 부속품', () => {
+  it('스카시: 재질별 옵션은 스카시 구성 요소에(몸통과 겹치지 않게, 2026-10-16), 몸통엔 공통 시공 보조 부속품', () => {
     const rubber = optionGroupsFor(obj({ productId: 'ch-rubber' }));
-    expect(rubber.map((g) => g.title)).toEqual(['고무 스카시 사양', '시공 보조 부속품']);
-    expect(rubber[0].fields.map((f) => f.key)).toEqual(['thickness', 'material', 'paintSystem']); // 2026-10-15 분류 재정리: 두께·재질·도색
-    expect(rubber[1].fields.map((f) => f.key)).toEqual(['paperTemplate', 'acrylicGuide', 'frontSheetAttached']);
-    expect(keys(obj({ productId: 'sc-titan' }))).toContain('finish');
-    expect(keys(obj({ productId: 'ch-scashi' }))).toContain('thickness');
-    expect(keys(obj({ productId: 'ch-scashi' }))).toContain('script');
+    expect(rubber.map((g) => g.title)).toEqual(['시공 보조 부속품']);
+    expect(rubber[0].fields.map((f) => f.key)).toEqual(['paperTemplate', 'acrylicGuide', 'frontSheetAttached']);
+    const partKeys = (id: string) => partOptionFields(partsOf(obj({ productId: id }))[0]).map((f) => f.key);
+    expect(partKeys('ch-rubber')).toEqual(['thickness', 'material', 'paintSystem']); // 두께·재질·도색
+    expect(partKeys('sc-titan')).toContain('finish');
+    expect(partKeys('ch-scashi')).toEqual(expect.arrayContaining(['thickness', 'script']));
+    expect(describeOptions(obj({ productId: 'ch-rubber', options: { thickness: '30T' } }))).toContain('30T'); // 옛 값은 구성 요소로 요약
   });
   it('시트: 공통(보조시트·코팅) + 시트 컷팅이면 반컷팅', () => {
     expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['transferTape', 'coating', 'base', 'ink']); // 2026-10-15 분류 재정리: UV 실사 바탕 흰색/회색
@@ -36,7 +37,7 @@ describe('주문 사양 옵션 스키마', () => {
   });
   it('요약 문구: 고른 값·켜진 토글·코드만', () => {
     const o = obj({ productId: 'board-galva', sheetIds: ['sh-cut'], options: { form: '돌출형', indirect: '없음', paintSystem: 'RAL', paintCode: '9005', transferTape: true, coating: '무광', halfCut: false } });
-    expect(describeOptions(o)).toEqual(['돌출형', '없음', 'RAL', '도색 컬러코드 9005', '보조시트(어플리케이션 테이프) 포함', '무광']);
+    expect(describeOptions(o)).toEqual(['돌출형', 'RAL', '도색 컬러코드 9005', '보조시트(어플리케이션 테이프) 포함', '무광']); // 옛 간접조명 '없음'은 요약에 안 나옴
   });
   it('종류를 바꾸면 안 보이는 옵션은 버린다, 기본값은 첫 값/false', () => {
     const o = obj({ productId: 'board-flex', options: { sides: '양면', thickness: '30T' } });

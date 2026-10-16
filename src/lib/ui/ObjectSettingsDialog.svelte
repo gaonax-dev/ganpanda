@@ -1,7 +1,8 @@
 <!-- 사인물 세부 설정 창: 종류·시트·문구·치수·기준선·금액 상세·삭제 (패널의 [설정]) -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, takesLetters } from '../core/catalog';
+  import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productById, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, SCASHI_OPTIONS } from '../core/catalog';
+  import { partKindsFor, partsForProduct } from '../core/parts';
   import PartsEditor from './PartsEditor.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
@@ -28,8 +29,13 @@
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
   const close = () => (app.objectSettingsOpen = false);
 
-  /** 조합형 (2026-10-16): 간판 프레임은 채널·스카시·시트·문구를 구성 요소 카드에서 */
-  const composable = $derived(takesLetters(obj.productId));
+  /** 조합형 (2026-10-16): 분류마다 붙일 수 있는 구성 요소(채널·스카시·시트)를 카드로 — 간판뿐 아니라 시트·스카시·포맥스·라이트패널·액자·어닝·사인미러도
+      ("사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘") */
+  const partKinds = $derived(partKindsFor(obj));
+  const composable = $derived(partKinds.length > 0);
+  /** 스카시 분류는 두께가 스카시 구성 요소에 있어 치수 두께를 따로 받지 않는다 (겹침 정리) */
+  const isScashiBody = $derived(SCASHI_OPTIONS.some((c) => c.id === obj.productId));
+  const thickPresets = $derived(thickPresetsFor(obj.productId));
   const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight']);
   const optionGroups = $derived(optionGroupsFor(obj).map((g) => (composable ? { ...g, fields: g.fields.filter((f) => !LETTER_KEYS.has(f.key)) } : g)).filter((g) => g.fields.length && !(composable && g.title === '시트 옵션')));
   function setOption(f: OptionField, v: string | boolean) {
@@ -68,9 +74,10 @@
               placeholder={m?.estimate ? `≈ ${fmt(m.estimate.heightMm)}` : '입력'}
               oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
           </label>
-          {#if product && bodyId !== 'body-none'}
+          {#if product && bodyId !== 'body-none' && !isScashiBody}
             <label>두께
-              <input data-testid="depth-mm" type="number" min="0" step="10" value={obj.depthMm ?? ''} disabled={ro} placeholder="보드 두께·돌출 깊이"
+              <input data-testid="depth-mm" type="number" min="0" step={thickPresets.length ? 1 : 10} value={obj.depthMm ?? ''} disabled={ro}
+                placeholder={obj.options?.thick ? `${obj.options.thick} (예전 값)` : thickPresets.length ? '판 두께' : '보드 두께·돌출 깊이'}
                 oninput={(e) => update({ depthMm: num(e.currentTarget.value) })} />
             </label>
           {/if}
@@ -81,6 +88,12 @@
             </label>
           {/if}
         </div>
+        {#if thickPresets.length && !ro}
+          <!-- 판 두께 빠른 선택 = 치수 두께 (포맥스·아크릴의 따로 있던 두께 선택과 겹쳐서 하나로, 2026-10-16) -->
+          <div class="chips thick" data-testid="thick-presets">
+            {#each thickPresets as t (t)}<button data-testid="thick-{t}" class:on={obj.depthMm === t} onclick={() => update({ depthMm: t })}>{t}T</button>{/each}
+          </div>
+        {/if}
         {#each (app.warnMeasure ? m?.warnings ?? [] : []) as w, i (i)}
           <div class="warning" data-testid="measure-warning">
             <b>⚠ 실측 확인 필요</b>
@@ -99,7 +112,7 @@
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}
           <!-- 간판 종류 = 몸통. 채널은 아래 사양의 옵션 (2026-10-15). 옛 채널 제품은 몸통 없음으로 보인다 -->
-          <select data-testid="product-select" value={bodyId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value, ...(isChannelProduct(obj.productId) ? { options: { ...(obj.options ?? {}), channel: CHANNEL_OPTIONS.find((c) => c.id === obj.productId)?.label ?? '없음' } } : {}) })}>
+          <select data-testid="product-select" value={bodyId} disabled={ro} onchange={(e) => update({ productId: e.currentTarget.value, parts: partsForProduct(obj, e.currentTarget.value), ...(isChannelProduct(obj.productId) ? { options: { ...(obj.options ?? {}), channel: CHANNEL_OPTIONS.find((c) => c.id === obj.productId)?.label ?? '없음' } } : {}) })}>
             {#each productsOf(category) as p (p.id)}
               <option value={p.id}>{p.name}</option>
             {/each}
@@ -146,8 +159,9 @@
       {/each}
 
       {#if composable}
-        <PartsEditor {obj} {ro} {update} />
+        <PartsEditor {obj} {ro} {update} kinds={partKinds} />
       {:else}
+      {#if obj.sheetIds.length}
       <section>
         <h3>시트</h3>
         <div class="chips">
@@ -157,6 +171,7 @@
           {/each}
         </div>
       </section>
+      {/if}
 
       <section>
         <h3>문구</h3>

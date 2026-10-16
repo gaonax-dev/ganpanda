@@ -53,12 +53,12 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
   await page.keyboard.press('Escape');
   await page.keyboard.press('t');
   await dragOnPhoto(page, [900, 200], [1100, 300]); // 200×100px → 2000×1000mm
+  await pickCategory(page, 'sheet'); // 시트 분류 = 시트 구성 요소(커팅 시트로 시작, 2026-10-16 모든 분류 조합형)
   await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveAttribute('placeholder', /2,000/);
-  // 치수 미입력이어도 추정 치수로 예상 금액을 보여준다 (리스트 견적과 일치)
-  await page.getByTestId('sheet-sh-print').click();
+  // 치수 미입력이어도 추정 치수로 예상 금액을 보여준다 (리스트 견적과 일치): 2㎡ × 커팅 시트 35,000
   await expect(page.getByTestId('object-price')).toContainText('추정 2,000×1,000');
-  await expect(page.getByTestId('object-price')).toContainText('60,000원');
+  await expect(page.getByTestId('object-price')).toContainText('70,000원');
 
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
