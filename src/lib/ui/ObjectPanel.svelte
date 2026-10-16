@@ -32,7 +32,7 @@
     else if (obj.sheetIds.length) parts.push(obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', '));
     parts.push(...describeOptions(obj));
     if (size) parts.push(`${fmt(size.w)}×${fmt(size.h)}${obj.depthMm ? `×${fmt(obj.depthMm)}` : ''}mm${size.estimated ? ' (추정)' : ''}`);
-    if (total) parts.push(won(total));
+    if (total && !app.isCustomer) parts.push(won(total)); // 고객에게는 금액 없음 (제안 링크에서)
     return parts;
   });
 

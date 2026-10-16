@@ -39,7 +39,7 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await expect(page.locator('.line').filter({ hasText: '전광 채널' })).toHaveCount(1);
 });
 
-test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객도 같은 단가를 본다', async ({ page, request, browser }) => {
+test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객은 사진 보드만 본다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await makeSign(page);
   await page.getByTestId('view-list').click();
@@ -54,10 +54,13 @@ test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객도
   await expect(page.getByTestId('quote-total')).toContainText('220,000원');
   expect(await page.getByTestId('quote-total').textContent()).not.toBe(before);
 
+  // 2026-10-16 사용자: "고객에게 보여지는 것은 사진보드만 보인다." — 리스트·디자인 파일·금액 없음 (금액은 제안 링크에서)
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
-  await guest.getByTestId('view-list').click();
-  await expect(guest.getByTestId('quote-total')).toContainText('220,000원');
-  await expect(guest.getByTestId('open-prices')).toHaveCount(0); // 고객은 단가 수정 불가
+  await expect(guest.getByTestId('photo-zone').first()).toBeVisible();
+  for (const v of ['view-list', 'view-uv', 'quote-total', 'open-prices']) await expect(guest.getByTestId(v)).toHaveCount(0);
+  await guest.evaluate(() => { const a = (window as unknown as { __ganpanda: { selectedId: string | null; signs: { id: string }[] } }).__ganpanda; a.selectedId = a.signs[0].id; });
+  await expect(guest.getByTestId('object-summary')).toContainText('2,000×1,000');
+  await expect(guest.getByTestId('object-summary')).not.toContainText('원'); // 사인물 요약에도 금액 없음
   await guest.ctx.close();
 });
 
@@ -261,8 +264,7 @@ test('견적 줄 금액: 새 프로젝트는 직접 입력, [자동]으로 계�
   await expect(e.getByTestId('line-loss')).toHaveCount(0);
   await e.ctx.close();
   const v = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
-  await v.getByTestId('view-list').click();
+  await expect(v.getByTestId('view-list')).toHaveCount(0); // 고객은 사진 보드만
   await expect(v.getByTestId('quote-margin')).toHaveCount(0);
-  await expect(v.getByTestId('quote-line')).toContainText('10,000원');
   await v.ctx.close();
 });

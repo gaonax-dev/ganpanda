@@ -171,7 +171,7 @@
         <textarea data-testid="sign-note" rows="2" value={obj.note ?? ''} placeholder="이 사인물의 배선 위치, 특수 가공, 현장 조건 등" disabled={ro} oninput={(e) => update({ note: e.currentTarget.value || undefined })}></textarea>
       </section>
 
-      {#if lines.length}
+      {#if lines.length && !app.isCustomer}
         <section data-testid="object-price">
           <h3>예상 금액{#if size?.estimated}<span class="est">추정 {fmt(size.w)}×{fmt(size.h)} 기준</span>{/if}</h3>
           <table class="mini"><tbody>

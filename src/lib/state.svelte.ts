@@ -224,6 +224,8 @@ class AppState {
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
   canEdit = $derived(this.role === 'owner' || this.role === 'editor');
+  /** 고객(보기 초대): 사진 보드만, 금액 없음 (2026-10-16 "고객에게 보여지는 것은 사진보드만 보인다." 금액은 제안 링크에서) */
+  isCustomer = $derived(this.role === 'viewer');
   /** 원가(공급사 금액)·이익 금액은 오너만 (2026-10-16 "원가와 판매가로 이익율이 확인되어야한다. 오너와 맴버(허가시)에게만보이게") */
   seesCost = $derived(this.role === 'owner');
   /** 이익율·손해 표시: 오너, 또는 설정의 팀 멤버 중 "정산 보기"를 켠 사람(편집 초대로 들어옴) */
