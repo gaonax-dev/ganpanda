@@ -121,6 +121,8 @@
     return p ? { H: p.H, Hinv: p.Hinv } : null;
   }
   /** 매니퓰레이터를 붙일 수 있는 사인물 (사각·둥근 사각·원형; 다각형은 꼭짓점 편집) */
+  /** 매니퓰레이터 메뉴 자리: 외곽선 맨 아래보다 조금 아래, 가운데 x (화살표·고리·손잡이와 겹치지 않게) */
+  const menuAt = (q: Pt[], c: Pt): Pt => [c[0], Math.max(c[1], ...q.map((p) => p[1])) + 6 * gu];
   const gizmoable = (o: SignObject) => o.shape !== 'polygon' && o.quad.length === 4;
   function gizmoDown(e: PointerEvent, o: SignObject, mode: GizmoMode, sx = 0, sy = 0, on?: RefPlane) {
     if (e.button !== 0 || !editable) return;
@@ -480,8 +482,8 @@
           {@const edges = (b: { back: Pt[]; front: Pt[] }) => [0, 1, 2, 3].flatMap((i) => [[b.back[i], b.back[(i + 1) % 4]], [b.front[i], b.front[(i + 1) % 4]], [b.back[i], b.front[i]]]) as [Pt, Pt][]}
           <g class="boxg" data-testid="box-guide" pointer-events="none">
             <polygon class="face" points={bg.box.front.map((p) => p.join(',')).join(' ')} />
-            {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={3.5 * u} />{/each}
-            {#each edges(bg.box) as [a, b], i (i)}<line class="edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1.5 * u} />{/each}
+            {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={2.4 * u} />{/each}
+            {#each edges(bg.box) as [a, b], i (i)}<line class="edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1 * u} />{/each}
           </g>
         {/if}
       {/if}
@@ -502,6 +504,15 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        <!-- 꼭짓점 손잡이는 매니퓰레이터보다 아래 층 (메뉴·손잡이를 가리지 않게) -->
+        {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
+          {#each q as p, i (i)}
+            <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
+            <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
+            <circle class="handle" data-testid="sign-handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
+              onpointerdown={(e) => shapeDown(e, o, i)} />
+          {/each}
+        {/if}
         {#if sel && editable && tool === 'select' && gizmoable(o) && has3d && calib?.pose && calWall}
           <!-- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15): 축 = 원근 설정의 X·Y·Z, 자리 = 외곽선 대각선 교점(원근 중심).
                이동 = 외곽선을 원근 축을 따라 / 판 = 박스 방향을 그 축으로 / 고리 = 박스 방향만 돌림 / 크기 = 외곽선만 (네 변 가운데·네 꼭짓점) -->
@@ -520,35 +531,22 @@
                 {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
               </g>
             {/if}
+            {@const mAt = menuAt(q, g3.c)}
             <g class="gizmo box3" data-testid="gizmo" data-mode={gizmoMode} data-box={cur}>
-              {@render modeChips(g3.c)}
               {#if gizmoMode === 'move'}
-                {#if onbox}
-                  <!-- 정면(박스 방향) 단추 (2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다"):
-                       모드 단추 아래 X·Y·Z. 누르면 그 축이 박스 방향(외곽선·사인물 크기는 그대로), 켜진 단추를 다시 누르면 자동 -->
-                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis && !o.boxDir)} transform="translate({g3.c[0] - 22 * gu} {g3.c[1] + 45 * gu})">
-                    {#each ['x', 'y', 'z'] as const as a, i (a)}
-                      <g class="fb" class:on={cur === a} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)}
-                        onpointerdown={(e) => { e.stopPropagation(); pickFace(o, a, cur); }}>
-                        <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a || o.boxDir ? ' — 지금 (다시 누르면 자동)' : ' — 지금 (자동)') : ''}</title>
-                        <circle cx={i * 22 * gu} cy={0} r={9 * gu} style:fill={AXIS_COLOR[a]} stroke-width={(cur === a ? 2.5 : 0) * gu} />
-                        <text x={i * 22 * gu} y={4 * gu} font-size={11 * gu} text-anchor="middle">{a.toUpperCase()}</text>
-                      </g>
-                    {/each}
-                  </g>
-                {/if}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const ar = g3.arrows[a]}
-                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={4.5 * gu} />
-                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={2 * gu} style:stroke={AXIS_COLOR[a]} />
+                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={3 * gu} />
+                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} />
                   <circle class="gh" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
                 {/each}
                 <rect class="gh center" data-testid="gizmo-move" x={g3.c[0] - 6 * gu} y={g3.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree', 0, 0, face3)}><title>사인물 면 위에서 옮기기</title></rect>
               {:else if gizmoMode === 'rotate'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const pts = g3.rings[a].map((p) => p.join(',')).join(' ')}
-                  <polyline class="halo" points={pts} stroke-width={4 * gu} />
-                  <polyline class="ring3" data-testid="gizmo-ring-{a}" points={pts} stroke-width={1.8 * gu} style:stroke={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
+                  <polyline class="ring-hit" points={pts} stroke-width={10 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
+                  <polyline class="halo" points={pts} stroke-width={2.6 * gu} />
+                  <polyline class="ring3" data-testid="gizmo-ring-{a}" points={pts} stroke-width={1.2 * gu} style:stroke={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
                   <circle class="gh rot" data-testid="gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)}><title>박스를 {a.toUpperCase()} 축 둘레로 돌리기 (외곽선은 그대로)</title></circle>
                 {/each}
               {:else}
@@ -559,6 +557,22 @@
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)}><title>{h.sx && h.sy ? '외곽선 크기 (비율 유지)' : h.sx ? '외곽선 가로' : '외곽선 세로'}</title></rect>
                 {/each}
               {/if}
+              <!-- 메뉴는 맨 마지막(맨 위)에, 외곽선 아래에 (2026-10-16 사용자: "메이폴레이터로 인해서 하단 매뉴를 누를 수 없게될 때가 있다") -->
+              {@render modeChips(mAt)}
+                {#if gizmoMode === 'move' && onbox}
+                  <!-- 정면(박스 방향) 단추 (2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다"):
+                       모드 단추 아래 X·Y·Z. 누르면 그 축이 박스 방향(외곽선·사인물 크기는 그대로), 켜진 단추를 다시 누르면 자동 -->
+                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis && !o.boxDir)} transform="translate({mAt[0] - 22 * gu} {mAt[1] + 45 * gu})">
+                    {#each ['x', 'y', 'z'] as const as a, i (a)}
+                      <g class="fb" class:on={cur === a} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)}
+                        onpointerdown={(e) => { e.stopPropagation(); pickFace(o, a, cur); }}>
+                        <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a || o.boxDir ? ' — 지금 (다시 누르면 자동)' : ' — 지금 (자동)') : ''}</title>
+                        <circle cx={i * 22 * gu} cy={0} r={9 * gu} style:fill={AXIS_COLOR[a]} stroke-width={(cur === a ? 2.5 : 0) * gu} />
+                        <text x={i * 22 * gu} y={4 * gu} font-size={11 * gu} text-anchor="middle">{a.toUpperCase()}</text>
+                      </g>
+                    {/each}
+                  </g>
+                {/if}
             </g>
           {/if}
         {:else if sel && editable && tool === 'select' && gizmoable(o)}
@@ -568,18 +582,17 @@
             {@const fr = frameOf(plane, q)}
             {@const g = gizmoOf(plane, fr, screenLen(plane, fr))}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
-              {@render modeChips(g.c)}
               {#if gizmoMode === 'move'}
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={4.5 * gu} />
-                <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={2 * gu} style:stroke={AXIS_COLOR.x} />
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]}   stroke-width={4.5 * gu} />
-                <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={2 * gu} style:stroke={AXIS_COLOR.z} />
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={3 * gu} />
+                <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.x} />
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]}   stroke-width={3 * gu} />
+                <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.z} />
                 <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={6 * gu} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
                 <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={6 * gu} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
                 <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 6 * gu} y={g.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
               {:else if gizmoMode === 'rotate'}
-                <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={4 * gu} />
-                <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * gu} />
+                <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
+                <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
                 <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
               {:else}
                 {#each sizeHandlesOf(fr) as h (`${h.sx}_${h.sy}`)}
@@ -588,16 +601,9 @@
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
                 {/each}
               {/if}
+              {@render modeChips(menuAt(q, g.c))}
             </g>
           {/if}
-        {/if}
-        {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
-          {#each q as p, i (i)}
-            <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
-            <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
-            <circle class="handle" data-testid="sign-handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
-              onpointerdown={(e) => shapeDown(e, o, i)} />
-          {/each}
         {/if}
       </g>
     {/each}
@@ -677,7 +683,8 @@
   .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
-  .gizmo .ring3 { fill: none; pointer-events: stroke; cursor: grab; }
+  .gizmo .ring-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; } /* 얇은 고리를 잡기 쉽게 넓은 투명 영역 */
+  .gizmo .ring3 { fill: none; pointer-events: stroke; cursor: grab; stroke-linecap: round; }
   .faces .fb { cursor: pointer; }
   .faces .fb circle { stroke: #fff; }
   .faces .fb:not(.on) circle { fill-opacity: 0.55; }
