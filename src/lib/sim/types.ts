@@ -24,6 +24,15 @@ export interface SignSpec {
   textColor: string;
   /** 박스 위에 얹는 입체 글자 (간판 몸통 + 채널 옵션). 없으면 박스만 */
   letters?: { text: string; heightMm: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number };
+  /**
+   * 조합형 4단계 (2026-10-16): 구성 요소의 글자 객체마다 자기 자리(상자 중심 기준 mm, 위 +)에 입체 글자.
+   * 있으면 letters 대신 이것 — 정면도 편집기에서 정한 위치·높이 그대로(자동 맞춤 없음)
+   */
+  letterItems?: { text: string; heightMm: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number }[];
+  /** 앞면에 평면으로 그리는 객체 (그림, 시트의 글자): 중심 기준 mm, 위 +. 그림은 buildSign 의 images[id] */
+  faceItems?: { id: string; kind: 'text' | 'image'; text?: string; x: number; y: number; w: number; h: number; color: string }[];
+  /** 몸통 없음: 상자는 그리지 않고 글자만 (letterItems) */
+  bodyless?: boolean;
   /** 간판 상단 조명 (2026-10-16): 돌출 투광등 / 트러스 바 간접 / 트러스 타공 */
   topLight?: import('../core/topLight').TopLightSpec;
   /** 벽 좌표 중심 (mm) */

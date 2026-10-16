@@ -84,8 +84,10 @@ describe('옵션·요약·3D', () => {
   it('3D: 구성 요소의 채널 글자로 입체 글자', () => {
     const ch = newPart('channel', 'ch-halo'); ch.items = [{ ...newItem('text'), text: '카페', h: 450 }];
     const spec = renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 900, parts: [ch] }), { cx: 0, cy: 0, w: 3000, h: 900 } as never)!;
-    expect(spec.letters).toMatchObject({ text: '카페', lighting: 'halo' });
-    expect(spec.letters!.heightMm).toBeCloseTo(450, 0);
+    // 4단계(2026-10-16)부터 객체마다 자기 자리의 letterItems (하나로 이어 붙인 letters 대신)
+    expect(spec.letters).toBeUndefined();
+    expect(spec.letterItems).toEqual([expect.objectContaining({ text: '카페', lighting: 'halo', x: 0, y: 0 })]);
+    expect(spec.letterItems![0].heightMm).toBeCloseTo(450, 0);
   });
 });
 

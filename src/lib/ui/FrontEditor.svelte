@@ -6,7 +6,9 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
+  import { itemAssetId } from '../render/itemImages';
   import type { PartItem, SignObject, SignPart } from '../core/model';
+  import { PART_COLOR as COLOR } from '../core/partsLayout';
   import { SNAP_PX, alignBox, frameBox, itemBox, resizeItem, snapMove, viewOf, type Align, type Box } from '../core/frontView';
 
   type Sel = { part: string; item: string } | null;
@@ -20,7 +22,6 @@
   const PAD_PX = 16;
   /** 방향키 한 번 (mm), Shift 와 함께 */
   const NUDGE_MM = 10, NUDGE_BIG_MM = 100;
-  const COLOR: Record<SignPart['kind'], string> = { channel: '#ff6b5e', scashi: '#e0b85a', sheet: '#5aa8ff' };
 
   let viewW = $state(480);
   let svg = $state<SVGSVGElement>();
@@ -37,8 +38,7 @@
 
   /** 그림 주소 (디자인 파일 페이지 · 올린 그림) */
   let urls = $state<Record<string, string>>({});
-  const assetOf = (it: PartItem): string | undefined =>
-    !it.image ? undefined : 'assetId' in it.image ? it.image.assetId : app.sources.find((s) => s.id === (it.image as { sourceId: string }).sourceId)?.pages[(it.image as { page: number }).page]?.assetId;
+  const assetOf = (it: PartItem): string | undefined => (it.image ? itemAssetId(it.image, app.sources) : undefined);
   $effect(() => {
     for (const { it } of all) {
       const id = assetOf(it);

@@ -9,7 +9,9 @@
   import type { SignObject } from '../core/model';
   import { DEFAULT_LETTER3D, specFromObject, type Letter3D } from '../core/letter3d';
   import { loadFont } from '../core/textShapes';
-  import { buildChannel, type BuiltSign } from '../sim/signs';
+  import { buildChannel, buildSign, type BuiltSign } from '../sim/signs';
+  import { renderSpecOf } from '../core/render';
+  import { loadItemImages } from '../render/itemImages';
 
   let { obj }: { obj: SignObject } = $props();
   let host: HTMLDivElement;
@@ -52,17 +54,24 @@
   });
 
   // 사양이 바뀌면 다시 만든다
-  $effect(() => { obj.text; obj.heightMm; obj.productId; l.depthMm; l.faceColor; l.sideColor; l.letterSpacing; if (font) rebuild(); });
+  $effect(() => { obj.text; obj.widthMm; obj.heightMm; obj.productId; obj.parts; l.depthMm; l.faceColor; l.sideColor; l.letterSpacing; if (font) rebuild(); });
+  /** 조합형 (4단계, 2026-10-16): 정면도 배치 그대로 사인물 전체(상자 + 객체마다 입체 글자 + 앞면 그림) */
+  const composed = $derived(obj.parts && obj.widthMm && obj.heightMm ? renderSpecOf(obj, { cx: 0, cy: 0, w: obj.widthMm, h: obj.heightMm }) : null);
+  let token = 0;
   $effect(() => { applyNight(night); });
 
-  function rebuild() {
-    const spec = specFromObject(obj);
+  async function rebuild() {
+    const my = ++token;
+    const comp = composed?.letterItems || composed?.faceItems ? composed : null;
+    const spec = comp ?? specFromObject(obj);
     if (!spec || !font) return;
+    const images = comp?.faceItems ? await loadItemImages(obj, app.sources) : undefined;
+    if (my !== token || !font) return;
     built?.group.removeFromParent(); built?.dispose();
-    built = buildChannel(spec, font);
+    built = comp ? buildSign(comp, font, 'Pretendard, sans-serif', undefined, images) : buildChannel(spec, font);
     scene.add(built.group);
-    widthMm = built.measured.widthMm;
-    const w = widthMm, h = spec.heightMm;
+    widthMm = comp ? null : built.measured.widthMm;
+    const w = comp ? comp.widthMm : built.measured.widthMm, h = spec.heightMm;
     wall.geometry.dispose(); wall.geometry = new THREE.PlaneGeometry(w * 2 + 2000, h * 4 + 1000);
     wall.position.set(0, 0, -1);
     const span = Math.max(w, h);
@@ -114,12 +123,20 @@
     <div class="body">
       <div class="view" bind:this={host}>{#if status}<div class="status">{status}</div>{/if}</div>
       <aside>
+        {#if composed?.letterItems || composed?.faceItems}
+        <div class="measure" data-testid="letter3d-composed">
+          <small>정면도 배치 그대로</small>
+          <b>{fmt(obj.widthMm ?? 0)} × {fmt(obj.heightMm ?? 0)} mm</b>
+          <small>입체 글자 {composed.letterItems?.length ?? 0}개{composed.faceItems ? ` · 앞면 ${composed.faceItems.length}개` : ''} — 위치·높이는 사인물 설정의 정면도에서</small>
+        </div>
+        {:else}
         <div class="measure">
           <small>폰트 기준 전체 폭</small>
           <b data-testid="letter3d-width">{widthMm ? `약 ${fmt(widthMm)} mm` : '계산 중…'}</b>
           {#if !ro}<button class="btn small" data-testid="letter3d-apply-width" disabled={!widthMm} onclick={applyWidth}>가로 치수에 적용</button>{/if}
           <small>글자 높이 {fmt(obj.heightMm ?? 0)} mm · {obj.text}</small>
         </div>
+        {/if}
         <label>두께 (mm)<input data-testid="letter3d-depth" type="number" min="5" step="5" value={l.depthMm} disabled={ro} oninput={(e) => update({ depthMm: Math.max(5, Number(e.currentTarget.value) || 5) })} /></label>
         <label>자간<input type="number" step="0.01" value={l.letterSpacing} disabled={ro} oninput={(e) => update({ letterSpacing: Number(e.currentTarget.value) || 0 })} /></label>
         <div class="grid2">

@@ -1,5 +1,6 @@
 // 사인물 전개도 → SVG (최종 출력용, PDF 는 이 SVG 를 인쇄해 만든다)
 // 2026-10-15 사용자: "리스트 뷰는 최종 출력에 사용될 것이다. 최종 출력에 사용되기 전에 svg 를 사용해 사인물을 pdf 로 작성한다"
+import { partsSvg, type LaidItem } from './partsLayout';
 export interface SvgCard {
   id: string; name: string;
   /** 배치 (mm, 리스트 뷰 좌표) */
@@ -12,6 +13,9 @@ export interface SvgCard {
   image?: { href: string; pageW: number; pageH: number; crop: { x: number; y: number; w: number; h: number } };
   /** 둥근 모서리 비율 */
   corner?: number;
+  /** 조합형 객체 (카드 mm 크기 w×h 에 배치한 것, layoutParts) 와 그림 주소(객체 id → data URL) — 2026-10-16 4단계 */
+  items?: LaidItem[];
+  itemHrefs?: Record<string, string>;
 }
 export interface SvgSheet { title: string; subtitle?: string; cards: SvgCard[]; /** 용지 mm */ pageW?: number; pageH?: number; margin?: number }
 
@@ -61,6 +65,7 @@ export function listSvg(sheet: SvgSheet): string {
       const sx = w / c.image.crop.w, sy = h / c.image.crop.h;
       parts.push(`<image clip-path="url(#clip-${esc(c.id)})" href="${esc(c.image.href)}" x="${(ox + c.x * k - c.image.crop.x * sx).toFixed(2)}" y="${(oy + c.y * k - c.image.crop.y * sy).toFixed(2)}" width="${(c.image.pageW * sx).toFixed(2)}" height="${(c.image.pageH * sy).toFixed(2)}" preserveAspectRatio="none"/>`);
     }
+    if (c.items?.length) parts.push(`<g data-items="${esc(c.id)}" transform="translate(${X(c.x)} ${Y(c.y)}) scale(${k.toFixed(6)})">${partsSvg(c.items, (l) => c.itemHrefs?.[l.id])}</g>`);
     // 치수선: 위(가로), 오른쪽(세로)
     const ty = oy + c.y * k - 3, rx2 = ox + (c.x + c.w) * k + 3;
     parts.push(`<line x1="${X(c.x)}" y1="${ty.toFixed(2)}" x2="${X(c.x + c.w)}" y2="${ty.toFixed(2)}" stroke="#2f8bff" stroke-width="0.25"/>`);
