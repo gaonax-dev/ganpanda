@@ -84,13 +84,13 @@ describe('스카시: 두께 · 재질 · 도색 컬러코드', () => {
   }
 });
 
-describe('시트: UV 실사(흰색/회색) · 단색(재질) · 안개, 커팅은 종류에 따라 (돔보 / 커팅)', () => {
-  it('고르는 목록은 세 가지, 이름에 커팅 방식', () => {
-    expect(sheetsForPicker().map((s) => s.name)).toEqual(['UV 실사 (돔보 커팅)', '단색·재질 시트 (커팅)', '안개 시트 (커팅)']);
+describe('시트: UV 출력(흰색/회색) · 재질 시트(안개 포함), 커팅은 옵션', () => {
+  it('고르는 목록은 두 가지', () => {
+    expect(sheetsForPicker().map((s) => s.name)).toEqual(['UV 출력', '재질 시트']); // 2026-10-16: 커팅은 옵션, 안개는 재질
   });
   it('UV 실사: 바탕 흰색/회색, 단색: 재질', () => {
     expect(values(obj({ sheetIds: ['sh-print'] }), 'base')).toEqual(['흰색', '회색']);
-    expect(values(obj({ sheetIds: ['sh-cut'] }), 'sheetMat')).toEqual(['단색', '반사', '투명', '메탈', '홀로그램']);
+    expect(values(obj({ sheetIds: ['sh-cut'] }), 'sheetMat')).toEqual(['단색', '반사', '투명', '메탈', '홀로그램', '안개']); // 안개는 재질 (2026-10-16)
   });
   it('옛 시트(원웨이·반사·투명)는 그대로 읽힌다', () => {
     expect(SHEETS.map((s) => s.id)).toEqual(expect.arrayContaining(['sh-perf', 'sh-reflect', 'sh-trans']));

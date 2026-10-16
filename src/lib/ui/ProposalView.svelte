@@ -1,5 +1,6 @@
 <!-- 고객이 보는 제안 페이지 (휴대폰 우선, 로그인 없음): 실사 주간/야간 · 사인물 목록·치수·금액 · 질문 · [이걸로 할게요] -->
 <script lang="ts">
+  import { signTextOf } from '../core/parts';
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import { describeOptions } from '../core/options';
@@ -78,7 +79,7 @@
           {#if p && o.sheetIds.length} · {o.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')}{/if}
           {#each describeOptions(o, { defaults: true }) as d, i (i)} · {d}{/each}
         </div>
-        <div class="spec">{sz ? `${fmt(sz.w)} × ${fmt(sz.h)} mm${sz.estimated ? ' (사진 기준 추정)' : ''}` : '치수 미정'}{#if o.text} · “{o.text}”{/if}</div>
+        <div class="spec">{sz ? `${fmt(sz.w)} × ${fmt(sz.h)} mm${sz.estimated ? ' (사진 기준 추정)' : ''}` : '치수 미정'}{#if signTextOf(o)} · “{signTextOf(o)}”{/if}</div>
         <button class="btn small" data-testid="proposal-ask" onclick={() => (openChat = openChat === o.id ? null : o.id)}>{openChat === o.id ? '질문 닫기' : `질문하기${unread ? ` (${unread})` : ''}`}</button>
         {#if openChat === o.id}<div class="chat"><Chat objectId={o.id} /></div>{/if}
       </article>

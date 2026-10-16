@@ -52,7 +52,7 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await expect(page.getByTestId('object-summary')).toContainText('전광 채널 "바로바로" 600mm "정육점" 300mm');
   await page.getByTestId('view-list').click();
   await expect(page.locator('.line').filter({ hasText: '전광 채널' })).toContainText('"바로바로" 4자×600mm + "정육점" 3자×300mm');
-  await expect(page.locator('.line').filter({ hasText: 'UV 실사' })).toContainText('0.50㎡');
+  await expect(page.locator('.line').filter({ hasText: 'UV 출력' })).toContainText('0.50㎡');
 });
 
 test('옛 사인물(채널 옵션 + 문구)은 구성 요소로 보이고, 고치면 구성 요소로 저장된다', async ({ page, request }) => {
@@ -157,4 +157,40 @@ test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께
   await expect(page.getByTestId('part-card')).toHaveCount(1); // 스카시 분류는 스카시 카드 하나로 시작 (사인물 자체가 스카시)
   await expect(page.getByTestId('part-card').getByTestId('part-option-thickness')).toBeVisible();
   await expect(page.getByTestId('option-thickness')).toHaveCount(0); // 몸통 쪽 두께와 겹치지 않음
+});
+
+test('시트 = UV 출력 / 재질 시트, 컷팅은 옵션(돔보컷팅·커팅, 완컷·반컷, 완컷이면 보조시트), 문구가 없으면 구성내역', async ({ page, request }) => {
+  // 2026-10-16 사용자: "시트는 uv출력, 재질로 분류하고 여기에서 커팅(uv실사에 맞게 컷팅하는 것을 돔보컷팅이라한다)을 옵션으로 넣는다.
+  // 컷팅에는 반컷, 완컷(보조시트 체크) 그리고 문구가 없으면 구성내역을 문자에 넣는다. uv출력 돔보컷팅 완컷"
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sheet');
+  await openObjectSettings(page);
+  await page.getByTestId('width-mm').fill('2000');
+  await page.getByTestId('height-mm').fill('1000');
+  const card = page.getByTestId('part-card').first();
+  await card.getByTestId('part-type').selectOption('sh-print');
+  await expect(card.getByTestId('part-type').locator('option')).toHaveText(['UV 출력', '재질 시트']);
+  await expect(card.getByTestId('part-spec')).toHaveText('UV 출력 돔보컷팅 완컷');
+  await expect(card.getByTestId('part-option-cut')).toHaveValue('돔보컷팅');
+  await card.getByTestId('part-option-transferTape').check();
+  await expect(card.getByTestId('part-spec')).toHaveText('UV 출력 돔보컷팅 완컷 보조시트');
+  await card.getByTestId('part-option-cutMode').selectOption('반컷');
+  await expect(card.getByTestId('part-option-transferTape')).toHaveCount(0); // 보조시트는 완컷일 때만
+  await card.getByTestId('part-option-cutMode').selectOption('완컷');
+  await card.getByTestId('part-option-cut').selectOption('컷팅 없음');
+  await expect(card.getByTestId('part-option-cutMode')).toHaveCount(0);
+  await card.getByTestId('part-option-cut').selectOption('돔보컷팅');
+  await page.getByTestId('add-part-sheet-cut').click();
+  const mat = page.getByTestId('part-card').nth(1);
+  await mat.getByTestId('part-option-sheetMat').selectOption('반사');
+  await expect(mat.getByTestId('part-spec')).toHaveText('재질 시트 반사 커팅 완컷');
+  await page.getByTestId('close-object-settings').click();
+  // 견적 줄 이름 = 구성내역, 문구가 없으면 견적서에 구성내역
+  await page.getByTestId('view-list').click();
+  await expect(page.locator('.line').filter({ hasText: 'UV 출력 돔보컷팅 완컷' })).toHaveCount(1);
+  await page.getByTestId('open-quote-sheet').click();
+  await expect(page.getByTestId('quote-sheet')).toContainText('“UV 출력 돔보컷팅 완컷 보조시트 + 재질 시트 반사 커팅 완컷”');
 });

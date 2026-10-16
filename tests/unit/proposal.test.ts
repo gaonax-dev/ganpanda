@@ -33,7 +33,7 @@ describe('제안·승인: 내용 해시와 상태', () => {
     expect(s.items[0]).toMatchObject({ name: '메인', category: '간판', type: '후렉스', size: { w: 3000, h: 600, estimated: false }, text: '간판다' });
     expect(s.items[0].options).toContain('양면');
     expect(s.items[0].amount).toBeGreaterThan(0);
-    expect(s.items[1]).toMatchObject({ category: '시트', sheets: ['단색·재질 시트 (커팅)'] });
+    expect(s.items[1]).toMatchObject({ category: '시트', sheets: ['재질 시트'] });
     expect(s.total).toBe(q.total);
   });
 

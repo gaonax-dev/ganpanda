@@ -1,6 +1,7 @@
 // 6차 "한 장으로 결정하기": 제안 링크 + 승인 (2026-10-14)
 // 제안 = 사진마다 만든 실사 이미지(주간·야간 에셋) + 그 시점의 내용 해시. 승인 = 고객이 [이걸로 할게요] 한 시점의 스냅샷(사인물·치수·디자인·금액)과 이름·시각.
 // 내용이 바뀌면 해시가 달라져 "변경됨 — 재승인 필요"가 된다.
+import { signTextOf } from './parts';
 import { categoryOf, CATEGORY_GROUPS, productById, sheetById } from './catalog';
 import type { DesignSource, SignObject } from './model';
 import { describeOptions } from './options';
@@ -71,7 +72,7 @@ export function snapshotOf(signs: SignObject[], sizeOf: SizeOf, quote: Quote, so
       sheets: o.sheetIds.map((id) => sheetById(id)?.name ?? id),
       options: describeOptions(o, { defaults: true }),
       ...(sz ? { size: { w: Math.round(sz.w), h: Math.round(sz.h), estimated: sz.estimated } } : {}),
-      ...(o.text ? { text: o.text } : {}),
+      ...(signTextOf(o) ? { text: signTextOf(o) } : {}), // 문구가 없으면 구성내역 (2026-10-16)
       ...(src ? { design: `${src.name} (${o.design!.page + 1}쪽)` } : {}),
       amount: quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0),
     };

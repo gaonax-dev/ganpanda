@@ -29,7 +29,8 @@ export const PART_KIND_LABEL: Record<SignPart['kind'], string> = { channel: '채
 export const PART_TYPES: Record<SignPart['kind'], { id: string; label: string }[]> = {
   channel: CHANNEL_OPTIONS,
   scashi: SCASHI_OPTIONS,
-  sheet: [{ id: 'sh-cut', label: '커팅 시트 (단색·재질)' }, { id: 'sh-print', label: 'UV 출력 시트 (돔보)' }, { id: 'sh-frost', label: '안개 시트' }],
+  // 시트 = UV 출력 / 재질 시트 (커팅은 옵션, 2026-10-16). 옛 안개 시트는 재질 "안개"
+  sheet: [{ id: 'sh-print', label: 'UV 출력' }, { id: 'sh-cut', label: '재질 시트' }],
 };
 
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
@@ -52,8 +53,15 @@ const SC_KEYS: Record<string, string> = { scThick: 'thickness', scMaterial: 'mat
 const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.fromEntries(keys.filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]));
 
 /** 이 사인물의 구성 요소. 저장된 것이 있으면 그것, 없으면 옛 필드에서. 간판 분류가 아니면 없음 */
+/** 옛 반컷팅(halfCut) → 컷 방식 반컷 */
+const fixSheetOpts = (p: SignPart): SignPart => {
+  const op = p.options ?? {};
+  if (p.kind !== 'sheet' || op.halfCut === undefined) return p;
+  const { halfCut, ...rest } = op;
+  return { ...p, options: { ...rest, ...(halfCut === true && rest.cutMode === undefined ? { cutMode: '반컷' } : {}) } };
+};
 export function partsOf(o: SignObject): SignPart[] {
-  if (o.parts) return o.parts;
+  if (o.parts) return o.parts.some((p) => p.kind === 'sheet' && p.options?.halfCut !== undefined) ? o.parts.map(fixSheetOpts) : o.parts;
   const kinds = partKindsFor(o);
   if (!kinds.length) return [];
   const opts = o.options ?? {};
@@ -79,7 +87,7 @@ export function partsOf(o: SignObject): SignPart[] {
   if (id === 'board-acp' && opts.finish === '시트 컷팅') sheets.push('sh-cut');
   if (id === 'frame-plain' && opts.print === '실사 출력') sheets.push('sh-print');
   if (id === 'frame-plain' && opts.print === '시트') sheets.push('sh-cut');
-  for (const s of [...new Set(sheets)]) out.push({ id: `legacy-sheet-${s}`, kind: 'sheet', type: s, on: 'frame', options: pick(opts, ['transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut']), items: [] });
+  for (const s of [...new Set(sheets)]) out.push(fixSheetOpts({ id: `legacy-sheet-${s}`, kind: 'sheet', type: s, on: 'frame', options: pick(opts, ['transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode']), items: [] }));
   return out;
 }
 
@@ -100,11 +108,31 @@ export function categoryPatch(o: SignObject, g: string, productId: string | unde
   return { productId, options: undefined, parts: parts?.length ? parts : undefined, ...(g === 'sheet' && !hasSheet ? { sheetIds: ['sh-cut'] } : {}) };
 }
 
+/**
+ * 구성내역 문구 (2026-10-16 사용자: "문구가 없으면 구성내역을 문자에 넣는다. uv출력 돔보컷팅 완컷"):
+ * 시트 = 종류 + (재질) + 컷팅 + 컷 방식 + (보조시트), 채널·스카시 = 종류 이름
+ */
+export function partSpecOf(p: SignPart): string {
+  if (p.kind !== 'sheet') return partLabel(p);
+  const op = fixSheetOpts(p).options ?? {};
+  const cut = (op.cut as string | undefined) ?? (p.type === 'sh-print' ? '돔보컷팅' : '커팅');
+  const on = cut !== '컷팅 없음';
+  return [partLabel(p), p.type === 'sh-cut' ? (op.sheetMat as string | undefined) ?? '단색' : '', on ? cut : '', on ? (op.cutMode as string | undefined) ?? '완컷' : '', on && op.cutMode !== '반컷' && op.transferTape === true ? '보조시트' : '']
+    .filter(Boolean).join(' ');
+}
+/** 사인물 문구: 사인물 문구 > 구성 요소의 글자 객체 > 구성내역 */
+export function signTextOf(o: SignObject): string {
+  if (o.text?.trim()) return o.text.trim();
+  const ps = partsOf(o);
+  const texts = ps.flatMap((p) => p.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()).map((i) => (i.text ?? '').trim()));
+  return texts.length ? texts.join(' / ') : ps.map(partSpecOf).join(' + ');
+}
+
 /** 요약 문구: 구성 요소마다 이름 + 글자("…" 높이) + 그림 수 */
 export function describeParts(o: SignObject): string[] {
   return partsOf(o).map((p) => {
     const texts = p.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()).map((i) => `"${(i.text ?? '').trim()}" ${Math.round(i.h)}mm`);
     const imgs = p.items.filter((i) => i.kind === 'image').length;
-    return [partLabel(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : [])].join(' ');
+    return [p.kind === 'sheet' ? partSpecOf(p) : partLabel(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : [])].join(' ');
   });
 }

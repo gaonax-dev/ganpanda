@@ -1,6 +1,6 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { topLightOf } from './topLight';
-import { partKindsFor, partLabel, partsOf } from './parts';
+import { partKindsFor, partLabel, partSpecOf, partsOf } from './parts';
 import { productById, sheetById, signParts } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
@@ -157,7 +157,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     key = `${o.id}:part:${p.id}`;
     const sh = sheetById(p.type);
     if (!sh) continue;
-    const label = `${o.name} · ${sh.name}`, unit = prices.sheets[p.type] ?? 0;
+    const label = `${o.name} · ${partSpecOf(p)}`, unit = prices.sheets[p.type] ?? 0; // 구성내역 (UV 출력 돔보컷팅 완컷)
     const sizedItems = p.items.filter((it) => it.w && it.h);
     if (!sizedItems.length && !sized) { lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
     const method = findMethod(prices.methods?.[p.type]);

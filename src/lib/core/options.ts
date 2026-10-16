@@ -188,12 +188,23 @@ export const SCASHI_ACCESSORY_OPTIONS: OptionField[] = [
   sel('frontSheetAttached', '전면 시트 컷팅', ['부착 출고', '미부착']),
 ];
 /** 시트 공통 + 시트별 */
-export const SHEET_COMMON_OPTIONS: OptionField[] = [tog('transferTape', '보조시트(어플리케이션 테이프) 포함'), sel('coating', '코팅', ['코팅 없음', '유광', '무광'])];
+export const SHEET_COMMON_OPTIONS: OptionField[] = [sel('coating', '코팅', ['코팅 없음', '유광', '무광'])];
+/** 컷팅 옵션 (2026-10-16 사용자: "커팅…을 옵션으로 넣는다. 컷팅에는 반컷, 완컷(보조시트 체크)"): UV 출력 = 돔보컷팅(출력물 윤곽대로), 재질 시트 = 커팅 */
+const cutOn = (opts: Options) => opts.cut !== CUT_NONE;
+const CUT_NONE = '컷팅 없음';
+const CUT = (kind: string): OptionField[] => [
+  sel('cut', '컷팅', [kind, CUT_NONE]),
+  sel('cutMode', '컷 방식', ['완컷', '반컷'], cutOn),
+  tog('transferTape', '보조시트 (어플리케이션 테이프)', (opts) => cutOn(opts) && opts.cutMode !== '반컷'),
+];
+/** 시트 구성내역 문구에 들어가는 키 (요약에서 따로 적지 않는다) */
+export const SHEET_SPEC_KEYS = new Set(['sheetMat', 'cut', 'cutMode', 'transferTape']);
 const INK = sel('ink', '잉크', ['UV', '솔벤트']);
 /** 시트별 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개") */
 export const SHEET_OPTIONS: Record<string, OptionField[]> = {
-  'sh-print': [sel('base', '바탕', ['흰색', '회색']), INK],
-  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램']), tog('halfCut', '반컷팅')],
+  'sh-print': [sel('base', '바탕', ['흰색', '회색']), INK, ...CUT('돔보컷팅')],
+  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램', '안개']), ...CUT('커팅')],
+  'sh-frost': [...CUT('커팅')],
   'sh-perf': [INK],
 };
 const SCASHI_IDS = ['ch-rubber', 'sc-titan', 'ch-scashi'];
@@ -256,12 +267,15 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
     .filter((f) => opts[f.key] !== undefined && !['없음', '비조명'].includes(String(opts[f.key])) && !(f.key === 'thick' && o.depthMm))
     .map((f) => `${f.label} ${opts[f.key]}`);
   const thick = thicknessLabel(o); // 두께는 소재 옆에 (치수는 가로×세로만)
-  const fromOptions = [...(thick ? [thick] : []), ...optionGroupsFor(o).flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
-  // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16). 스카시 분류는 옛 데이터도 구성 요소로
-  const ps = o.parts ?? (o.productId && SCASHI_IDS.includes(o.productId) ? partsOf(o) : undefined);
-  if (!ps) return fromOptions;
+  // 옛 데이터라도 시트 분류(제품 없음)·스카시 분류는 구성 요소로 요약 (그 옛 옵션 묶음은 구성 요소 쪽에서)
+  const legacyParts = !o.parts && (!o.productId || SCASHI_IDS.includes(o.productId)) ? partsOf(o) : undefined;
+  const groups = optionGroupsFor(o).filter((g) => !(legacyParts && g.title === '시트 옵션'));
+  const fromOptions = [...(thick ? [thick] : []), ...groups.flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
+  // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16)
+  const ps = o.parts ?? legacyParts;
+  if (!ps?.length) return fromOptions;
   const lines = describeParts(o);
-  return [...fromOptions, ...ps.flatMap((p, i) => [lines[i], ...partOptionFields(p).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
+  return [...fromOptions, ...ps.flatMap((p, i) => [lines[i], ...partOptionFields(p).filter((f) => !(p.kind === 'sheet' && SHEET_SPEC_KEYS.has(f.key))).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
 }
 
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */

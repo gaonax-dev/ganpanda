@@ -79,7 +79,7 @@ describe('옵션·요약·3D', () => {
   it('요약: 구성 요소마다 종류 + 글자', () => {
     const ch = newPart('channel', 'ch-front'); ch.items = [{ ...newItem('text'), text: '바로바로', h: 600 }];
     const sh = newPart('sheet', 'sh-cut'); sh.items = [{ ...newItem('image'), h: 300 }];
-    expect(describeParts(obj({ productId: 'board-galva', parts: [ch, sh] }))).toEqual(['전광 채널 "바로바로" 600mm', '단색·재질 시트 (커팅) 그림 1']);
+    expect(describeParts(obj({ productId: 'board-galva', parts: [ch, sh] }))).toEqual(['전광 채널 "바로바로" 600mm', '재질 시트 단색 커팅 완컷 그림 1']); // 시트는 구성내역 (2026-10-16)
   });
   it('3D: 구성 요소의 채널 글자로 입체 글자', () => {
     const ch = newPart('channel', 'ch-halo'); ch.items = [{ ...newItem('text'), text: '카페', h: 450 }];
@@ -104,8 +104,8 @@ describe('주문서·JSON·입체 보기에도 구성 요소 (옵션 포함)', a
   it('요약에 구성 요소의 옵션 값(고른 것만, 주문서는 기본값까지)', () => {
     const sh = newPart('sheet', 'sh-cut'); sh.options = { halfCut: true };
     const o = obj({ productId: 'board-galva', parts: [sh] });
-    expect(describeOptions(o)).toEqual(expect.arrayContaining(['단색·재질 시트 (커팅)', '반컷팅']));
-    expect(describeOptions(o, { defaults: true })).toEqual(expect.arrayContaining(['단색', '반컷팅']));
+    expect(describeOptions(o)).toEqual(expect.arrayContaining(['재질 시트 단색 커팅 반컷'])); // 옛 반컷팅 → 반컷, 구성내역 한 줄 (2026-10-16)
+    expect(describeOptions(o, { defaults: true })).toEqual(expect.arrayContaining(['재질 시트 단색 커팅 반컷', '코팅 없음']));
   });
   it('주문 JSON 품목에 구성 요소 (종류·이름·옵션·글자·그림)', () => {
     const ch = newPart('channel', 'ch-front'); ch.items = [{ ...newItem('text'), text: '간판', h: 500 }];

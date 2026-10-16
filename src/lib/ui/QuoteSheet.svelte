@@ -1,5 +1,6 @@
 <!-- 견적서 (인쇄·PDF): 브라우저 인쇄로 저장 -->
 <script lang="ts">
+  import { signTextOf } from '../core/parts';
   import { app } from '../state.svelte';
   import { won } from '../core/quote';
   import { DELIVERY_LABEL, FILE_CHECK, orderJson } from '../core/order';
@@ -55,7 +56,7 @@
             {#each lines as l, j (j)}
               <tr>
                 <td>{j === 0 ? i + 1 : ''}</td>
-                <td>{l.label}{#if j === 0 && o.text}<small>“{o.text}”</small>{/if}{#if j === 0}{@const spec = describeOptions(o, { defaults: true })}{#if spec.length}<small>{spec.join(' · ')}</small>{/if}{/if}{#if j === 0 && o.design}{@const src = app.sources.find((s) => s.id === o.design!.sourceId)}{#if src}<small>디자인: {src.name} ({o.design.page + 1}쪽)</small>{/if}{/if}{#if j === 0 && o.note}<small>요청: {o.note}</small>{/if}</td>
+                <td>{l.label}{#if j === 0 && signTextOf(o)}<small>“{signTextOf(o)}”</small>{/if}{#if j === 0}{@const spec = describeOptions(o, { defaults: true })}{#if spec.length}<small>{spec.join(' · ')}</small>{/if}{/if}{#if j === 0 && o.design}{@const src = app.sources.find((s) => s.id === o.design!.sourceId)}{#if src}<small>디자인: {src.name} ({o.design.page + 1}쪽)</small>{/if}{/if}{#if j === 0 && o.note}<small>요청: {o.note}</small>{/if}</td>
                 <td>{sz ? `${fmt(sz.w)}×${fmt(sz.h)}mm${sz.estimated ? ' (추정)' : ''} · ` : ''}{l.detail}</td>
                 <td class="r">{won(l.amount)}</td>
               </tr>
