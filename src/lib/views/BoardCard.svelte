@@ -7,9 +7,12 @@
   import { faceClip } from '../core/cardFace';
   import { faceUrl } from '../photoDisplay';
   import DesignFace from '../ui/DesignFace.svelte';
+  import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, photo, zoom, selected, standalone = false, linked = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, standalone = false, linked = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
+    /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
+    mmW: number; mmH: number;
     photo?: Photo; zoom: number; selected: boolean;
     /** 사진 없는(보드에 직접 만든) 사인물 */
     standalone?: boolean;
@@ -34,6 +37,7 @@
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
+    <PartsOverlay {o} {mmW} {mmH} {w} {h} />
   </div>
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}

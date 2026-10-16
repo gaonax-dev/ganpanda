@@ -1,5 +1,7 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
-import { categoryOf, productById, signParts } from './catalog';
+import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
+import { itemBox } from './frontView';
+import { PART_COLOR } from './partsLayout';
 import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
@@ -36,6 +38,36 @@ const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 /** 입체 글자가 그린 영역보다 넓으면 영역 폭에 맞게 줄이는 배율 (좁으면 그대로) — 3D 는 사용자가 그린 자리에 맞물린다 */
 export const fitScale = (measuredW: number, placementW: number) => (measuredW > placementW && measuredW > 0 ? placementW / measuredW : 1);
 
+const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
+const hasText = (t?: string) => !!(t ?? '').trim();
+
+/**
+ * 조합형 4단계 (2026-10-16 사용자: "4단계 진행해"): 구성 요소의 객체를 정면도 위치 그대로 — 사인물 mm 를 그린 자리(p) 비율로 줄여서.
+ * 채널·스카시 글자 = 입체 글자(구성 요소별 두께·조명), 그림·시트 글자 = 앞면에 평면으로
+ */
+function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, letterSpacing: number): Pick<SignSpec, 'letterItems' | 'faceItems'> {
+  const sx = p.w / (o.widthMm || p.w), sy = p.h / (o.heightMm || p.h);
+  const letterItems: NonNullable<SignSpec['letterItems']> = [];
+  const faceItems: NonNullable<SignSpec['faceItems']> = [];
+  for (const part of o.parts ?? []) {
+    for (const it of part.items) {
+      if (it.kind === 'text' && !hasText(it.text)) continue;
+      if (it.kind === 'text' && part.kind !== 'sheet') {
+        const scashi = part.kind === 'scashi';
+        letterItems.push({
+          text: it.text!.trim(), heightMm: it.h * sy, x: it.x * sx, y: it.y * sy, letterSpacing,
+          depthMm: scashi ? parseFloat(String(part.options?.thickness ?? '')) || 10 : d.depthMm,
+          lighting: scashi ? 'none' : lightingOf(part.type), faceColor: d.faceColor, sideColor: d.sideColor,
+        });
+      } else {
+        const b = itemBox(it);
+        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: PART_COLOR[part.kind] });
+      }
+    }
+  }
+  return { ...(letterItems.length ? { letterItems } : {}), ...(faceItems.length ? { faceItems } : {}) };
+}
+
 /** 사인물을 벽면 위 3D 간판으로. 채널 + 문구 = 입체 글자, 그 외 = 박스(보드) / 얇은 면(시트) / 분류 없음 = 회색 판 */
 export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   // 분류가 없어도 자리를 보여 준다 (회색 얇은 판) — 사진마다 그린 사인물이 3D 에서 빠지지 않게 (2026-10-14 사용자: "4개 사진에서 3D 사인물이 1개 사진에서만 나온다")
@@ -54,6 +86,20 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const tl = topLightOf(o, p.w);
   const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color } } : {}) };
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
+  if (o.parts && (o.widthMm || o.heightMm)) {
+    const comp = composedOf(o, p, d, base.letterSpacing);
+    if (comp.letterItems || comp.faceItems) {
+      // 몸통 없음·옛 채널 제품·스카시 분류 = 상자 없이 글자만 (사인물 자체가 글자)
+      const bodyless = bodyId === 'body-none' || isChannelProduct(o.productId) || SCASHI_IDS.has(o.productId ?? '');
+      const look = bodyless ? UNCLASSIFIED_LOOK : product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+      return {
+        ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
+        depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
+        lighting: !bodyless && ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명' ? 'front' : 'none',
+        faceColor: look.faceColor, sideColor: '#6b7075', ...comp, ...(bodyless ? { bodyless: true } : {}),
+      };
+    }
+  }
   // 몸통 없음 + 채널 + 문구 = 입체 글자만 (글자 높이 = 그린 영역 세로)
   if (bodyId === 'body-none' && channelId && text) {
     return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor };

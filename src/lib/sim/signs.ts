@@ -168,12 +168,42 @@ function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
   return { ...b, setNight(night) { b.setNight(night); t.setNight(night); }, dispose() { b.dispose(); t.dispose(); } };
 }
 
-export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage): BuiltSign {
-  return withTopLights(buildSignBody(spec, font, fontFamily, face), spec);
+/** images = 앞면 그림 객체(faceItems)의 그림, 객체 id → 이미지 */
+export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
+  return withTopLights(buildSignBody(spec, font, fontFamily, face, images), spec);
 }
-function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage): BuiltSign {
+
+/** 그룹 안 모든 메쉬의 형상을 옮긴다 — warpToQuad 가 정점만 보므로 위치를 그룹 변환이 아니라 정점에 굽는다 */
+function bakeOffset(group: THREE.Group, x: number, y: number, z: number) {
+  group.traverse((obj) => { const m = obj as THREE.Mesh; if (m.isMesh) m.geometry.translate(x, y, z); });
+}
+
+/**
+ * 조합형 4단계 (2026-10-16): 글자 객체마다 입체 글자를 정면도 자리에 (상자 앞면 위, 몸통 없음이면 벽 위). 크기는 정한 높이 그대로.
+ * 폰트에 없는 글자 등으로 못 만든 객체는 건너뛴다
+ */
+function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign {
+  const built: BuiltSign[] = [];
+  for (const L of spec.letterItems ?? []) {
+    let b: BuiltSign;
+    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
+    catch { continue; }
+    bakeOffset(b.group, L.x, L.y, spec.bodyless ? 0 : spec.depthMm);
+    box.group.add(b.group);
+    built.push(b);
+  }
+  return {
+    group: box.group,
+    measured: box.measured,
+    setNight(night) { box.setNight(night); for (const b of built) b.setNight(night); },
+    dispose() { box.dispose(); for (const b of built) b.dispose(); },
+  };
+}
+
+function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
   if (spec.kind === 'channel') return buildChannel(spec, font);
-  const box = buildLightbox(spec, fontFamily, face);
+  const box = buildLightbox(spec, fontFamily, face, images);
+  if (spec.letterItems) return withLetterItems(box, spec, font);
   const L = spec.letters;
   if (!L || !L.text.trim()) return box;
   let letters: BuiltSign;
@@ -330,7 +360,7 @@ function reverseWinding(g: THREE.BufferGeometry) {
 /** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */
 export interface FaceImage { image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number }
 
-export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceImage): BuiltSign {
+export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
   const group = new THREE.Group();
   const w = spec.widthMm, h = spec.heightMm, d = spec.depthMm;
 
@@ -355,6 +385,25 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     ctx.letterSpacing = `${spec.letterSpacing * size}px`;
     ctx.fillText(text, canvas.width / 2, canvas.height / 2 + size * 0.04);
   }
+  // 조합형 앞면 객체 (그림, 시트의 글자): 정면도 자리에 평면으로 (2026-10-16 4단계)
+  for (const it of spec.faceItems ?? []) {
+    const left = (w / 2 + it.x - it.w / 2) * s, top = (h / 2 - it.y - it.h / 2) * s;
+    const img = images?.[it.id];
+    if (it.kind === 'image' && img) ctx.drawImage(img, left, top, it.w * s, it.h * s);
+    else if (it.kind === 'text' && it.text) {
+      const size = it.h * s * 0.9;
+      ctx.save();
+      ctx.font = `800 ${size}px ${fontFamily}`;
+      const mw = ctx.measureText(it.text).width;
+      ctx.translate(left + (it.w * s) / 2, top + (it.h * s) / 2);
+      if (mw > it.w * s) ctx.scale((it.w * s) / mw, 1);
+      ctx.fillStyle = it.color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(it.text, 0, 0);
+      ctx.restore();
+    }
+  }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
@@ -372,10 +421,11 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   const mesh = new THREE.Mesh(geo, [front, frame]);
   mesh.castShadow = true;
   mesh.userData.signId = spec.id;
+  mesh.visible = !spec.bodyless; // 몸통 없음: 상자는 자리만 (글자만 보임)
   group.add(mesh);
 
   let glow: THREE.Mesh | null = null;
-  if (lit) {
+  if (lit && !spec.bodyless) {
     const pad = Math.min(w, h) * 0.5;
     const gw = w + pad * 2, gh = h + pad * 2;
     const gt = glowTexture((c, sc) => c.fillRect(pad * sc, pad * sc, w * sc, h * sc), gw, gh, spec.faceColor, [pad * 0.4, pad * 0.12]);

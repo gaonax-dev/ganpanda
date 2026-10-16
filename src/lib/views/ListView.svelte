@@ -13,6 +13,9 @@
   import { findSupplierItem, supplierItemLabel } from '../core/supplierPrices';
   import type { ExtraItem } from '../core/model';
   import DesignFace from '../ui/DesignFace.svelte';
+  import PartsOverlay from '../ui/PartsOverlay.svelte';
+  import { layoutParts } from '../core/partsLayout';
+  import { itemAssetId } from '../render/itemImages';
   import { fitRect, type Viewport } from '../core/viewport';
 
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
@@ -115,7 +118,15 @@
         const u = page && (await assetUrl(page.assetId));
         if (page && u) image = { href: await toDataUrl(u), pageW: page.w, pageH: page.h, crop: o.design.crop };
       }
-      cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner });
+      // 조합형 객체 (4단계): 정면도 배치 그대로, 그림은 data URL 로 묻는다
+      const items = layoutParts(o, w, h, w, h);
+      const itemHrefs: Record<string, string> = {};
+      for (const l of items) {
+        const id = l.image ? itemAssetId(l.image, app.sources) : undefined;
+        const u = id && (await assetUrl(id));
+        if (u) itemHrefs[l.id] = await toDataUrl(u);
+      }
+      cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner, items, itemHrefs });
     }
     const title = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 사인물 전개도`;
     return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards });
@@ -167,6 +178,7 @@
             <img class="flat" src={faces[o.id].url} alt="" draggable="false" />
           {/if}
           {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
+          <PartsOverlay {o} mmW={w} mmH={h} {w} {h} />
         </div>
         <!-- 치수선과 사양 카드는 화면 크기 고정 -->
         <div class="dim top" style:transform="scale({inv})" style:width="{w * viewport.zoom}px">{fmt(w)}{estimated ? ' (추정)' : ''}</div>
