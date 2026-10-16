@@ -22,7 +22,13 @@ export interface PriceTable {
   markup?: Markup;
 }
 
-export interface Markup { all: number; /** 공급 품목 분류(UV·플렉스…)별 배수 */ groups?: Record<string, number> }
+export interface Markup {
+  all: number;
+  /** 공급 품목 분류(UV·플렉스…)별 배수 */
+  groups?: Record<string, number>;
+  /** 직접 출력하는 분류: 공급 단가에 연결하지 않고 직접 입력 (2026-10-16 "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수를 적용해야한다") */
+  direct?: string[];
+}
 
 const ROUNDINGS = [1, 10, 100, 1000, 10000] as const;
 
@@ -38,13 +44,14 @@ export const DEFAULT_PRICES: PriceTable = {
   minimum: 0, // 기본은 최소 금액 없음 (제작자가 정하면 적용)
   rounding: 1000,
   vatIncluded: false,
+  markup: { all: 1, direct: ['UV', '플렉스', 'UV시트평판'] }, // 샘플: UV 실사·후렉스 출력은 직접 출력
 };
 
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) && v >= 0 ? v : null);
 
 /** 저장된 값(형식 불명)을 기본값 위에 합친다. 모르는 키·이상한 값은 버린다 */
 export function mergePrices(saved: unknown): PriceTable {
-  const out: PriceTable = { ...DEFAULT_PRICES, products: { ...DEFAULT_PRICES.products }, sheets: { ...DEFAULT_PRICES.sheets } };
+  const out: PriceTable = { ...DEFAULT_PRICES, products: { ...DEFAULT_PRICES.products }, sheets: { ...DEFAULT_PRICES.sheets }, markup: structuredClone(DEFAULT_PRICES.markup) };
   if (!saved || typeof saved !== 'object') return out;
   const s = saved as Record<string, unknown>;
   const take = (src: unknown, dst: Record<string, number>, ids: string[]) => {
@@ -70,7 +77,8 @@ export function mergePrices(saved: unknown): PriceTable {
     const ok = (v: unknown): v is number => typeof v === 'number' && isFinite(v) && v > 0 && v <= 10;
     if (ok(m.all)) {
       const groups = Object.fromEntries(Object.entries(m.groups && typeof m.groups === 'object' ? m.groups : {}).filter(([, v]) => ok(v))) as Record<string, number>;
-      out.markup = Object.keys(groups).length ? { all: m.all, groups } : { all: m.all };
+      const direct = Array.isArray(m.direct) ? m.direct.filter((x): x is string => typeof x === 'string') : undefined;
+      out.markup = { all: m.all, ...(Object.keys(groups).length ? { groups } : {}), ...(direct ? { direct } : {}) };
     }
   }
   return out;
