@@ -13,6 +13,7 @@ import type { Calibration } from './core/calibration';
 import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
+import { clampFlatScale } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
@@ -664,6 +665,8 @@ class AppState {
   standalone = $derived(this.objects.filter((o) => !o.photoId));
   /** 평면도(전개도) 카드: 치수(입력 또는 추정)가 있는 원본 사인물 — 리스트 뷰와 보드 평면 구역이 같은 목록·같은 배치를 쓴다 */
   flatCards = $derived.by(() => this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ o, ...s }] : []; }));
+  /** 보드 평면 구역 축척 (px/mm) — 프로젝트 설정, 모두에게 같음 */
+  flatScale = $derived(clampFlatScale(this.settings.flatScale));
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
 
   // ---------- 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다") ----------

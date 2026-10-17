@@ -12,12 +12,30 @@ export function flatOrigin(photos: { x: number; y: number; width: number; w: num
   return { x: Math.min(...photos.map((p) => p.x)), y: Math.max(...photos.map((p) => p.y + p.width * (p.h / p.w))) + gap };
 }
 
-/** 리스트 좌표(mm) ↔ 보드 좌표(world px) */
-export const listToBoard = (origin: { x: number; y: number }, x: number, y: number) => ({ x: origin.x + x * BOARD_PX_PER_MM, y: origin.y + y * BOARD_PX_PER_MM });
-export const boardToList = (origin: { x: number; y: number }, x: number, y: number) => ({ x: Math.round((x - origin.x) / BOARD_PX_PER_MM), y: Math.round((y - origin.y) / BOARD_PX_PER_MM) });
+/** 평면 구역 축척(px/mm) 범위 — 프로젝트 설정 `flatScale` (2026-10-17 사용자: "평면도 전체 사이즈 조절 가능하게"). 리스트 좌표(mm)는 그대로, 보드에 그리는 크기만 바뀐다 */
+export const FLAT_SCALE_MIN = 0.02, FLAT_SCALE_MAX = 0.5;
+export const clampFlatScale = (k: number | undefined) => (Number.isFinite(k) ? Math.min(FLAT_SCALE_MAX, Math.max(FLAT_SCALE_MIN, k!)) : BOARD_PX_PER_MM);
+
+/** 리스트 좌표(mm) ↔ 보드 좌표(world px). k = 축척(px/mm, 기본 0.1) */
+export const listToBoard = (origin: { x: number; y: number }, x: number, y: number, k = BOARD_PX_PER_MM) => ({ x: origin.x + x * k, y: origin.y + y * k });
+export const boardToList = (origin: { x: number; y: number }, x: number, y: number, k = BOARD_PX_PER_MM) => ({ x: Math.round((x - origin.x) / k), y: Math.round((y - origin.y) / k) });
 
 /** 보드 빈 곳에 끌어 그린 사각형(world px) → 사인물 치수(mm, 10mm 단위, 최소 100) */
-export function mmFromBoardRect(w: number, h: number): { widthMm: number; heightMm: number } {
-  const r = (px: number) => Math.max(100, Math.round(px / BOARD_PX_PER_MM / 10) * 10);
+export function mmFromBoardRect(w: number, h: number, k = BOARD_PX_PER_MM): { widthMm: number; heightMm: number } {
+  const r = (px: number) => Math.max(100, Math.round(px / k / 10) * 10);
   return { widthMm: r(w), heightMm: r(h) };
+}
+
+type Placed = { x: number; y: number; w: number; h: number };
+/** 평면 구역 경계(보드 px): 모든 카드를 감싸는 사각 (크기 손잡이 자리). 카드가 없으면 null */
+export function flatBounds(origin: { x: number; y: number }, cards: Placed[], k: number): { x: number; y: number; w: number; h: number } | null {
+  if (!cards.length) return null;
+  const x0 = Math.min(...cards.map((c) => c.x)), y0 = Math.min(...cards.map((c) => c.y));
+  const x1 = Math.max(...cards.map((c) => c.x + c.w)), y1 = Math.max(...cards.map((c) => c.y + c.h));
+  return { x: origin.x + x0 * k, y: origin.y + y0 * k, w: (x1 - x0) * k, h: (y1 - y0) * k };
+}
+/** 오른쪽 아래 손잡이를 보드 x 로 끌었을 때의 축척: 원점에서 손잡이까지 px / 카드 오른쪽 끝 mm (가로 기준, 비율 유지) */
+export function scaleFromHandle(origin: { x: number; y: number }, cards: Placed[], handleX: number): number {
+  const right = Math.max(1, ...cards.map((c) => c.x + c.w));
+  return clampFlatScale((handleX - origin.x) / right);
 }

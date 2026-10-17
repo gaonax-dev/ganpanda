@@ -3,7 +3,7 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
-  import { BOARD_PX_PER_MM, boardToList, flatOrigin, listToBoard, mmFromBoardRect } from '../core/boardCards';
+  import { boardToList, clampFlatScale, flatBounds, flatOrigin, listToBoard, mmFromBoardRect, scaleFromHandle } from '../core/boardCards';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
@@ -189,8 +189,20 @@
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
 
-  // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 0.1px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
+  // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 축척 px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
   const origin = $derived(flatOrigin(app.photos));
+  /** 평면 구역 전체 크기 (2026-10-17 사용자: "평면도 전체 사이즈 조절 가능하게"): 프로젝트 설정 flatScale. [−][+] 또는 오른쪽 아래 손잡이 끌기 */
+  const k = $derived(app.flatScale);
+  const bounds = $derived(flatBounds(origin, app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h })), k));
+  const setScale = (v: number) => app.updateSettings({ flatScale: Math.round(clampFlatScale(v) * 1000) / 1000 });
+  function handleDown(e: PointerEvent) {
+    if (e.button !== 0 || !app.canEdit) return;
+    e.stopPropagation();
+    const cards = app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h }));
+    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(origin, cards, w.x)); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); app.editBoundary(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
 
   // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
   let draft: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
@@ -204,8 +216,8 @@
       const d = draft!; draft = null;
       const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
       if (w < 8 || h < 8) return;
-      const at = boardToList(origin, Math.min(d.x0, d.x1), Math.min(d.y0, d.y1));
-      app.createStandalone(at.x, at.y, mmFromBoardRect(w, h));
+      const at = boardToList(origin, Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), k);
+      app.createStandalone(at.x, at.y, mmFromBoardRect(w, h, k));
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
     return true;
@@ -219,9 +231,9 @@
     if (!app.canEdit) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
     const p = app.flatPlaced.get(o.id)!;
-    const at = listToBoard(origin, p.x, p.y);
+    const at = listToBoard(origin, p.x, p.y, k);
     cardDrag = { id: o.id, dx: w.x - at.x, dy: w.y - at.y };
-    const move = (ev: PointerEvent) => { if (!cardDrag) return; const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy); app.project.updateObject(cardDrag.id, { listX: l.x, listY: l.y }); };
+    const move = (ev: PointerEvent) => { if (!cardDrag) return; const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy, k); app.project.updateObject(cardDrag.id, { listX: l.x, listY: l.y }); };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
@@ -316,13 +328,25 @@
     {/each}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
-      <div class="flat-label" style:left="{origin.x}px" style:top="{origin.y - 22}px" style:transform="scale({1 / viewport.zoom})" style:transform-origin="0 100%">평면도 · 끌어서 배치 (리스트와 같은 배치)</div>
+      <div class="flat-label" style:left="{origin.x}px" style:top="{origin.y - 22}px" style:transform="scale({1 / viewport.zoom})" style:transform-origin="0 100%">
+        평면도 · 끌어서 배치 (리스트와 같은 배치)
+        {#if app.canEdit}
+          <span class="scale" data-testid="flat-scale" title="평면 구역 전체 크기 (모두에게 같음)">
+            <button class="icon" data-testid="flat-scale-down" title="작게" onpointerdown={(e) => e.stopPropagation()} onclick={() => setScale(k / 1.25)}>−</button>
+            <span data-testid="flat-scale-value">{Math.round((k / 0.1) * 100)}%</span>
+            <button class="icon" data-testid="flat-scale-up" title="크게" onpointerdown={(e) => e.stopPropagation()} onclick={() => setScale(k * 1.25)}>+</button>
+          </span>
+        {/if}
+      </div>
+      {#if bounds && app.canEdit}
+        <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={handleDown}></div>
+      {/if}
     {/if}
     {#each app.flatCards as { o, w, h } (o.id)}
       {@const p = app.flatPlaced.get(o.id)!}
-      {@const at = listToBoard(origin, p.x, p.y)}
+      {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * BOARD_PX_PER_MM} h={h * BOARD_PX_PER_MM} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
@@ -384,7 +408,10 @@
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: rgba(255, 204, 0, 0.08); pointer-events: none; }
-  .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; }
+  .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; display: flex; align-items: center; gap: 8px; }
+  .flat-label .scale { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; }
+  .flat-label .scale .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
+  .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid #1a1500; cursor: nwse-resize; z-index: 3; }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
     color: var(--muted); pointer-events: none;
