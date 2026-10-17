@@ -6,6 +6,8 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+/** 주간 조명 세기 (2026-10-17 과한 스페큘러 줄임): 태양 2.2 → 1.6, 환경맵 1 → 0.45 */
+export const SUN_DAY = 1.6, ENV_DAY = 0.45;
 import type { CameraPose } from '../core/homography';
 
 const bgVertex = /* glsl */ `
@@ -54,7 +56,7 @@ export class Viewer {
   private bgMat: THREE.ShaderMaterial;
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
-  private sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  private sun = new THREE.DirectionalLight(0xffffff, SUN_DAY);
   private hemi = new THREE.HemisphereLight(0xdde8ff, 0x8a7a66, 1.0);
   private wallShadow: THREE.Mesh;
   private grid = new THREE.Group();
@@ -70,6 +72,9 @@ export class Viewer {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // 톤 매핑: 밝은 반사·발광이 하얗게 날아가지 않게 (2026-10-17 사용자: "3d의 스팩큘러가 과도하다")
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     host.appendChild(this.renderer.domElement);
 
     this.bgMat = new THREE.ShaderMaterial({
@@ -80,6 +85,7 @@ export class Viewer {
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = ENV_DAY; // 방 환경맵의 창 반사가 금속면에 강하게 맺히던 것을 줄임
 
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -268,9 +274,9 @@ export class Viewer {
     this.night = night;
     this.bgMat.uniforms.brightness.value = night ? 0.2 : 1;
     (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.75 : 1, night ? 0.82 : 1, night ? 1.2 : 1);
-    this.sun.intensity = night ? 0 : 2.2;
+    this.sun.intensity = night ? 0 : SUN_DAY;
     this.hemi.intensity = night ? 0.08 : 1.0;
-    this.scene.environmentIntensity = night ? 0.12 : 1;
+    this.scene.environmentIntensity = night ? 0.12 : ENV_DAY;
     (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();
