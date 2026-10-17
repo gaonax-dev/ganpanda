@@ -18,6 +18,7 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   await page.getByTestId('product-select').selectOption('board-galva');
   await expect(page.getByTestId('option-sides')).toHaveCount(0);
   await page.getByTestId('option-form').selectOption('일체형(전면)');
+  await page.getByTestId('option-paint-expand').click(); // 컬러 피커 확장 모드 (2026-10-17)
   await page.getByTestId('option-paintSystem').selectOption('RAL');
   await page.getByTestId('option-paintCode').fill('9005');
   // 재질 시트를 더하면 시트 옵션, 컷 방식 반컷 (조합형·컷팅 옵션 2026-10-16)
@@ -88,7 +89,8 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
   await page.getByTestId('part-type').selectOption('sc-titan'); // 스카시 탭 (카드 하나)
-  for (const k of ['thickness', 'material', 'paintSystem']) await expect(page.getByTestId('part-card').getByTestId(`part-option-${k}`)).toBeVisible(); // 스카시 탭
+  for (const k of ['thickness', 'material']) await expect(page.getByTestId('part-card').getByTestId(`part-option-${k}`)).toBeVisible(); // 스카시 탭
+  await expect(page.getByTestId('part-card').getByTestId('part-option-paint-color')).toBeVisible(); // 도색은 컬러 피커 (2026-10-17)
   await page.getByTestId('close-object-settings').click();
   // 분류 9개 (2026-10-15 분류 재정리): 라이트패널 분류
   await expect(page.getByTestId('category-select').locator('option')).toHaveText(['분류 선택', '간판', '시트', '스카시', '포맥스', '현수막', '라이트패널', '액자', '어닝', '사인미러']);

@@ -22,7 +22,7 @@ export const materialByLabel = (label: unknown) => [...MATERIALS, ...FACE_MATERI
 export const labelsOf = (ids: string[]) => ids.map((id) => materialById(id)!.label);
 
 /** 도색 객체: 색상 체계(도색 없음이 기본) + 컬러코드 + 광택. 기본색 = 색 이름으로 바로 (2026-10-17 빠른 설정 "갈바 흰색 / 채널 갈색") */
-export const PAINT_SYSTEMS = ['도색 없음', '기본색', 'PANTONE', 'RAL', 'KCC'];
+export const PAINT_SYSTEMS = ['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']; // 직접 = 컬러 피커로 고른 #hex (2026-10-17)
 /** 기본색: 이름 + 3D 에 쓰는 색 */
 export const NAMED_COLORS: { label: string; hex: string }[] = [
   { label: '흰색', hex: '#f4f4f2' }, { label: '검정', hex: '#141414' }, { label: '회색', hex: '#8a8f94' }, { label: '진회색', hex: '#3a3f44' },
@@ -30,4 +30,19 @@ export const NAMED_COLORS: { label: string; hex: string }[] = [
   { label: '초록', hex: '#2e8b57' }, { label: '금색', hex: '#c9a227' }, { label: '은색', hex: '#d8dadd' },
 ];
 export const colorHex = (label: unknown): string | null => NAMED_COLORS.find((c) => c.label === label)?.hex ?? null;
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+/** 도색 객체 → 3D·칩에 쓰는 색: 기본색은 이름 → hex, 직접은 hex 그대로. 코드 체계(PANTONE·RAL·KCC)·없음은 null */
+export function paintHex(opts: Record<string, unknown> | undefined, prefix: string): string | null {
+  const sys = opts?.[`${prefix}System`], code = opts?.[`${prefix}Code`];
+  if (sys === PAINT_SYSTEMS[1]) return colorHex(code);
+  if (sys === PAINT_SYSTEMS[2] && typeof code === 'string' && HEX_RE.test(code)) return code.toLowerCase();
+  return null;
+}
+/** 도색 객체 → 읽는 말: 색 이름 / #hex / "RAL 9005" / 체계만. 없으면 null */
+export function paintLabel(opts: Record<string, unknown> | undefined, prefix: string): string | null {
+  const sys = opts?.[`${prefix}System`] as string | undefined, code = opts?.[`${prefix}Code`] as string | undefined;
+  if (!sys || sys === PAINT_SYSTEMS[0]) return null;
+  if (sys === PAINT_SYSTEMS[1] || sys === PAINT_SYSTEMS[2]) return code || null;
+  return code ? `${sys} ${code}` : sys;
+}
 export const GLOSSES = ['유광', '반광', '무광'];

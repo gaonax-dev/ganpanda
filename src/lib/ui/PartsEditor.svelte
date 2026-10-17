@@ -13,6 +13,7 @@
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
+  import ColorField from './ColorField.svelte';
 
   /** kinds = 이 분류에 붙일 수 있는 구성 요소 (partKindsFor) */
   /** partId 가 있으면 그 구성 요소 카드 하나만 (설정 창의 탭, 2026-10-17 "칩을 일종의 탭으로") — 추가 단추·정면도는 바깥(칩 [+]·배치 탭)에 */
@@ -92,9 +93,13 @@
         {#if !ro}<button class="icon del" data-testid="part-delete" title="구성 요소 지우기" onclick={() => delPart(i)}>✕</button>{/if}
       </div>
       <div class="opts">
-        {#each partOptionFields(p) as f (f.key)}
+        {#each partOptionFields(p) as f (f.key + (f.paint?.part ?? ''))}
           {@const v = optionValue(f, p.options ?? {})}
-          {#if f.kind === 'select'}
+          {#if f.paint?.part === 'system'}
+            <ColorField prefix={f.paint.prefix} label={f.paint.label} opts={p.options ?? {}} {ro} tp="part-option-" set={(k, val) => setPartOption(i, { key: k, label: k, kind: 'text' }, val)} />
+          {:else if f.paint}
+            <!-- 컬러 피커가 그린다 -->
+          {:else if f.kind === 'select'}
             <label class="opt">{f.label}
               <select data-testid="part-option-{f.key}" value={v} disabled={ro} onchange={(e) => setPartOption(i, f, e.currentTarget.value)}>
                 {#each f.values ?? [] as o2 (o2.id)}<option value={o2.id}>{o2.label}</option>{/each}

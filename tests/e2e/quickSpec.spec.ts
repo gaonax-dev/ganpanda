@@ -20,8 +20,7 @@ test('설정 창: 치수 아래 사양 글과 칩, 칩 = 탭 — 몸통 탭에�
   // 몸통 탭(기본): 종류 갈바, 도색 기본색 흰색
   await expect(dlg.getByTestId('quick-body')).toHaveClass(/on/);
   await dlg.getByTestId('product-select').selectOption('board-galva');
-  await dlg.getByTestId('option-paintSystem').selectOption('기본색');
-  await dlg.getByTestId('option-paintCode').selectOption('흰색');
+  await dlg.getByTestId('option-paint-swatch-흰색').click(); // 컬러 피커 간단 모드: 견본
   await expect(dlg.getByTestId('quick-body')).toContainText('갈바');
   await expect(dlg.getByTestId('quick-body')).toContainText('흰색');
   // [+] 채널 → 채널 탭이 열리고 그 카드만 보인다
@@ -30,8 +29,7 @@ test('설정 창: 치수 아래 사양 글과 칩, 칩 = 탭 — 몸통 탭에�
   await expect(dlg.getByTestId('quick-part')).toHaveClass(/on/);
   await expect(dlg.getByTestId('product-select')).toHaveCount(0); // 몸통 탭 내용은 숨김
   await dlg.getByTestId('part-type').selectOption('ch-halo');
-  await dlg.getByTestId('part-option-bodySystem').selectOption('기본색');
-  await dlg.getByTestId('part-option-bodyCode').selectOption('갈색');
+  await dlg.getByTestId('part-option-body-swatch-갈색').click();
   await dlg.getByTestId('part-option-ledColor').selectOption('주백색');
   await expect(dlg.getByTestId('part-option-ledColor').locator('option[value="주백색"]')).toHaveText('주백색 (4000K)');
   await expect(dlg.getByTestId('quick-part')).toContainText('후광');
@@ -39,7 +37,7 @@ test('설정 창: 치수 아래 사양 글과 칩, 칩 = 탭 — 몸통 탭에�
   await expect(dlg.getByTestId('quick-part')).toContainText('4000K');
   // 몸통 칩 → 몸통 탭으로 돌아온다
   await dlg.getByTestId('quick-body').click();
-  await expect(dlg.getByTestId('option-paintCode')).toHaveValue('흰색');
+  await expect(dlg.getByTestId('option-paint-now')).toContainText('흰색');
   const o = await objOf(page);
   expect(o.options).toMatchObject({ paintSystem: '기본색', paintCode: '흰색' });
   expect(o.parts[0]).toMatchObject({ kind: 'channel', type: 'ch-halo', options: { bodySystem: '기본색', bodyCode: '갈색', ledColor: '주백색' } });

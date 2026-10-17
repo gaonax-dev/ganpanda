@@ -7,7 +7,7 @@
   import { app } from '../state.svelte';
   import type { SignObject, SignPart } from '../core/model';
   import { CHANNEL_OPTIONS, categoryOf, productById } from '../core/catalog';
-  import { NAMED_COLORS, PAINT_SYSTEMS } from '../core/materials';
+  import { NAMED_COLORS, paintLabel as paintOf } from '../core/materials';
   import { commitParts, newPart, partKindsFor, partLabel, partSpecOf, partsOf } from '../core/parts';
   import { LED_KELVIN } from '../core/quickSpec';
   import { quoteObject, won } from '../core/quote';
@@ -30,14 +30,8 @@
   const total = $derived(app.isCustomer ? 0 : quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices).reduce((a, l) => a + l.amount, 0));
   let adding = $state(false);
 
-  /** 도색 객체 → 색 이름(기본색) 또는 "RAL 9005" */
-  const paintOf = (opts: Record<string, unknown> | undefined, prefix: string): string | null => {
-    const sys = opts?.[`${prefix}System`] as string | undefined, code = opts?.[`${prefix}Code`] as string | undefined;
-    if (!sys || sys === PAINT_SYSTEMS[0]) return null;
-    return sys === PAINT_SYSTEMS[1] ? code ?? null : code ? `${sys} ${code}` : sys;
-  };
-  const bodyColor = $derived(paintOf(obj.options, 'paint') ?? paintOf(obj.options, 'framePaint'));
-  const dot = (label: string | null) => NAMED_COLORS.find((c) => c.label === label)?.hex ?? null;
+  const bodyColor = $derived(paintOf(obj.options, 'paint') ?? paintOf(obj.options, 'face') ?? paintOf(obj.options, 'framePaint'));
+  const dot = (label: string | null) => (label && /^#[0-9a-f]{6}$/i.test(label) ? label : NAMED_COLORS.find((c) => c.label === label)?.hex ?? null);
   /** 구성 요소 칩 문구 */
   function partChip(p: SignPart): { kind: string; text: string; color: string | null } {
     if (p.kind === 'channel') {

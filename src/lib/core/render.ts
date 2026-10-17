@@ -2,6 +2,7 @@
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
 import { PART_COLOR } from './partsLayout';
+import { paintHex } from './materials';
 import { layerOrder } from './parts';
 import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
@@ -40,6 +41,8 @@ const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 export const fitScale = (measuredW: number, placementW: number) => (measuredW > placementW && measuredW > 0 ? placementW / measuredW : 1);
 
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
+/** 몸통 색: 도색(갈바 등) > 바탕색(후렉스·천갈이) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
+const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex(o.options, 'face') ?? paintHex(o.options, 'framePaint');
 const hasText = (t?: string) => !!(t ?? '').trim();
 
 /**
@@ -92,7 +95,8 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     if (comp.letterItems || comp.faceItems) {
       // 몸통 없음·옛 채널 제품·스카시 분류 = 상자 없이 글자만 (사인물 자체가 글자)
       const bodyless = bodyId === 'body-none' || isChannelProduct(o.productId) || SCASHI_IDS.has(o.productId ?? '');
-      const look = bodyless ? UNCLASSIFIED_LOOK : product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+      const look0 = bodyless ? UNCLASSIFIED_LOOK : product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+      const look = { ...look0, faceColor: bodyPaintHex(o) ?? look0.faceColor };
       return {
         ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
@@ -108,7 +112,8 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   if (bodyId === 'body-none' && scashiId && text) {
     return { ...base, kind: 'channel', heightMm: p.h, widthMm: p.w, depthMm: scDepth, lighting: 'none', faceColor: d.faceColor, sideColor: d.sideColor };
   }
-  const look = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+  const look1 = product ? (BOARD_LOOK[product.id] ?? { faceColor: DEFAULT_LETTER3D.faceColor, depthMm: 100 }) : cat === 'sheet' ? SHEET_LOOK : UNCLASSIFIED_LOOK;
+  const look = { ...look1, faceColor: bodyPaintHex(o) ?? look1.faceColor }; // 컬러 피커로 고른 몸통 색 (2026-10-17)
   // 몸통 + 채널 + 문구 = 상자 위에 입체 글자. 글자 높이는 옵션(없으면 영역 세로의 60%)
   const fromParts = (h: number) => (h && o.heightMm ? Math.min(p.h * 0.9, (h / o.heightMm) * p.h) : p.h * 0.6);
   const letters = o.parts && lp && text ? { text, heightMm: fromParts(partH), depthMm: lp.kind === 'scashi' ? parseFloat(String(lp.options?.thickness ?? '')) || 10 : d.depthMm, lighting: lp.kind === 'scashi' ? 'none' as const : lightingOf(lp.type), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }

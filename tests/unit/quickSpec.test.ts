@@ -11,7 +11,7 @@ const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', na
 
 describe('기본색 도색 (색 이름으로 바로)', () => {
   it('색상 체계에 기본색이 있고, 고르면 컬러코드 대신 색 이름 선택', () => {
-    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', 'PANTONE', 'RAL', 'KCC']);
+    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']);
     expect(NAMED_COLORS.map((c) => c.label)).toEqual(['흰색', '검정', '회색', '진회색', '갈색', '빨강', '파랑', '노랑', '초록', '금색', '은색']);
     expect(colorHex('갈색')).toMatch(/^#[0-9a-f]{6}$/);
     expect(colorHex('없는색')).toBeNull();
@@ -46,7 +46,7 @@ describe('빠른 설정 읽기 (quickSpecOf)', () => {
     expect(q.body).toMatchObject({ name: '갈바', color: 'RAL 9005' });
     expect(q.channel).toBeNull();
     expect(q.led).toBeNull();
-    expect(quickSpecOf(obj({ productId: 'board-flex' })).body).toMatchObject({ name: '후렉스', color: null, paintKey: null }); // 후렉스는 도색 없음
+    expect(quickSpecOf(obj({ productId: 'board-flex' })).body).toMatchObject({ name: '후렉스', color: null, paintKey: 'face' }); // 후렉스는 바탕색(컬러 피커, 2026-10-17)
   });
   it('옛 사인물(채널 옵션)도 읽는다', () => {
     const o = obj({ productId: 'board-galva', options: { channel: '전광 채널', ledColor: '백색' }, text: '간판' });

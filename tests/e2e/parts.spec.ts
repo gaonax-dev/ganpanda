@@ -102,6 +102,7 @@ test('재질·도색 객체: 채널 측면 재질 + 도색(체계 → 코드·�
   await openObjectSettings(page);
   await page.getByTestId('product-select').selectOption('board-truss');
   await expect(page.getByTestId('option-frameMat').locator('option')).toHaveText(['스텐', '철', '알루미늄', '텐션 천']);
+  await page.getByTestId('option-framePaint-expand').click(); // 컬러 피커 확장 모드
   await page.getByTestId('option-framePaintSystem').selectOption('RAL');
   await expect(page.getByTestId('option-framePaintCode')).toBeVisible();
   await page.getByTestId('option-frameMat').selectOption('텐션 천');
@@ -111,6 +112,7 @@ test('재질·도색 객체: 채널 측면 재질 + 도색(체계 → 코드·�
   const ch = page.getByTestId('part-card').first();
   await expect(ch.getByTestId('part-option-chSideMat')).toBeVisible();
   await expect(ch.getByTestId('part-option-bodyCode')).toHaveCount(0);
+  await ch.getByTestId('part-option-body-expand').click();
   await ch.getByTestId('part-option-bodySystem').selectOption('KCC');
   await expect(ch.getByTestId('part-option-bodyGloss')).toBeVisible();
   await ch.getByTestId('part-option-chFace').selectOption('PC판');
