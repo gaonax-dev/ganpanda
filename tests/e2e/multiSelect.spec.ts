@@ -51,7 +51,7 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   await expect(page.locator('.sign[data-multi]')).toHaveCount(0);
   // 선택한 카드들을 함께 끌면 둘 다 같은 만큼 이동 (2026-10-17 "정면도들을 다중선택하고 이동하게")
   // 자리는 자동 배치(flatPlaced)로 읽는다 — listX 가 없던 카드는 끌 때 비로소 값이 생기므로
-  const posOf = async () => page.evaluate((ids) => { const m = (window as unknown as { __ganpanda: { flatPlaced: Map<string, { x: number; y: number }> } }).__ganpanda.flatPlaced; return ids.map((id) => ({ id, ...m.get(id)! })); }, ids);
+  const posOf = async () => page.evaluate((ids) => { const m = (window as unknown as { __ganpanda: { flatPlaced: Map<string, { x: number; y: number }> } }).__ganpanda.flatPlaced; return ids.map((id: string) => ({ id, ...m.get(id)! })); }, ids as string[]);
   const p0 = await posOf();
   const cb = (await cards.nth(1).boundingBox())!;
   await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
