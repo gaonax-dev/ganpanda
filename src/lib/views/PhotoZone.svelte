@@ -133,6 +133,8 @@
   /** 매니퓰레이터 메뉴 자리: 외곽선 맨 아래보다 조금 아래, 가운데 x (화살표·고리·손잡이와 겹치지 않게) */
   const menuAt = (q: Pt[], c: Pt): Pt => [c[0], Math.max(c[1], ...q.map((p) => p[1])) + 6 * gu];
   const gizmoable = (o: SignObject) => o.shape !== 'polygon' && o.quad.length === 4;
+  /** 변 막대가 꼭짓점에서 떨어지는 거리 (화면 px): 꼭짓점 터치 영역(반지름 12) + 여유 */
+  const EDGE_BAR_GAP = 22;
   function gizmoDown(e: PointerEvent, o: SignObject, mode: GizmoMode, sx = 0, sy = 0, on?: RefPlane) {
     if (e.button !== 0 || !editable) return;
     e.stopPropagation();
@@ -383,11 +385,14 @@
 </script>
 
 <!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
+<!-- 막대는 변의 가운데 부분만: 양 끝은 꼭짓점 손잡이 자리로 비운다 (2026-10-17 사용자: "변은 가운데 선택에서만, 지금 꼭짓점 선택이 힘들다") -->
 {#snippet edgeBars(q: Pt[], down: (e: PointerEvent) => void)}
   {#each [0, 1, 2, 3] as i (i)}
     {@const a = q[i]}
     {@const b = q[(i + 1) % 4]}
-    <line class="edge-bar" data-testid="gizmo-edge-{i}" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={7 * gu} role="button" tabindex="-1" onpointerdown={down}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></line>
+    {@const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1}
+    {@const gap = Math.min(len * 0.3, EDGE_BAR_GAP * u) / len}
+    <line class="edge-bar" data-testid="gizmo-edge-{i}" x1={a[0] + (b[0] - a[0]) * gap} y1={a[1] + (b[1] - a[1]) * gap} x2={b[0] - (b[0] - a[0]) * gap} y2={b[1] - (b[1] - a[1]) * gap} stroke-width={7 * gu} role="button" tabindex="-1" onpointerdown={down}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></line>
   {/each}
 {/snippet}
 {#snippet modeChips(at: Pt)}
