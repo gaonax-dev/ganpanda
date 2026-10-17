@@ -74,13 +74,18 @@ describe('초대 링크', () => {
     const a = await login('inv5@example.com');
     const p = await createProject(a);
     const inv = await createInvite(a, p.id, 'viewer');
-    const list = (await (await get(`/api/projects/${p.id}/invites`, a)).json<{ invites: { id: string; role: string; revoked: boolean }[] }>()).invites;
+    const list = (await (await get(`/api/projects/${p.id}/invites`, a)).json<{ invites: { id: string; role: string; revoked: boolean; url?: string }[] }>()).invites;
     expect(list).toHaveLength(1);
     expect(list[0].role).toBe('viewer');
     expect(list[0].revoked).toBe(false);
-    expect(JSON.stringify(list)).not.toContain(inv.token);
+    // 소유자가 다시 복사할 수 있게 url 을 돌려준다 (2026-10-17 "초대링크 다시보낼수 있게 복사버튼")
+    expect(list[0].url).toBe(inv.url);
     expect((await api(`/api/projects/${p.id}/invites/${list[0].id}`, { method: 'DELETE', headers: { authorization: `Bearer ${a}` } })).status).toBe(204);
     expect((await get(`/api/invites/${inv.token}`)).status).toBe(404);
+    // 폐기된 링크는 url 없음
+    const after = (await (await get(`/api/projects/${p.id}/invites`, a)).json<{ invites: { revoked: boolean; url?: string }[] }>()).invites;
+    expect(after[0].revoked).toBe(true);
+    expect(after[0].url).toBeUndefined();
   });
 });
 
