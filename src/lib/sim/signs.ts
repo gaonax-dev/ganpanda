@@ -110,7 +110,7 @@ export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
 export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, w: number, h: number, d: number): { meshes: THREE.Mesh[]; setNight(night: boolean): void; dispose(): void } {
   const meshes: THREE.Mesh[] = [];
   const light = new THREE.Color(tl.color);
-  const metal = new THREE.MeshStandardMaterial({ color: tl.kind === 'perf' ? '#2b2f33' : '#4a4f55', metalness: 0.7, roughness: 0.4 });
+  const metal = new THREE.MeshStandardMaterial({ color: tl.kind === 'perf' ? '#2b2f33' : '#4a4f55', metalness: 0.6, roughness: 0.5 });
   const glowMat = new THREE.MeshStandardMaterial({ color: '#dddddd', emissive: light, emissiveIntensity: 0, roughness: 0.5 });
   const beamMat = new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const washMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -244,13 +244,14 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   const widthMm = measured.widthMm;
 
   const led = new THREE.Color(spec.faceColor);
-  const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.85, roughness: 0.32 });
+  // 재질: 거울 같은 금속(metalness 0.85·roughness 0.3)이 환경맵 창을 그대로 비춰 번들거렸음 → 도장 금속에 가깝게 (2026-10-17 "스팩큘러가 과도하다")
+  const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.6, roughness: 0.5 });
   const face =
     spec.lighting === 'front'
-      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.6, clearcoat: 0.1 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
+      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
-        ? new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.9, roughness: 0.22 })
-        : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.6, clearcoat: 0.1 });
+        ? new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.7, roughness: 0.45 })
+        : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.7, clearcoat: 0.05 });
   // ExtrudeGeometry 그룹 0 = 앞/뒷면, 1 = 옆면
   const mesh = new THREE.Mesh(geo, [face, side]);
   mesh.castShadow = true;
@@ -430,9 +431,9 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
 
   const lit = spec.lighting !== 'none';
   const front = new THREE.MeshPhysicalMaterial({
-    map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.65, clearcoat: 0.1, // 앞면 반사광이 디자인·글자를 덮지 않게
+    map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.75, clearcoat: 0.05, // 앞면 반사광이 디자인·글자를 덮지 않게
   });
-  const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.7, roughness: 0.4 });
+  const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.5, roughness: 0.55 });
   const geo = lightboxGeometry(w, h, d, spec.corner);
   // 그룹 0 = 앞·뒷면, 1 = 옆면 (뒷면은 벽에 붙어 보이지 않음)
   const mesh = new THREE.Mesh(geo, [front, frame]);

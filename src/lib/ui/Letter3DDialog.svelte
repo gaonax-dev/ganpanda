@@ -10,6 +10,7 @@
   import { DEFAULT_LETTER3D, specFromObject, type Letter3D } from '../core/letter3d';
   import { loadFont } from '../core/textShapes';
   import { buildChannel, buildSign, type BuiltSign } from '../sim/signs';
+  import { ENV_DAY, SUN_DAY } from '../sim/viewer';
   import { renderSpecOf } from '../core/render';
   import { loadItemImages } from '../render/itemImages';
 
@@ -34,11 +35,13 @@
     host.appendChild(renderer.domElement);
     renderer.domElement.dataset.testid = 'letter3d-canvas';
     scene = new THREE.Scene();
+    renderer.toneMapping = THREE.NeutralToneMapping; // 실사 뷰어와 같은 셰이딩 (2026-10-17)
     scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = ENV_DAY;
     camera = new THREE.PerspectiveCamera(40, 1, 10, 1e5);
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+    sun = new THREE.DirectionalLight(0xffffff, SUN_DAY); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     hemi = new THREE.HemisphereLight(0xdde8ff, 0x8a7a66, 1);
     scene.add(sun, hemi);
     wall = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xd9cfc0, roughness: 0.9 }));
@@ -93,8 +96,8 @@
   function applyNight(n: boolean) {
     if (!scene) return;
     scene.background = new THREE.Color(n ? 0x0b0d12 : 0xcfdbe8);
-    scene.environmentIntensity = n ? 0.1 : 1;
-    sun.intensity = n ? 0 : 2.2; hemi.intensity = n ? 0.08 : 1;
+    scene.environmentIntensity = n ? 0.1 : ENV_DAY;
+    sun.intensity = n ? 0 : SUN_DAY; hemi.intensity = n ? 0.08 : 1;
     (wall.material as THREE.MeshStandardMaterial).color.set(n ? 0x3a3630 : 0xd9cfc0);
     built?.setNight(n);
   }
