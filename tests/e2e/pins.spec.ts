@@ -45,6 +45,8 @@ test('소유자가 핀을 꽂고 코멘트를 남기면 고객이 보고 답한�
   await expect(page.getByTestId('pin-panel')).toContainText('#1');
   await page.getByTestId('chat-input').fill('이 자리에 돌출 간판 어떨까요?');
   await page.getByTestId('chat-input').press('Enter');
+  // 말풍선 옆에 마지막 상태만 (2026-10-17 "말 풍선에는 마지막 상태만 나오게")
+  await expect(page.getByTestId('pin-last')).toHaveText(/나: 이 자리에 돌출 간판/);
 
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await expect(guest.getByTestId('pin')).toHaveCount(1);
@@ -57,9 +59,11 @@ test('소유자가 핀을 꽂고 코멘트를 남기면 고객이 보고 답한�
 
   // 고객은 해결·삭제 불가
   await expect(guest.getByTestId('pin-resolve')).toHaveCount(0);
+  await expect(page.getByTestId('pin-last')).toHaveText(/고객: 좋아요!/); // 마지막 상태가 바뀜
   // 소유자가 해결
   await page.getByTestId('pin-resolve').click();
   await expect(page.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
+  await expect(page.getByTestId('pin-last')).toHaveText('✓ 해결됨');
   await expect(guest.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
   await guest.ctx.close();
 });
@@ -98,4 +102,25 @@ test('편집 권한은 핀을 끌어 옮기고 삭제할 수 있다', async ({ p
   await page.getByTestId('pin-delete').click();
   await expect(page.getByTestId('pin')).toHaveCount(0);
   await expect(page.getByTestId('pin-panel')).toHaveCount(0);
+});
+
+test('사인물 말풍선: 대화가 생기면 영역 오른쪽 위에 마지막 상태가 붙고, 누르면 그 사인물의 대화가 열린다 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  const b = (await page.getByTestId('photo-img').first().boundingBox())!;
+  const k = b.width / 1600;
+  await page.mouse.move(b.x + 300 * k, b.y + 200 * k); await page.mouse.down(); await page.mouse.move(b.x + 700 * k, b.y + 320 * k, { steps: 4 }); await page.mouse.up();
+  await expect(page.getByTestId('object-bubble')).toHaveCount(0); // 대화 전에는 없음
+  await page.getByTestId('object-panel').getByTestId('chat-input').fill('두께 150으로 갈까요');
+  await page.getByTestId('object-panel').getByTestId('chat-input').press('Enter');
+  await expect(page.getByTestId('object-bubble')).toHaveCount(1);
+  await expect(page.getByTestId('object-bubble-last')).toHaveText(/나: 두께 150으로 갈까요/);
+  // 선택을 풀고 말풍선을 누르면 다시 선택되고 대화가 보인다
+  await page.keyboard.press('Escape');
+  await page.getByTestId('board-canvas').click({ position: { x: 20, y: 400 } });
+  await expect(page.getByTestId('object-panel')).toHaveCount(0);
+  await page.getByTestId('object-bubble').click();
+  await expect(page.getByTestId('object-panel')).toBeVisible();
+  await expect(page.getByTestId('object-panel').getByTestId('chat-bubble')).toContainText('두께 150');
 });

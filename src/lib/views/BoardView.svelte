@@ -341,6 +341,7 @@
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
+        onchat={(id) => { app.selectObject(id); app.panelOpen = true; }}
         multiIds={app.shapeMulti}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
