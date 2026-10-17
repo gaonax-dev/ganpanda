@@ -11,7 +11,7 @@ describe('주문 사양 옵션 스키마', () => {
     expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'faceSystem', 'channel', 'scashi', 'topLight']); // 채널·스카시 부착은 간판 옵션, 바탕색은 컬러 피커 (2026-10-17)
   });
   it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 도색 컬러코드(체계+코드), 간접조명은 상단 조명 (2026-10-16)', () => {
-    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'paintSystem', 'channel', 'scashi', 'topLight']);
+    expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'perforation', 'light', 'paintSystem', 'channel', 'scashi', 'topLight']); // 레이저 타공·내부 조명 (2026-10-17)
   });
   it('채널: 채널 종류 + LED 색 + 몸체 도색. 갈바 에폭시 채널(비조명)은 LED 색이 없다', () => {
     expect(keys(obj({ productId: 'ch-front' }))).toEqual(['chType', 'ledColor', 'bodySystem', 'chHeight']); // 옛 데이터(채널 제품이 종류)

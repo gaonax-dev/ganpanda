@@ -121,7 +121,8 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
   'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체'), ...paint('face', '바탕색')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
-  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), ...paint('paint', '도색')], // 간접조명은 상단 조명으로
+  // 레이저 타공 + 내부 조명 (2026-10-17 사용자: "갈바에 레이저 타공과 내부 조명 옵션추가해줘") — 타공 글자·패턴 뒤에서 LED 가 비치는 간판
+  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), sel('perforation', '레이저 타공', ['없음', '글자 타공', '패턴 타공', '글자+패턴 타공']), sel('light', '내부 조명', ['비조명', 'LED']), ...paint('paint', '도색')], // 간접조명은 상단 조명으로
   // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접
   'board-truss': [...FRAME_MAT, ...paint('face', '바탕색')], // 조명은 상단 조명으로
   'board-pipe': [...FRAME_MAT, ...paint('face', '바탕색')],
