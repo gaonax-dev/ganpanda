@@ -56,7 +56,14 @@
 | GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 + 정산 보기(오너, 또는 정산 보기 켠 팀 멤버의 편집 초대 — 이익율 표시, 2026-10-16) | `{role, project, seats:{used, limit}, billing, branding}` / 401 / 403 / 404 |
 | POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind, attachments?}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록). 첨부는 최대 5개, 에셋 ID 32자·허용 형식만. 글이 없으면 첨부 필수 | 201 / 400 / 401 / 403 |
 | POST | `/api/rooms/:id/pins` (`?invite=` 또는 세션) `{photoId, x, y, author}` | 위치 코멘트(핀) 추가 (viewer 용) | 201 `{pin}` / 400 / 401 / 403 |
-| POST | `/api/rooms/:id/approvals` (`?invite=` 또는 세션) `{by, hash, snapshot, proposalId?}` | **제안 승인** 기록 (viewer 포함). Room DO 가 `settings.approvals` 에 추가하고 `kind:'approval'` 메시지를 남긴다. 스냅샷 200KB 한도 | 201 `{approval}` / 400 / 401 / 403 / 413 |
+| POST | `/api/rooms/:id/approvals` (`?invite=` 또는 세션) `{by, hash, snapshot, proposalId?}` | **제안 승인** 기록 (viewer 포함). Room DO 가 `settings.approvals` 에 추가하고 `kind:'approval'` 메시지를 남긴다. 스냅샷 200KB 한도. 요청판 프로젝트면 요청을 `approved` 로 | 201 `{approval}` / 400 / 401 / 403 / 413 |
+| POST | `/api/requests` `{store, region, text?, phone, email?, ref?}` | **요청판**(2026-10-17) 견적 요청 올리기 (로그인 없음). 전화는 숫자 9~11자리, 같은 번호의 열린 요청 3건까지. 지역 간판사에게 메일(운영) | 201 `{id, key, url}` / 400 / **429 `{error:'request_limit', limit}`** |
+| PUT | `/api/requests/:id/photos?key=` (이미지 본문) | 요청 사진 올리기 (고객 키, 3장·8MB·jpeg/png/webp) | 201 `{n}` / 403 / 409 / 413 / 415 |
+| GET | `/api/requests/:id/photos/:n` (`?key=` 또는 세션·`?session=`) | 요청 사진 (고객, 또는 그 요청을 볼 수 있는 간판사) | 200 / 401 / 403 / 404 |
+| GET | `/api/requests/:id?key=` | 고객의 내 요청 페이지: 요청 + 받은 제안(`responses[{shop, proposalPath, createdAt}]`, 경로는 앱이 서버 주소를 붙임), 승인되면 `approvedShop` | `{request, responses}` / 403 / 404 |
+| GET | `/api/requests` | 간판사: 받은 요청 — 요청 받기가 켜진 지역의 열린 요청 + 내가 답한 요청. 제안을 보낸 요청에만 `phone`·`email` | `{requests[{…, responded, projectId?, phone?}]}` / 401 |
+| POST | `/api/requests/:id/respond` | 간판사: 요청에서 프로젝트 만들기(`projects.request_id`, 이름 "<가게> 요청"). 이미 있으면 그것 | 201/200 `{project}` / 401 / 403 / 404 |
+| PUT | `/api/me/request-settings` `{receive, regions[]}` | 요청 받기·지역 (쉼표 구분 저장, 최대 20곳). `GET /api/me` 의 `requestSettings` | `{requestSettings}` / 400 / 401 |
 | GET | `/p/:project/:token` | **제안 링크 랜딩** (OG 메타: 프로젝트 이름, `/p/:project/:token/image.png`) → 앱 `/?room=&invite=&proposal=1` 로 이동. 토큰이 자격 | 200 HTML / 404 |
 | GET | `/p/:project/:token/image.png` | 제안 미리보기 이미지(첫 사진 주간 렌더 에셋). 제안이 없으면 404 | 200 / 404 |
 

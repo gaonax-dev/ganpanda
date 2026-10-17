@@ -1,5 +1,6 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
 import { PLANS } from './plans';
+import { regionsOf } from './requests';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { hashPassword, validPassword, verifyPassword } from './password';
 import { usageOf } from './usage';
@@ -10,7 +11,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null; password_hash?: string | null; email_verified?: number }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
 
 const LOCK_WINDOW = 15 * 60 * 1000;
 const VERIFY_TTL = 24 * 60 * 60 * 1000;
@@ -180,7 +181,7 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     return new Response(null, { status: 204 });
   }
   if (pathname === '/api/me' && req.method === 'GET') {
-    return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, ...(await usageOf(env, me.id, me.plan)) });
+    return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
   }
   if (pathname === '/api/me/password' && req.method === 'POST') {
     // 새 비밀번호 설정: 비밀번호가 있으면 현재 비밀번호가 맞아야 한다. 재설정 링크로 들어온 직후(15분)는 예외

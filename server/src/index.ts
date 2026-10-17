@@ -1,6 +1,7 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
 export { Account } from './account';
+import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
@@ -145,6 +146,7 @@ async function postApproval(req: Request, env: Env, room: string): Promise<Respo
   if (!by || !hash || !b?.snapshot || typeof b.snapshot !== 'object') return text('bad approval', 400);
   if (JSON.stringify(b.snapshot).length > 200_000) return text('snapshot too large', 413);
   const approval = await env.ROOM.getByName(room).addApproval(by, hash, b.snapshot, typeof b.proposalId === 'string' ? b.proposalId : undefined);
+  await markApproved(env, room); // 요청판: 요청에서 만든 프로젝트면 요청을 승인됨으로 (2026-10-17)
   return json({ approval }, 201);
 }
 
@@ -219,6 +221,7 @@ export default {
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
+    if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
     // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)
