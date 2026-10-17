@@ -41,6 +41,9 @@ const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 export const fitScale = (measuredW: number, placementW: number) => (measuredW > placementW && measuredW > 0 ? placementW / measuredW : 1);
 
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
+/** 내부 조명이 켜진 몸통: 후렉스류는 '비조명'이 아니면, 갈바는 내부 조명 LED(레이저 타공, 2026-10-17)일 때 */
+const isLitBody = (bodyId: string | undefined, o: SignObject) =>
+  (['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명') || (bodyId === 'board-galva' && o.options?.light === 'LED');
 /** 몸통 색: 도색(갈바 등) > 바탕색(후렉스 등) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
 const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex(o.options, 'face') ?? paintHex(o.options, 'framePaint');
 /** 2D 보드에 그리는 바탕: 색(고른 색 > 종류 기본 겉모습) + 불투명도(고른 도색의 투명도). 종류가 없으면 null (시트 분류·분류 없음) — 2026-10-17 "사인물 바탕색 원본에 보이게" */
@@ -109,7 +112,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
       return {
         ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
-        lighting: !bodyless && ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명' ? 'front' : 'none',
+        lighting: !bodyless && isLitBody(bodyId, o) ? 'front' : 'none',
         faceColor: look.faceColor, sideColor: '#6b7075', ...comp, ...(bodyless ? { bodyless: true } : {}),
       };
     }
@@ -132,7 +135,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     ...base, kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
     depthMm: o.depthMm ?? l?.depthMm ?? look.depthMm, // 입력한 두께 > 입체 설정 > 종류 기본
     // 내부 조명 옵션이 '비조명'이면 빛나지 않는다 (2026-10-16, 상단 조명은 주로 비조명 간판에)
-    lighting: ['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명' ? 'front' : 'none',
+    lighting: isLitBody(bodyId, o) ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
     sideColor: letters ? '#6b7075' : l?.sideColor ?? '#6b7075',
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움

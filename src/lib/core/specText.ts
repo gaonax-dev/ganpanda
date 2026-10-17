@@ -72,6 +72,8 @@ function optionDict(o: SignObject | undefined, productId: string | undefined): {
   return { body: pick(optionGroupsFor(base).flatMap((g) => g.fields)), channel: pick(partOptionFields(newPart('channel', 'ch-front'))) };
 }
 const norm = (s: string) => s.replace(/[\s()·/]/g, '').toLowerCase();
+/** 옵션 값 줄임말 → 선택지 값 (갈바 레이저 타공·내부 조명 등, 2026-10-17) */
+const OPTION_WORDS: Record<string, string> = { 타공: '글자 타공', 레이저타공: '글자 타공', 글자타공: '글자 타공', 패턴타공: '패턴 타공', 내부조명: 'LED', 조명: 'LED', led: 'LED' };
 
 export function parseSpecText(text: string, o?: SignObject): SpecItem[] {
   const items: SpecItem[] = [];
@@ -116,7 +118,7 @@ export function parseSpecText(text: string, o?: SignObject): SpecItem[] {
       continue;
     }
     // 옵션 값: 채널을 말한 뒤면 채널 옵션 먼저, 아니면 몸통 옵션 먼저. 토큰과 값이 (공백·괄호 빼고) 같거나, 값이 토큰으로 시작하는 유일한 것
-    const nt = norm(tok);
+    const nt = OPTION_WORDS[norm(tok)] ? norm(OPTION_WORDS[norm(tok)]) : norm(tok);
     const find = (list: { f: OptionField; value: string }[]) => list.find((d) => norm(d.value) === nt) ?? (nt.length >= 2 && list.filter((d) => norm(d.value).startsWith(nt)).length === 1 ? list.find((d) => norm(d.value).startsWith(nt)) : undefined);
     const first = sawChannel ? dict.channel : dict.body, second = sawChannel ? dict.body : dict.channel;
     const hit1 = find(first), hit2 = hit1 ? undefined : find(second);
