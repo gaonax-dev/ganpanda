@@ -14,11 +14,12 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await page.getByTestId('width-mm').fill('6000');
   await page.getByTestId('height-mm').fill('900');
   // 간판 프레임의 채널·스카시 선택과 시트 칩·문구 칸 대신 구성 요소
-  await expect(page.getByTestId('parts-section')).toBeVisible();
+  await expect(page.getByTestId('object-settings').getByTestId('quick-section')).toBeVisible(); // 칩 = 탭 (2026-10-17)
   await expect(page.getByTestId('option-channel')).toHaveCount(0);
   await expect(page.getByTestId('sheet-sh-cut')).toHaveCount(0);
   await expect(page.getByTestId('sign-text')).toHaveCount(0);
   // 채널 + 글자 두 개 (간판 중앙에서 시작, 위치·크기 mm)
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   const ch = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="channel"]') });
   await expect(ch.getByTestId('part-type')).toHaveValue('ch-front');
@@ -32,6 +33,7 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await ch.getByTestId('item-h').nth(1).fill('300');
   await ch.getByTestId('item-y').nth(1).fill('-350');
   // 스카시 (글자·그림 모두)
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
   const sc = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="scashi"]') });
   await expect(sc.getByTestId('part-option-thickness')).toBeVisible();
@@ -39,19 +41,26 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await sc.getByTestId('item-image-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await makePhoto(page) });
   await expect(sc.getByTestId('item-image-name')).toContainText('logo.png');
   // UV 출력 시트: 채널 앞면에도 올릴 수 있다, 그림 객체 크기로 면적
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-sheet-uv').click();
   const sh = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="sheet"]') });
   await expect(sh.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면']);
   // 시트 위에 시트 (2026-10-17 "안개커팅 위에 로고 돔보컷팅"): 재질 시트(안개)를 더하면 UV 시트의 올릴 곳에 "… 위"
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-sheet-cut').click();
-  const sheets = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="sheet"]') });
-  const uv = sheets.nth(0), frost = sheets.nth(1); // 시트 카드가 둘이 되므로 각각
-  await frost.getByTestId('part-option-sheetMat').selectOption('안개');
-  await expect(uv.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면', '재질 시트 안개 커팅 완컷 위']);
-  await uv.getByTestId('part-on').selectOption({ label: '재질 시트 안개 커팅 완컷 위' });
-  await expect(frost.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면']); // 순환 금지
-  await frost.getByTestId('part-delete').click(); // 아래 시트를 지우면 프레임 면으로
-  await expect(uv.getByTestId('part-on')).toHaveValue('frame');
+  // 카드는 탭이라 하나씩 보인다 (2026-10-17 "칩을 일종의 탭으로"): 칩으로 오간다
+  const sheetChips = page.getByTestId('object-settings').getByTestId('quick-part').filter({ has: page.locator('[data-kind="sheet"]') });
+  const card = page.getByTestId('part-card');
+  await card.getByTestId('part-option-sheetMat').selectOption('안개'); // 방금 더한 재질 시트 탭
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="sheet"]').nth(0).click(); // UV 시트 탭
+  await expect(card.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면', '재질 시트 안개 커팅 완컷 위']);
+  await card.getByTestId('part-on').selectOption({ label: '재질 시트 안개 커팅 완컷 위' });
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="sheet"]').nth(1).click(); // 안개 시트 탭
+  await expect(card.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면']); // 순환 금지
+  await card.getByTestId('part-delete').click(); // 아래 시트를 지우면 프레임 면으로
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="sheet"]').nth(0).click();
+  await expect(card.getByTestId('part-on')).toHaveValue('frame');
+  expect(sheetChips).toBeTruthy();
   await sh.getByTestId('add-item-image').click();
   await sh.getByTestId('item-w').fill('1000');
   await sh.getByTestId('item-h').fill('500');
@@ -72,6 +81,7 @@ test('옛 사인물(채널 옵션 + 문구)은 구성 요소로 보이고, 고�
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { productId: 'board-galva', text: '간판다', options: { channel: '후광 채널', chType: '캡' } }); });
   await openObjectSettings(page);
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="channel"]').click(); // 채널 탭
   const ch = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="channel"]') });
   await expect(ch.getByTestId('part-type')).toHaveValue('ch-halo');
   await expect(ch.getByTestId('item-text')).toHaveValue('간판다');
@@ -96,6 +106,7 @@ test('재질·도색 객체: 채널 측면 재질 + 도색(체계 → 코드·�
   await expect(page.getByTestId('option-framePaintCode')).toBeVisible();
   await page.getByTestId('option-frameMat').selectOption('텐션 천');
   await expect(page.getByTestId('option-framePaintSystem')).toHaveCount(0); // 천은 도색 없음
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   const ch = page.getByTestId('part-card').first();
   await expect(ch.getByTestId('part-option-chSideMat')).toBeVisible();
@@ -134,11 +145,13 @@ test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께
   await expect(page.getByTestId('thickness').getByTestId('depth-mm')).toHaveValue('5');
   await page.getByTestId('width-mm').fill('600');
   await page.getByTestId('height-mm').fill('400');
-  // 포맥스: 시트·스카시만
+  // 포맥스: 시트·스카시만 ([+] 메뉴)
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await expect(page.getByTestId('add-part-channel')).toHaveCount(0);
   await page.getByTestId('add-part-sheet-uv').click();
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
-  await expect(page.getByTestId('part-card')).toHaveCount(2);
+  await expect(page.getByTestId('object-settings').getByTestId('quick-part')).toHaveCount(2); // 칩 둘 (탭이라 카드는 하나씩)
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('포맥스 · 5T');
   await expect(page.getByTestId('object-summary')).toContainText('600×400mm');
@@ -152,18 +165,19 @@ test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께
   // 시트 분류: 시트 구성 요소 카드, 시트 칩·문구 칸 없음
   await pickCategory(page, 'sheet');
   await openObjectSettings(page);
-  await expect(page.getByTestId('part-card')).toHaveCount(1);
-  await expect(page.getByTestId('add-part-scashi')).toHaveCount(0);
+  await expect(page.getByTestId('part-card')).toHaveCount(1); // 시트 분류: 첫 탭이 시트 카드
   await expect(page.getByTestId('sign-text')).toHaveCount(0);
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
+  await expect(page.getByTestId('add-part-scashi')).toHaveCount(0);
   await page.getByTestId('add-part-sheet-uv').click();
-  await expect(page.getByTestId('part-card')).toHaveCount(2);
+  await expect(page.getByTestId('object-settings').getByTestId('quick-part')).toHaveCount(2);
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('category-select')).toHaveValue('sheet'); // 시트가 구성 요소로 옮겨져도 시트 분류
   // 스카시 분류: 스카시 구성 요소, 치수 두께 칸 없음(스카시 두께와 겹침)
   await pickCategory(page, 'scashi');
   await openObjectSettings(page);
   await expect(page.getByTestId('depth-mm')).toHaveCount(0);
-  await expect(page.getByTestId('add-part-channel')).toHaveCount(0);
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="scashi"]').click(); // 스카시 탭
   await expect(page.getByTestId('part-card')).toHaveCount(1); // 스카시 분류는 스카시 카드 하나로 시작 (사인물 자체가 스카시)
   await expect(page.getByTestId('part-card').getByTestId('part-option-thickness')).toBeVisible();
   await expect(page.getByTestId('option-thickness')).toHaveCount(0); // 몸통 쪽 두께와 겹치지 않음
@@ -193,8 +207,9 @@ test('시트 = UV 출력 / 재질 시트, 컷팅은 옵션(돔보컷팅·커팅,
   await card.getByTestId('part-option-cut').selectOption('컷팅 없음');
   await expect(card.getByTestId('part-option-cutMode')).toHaveCount(0);
   await card.getByTestId('part-option-cut').selectOption('돔보컷팅');
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-sheet-cut').click();
-  const mat = page.getByTestId('part-card').nth(1);
+  const mat = page.getByTestId('part-card'); // 방금 더한 재질 시트 탭
   await mat.getByTestId('part-option-sheetMat').selectOption('반사');
   await expect(mat.getByTestId('part-spec')).toHaveText('재질 시트 반사 커팅 완컷');
   await page.getByTestId('close-object-settings').click();

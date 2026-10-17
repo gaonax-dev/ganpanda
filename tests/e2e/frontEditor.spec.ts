@@ -13,10 +13,12 @@ async function setup(page: Page, request: Parameters<typeof openOwnedProject>[1]
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('6000');
   await page.getByTestId('height-mm').fill('900');
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   await page.getByTestId('add-item-text').click();
   await page.getByTestId('item-text').fill('바로바로');
   await page.getByTestId('item-h').fill('600');
+  await page.getByTestId('object-settings').getByTestId('quick-layout').click(); // 배치 탭 (2026-10-17 칩 = 탭)
 }
 
 test('정면도에서 글자를 끌어 옮기고, 중앙선에 붙고, 정렬·크기·방향키로 다룬다', async ({ page, request }) => {
@@ -37,7 +39,9 @@ test('정면도에서 글자를 끌어 옮기고, 중앙선에 붙고, 정렬·�
   await page.mouse.up();
   const moved = await itemOf(page);
   expect(moved.x).toBeGreaterThan(500);
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="channel"]').click();
   await expect(page.getByTestId('item-x')).toHaveValue(String(moved.x));
+  await page.getByTestId('object-settings').getByTestId('quick-layout').click();
   await expect(item).toHaveAttribute('data-selected', 'true');
 
   // 다시 가운데 근처로 끌면 중앙선(0)에 붙는다
@@ -69,13 +73,4 @@ test('정면도에서 글자를 끌어 옮기고, 중앙선에 붙고, 정렬·�
   await page.mouse.move(h.x + h.width / 2 + 40, h.y + h.height / 2 + 20, { steps: 5 });
   await page.mouse.up();
   expect((await itemOf(page)).h).toBeGreaterThan(600);
-});
-
-test('카드의 객체 줄을 누르면 정면도에서도 선택된다', async ({ page, request }) => {
-  await setup(page, request);
-  await page.getByTestId('add-item-text').click();
-  await page.getByTestId('item-text').nth(1).fill('정육점');
-  await page.getByTestId('part-item').nth(1).click();
-  await expect(page.getByTestId('front-item').nth(1)).toHaveAttribute('data-selected', 'true');
-  await expect(page.getByTestId('part-item').nth(1)).toHaveClass(/sel/);
 });

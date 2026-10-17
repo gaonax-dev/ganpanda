@@ -22,6 +22,7 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await openObjectSettings(page);
   await page.getByTestId('product-select').selectOption('body-none');
   // 조합형 (2026-10-16): 채널 구성 요소 + 글자 객체, 글자수는 객체마다
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   await page.getByTestId('add-item-text').click();
   await page.getByTestId('item-text').fill('간판다 카페');
@@ -29,9 +30,12 @@ test('문구를 넣으면 채널 글자수가 자동으로 세어진다', async 
   await expect(page.getByTestId('item-count')).toHaveAttribute('placeholder', /5/);
   await page.getByTestId('height-mm').fill('600');
   await page.getByTestId('width-mm').fill('3000');
+  await page.getByTestId('object-settings').getByTestId('quick-price').click(); // 금액 탭
   await expect(page.getByTestId('object-price')).toContainText('5자');
   // 몸통(갈바) + 채널 조합 → 견적 두 줄 (㎡ + 자·cm)
+  await page.getByTestId('object-settings').getByTestId('quick-body').click();
   await page.getByTestId('product-select').selectOption('board-galva');
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="channel"]').click();
   await expect(page.getByTestId('part-type')).toHaveValue('ch-front'); // 몸통을 바꿔도 구성 요소는 그대로
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();
@@ -186,6 +190,7 @@ test('공급사 계산법: 채널 단가를 알리다 글자 크기 구간 자�
   await page.getByTestId('width-mm').fill('3000');
   await page.getByTestId('height-mm').fill('600');
   await page.getByTestId('product-select').selectOption('body-none');
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   await page.getByTestId('add-item-text').click();
   await page.getByTestId('item-text').fill('바로바로');

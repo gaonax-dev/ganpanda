@@ -2,7 +2,9 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, thicknessFieldOf } from '../core/catalog';
-  import { partKindsFor, partsForProduct } from '../core/parts';
+  import { commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
+  import FrontEditor from './FrontEditor.svelte';
+  import type { PartItem } from '../core/model';
   import PartsEditor from './PartsEditor.svelte';
   import QuickSpec from './QuickSpec.svelte';
   import SpecInput from './SpecInput.svelte';
@@ -29,14 +31,23 @@
   const update = (patch: Partial<SignObject>) => { if (app.canEdit) app.project.updateObject(obj.id, patch); };
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
   const close = () => { app.objectSettingsOpen = false; app.objectSettingsFocus = null; };
-  /** 칩에서 열렸으면 그 요소 자리로 스크롤 (몸통 → 종류, 채널·LED → 구성 요소, 두께 → 두께, 메모 → 요청사항) */
-  const focus = app.objectSettingsFocus;
-  $effect(() => {
-    if (!focus) return;
-    const sel = focus === 'body' ? '[data-testid="product-select"]' : focus === 'thick' ? '[data-testid="thickness"]' : focus === 'note' ? '[data-testid="sign-note"]' : '[data-testid="parts-section"]';
-    const t = setTimeout(() => document.querySelector(sel)?.scrollIntoView({ block: 'center' }), 60);
-    return () => clearTimeout(t);
-  });
+  /** 칩 = 탭 (2026-10-17 사용자: "칩을 일종의 탭으로"): body | part:<id> | layout | note | price. 칩에서 열렸으면 그 탭, 아니면 몸통(없으면 첫 구성 요소) */
+  const parts = $derived(partsOf(obj));
+  const hasBody = $derived(!!category && category !== 'sheet');
+  const defaultTab = () => (hasBody || !category ? 'body' : parts.length ? `part:${parts[0].id}` : 'note');
+  const initial = app.objectSettingsFocus;
+  // svelte-ignore state_referenced_locally
+  let tab = $state<string>(initial === 'channel' || initial === 'led' ? (parts.find((p) => p.kind === 'channel') ? `part:${parts.find((p) => p.kind === 'channel')!.id}` : 'body') : initial === 'thick' ? 'body' : initial ?? defaultTab());
+  const activePart = $derived(tab.startsWith('part:') ? parts.find((p) => p.id === tab.slice(5)) : undefined);
+  // 탭의 구성 요소가 사라지면(지움) 몸통으로
+  $effect(() => { if (tab.startsWith('part:') && !activePart) tab = defaultTab(); if (tab === 'layout' && !parts.some((p) => p.items.length)) tab = defaultTab(); });
+  /** 배치 탭(정면도)에서 객체를 고칠 때 */
+  const setItemById = (partId: string, itemId: string, patch: Partial<PartItem>) => {
+    const ps = JSON.parse(JSON.stringify(parts)) as typeof parts;
+    const it = ps.find((p) => p.id === partId)?.items.find((x) => x.id === itemId);
+    if (it) { Object.assign(it, patch); update(commitParts(obj, ps)); }
+  };
+  let layoutSel = $state<{ part: string; item: string } | null>(null);
 
   /** 조합형 (2026-10-16): 분류마다 붙일 수 있는 구성 요소(채널·스카시·시트)를 카드로 — 간판뿐 아니라 시트·스카시·포맥스·라이트패널·액자·어닝·사인미러도
       ("사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘") */
@@ -104,8 +115,9 @@
           <p class="hint">한 영역의 실제 치수를 입력하면, 같은 사진의 다른 영역 크기를 자동으로 추정하고 잘못 입력한 치수를 경고합니다.</p>
         {/if}
       </section>
-      <!-- 빠른 설정: 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k") -->
-      {#if category && category !== 'sheet'}<section data-testid="quick-section"><h3>빠른 설정 <span class="cat">세부는 아래 사양에서</span></h3>{#if !ro}<SpecInput {obj} {ro} {update} />{/if}<QuickSpec {obj} {ro} {update} initialOpen={focus} /></section>{/if}
+      <!-- 사양 글 + 칩(탭): 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k", "칩을 일종의 탭으로") -->
+      {#if category}<section data-testid="quick-section" class="tabs">{#if !ro}<SpecInput {obj} {ro} {update} />{/if}<QuickSpec {obj} {ro} {update} active={tab} onPick={(t) => (tab = t)} /></section>{/if}
+      {#if tab === 'body'}
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}
@@ -131,9 +143,6 @@
               </div>
             {/if}
           </div>
-        {/if}
-        {#if can3d}
-          <button class="btn small" data-testid="open-letter3d" onclick={() => (app.letter3dOpen = true)}>입체 보기 (3D)</button>
         {/if}
       </section>
 
@@ -172,9 +181,7 @@
         </section>
       {/each}
 
-      {#if composable}
-        <PartsEditor {obj} {ro} {update} kinds={partKinds} />
-      {:else}
+      {#if !composable}
       {#if obj.sheetIds.length}
       <section>
         <h3>시트</h3>
@@ -193,14 +200,23 @@
           oninput={(e) => update({ text: e.currentTarget.value })} />
       </section>
       {/if}
+      {:else if activePart}
+        <!-- 구성 요소 탭: 그 카드 하나 -->
+        <section><h3>{activePart.kind === 'channel' ? '채널' : activePart.kind === 'scashi' ? '스카시' : '시트'} <span class="hint">글자·그림 위치는 [배치] 탭의 정면도에서도</span></h3>
+          <PartsEditor {obj} {ro} {update} kinds={partKinds} partId={activePart.id} /></section>
+      {:else if tab === 'layout'}
+        <section><h3>배치 <span class="hint">글자·그림을 간판 면 위에서 끌어 놓기 — 3D·실사·전개도에 그대로</span></h3>
+          <FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} /></section>
+      {/if}
 
-
+      {#if tab === 'note' || (tab !== 'price' && !category)}
       <section>
         <h3>요청사항</h3>
-        <textarea data-testid="sign-note" rows="2" value={obj.note ?? ''} placeholder="이 사인물의 배선 위치, 특수 가공, 현장 조건 등" disabled={ro} oninput={(e) => update({ note: e.currentTarget.value || undefined })}></textarea>
+        <textarea data-testid="sign-note" rows="3" value={obj.note ?? ''} placeholder="이 사인물의 배선 위치, 특수 가공, 현장 조건 등" disabled={ro} oninput={(e) => update({ note: e.currentTarget.value || undefined })}></textarea>
       </section>
+      {/if}
 
-      {#if lines.length && !app.isCustomer}
+      {#if lines.length && !app.isCustomer && (tab === 'price' || !category)}
         <section data-testid="object-price">
           <h3>예상 금액{#if size?.estimated}<span class="est">추정 {fmt(size.w)}×{fmt(size.h)} 기준</span>{/if}</h3>
           <table class="mini"><tbody>
@@ -212,6 +228,7 @@
       {/if}
     </div>
     <footer>
+      {#if can3d}<button class="btn small" data-testid="open-letter3d" onclick={() => (app.letter3dOpen = true)}>입체 보기 (3D)</button>{/if}
       {#if !ro}<button class="btn small" data-testid="duplicate-sign" title="바로 옆에 같은 사인물 하나 더 (⌘/Ctrl+D)" onclick={() => { close(); app.selectObject(obj.id); app.duplicateSelected(); }}>복제</button><button class="btn small danger" data-testid="delSign" onclick={remove}>사인물 삭제</button>{/if}
       <span class="sp"></span>
       <button class="btn small" onclick={close}>닫기</button>
@@ -231,6 +248,8 @@
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
   .cat { color: var(--text); font-weight: 700; }
+  .tabs { display: flex; flex-direction: column; gap: 8px; background: rgba(255, 255, 255, 0.02); }
+  h3 .hint { font-weight: 400; color: var(--muted); }
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .opt { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
   .check { font-size: 12px; display: flex; align-items: center; gap: 6px; grid-column: 1 / -1; }

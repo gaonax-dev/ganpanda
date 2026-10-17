@@ -88,7 +88,7 @@
     </div>
   {/if}
   <!-- 빠른 설정 칩 (2026-10-17): 몸통·채널·LED — 휴대폰에서도 설정 창 없이 -->
-  <QuickSpec {obj} {ro} {update} compact />
+  <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.panelOpen = true; app.objectSettingsOpen = true; }} />
   {#if obj.productId || obj.sheetIds.length}<small class="hint" data-testid="quick-detail">{productById(obj.productId)?.name ?? obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')} — 세부 종류·옵션은 [상세정보]</small>{/if}
 </div>
 

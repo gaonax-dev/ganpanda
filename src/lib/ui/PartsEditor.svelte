@@ -15,7 +15,8 @@
   import FrontEditor from './FrontEditor.svelte';
 
   /** kinds = 이 분류에 붙일 수 있는 구성 요소 (partKindsFor) */
-  let { obj, ro, update, kinds = ['channel', 'scashi', 'sheet'] }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; kinds?: SignPart['kind'][] } = $props();
+  /** partId 가 있으면 그 구성 요소 카드 하나만 (설정 창의 탭, 2026-10-17 "칩을 일종의 탭으로") — 추가 단추·정면도는 바깥(칩 [+]·배치 탭)에 */
+  let { obj, ro, update, kinds = ['channel', 'scashi', 'sheet'], partId }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; kinds?: SignPart['kind'][]; partId?: string } = $props();
 
   const parts = $derived(partsOf(obj));
   const clone = (): SignPart[] => JSON.parse(JSON.stringify(parts));
@@ -57,9 +58,9 @@
   }
 </script>
 
-<section data-testid="parts-section">
-  <h3>구성 요소 <span class="hint">이 사인물에 붙는 {kinds.map((k) => PART_KIND_LABEL[k]).join('·')}와 그 글자·그림 (위치는 사인물 중앙 기준 mm, 위 +)</span></h3>
-  {#if !ro}
+<section data-testid="parts-section" class:single={!!partId}>
+  {#if !partId}<h3>구성 요소 <span class="hint">이 사인물에 붙는 {kinds.map((k) => PART_KIND_LABEL[k]).join('·')}와 그 글자·그림 (위치는 사인물 중앙 기준 mm, 위 +)</span></h3>{/if}
+  {#if !ro && !partId}
     <div class="adds">
       {#if kinds.includes('channel')}<button class="btn small" data-testid="add-part-channel" onclick={() => addPart('channel')}>+ 채널</button>{/if}
       {#if kinds.includes('scashi')}<button class="btn small" data-testid="add-part-scashi" onclick={() => addPart('scashi')}>+ 스카시</button>{/if}
@@ -70,8 +71,9 @@
       {/if}
     </div>
   {/if}
-  {#if hasItems}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}
+  {#if hasItems && !partId}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}
   {#each parts as p, i (p.id)}
+    {#if !partId || p.id === partId}
     <div class="card" data-testid="part-card">
       <div class="head" data-kind={p.kind}>
         <b>{PART_KIND_LABEL[p.kind]}</b>{#if p.kind === 'sheet'}<span class="spec" data-testid="part-spec">{partSpecOf(p)}</span>{/if}
@@ -135,10 +137,13 @@
         {/if}
       </div>
     </div>
+    {/if}
   {/each}
 </section>
 
 <style>
+  .single { padding: 0; }
+  .single .card { margin: 0; border: 0; padding: 0; }
   .hint { font-weight: 400; font-size: 11px; color: var(--muted, #8b93a3); margin-left: 6px; }
   .adds { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
   .card { border: 1px solid var(--border, #2a2f37); border-radius: 8px; padding: 8px; margin: 8px 0; }
