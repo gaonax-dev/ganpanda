@@ -235,16 +235,24 @@
     if (e.button !== 0) return;
     e.stopPropagation();
     // Shift+클릭: 평면도 카드도 다중 선택에 더하기/빼기 (2026-10-17 사용자: "정면도는 다중 선택이 안돼") — 끌기는 하지 않는다
-    if (e.shiftKey) { app.toggleSelect(o.id); return; }
-    app.selectObject(o.id);
+    if (e.shiftKey) { app.toggleSelect(o.id, 'card'); return; }
+    // 선택에 든 카드를 끌면 선택 전체가 함께 움직인다 (2026-10-17 "정면도들을 다중선택하고 이동하게")
+    const group = app.cardDragIds(o.id);
+    if (group.length === 1) app.selectObject(o.id, 'card');
     if (!app.canEdit) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
     const p = app.flatPlaced.get(o.id)!;
     const at = listToBoard(origin, p.x, p.y, k);
     // Alt/Option + 끌기: 평면도 카드도 제자리에 복사해서 복사본을 끈다 (2026-10-17)
-    const id = (e.altKey ? app.duplicateInPlace() : null) ?? o.id;
+    const id = (group.length === 1 && e.altKey ? app.duplicateInPlace() : null) ?? o.id;
+    const base = (group.length === 1 ? [id] : group).map((gid) => ({ id: gid, ...app.flatPlaced.get(gid)! }));
     cardDrag = { id, dx: w.x - at.x, dy: w.y - at.y };
-    const move = (ev: PointerEvent) => { if (!cardDrag) return; const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy, k); app.project.updateObject(cardDrag.id, { listX: l.x, listY: l.y }); };
+    const move = (ev: PointerEvent) => {
+      if (!cardDrag) return;
+      const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy, k);
+      const ddx = l.x - p.x, ddy = l.y - p.y;
+      for (const b of base) app.project.updateObject(b.id, { listX: b.x + ddx, listY: b.y + ddy });
+    };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
@@ -327,7 +335,7 @@
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
-        multiIds={app.multi}
+        multiIds={app.shapeMulti}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
@@ -361,7 +369,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} multi={app.multi.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} multi={app.cardMulti.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>

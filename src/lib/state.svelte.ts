@@ -174,6 +174,8 @@ class AppState {
   selected = $derived.by(() => (this.selectedId ? this.objects.find((o) => o.id === this.selectedId) ?? null : null));
   /** 다중 선택 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기"): Shift+클릭으로 더한 사인물들. selectedId 가 마지막 선택 */
   multi = $state<string[]>([]);
+  /** 선택이 무엇으로 이루어졌나: 사진 위 외곽선(shape) / 평면도 카드(card). 섞이지 않는다 — 다른 쪽을 Shift+클릭하면 선택을 풀고 새로 시작 (2026-10-17 사용자: "정면도와 사인물 외곽라인은 같이 선택할 수 없다. 다른게 선택되면 선택 풀어줘") */
+  selectionKind = $state<'shape' | 'card'>('shape');
   /** 선택 전체 (마지막 선택이 맨 뒤) */
   selectionIds = $derived([...this.multi.filter((id) => id !== this.selectedId), ...(this.selectedId ? [this.selectedId] : [])]);
   /** 선택한 사인물과 같은 사인물인 다른 영역들(원본·연결) — 다른 사진에서도 하이라이트 */
@@ -727,8 +729,8 @@ class AppState {
   }
 
   /** Shift+클릭: 선택에 더하기/빼기. 마지막으로 누른 것이 주 선택(selectedId) */
-  toggleSelect(id: string) {
-    if (!this.selectedId) { this.selectObject(id); return; }
+  toggleSelect(id: string, kind: 'shape' | 'card' = 'shape') {
+    if (!this.selectedId || kind !== this.selectionKind) { this.selectObject(id, kind); return; }
     const all = new Set(this.selectionIds);
     if (all.has(id) && id !== this.selectedId) { all.delete(id); this.multi = [...all].filter((x) => x !== this.selectedId); return; }
     if (id === this.selectedId) { // 주 선택을 빼면 남은 것 중 마지막이 주 선택
@@ -736,6 +738,13 @@ class AppState {
     }
     all.add(this.selectedId); all.delete(id);
     this.multi = [...all]; this.objectSettingsOpen = false; this.panelOpen = false; this.selectedId = id;
+  }
+  /** 평면도 카드 선택(card)의 다중 선택 id — 외곽선 선택일 때는 빈 배열 (카드와 외곽선은 따로 하이라이트) */
+  cardMulti = $derived(this.selectionKind === 'card' ? this.multi : []);
+  shapeMulti = $derived(this.selectionKind === 'shape' ? this.multi : []);
+  /** 평면도 카드 끌기 시작: 끄는 카드가 선택에 들어 있으면 선택 전체를, 아니면 그 카드만 (2026-10-17 "정면도들을 다중선택하고 이동하게"). 시작 mm 위치를 돌려준다 */
+  cardDragIds(id: string): string[] {
+    return this.selectionKind === 'card' && this.selectionIds.includes(id) ? [...this.selectionIds] : [id];
   }
   /** 선택한 사인물 모두 삭제 */
   deleteSelection() {
@@ -772,9 +781,10 @@ class AppState {
     this.editBoundary();
   }
 
-  selectObject(id: string | null) {
+  selectObject(id: string | null, kind: 'shape' | 'card' = 'shape') {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }
     this.multi = [];
+    this.selectionKind = kind;
     this.selectedId = id;
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }
