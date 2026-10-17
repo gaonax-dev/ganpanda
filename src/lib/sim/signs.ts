@@ -42,7 +42,24 @@ function glowPlane(tex: THREE.Texture, w: number, h: number, z: number) {
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
   mesh.position.z = z;
   mesh.renderOrder = -1;
+  mesh.userData.part = 'glow'; // 벽에 번지는 빛 — 상자를 뒤로 물려도 벽면(z=0)에 남긴다
   return mesh;
+}
+
+/**
+ * 외곽선 = 사인물 **앞면** (2026-10-17 사용자: "두께를 주는 사인물의 경우 3d에서 나오는 것을 반대로 … 바탕만 반대 방향으로 익스트루드하고 채널과 스카시는 현재와 같이").
+ * 상자와 그 위 것들(글자·상단 조명)을 두께만큼 벽 쪽(-z)으로 물려 상자 앞면이 z=0(그린 외곽선)에 오게 한다 → 입체 글자는 외곽선 면에서 카메라 쪽으로 선다.
+ * 천갈이(기존 틀)와 프레임 새로 설치가 같은 외곽선을 쓸 수 있다. 벽 번짐(glow)은 벽에 그대로. warpToQuad 가 정점 x·y 만 보므로 z 는 정점에 굽는다
+ */
+export function recessBox(group: THREE.Group, depthMm: number) {
+  if (!(depthMm > 0)) return;
+  const done = new Set<THREE.BufferGeometry>();
+  group.traverse((obj) => {
+    const m = obj as THREE.Mesh;
+    if (!m.isMesh || m.userData.part === 'glow' || done.has(m.geometry)) return;
+    done.add(m.geometry);
+    m.geometry.translate(0, 0, -depthMm);
+  });
 }
 
 export interface ChannelGeometry {

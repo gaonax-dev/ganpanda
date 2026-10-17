@@ -314,9 +314,10 @@ export function boxGuideOf(P: number[], base: Pt[], depth: number, dir?: [number
   // 카메라 쪽 = 깊이(3행)가 줄어드는 z 방향
   const c = mul(add(add(base[0], base[1]), add(base[2], base[3])), 0.25);
   const dz = P[8] * c[0] + P[9] * c[1] + P[10] * depth + P[11] < P[8] * c[0] + P[9] * c[1] + P[11] ? depth : -depth;
-  // 박스 방향(면 좌표, 2026-10-15 "박스만 회전"): 있으면 그 방향으로 깊이만큼, 없으면 면의 법선(카메라 쪽)
-  const back = base.map(([x, y]) => proj(x, y, 0));
-  const front = dir ? base.map(([x, y]) => proj(x + dir[0] * depth, y + dir[1] * depth, dir[2] * depth)) : base.map(([x, y]) => proj(x, y, dz));
+  // 외곽선 = 사인물 **앞면** (2026-10-17 사용자: "두께를 주는 사인물의 경우 3d에서 나오는 것을 반대로" — 천갈이와 프레임 설치가 같은 외곽선을 쓰게).
+  // 바탕(상자)은 카메라 반대쪽(벽 쪽)으로 깊이만큼. 박스 방향(면 좌표, 2026-10-15 "박스만 회전")이 있으면 그 반대 방향으로
+  const front = base.map(([x, y]) => proj(x, y, 0));
+  const back = dir ? base.map(([x, y]) => proj(x - dir[0] * depth, y - dir[1] * depth, -dir[2] * depth)) : base.map(([x, y]) => proj(x, y, -dz));
   if (back.some((p) => !p) || front.some((p) => !p)) return null;
   return { back: back as Pt[], front: front as Pt[] };
 }

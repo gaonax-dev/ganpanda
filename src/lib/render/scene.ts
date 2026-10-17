@@ -4,7 +4,7 @@ import type { DesignSource, Photo, SignObject } from '../core/model';
 import { fitScale, renderSpecOf } from '../core/render';
 import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, zTowardCamera, type WallPlane } from '../core/wallPlane';
 import { Viewer } from '../sim/viewer';
-import { buildLightbox, buildSign, orientBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
+import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
 import { loadItemImages } from './itemImages';
 
@@ -43,6 +43,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
     let b: BuiltSign;
     try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images); }
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
+    if (spec.kind === 'lightbox' && !spec.bodyless) recessBox(b.group, spec.depthMm); // 외곽선 = 앞면: 바탕은 뒤로, 글자는 앞으로 (2026-10-17)
     const corners = quadOnWall(own, o) as [number, number][];
     warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1);
     // 박스 방향으로 (정면 축·회전 고리, 2026-10-15). 없으면 법선 — 원근 카메라의 +z 가 벽 안쪽이면 뒤집어 앞면이 카메라를 보게
