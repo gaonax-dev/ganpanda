@@ -762,6 +762,15 @@ class AppState {
     for (const id of this.multi) if (id !== src.id) this.project.updateObject(id, spec);
     this.editBoundary();
   }
+  /** 마지막 선택의 치수(가로·세로·두께)를 나머지 선택에 (2026-10-17 사용자: "다중선택에 추가 메뉴 마지막 선택 크기적용"). 사진 위 영역(quad)은 그대로 — 실제 치수만 */
+  applySelectedSizeToOthers() {
+    const src = this.selected;
+    if (!this.canEdit || !src || !this.multi.length) return;
+    const size: Partial<SignObject> = { widthMm: src.widthMm, heightMm: src.heightMm, depthMm: src.depthMm };
+    this.editBoundary();
+    for (const id of this.multi) if (id !== src.id) this.project.updateObject(id, size);
+    this.editBoundary();
+  }
 
   selectObject(id: string | null) {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }

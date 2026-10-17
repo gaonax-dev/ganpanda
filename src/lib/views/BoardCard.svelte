@@ -10,11 +10,13 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, standalone = false, linked = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
     photo?: Photo; zoom: number; selected: boolean;
+    /** 다중 선택에 들어 있음(주 선택 아님) */
+    multi?: boolean;
     /** 사진 없는(보드에 직접 만든) 사인물 */
     standalone?: boolean;
     /** 사진의 영역과 연결되어 있음 */
@@ -36,7 +38,7 @@
   });
 </script>
 
-<div class="card" class:standalone class:sel={selected} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
+<div class="card" class:standalone class:sel={selected} class:multi data-multi={multi || undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
   style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
@@ -59,6 +61,7 @@
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed rgba(255, 204, 0, 0.7); }
   .sel .face { outline: 2px solid var(--accent); }
+  .multi .face { outline: 2px dashed var(--accent); }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }

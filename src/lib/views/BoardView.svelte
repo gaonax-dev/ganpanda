@@ -234,6 +234,8 @@
   function cardDown(e: PointerEvent, o: typeof app.objects[number]) {
     if (e.button !== 0) return;
     e.stopPropagation();
+    // Shift+클릭: 평면도 카드도 다중 선택에 더하기/빼기 (2026-10-17 사용자: "정면도는 다중 선택이 안돼") — 끌기는 하지 않는다
+    if (e.shiftKey) { app.toggleSelect(o.id); return; }
     app.selectObject(o.id);
     if (!app.canEdit) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
@@ -359,7 +361,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} multi={app.multi.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
@@ -394,6 +396,7 @@
     <div class="multibar" data-testid="multi-bar">
       <span class="cnt" data-testid="multi-count">{app.selectionIds.length}개 선택</span>
       <button class="btn small" data-testid="multi-apply" title="마지막에 고른 사인물의 종류·옵션·구성 요소·두께·문구를 나머지에 맞춥니다 (이름·치수·위치는 그대로)" onclick={() => app.applySelectedSpecToOthers()}>마지막 선택 구성으로 맞추기</button>
+      <button class="btn small" data-testid="multi-size" title="마지막에 고른 사인물의 가로·세로·두께(mm)를 나머지에 맞춥니다 (사진 위 영역은 그대로)" onclick={() => app.applySelectedSizeToOthers()}>마지막 선택 크기 적용</button>
       <button class="btn small" data-testid="multi-duplicate" title="각각 바로 옆에 복제" onclick={() => app.duplicateSelection()}>복사</button>
       <button class="btn small danger" data-testid="multi-delete" onclick={() => app.deleteSelection()}>삭제</button>
       <button class="icon" data-testid="multi-clear" title="선택 해제" onclick={() => app.selectObject(null)}>✕</button>
