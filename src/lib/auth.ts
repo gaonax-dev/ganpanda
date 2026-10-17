@@ -2,7 +2,10 @@
 import { SERVER_URL } from './sync';
 
 export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean }
-export interface Usage { limits: { storageBytes: number; seats: number }; usage: { storageBytes: number; seats: number } }
+/** 요금제 이름 (옛 starter 는 베이직) */
+export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
+/** seats = 동시 작업 인원(직원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) — 2026-10-17 */
+export interface Usage { limits: { storageBytes: number; seats: number; proposalsPerMonth: number | null }; usage: { storageBytes: number; seats: number; proposals: number } }
 export type Me = { account: Account; prices: unknown } & Usage;
 /** 계정 기본 단가표 저장 */
 export const savePrices = (prices: unknown) => call<{ prices: unknown }>('/api/me/prices', { method: 'PUT', body: JSON.stringify({ prices }) });

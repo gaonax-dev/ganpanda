@@ -3,13 +3,14 @@ import { authenticate, type Account } from './auth';
 import { teamAccess } from './team';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { planOf } from './plans';
+import { proposalsThisMonth } from './usage';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
 export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; group_id?: string | null; status?: string; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
-interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null }
+interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
 const newRoomId = () => randomToken().slice(0, 16);
@@ -70,10 +71,12 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     const r = await resolveAccess(req, env, access[1], url.searchParams.get('invite'));
     if (typeof r === 'number') return text('no access', r);
     const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(r.project.owner_id).first<{ plan: string }>();
-    const seats = { used: await env.ACCOUNT.getByName(r.project.owner_id).usedSeats(), limit: planOf(owner?.plan ?? 'free').seats };
+    const plan = planOf(owner?.plan ?? 'free');
+    const seats = { used: await env.ACCOUNT.getByName(r.project.owner_id).usedSeats(), limit: plan.seats };
     // 정산 보기(이익율): 오너, 또는 오너 팀에서 "정산 보기"를 켠 멤버가 편집 초대로 들어온 경우 (2026-10-16)
     const billing = r.role === 'owner' || (r.role === 'editor' && !!r.account && !!(await teamAccess(env, r.project.owner_id, r.account))?.canBilling);
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats, billing });
+    // branding: 소유자 요금제가 무료면 제안 페이지에 "간판다로 만든 제안" (2026-10-17)
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats, billing, branding: plan.branding });
   }
 
   const me = await authenticate(req, env);
@@ -144,12 +147,19 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       return json({ invites: rows.results.map((r) => ({ id: r.token_hash.slice(0, 16), role: r.role, createdAt: r.created_at, revoked: !!r.revoked_at })) });
     }
     if (req.method === 'POST') {
-      const body = await readJson<{ role?: Role }>(req);
+      const body = await readJson<{ role?: Role; kind?: string }>(req);
       const role = body?.role;
       if (!role || !INVITE_ROLES.has(role)) return text('bad role', 400);
+      // kind = 'proposal': 제안 보내기 링크 — 무료 요금제는 한 달 건수 한도 (2026-10-17). 보통 초대는 세지 않는다
+      const kind = body?.kind === 'proposal' ? 'proposal' : null;
+      if (kind) {
+        const limit = planOf(me.plan).proposalsPerMonth;
+        const used = limit === null ? 0 : await proposalsThisMonth(env, me.id);
+        if (limit !== null && used >= limit) return json({ error: 'proposal_limit', used, limit }, 402);
+      }
       const token = randomToken();
-      await env.DB.prepare('INSERT INTO invites (token_hash, project_id, role, created_at) VALUES (?, ?, ?, ?)')
-        .bind(await sha256hex(token), project.id, role, Date.now()).run();
+      await env.DB.prepare('INSERT INTO invites (token_hash, project_id, role, created_at, kind) VALUES (?, ?, ?, ?, ?)')
+        .bind(await sha256hex(token), project.id, role, Date.now(), kind).run();
       return json({ token, role, url: inviteUrl(env, project.id, token) }, 201);
     }
   } else if (req.method === 'DELETE') {

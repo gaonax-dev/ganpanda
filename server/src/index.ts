@@ -217,7 +217,7 @@ export default {
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
-    if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password') return withCors(await handleAuth(req, env, pathname));
+    if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
@@ -237,17 +237,21 @@ export default {
       if (room[2] === '/pins') return withCors(await postPin(req, env, name));
       if (room[2] === '/approvals') return withCors(await postApproval(req, env, name));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));
-      // 동시접속 좌석: 사람 = 계정 ID 또는 손님 브라우저 ID (없으면 소켓마다 1석)
+      // 동시접속 좌석: 사람 = 계정 ID 또는 손님 브라우저 ID (없으면 소켓마다 1석).
+      // 고객(viewer) 열람은 좌석을 쓰지 않는다 (2026-10-17 요금제 개편) — Room 에 x-owner 를 주지 않아 갱신·반납도 없다
       const sid = crypto.randomUUID();
-      const person = access.account ? `acct:${access.account.id}` : `guest:${url.searchParams.get('guest') || sid}`;
       const ownerId = access.project.owner_id;
-      const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(ownerId).first<{ plan: string }>();
-      const seat = await env.ACCOUNT.getByName(ownerId).acquire(person, sid, planOf(owner?.plan ?? 'free').seats);
-      if (!seat.ok) return withCors(json({ error: 'seat_limit', used: seat.used, limit: seat.limit }, 429));
+      const takesSeat = access.role !== 'viewer';
+      if (takesSeat) {
+        const person = access.account ? `acct:${access.account.id}` : `guest:${url.searchParams.get('guest') || sid}`;
+        const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(ownerId).first<{ plan: string }>();
+        const seat = await env.ACCOUNT.getByName(ownerId).acquire(person, sid, planOf(owner?.plan ?? 'free').seats);
+        if (!seat.ok) return withCors(json({ error: 'seat_limit', used: seat.used, limit: seat.limit }, 429));
+      }
       const fwd = new Request(req, { headers: new Headers(req.headers) });
       fwd.headers.set('x-role', access.role);
       fwd.headers.set('x-sid', sid);
-      fwd.headers.set('x-owner', ownerId);
+      if (takesSeat) fwd.headers.set('x-owner', ownerId);
       return env.ROOM.getByName(name).fetch(fwd);
     }
 

@@ -1,12 +1,12 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { PLAN_LABEL } from '../auth';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
   import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
 
   // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
-  const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   let members = $state<TeamMember[] | null>(null);
   let memberEmail = $state('');
   let memberError = $state('');
@@ -76,7 +76,8 @@
           {#if app.usage}
             <p class="row"><span>저장 용량</span><span data-testid="usage-storage">{formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</span></p>
             <div class="bar"><i style:width="{Math.min(100, (app.usage.usage.storageBytes / Math.max(1, app.usage.limits.storageBytes)) * 100)}%"></i></div>
-            <p class="row"><span>동시접속</span><span data-testid="usage-seats">{app.usage.usage.seats} / {app.usage.limits.seats}명</span></p>
+            <p class="row"><span>동시 작업 인원 <small>(직원 · 고객 열람은 세지 않음)</small></span><span data-testid="usage-seats">{app.usage.usage.seats} / {app.usage.limits.seats}명</span></p>
+            <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
         </section>
         <section data-testid="team-section">

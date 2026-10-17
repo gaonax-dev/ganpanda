@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto, apiSetPlan } from './helpers';
 
 test('⌘Z 로 내 편집을 되돌리고 ⌘⇧Z 로 다시 실행한다; 상대의 편집은 그대로', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
@@ -9,6 +9,7 @@ test('⌘Z 로 내 편집을 되돌리고 ⌘⇧Z 로 다시 실행한다; 상�
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
 
   // 상대(editor)가 하나 더 그림
+  await apiSetPlan(request, session, 'basic'); // 소유자 + 직원 동시 작업 (무료는 1명)
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'editor'), '디자이너');
   await guest.keyboard.press('t');
   await dragOnPhoto(guest, [900, 150], [1300, 250]);

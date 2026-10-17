@@ -4,6 +4,7 @@
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import { createInvite } from '../projects';
+  import { AuthError } from '../auth';
   import { loadFont } from '../core/textShapes';
   import { proposalProblems, type ProposalInfo } from '../core/proposal';
   import { wallPlaneOf } from '../core/wallPlane';
@@ -22,6 +23,10 @@
   const close = () => (app.proposalOpen = false);
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
+  function proposalLimitMessage(body: string): string {
+    try { const j = JSON.parse(body) as { used: number; limit: number }; return `무료 요금제는 제안 링크가 한 달 ${j.limit}건까지입니다 (이번 달 ${j.used}건). 다음 달에 다시 만들거나 베이직 요금제로 올리면 무제한입니다.`; }
+    catch { return '무료 요금제의 이번 달 제안 링크 한도에 도달했습니다. 베이직 요금제로 올리면 무제한입니다.'; }
+  }
   async function build() {
     if (problems.length || !app.room) return;
     error = '';
@@ -43,11 +48,12 @@
       busy = '링크 만드는 중…';
       const info: ProposalInfo = { id: crypto.randomUUID(), createdAt: Date.now(), author: app.nickname, renders, hash: app.contentHash, ...(note.trim() ? { note: note.trim() } : {}) };
       app.updateSettings({ proposal: info });
-      const inv = await createInvite(app.room, 'viewer');
+      const inv = await createInvite(app.room, 'viewer', 'proposal');
       link = `${SERVER_URL}/p/${app.room}/${inv.token}`;
       copied = false;
     } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
+      // 무료 요금제 월 건수 한도 (2026-10-17): 서버 402 proposal_limit
+      error = e instanceof AuthError && e.status === 402 ? proposalLimitMessage(e.message) : e instanceof Error ? e.message : String(e);
     } finally { busy = ''; }
   }
   async function copy() { await navigator.clipboard.writeText(link); copied = true; }
@@ -86,7 +92,7 @@
         {:else}
           <button class="btn primary" data-testid="proposal-build" disabled={!!problems.length} onclick={build}>{proposal ? '새로 만들어 링크 발급' : '실사 이미지 만들고 링크 발급'}</button>
         {/if}
-        {#if error}<p class="warn">{error}</p>{/if}
+        {#if error}<p class="warn" data-testid="proposal-error">{error}</p>{/if}
         {#if link}
           <div class="url">
             <input data-testid="proposal-link" readonly value={link} onfocus={(e) => e.currentTarget.select()} />
