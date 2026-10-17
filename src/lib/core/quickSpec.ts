@@ -24,11 +24,16 @@ export interface QuickSpec {
   led: { value: string; label: string; kelvin: string | null } | null;
 }
 
-/** 이 몸통의 도색 객체 키: 도색(paint) > 바탕색(face, 후렉스·천갈이) > 프레임 도색(framePaint) */
+/**
+ * 이 몸통의 도색 객체 키(칩·사양 글의 "몸통 색"): 이미 도색을 골랐으면 도색(paint), 아니면 판·출력면 색(face) > 도색(paint, 갈바·복합판) > 프레임 도색(framePaint).
+ * 포맥스·아크릴처럼 도색과 판 색이 둘 다 있으면 글의 색은 판 색으로 (도색은 상황에 따라 — 2026-10-17)
+ */
 function paintKeyOf(o: SignObject): string | null {
   const keys = new Set(optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key)));
+  const painted = !!o.options?.paintSystem && o.options.paintSystem !== PAINT_SYSTEMS[0];
+  if (keys.has('paintSystem') && (painted || !keys.has('faceSystem'))) return 'paint';
   // 재질이 도색 불가(텐션 천)면 framePaintSystem 이 안 보인다 — 그래도 기본색을 고르면 재질을 그대로 두고 도색 키만 쓴다
-  return keys.has('paintSystem') ? 'paint' : keys.has('faceSystem') ? 'face' : keys.has('framePaintSystem') || keys.has('frameMat') ? 'framePaint' : null;
+  return keys.has('faceSystem') ? 'face' : keys.has('paintSystem') ? 'paint' : keys.has('framePaintSystem') || keys.has('frameMat') ? 'framePaint' : null;
 }
 
 export function quickSpecOf(o: SignObject): QuickSpec {

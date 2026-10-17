@@ -86,7 +86,7 @@ describe('종류별 조합 옵션', () => {
   });
   it('아크릴 액자·현판: 형태 · 소재 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음, 두께는 치수 두께 — 2026-10-16 중복 정리)', () => {
     const o = obj({ productId: 'board-acrylic' });
-    expect(keys(o)).toEqual(['form', 'material', 'layers', 'mount', 'faceSystem']);
+    expect(keys(o)).toEqual(['form', 'material', 'layers', 'mount', 'paintSystem', 'faceSystem']); // 도색(상황에 따라) + 판 색 (2026-10-17)
     expect(keys(obj({ productId: 'board-acrylic', options: { layers: '컬러+화이트 (2레이어)' } }))).toContain('primer'); // 출력할 때만 전처리
     expect(values(o, 'form')).toEqual(['일반 판', '현판', '게시판', '액자', '번호판·층수·호수']);
     expect(values(o, 'layers')).toEqual(['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']);

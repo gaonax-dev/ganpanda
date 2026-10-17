@@ -133,7 +133,7 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   'board-pipe': [...FRAME_MAT, ...paint('face', '바탕색')],
   // 포맥스 (2026-10-15 사용자: "포멕스:uv시트부착")
   // 두께 = 치수 두께(빠른 선택 3~30T), UV 시트 = 구성 요소 (2026-10-16 중복 정리)
-  'board-foamex': [...paint('face', '바탕색')], // 모든 사인물에 바탕색 (2026-10-17)
+  'board-foamex': [...paint('paint', '도색'), ...paint('face', '판 색')], // 도색은 상황에 따라 (2026-10-17 사용자: "도색을 상황에 따라 포맥스 고무스카시 아크릴에 들어간다"), 판 색 = 포맥스 판 자체 색
   // 현수막 (한울: 일반·솔벤 출력, 기본 마감(재단·막대·타공·끈고리 4개) + 추가 마감)
   banner: [sel('print', '출력', ['일반', '솔벤']), tog('stitch', '줄미싱'), tog('endStitch', '양끝미싱'), tog('join', '장폭이음·사방미싱'), tog('band', '밴드미싱'), ...paint('face', PRINT_FACE)],
   // 액자 (2026-10-15 사용자: "액자에 나무틀 패브릭도")
@@ -147,7 +147,8 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     sel('layers', '판재 출력', ['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']),
     tog('primer', '전처리 프라이머 (잉크 부착·스크래치 방지)', (opts) => !!opts.layers && opts.layers !== '출력 없음'),
     sel('mount', '부착', ['다보', '양면 테이프', '실리콘 직접 부착']),
-    ...paint('face', '바탕색'),
+    ...paint('paint', '도색'), // 상황에 따라 (2026-10-17)
+    ...paint('face', '판 색'),
   ],
   // 라이트패널 (한울: 단면/양면 · SMPS 내장/외장 · 옥외 방수형 · 프레임 블랙/실버/화이트)
   'board-lightpanel': [SIDES, sel('smps', 'SMPS (인버터)', ['내장형', '외장형']), sel('place', '설치', ['실내', '옥외 방수형']), ...paint('framePaint', '프레임 색'), ...paint('face', PRINT_FACE)],

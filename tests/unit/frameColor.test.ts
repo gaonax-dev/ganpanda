@@ -67,3 +67,21 @@ describe('그리기: 앞면은 출력면 색, 상자 옆면·테는 프레임 �
     expect(renderSpecOf(o, place)!.faceItems![0].color).toBe('#d62828');
   });
 });
+
+// 2026-10-17 사용자: "도색을 상황에 따라 포맥스 고무스카시 아크릴에 들어간다"
+describe('도색은 포맥스·아크릴 판에도 (상황에 따라, 기본은 도색 없음) — 스카시는 이미 있음', () => {
+  it('포맥스·아크릴: 도색(paint) 피커 + 판 색(face). 고무·티타늄·아크릴 스카시: 도색', () => {
+    for (const id of ['board-foamex', 'board-acrylic']) {
+      expect(has(obj({ productId: id }), 'paintSystem'), id).toBe(true);
+      expect(has(obj({ productId: id }), 'faceSystem'), id).toBe(true);
+      expect(label(obj({ productId: id }), 'paintSystem')).toBe('도색');
+    }
+    for (const t of ['ch-rubber', 'sc-titan', 'ch-scashi']) expect(partOptionFields(newPart('scashi', t)).some((f) => f.key === 'paintSystem'), t).toBe(true);
+  });
+  it('도색을 고르면 판 색보다 우선해 보드·3D 앞면에', () => {
+    const o = obj({ productId: 'board-foamex', widthMm: 1000, heightMm: 300, options: { faceSystem: '기본색', faceCode: '흰색', paintSystem: '기본색', paintCode: '빨강' } });
+    expect(bodyLook(o)!.color).toBe('#d62828');
+    expect(renderSpecOf(o, place)!.faceColor).toBe('#d62828');
+    expect(bodyLook(obj({ productId: 'board-acrylic', options: { faceSystem: '기본색', faceCode: '흰색', paintSystem: '도색 없음' } }))!.color).toBe('#f4f4f2');
+  });
+});
