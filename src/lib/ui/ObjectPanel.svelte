@@ -8,6 +8,8 @@
   import { describeOptions } from '../core/options';
   import type { SignObject } from '../core/model';
   import Chat from './Chat.svelte';
+  import SpecInput from './SpecInput.svelte';
+  import QuickSpec from './QuickSpec.svelte';
 
   let { obj }: { obj: SignObject } = $props();
 
@@ -25,6 +27,7 @@
   const size = $derived(app.sizeOf(obj));
   const total = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices).reduce((a, l) => a + l.amount, 0));
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+  const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
   // 종류 · 치수 · 금액을 한 줄로
   const summary = $derived.by(() => {
     const parts: string[] = [];
@@ -93,6 +96,17 @@
         <div class="row"><button class="btn small primary" data-testid="category-confirm-ok" onclick={() => apply(pending!)}>바꾸기</button><button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pending = null)}>취소</button></div>
       </div>
     {/if}
+    <!-- 처음 만들 때 패널에서 바로: 사이즈 → 사양 글 → 칩 (2026-10-17 사용자: "사인물종류 그리고 사이즈작성하고 다음줄에 텍스트로 … 퀵설정과 같은 요소가 생성되게"). 칩을 누르면 설정 창이 그 자리로 -->
+    {#if category && category !== 'sheet'}
+      <div class="sizes" data-testid="panel-size">
+        <label>가로<input data-testid="panel-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
+        <span>×</span>
+        <label>세로<input data-testid="panel-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '입력'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
+        <span>mm</span>
+      </div>
+      {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
+      <QuickSpec {obj} {ro} {update} compact onPick={(k) => { app.objectSettingsFocus = k; app.objectSettingsOpen = true; }} />
+    {/if}
     <div class="row">
       <p class="summary" data-testid="object-summary">
         {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
@@ -118,6 +132,9 @@
   header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
   .title { flex: 1; background: none; border: 0; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; padding: 4px; border-radius: 6px; }
   .title:focus { background: var(--input); outline: none; }
+  .sizes { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: var(--muted); }
+  .sizes label { display: flex; align-items: center; gap: 4px; flex: 1; }
+  .sizes input { width: 100%; min-width: 0; text-align: right; }
   section { padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
   .summary { flex: 1; margin: 0; font-size: 12px; color: var(--text); line-height: 1.4; }
