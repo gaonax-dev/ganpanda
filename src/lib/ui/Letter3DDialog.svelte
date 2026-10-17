@@ -2,7 +2,7 @@
 <script lang="ts">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-  import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+  import { loadEnvironment, roomEnvironment } from '../sim/env';
   import type { Font } from 'opentype.js';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { app } from '../state.svelte';
@@ -36,8 +36,9 @@
     renderer.domElement.dataset.testid = 'letter3d-canvas';
     scene = new THREE.Scene();
     renderer.toneMapping = THREE.NeutralToneMapping; // 실사 뷰어와 같은 셰이딩 (2026-10-17)
-    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = roomEnvironment(renderer);
     scene.environmentIntensity = ENV_DAY;
+    void loadEnvironment(renderer).then((tex) => { if (tex && scene) scene.environment = tex; }); // 도심 HDRI (2026-10-17)
     camera = new THREE.PerspectiveCamera(40, 1, 10, 1e5);
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;

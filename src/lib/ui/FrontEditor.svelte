@@ -41,6 +41,7 @@
   let urls = $state<Record<string, string>>({});
   const assetOf = (it: PartItem): string | undefined => (it.image ? itemAssetId(it.image, app.sources) : undefined);
   $effect(() => {
+    void app.assetEpoch;
     for (const { it } of all) {
       const id = assetOf(it);
       if (id && !urls[id]) assetUrl(id).then((u) => { if (u) urls = { ...urls, [id]: u }; });

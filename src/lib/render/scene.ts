@@ -31,6 +31,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
   const url = await assetUrl(photo.assetId);
   if (!url) throw new Error('photo asset missing');
   v.setPhoto(await loadImage(url));
+  await v.envReady; // HDRI 조명으로 (2026-10-17)
   const placed = objects.map((o) => { const own = plane ? (signPlaneOf(o, plane) ?? plane) : plane; /* 원근에 맞는 사인물은 원근 설정의 각도 우선 */ return { o, plane: own, at: placeOnWall(own, o) }; });
   const maxX = Math.max(1000, ...placed.map((x) => x.at.cx + x.at.w / 2));
   const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));

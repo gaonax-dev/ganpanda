@@ -11,6 +11,7 @@
   import { app } from '../state.svelte';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { displayUrl } from '../photoDisplay';
+  import { prepareUpload } from '../photoPrep';
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
@@ -23,8 +24,9 @@
   let urls: Record<string, string> = $state({});
   let fitted = false;
 
-  // 사진 에셋 URL 지연 로딩
+  // 사진 에셋 URL 지연 로딩 (못 받았던 에셋이 나중에 오면 assetEpoch 가 바뀌어 다시 요청)
   $effect(() => {
+    void app.assetEpoch;
     for (const p of app.photos) {
       if (urls[p.assetId]) continue;
       displayUrl(p.assetId).then((u) => { if (u) urls[p.assetId] = u; }); // 줄인 사진 (휴대폰 메모리)
@@ -63,7 +65,7 @@
       if (!f.type.startsWith('image/')) continue;
       let assetId: string;
       try {
-        assetId = await putAsset(f);
+        assetId = await putAsset(await prepareUpload(f)); // 긴 변 3200px 로 줄여 올린다 (2026-10-17 느린 기기·모바일 누락)
       } catch (e) {
         if (e instanceof StorageLimitError) {
           app.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 "${f.name}"(${formatBytes(e.sizeBytes)})을 올릴 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}. 더 많은 용량이 필요하면 요금제를 올려 주세요.`;
