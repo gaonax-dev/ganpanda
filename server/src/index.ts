@@ -10,6 +10,7 @@ import { handleGroups } from './groups';
 import { handleTeam } from './team';
 import { handleSocial } from './social';
 import { handlePrices } from './prices';
+import { handleColors } from './colors';
 import { json, readJson, text } from './http';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -218,6 +219,7 @@ export default {
     if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
+    if (pathname === '/api/me/colors') return withCors(await handleColors(req, env));
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));

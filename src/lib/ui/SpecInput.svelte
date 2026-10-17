@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { SignObject } from '../core/model';
   import { applySpecItems, parseSpecText, type SpecItem } from '../core/specText';
+  import { app } from '../state.svelte';
 
   let { obj, ro, update }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void } = $props();
   let text = $state('');
@@ -14,7 +15,7 @@
   function parse() {
     const t = text.trim();
     if (!t) return;
-    items = parseSpecText(t, obj); // 그 종류의 옵션 값(비조명·양면…)도 맞춘다
+    items = parseSpecText(t, obj, app.colorLibrary); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름도 맞춘다
     checked = items.map(() => true);
   }
   function apply() {

@@ -301,7 +301,10 @@ export function effectiveOptions(o: SignObject): Options {
 
 /** 스키마에 없는(종류를 바꿔서 더는 안 보이는) 키를 버린다 */
 export function normalizeOptions(o: SignObject): Options {
-  const keep = new Set(optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key)));
+  const fields = optionGroupsFor(o).flatMap((g) => g.fields);
+  const keep = new Set(fields.map((f) => f.key));
+  // 라이브러리 색 스냅샷(<prefix>Hex·Ref·CardId, core/colorLibrary.ts)은 필드가 아니지만 도색 객체와 함께 남긴다 (2026-10-17)
+  for (const f of fields) if (f.paint?.part === 'system') for (const x of ['Hex', 'Ref', 'CardId']) keep.add(`${f.paint.prefix}${x}`);
   return Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => keep.has(k)));
 }
 
