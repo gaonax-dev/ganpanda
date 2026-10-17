@@ -9,7 +9,7 @@
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import type { PartItem, SignObject, SignPart } from '../core/model';
-  import { PART_KIND_LABEL, PART_TYPES, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf } from '../core/parts';
+  import { PART_KIND_LABEL, PART_TYPES, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf, sheetTargets } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
@@ -27,7 +27,7 @@
   const delPart = (i: number) => edit((ps) => {
     const gone = ps[i].id;
     ps.splice(i, 1);
-    for (const p of ps) if (p.on === gone) p.on = 'frame'; // 지운 채널 위의 시트는 프레임 면으로
+    for (const p of ps) if (p.on === gone) p.on = 'frame'; // 지운 채널·시트 위의 시트는 프레임 면으로
   });
   const addItem = (i: number, kind: PartItem['kind']) => edit((ps) => ps[i].items.push(newItem(kind)));
   const setItem = (i: number, j: number, patch: Partial<PartItem>) => edit((ps) => Object.assign(ps[i].items[j], patch));
@@ -81,9 +81,9 @@
         </select>
         {#if p.kind === 'sheet'}
           <label class="on">올릴 곳
+            <!-- 프레임 면 · 채널 앞면 · 다른 시트 위 (2026-10-17 "안개커팅 위에 로고 돔보컷팅") -->
             <select data-testid="part-on" value={p.on ?? 'frame'} disabled={ro} onchange={(e) => setPart(i, { on: e.currentTarget.value })}>
-              <option value="frame">프레임 면</option>
-              {#each parts.filter((x) => x.kind === 'channel') as c (c.id)}<option value={c.id}>{partLabel(c)} 앞면</option>{/each}
+              {#each sheetTargets(parts, p) as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
             </select>
           </label>
         {/if}

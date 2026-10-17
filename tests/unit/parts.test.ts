@@ -121,3 +121,32 @@ describe('주문서·JSON·입체 보기에도 구성 요소 (옵션 포함)', a
     expect(specFromObject(obj({ productId: 'body-none', parts: [ch] }))).toMatchObject({ text: '카페', heightMm: 450, lighting: 'halo' });
   });
 });
+
+// 시트 위에 시트 (2026-10-17 사용자: "시트의 경우 안개커팅 위에 로고 돔보컷팅 이렇게 할 수 있어")
+describe('시트 위에 시트: 올릴 곳에 다른 시트, 그리는 순서, 요약', async () => {
+  const { layerOrder, sheetTargets, onLabel } = await import('../../src/lib/core/parts');
+  const frost = newPart('sheet', 'sh-cut'); frost.options = { sheetMat: '안개' };
+  const logo = newPart('sheet', 'sh-print'); logo.on = frost.id; logo.items = [{ ...newItem('image'), h: 300, w: 300 }];
+  const ch = newPart('channel', 'ch-front');
+  it('올릴 곳 후보 = 프레임 면 + 채널 앞면 + 다른 시트 (자기 자신과 자기 위에 올라온 시트는 제외)', () => {
+    const parts = [ch, frost, logo];
+    expect(sheetTargets(parts, logo).map((t) => t.id)).toEqual(['frame', ch.id, frost.id]);
+    expect(sheetTargets(parts, frost).map((t) => t.id)).toEqual(['frame', ch.id]); // logo 는 frost 위라 순환 금지
+    expect(sheetTargets(parts, logo).find((t) => t.id === frost.id)!.label).toBe('재질 시트 안개 커팅 완컷 위');
+    expect(sheetTargets(parts, logo).find((t) => t.id === ch.id)!.label).toBe('전광 채널 앞면');
+  });
+  it('그리는 순서: 아래에 깔리는 것부터 — 프레임 면 시트 → 그 위 시트 → 채널·스카시', () => {
+    expect(layerOrder([logo, ch, frost]).map((p) => p.id)).toEqual([frost.id, logo.id, ch.id]);
+  });
+  it('요약·구성내역에 "… 위"', () => {
+    expect(onLabel([ch, frost, logo], logo)).toBe('재질 시트 안개 커팅 완컷 위');
+    expect(onLabel([ch, frost, logo], frost)).toBeNull(); // 프레임 면은 적지 않음
+    const o = obj({ productId: 'board-galva', parts: [frost, logo] });
+    expect(describeParts(o)[1]).toBe('UV 출력 돔보컷팅 완컷 그림 1 (재질 시트 안개 커팅 완컷 위)');
+  });
+  it('아래 시트를 지우면 위 시트는 프레임 면으로', async () => {
+    const { partsForProduct } = await import('../../src/lib/core/parts');
+    const o = obj({ productId: 'board-galva', parts: [logo] }); // frost 가 없음
+    expect(partsForProduct(o, 'board-galva')![0].on).toBe('frame');
+  });
+});

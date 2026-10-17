@@ -18,8 +18,8 @@ const sign = obj({ productId: 'board-galva', widthMm: 6000, heightMm: 900, parts
 describe('객체 배치 (사인물 mm → 그릴 곳, 왼쪽 위 기준·y 아래)', () => {
   it('사인물 6000×900 을 600×90 에 그리면 1/10, 중심 기준을 왼쪽 위 기준으로', () => {
     const l = layoutParts(sign, 6000, 900, 600, 90);
-    expect(l.map((x) => x.id)).toEqual(['t1', 't2', 't3', 'i1']);
-    const t1 = l[0];
+    expect(l.map((x) => x.id)).toEqual(['i1', 't1', 't2', 't3']); // 시트(아래)부터, 입체 글자는 뒤에 (layerOrder, 2026-10-17)
+    const t1 = l.find((x) => x.id === 't1')!;
     const w = 4 * 600 * TEXT_CHAR_ASPECT / 10;
     expect(t1).toMatchObject({ partKind: 'channel', kind: 'text', text: '바로바로', color: PART_COLOR.channel });
     expect(t1.w).toBeCloseTo(w);

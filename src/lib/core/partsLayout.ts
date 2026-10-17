@@ -3,6 +3,7 @@
 import type { PartItem, SignObject, SignPart } from './model';
 import { itemBox } from './frontView';
 import { svgText, type TextRenderer } from './svgText';
+import { layerOrder } from './parts';
 
 /** 구성 요소 색 (정면도 편집기·카드·PDF·3D 앞면 공용) */
 export const PART_COLOR: Record<SignPart['kind'], string> = { channel: '#ff6b5e', scashi: '#e0b85a', sheet: '#5aa8ff' };
@@ -22,7 +23,7 @@ export interface LaidItem {
 export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, H: number): LaidItem[] {
   if (!o.parts || !(mmW > 0) || !(mmH > 0)) return [];
   const sx = W / mmW, sy = H / mmH;
-  return o.parts.flatMap((p) => p.items.map((it) => {
+  return layerOrder(o.parts).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다
     const b = itemBox(it);
     return {
       id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), color: PART_COLOR[p.kind],
