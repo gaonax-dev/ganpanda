@@ -1,5 +1,6 @@
 <!-- 말풍선 안 첨부: 이미지는 썸네일, 그 외는 파일 링크 -->
 <script lang="ts">
+  import { app } from '../state.svelte';
   import type { Attachment } from '../core/model';
   import { isImage } from '../core/attachments';
   import { formatBytes } from '../core/format';
@@ -7,7 +8,7 @@
 
   let { att }: { att: Attachment } = $props();
   let url = $state<string | undefined>(undefined);
-  $effect(() => { assetUrl(att.assetId).then((u) => (url = u)); });
+  $effect(() => { void app.assetEpoch; assetUrl(att.assetId).then((u) => (url = u)); });
 
   function open() { if (url) window.open(url, '_blank', 'noopener'); }
 </script>

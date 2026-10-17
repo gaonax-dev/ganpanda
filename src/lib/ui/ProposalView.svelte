@@ -25,6 +25,7 @@
 
   // 렌더 이미지 URL 준비
   $effect(() => {
+    void app.assetEpoch;
     const ids = (proposal?.renders ?? []).flatMap((r) => [r.day, r.night]);
     for (const id of ids) if (!urls[id]) assetUrl(id).then((u) => { if (u) urls = { ...urls, [id]: u }; });
   });

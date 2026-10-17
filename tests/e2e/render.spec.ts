@@ -261,7 +261,9 @@ test('몸통 위 채널 글자가 반사광에 씻겨 사라지지 않는다 (�
   const buf = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 5712; c.height = 4284; const g = c.getContext('2d')!; g.fillStyle = '#556'; g.fillRect(0, 0, 5712, 4284); return c.toDataURL('image/jpeg', 0.7); });
   await page.getByTestId('photo-input').setInputFiles({ name: '측면.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(buf.split(',')[1], 'base64') });
   await page.getByTestId('photo-zone').waitFor();
-  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; app.project.addObject({ photoId: app.photos[0].id, name: 's', shape: 'rect', quad: [[940, 881], [4685, 994], [4678, 1431], [931, 1338]], sheetIds: [], productId: 'board-galva', options: { channel: '전광 채널' }, text: '바로바로정육점', widthMm: 6400, heightMm: 600 }); });
+  // 올릴 때 긴 변 3200 으로 줄어든다(2026-10-17 photoPrep) → 원본 5712px 좌표를 에셋 px 로 환산
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { w: number }[] } }).__ganpanda.photos[0]?.w)).toBe(3200);
+  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { photos: { id: string; w: number }[]; project: { addObject(o: unknown): string } } }).__ganpanda; const s = app.photos[0].w / 5712; app.project.addObject({ photoId: app.photos[0].id, name: 's', shape: 'rect', quad: [[940, 881], [4685, 994], [4678, 1431], [931, 1338]].map(([x, y]) => [x * s, y * s]), sheetIds: [], productId: 'board-galva', options: { channel: '전광 채널' }, text: '바로바로정육점', widthMm: 6400, heightMm: 600 }); });
   await page.getByTestId('render-open').click();
   await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await page.waitForTimeout(1500);

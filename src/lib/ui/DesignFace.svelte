@@ -8,7 +8,7 @@
   let { design, w, h, testid = 'design-image' }: { design: DesignRef; w: number; h: number; testid?: string } = $props();
   const page = $derived(app.sources.find((s) => s.id === design.sourceId)?.pages[design.page]);
   let url = $state<string | undefined>(undefined);
-  $effect(() => { if (page) assetUrl(page.assetId).then((u) => (url = u)); else url = undefined; });
+  $effect(() => { void app.assetEpoch; if (page) assetUrl(page.assetId).then((u) => (url = u)); else url = undefined; });
   const sx = $derived(w / design.crop.w), sy = $derived(h / design.crop.h);
 </script>
 

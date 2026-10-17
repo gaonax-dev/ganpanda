@@ -55,7 +55,7 @@
   });
   const set = (patch: Partial<CameraSetup>) => { app.cameraDraft = { ...draft, ...patch }; };
 
-  $effect(() => { assetUrl(photo.assetId).then((u) => (url = u)); });
+  $effect(() => { void app.assetEpoch; assetUrl(photo.assetId).then((u) => (url = u)); });
   $effect(() => {
     const fit = () => { if (host) scale = Math.min(host.clientWidth / photo.w, host.clientHeight / photo.h); };
     const ro2 = new ResizeObserver(fit); ro2.observe(host); fit();

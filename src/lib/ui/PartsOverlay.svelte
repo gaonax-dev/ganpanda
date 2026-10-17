@@ -13,6 +13,7 @@
   const laid = $derived(layoutParts(o, mmW, mmH, w, h));
   let urls = $state<Record<string, string>>({});
   $effect(() => {
+    void app.assetEpoch;
     for (const l of laid) {
       const id = l.image ? itemAssetId(l.image, app.sources) : undefined;
       if (id && !urls[l.id]) assetUrl(id).then((u) => { if (u) urls = { ...urls, [l.id]: u }; });

@@ -54,6 +54,7 @@
 
   $effect(() => {
     // 카드 얼굴: 사진 영역을 펼친 작은 그림 (원본 전체를 카드마다 겹치지 않는다 — 휴대폰 메모리)
+    void app.assetEpoch;
     for (const { o, w, h } of sized) {
       const p = app.photos.find((x) => x.id === o.photoId);
       if (!p || o.quad.length !== 4) continue;

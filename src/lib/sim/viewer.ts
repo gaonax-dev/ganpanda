@@ -5,7 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { loadEnvironment, roomEnvironment } from './env';
 /** 주간 조명 세기 (2026-10-17 과한 스페큘러 줄임): 태양 2.2 → 1.6, 환경맵 1 → 0.45 */
 export const SUN_DAY = 1.6, ENV_DAY = 0.45;
 import type { CameraPose } from '../core/homography';
@@ -83,9 +83,10 @@ export class Viewer {
     });
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
 
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = ENV_DAY; // 방 환경맵의 창 반사가 금속면에 강하게 맺히던 것을 줄임
+    // 환경맵: 먼저 실내(RoomEnvironment)로 그리고, 도심 HDRI(public/env, 2026-10-17 "환경맵은 three 의 라이팅에 사용되는 HDRI")가 내려오면 바꿔 끼운다
+    this.scene.environment = roomEnvironment(this.renderer);
+    this.scene.environmentIntensity = ENV_DAY;
+    this.envReady = loadEnvironment(this.renderer).then((tex) => { if (tex) { this.scene.environment = tex; this.invalidate(); } });
 
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -118,6 +119,8 @@ export class Viewer {
     loop();
   }
 
+  /** HDRI 환경맵 준비 (PNG 저장·합성은 이걸 기다려야 조명이 같다) */
+  envReady: Promise<void> = Promise.resolve();
   invalidate() { this.dirty = true; }
 
   setPhoto(img: HTMLImageElement | HTMLCanvasElement) {

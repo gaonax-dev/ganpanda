@@ -25,7 +25,7 @@ import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
-import { flushPendingUploads, setAssetScope } from './assets';
+import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
 import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
@@ -96,6 +96,8 @@ class AppState {
   usage = $state<Usage | null>(null);
   /** 계정 기본 단가표 (/api/me) */
   accountPrices = $state<unknown>(null);
+  /** 못 받았던 에셋을 나중에 받았을 때 1 증가 — 에셋 URL 을 쓰는 화면은 이 값을 읽어 다시 요청한다 (2026-10-17 "모바일에서 누락") */
+  assetEpoch = $state(0);
   /** 색 라이브러리 (2026-10-17 "색상관리가 중요하다"): 계정에 저장(서버) + 기기 사본(localStorage). 로그인 전에도 기기 사본으로 쓴다 → core/colorLibrary.ts */
   colorLibrary = $state<ColorCard[]>(loadLocalColors());
   pricesOpen = $state(false);
@@ -253,6 +255,7 @@ class AppState {
   seesMargin = $derived(this.role === 'owner' || (this.role === 'editor' && this.access.status === 'ok' && !!this.access.billing));
 
   constructor() {
+    onAssetsRecovered(() => { this.assetEpoch++; });
     this.project.onChange(() => this.version++);
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
@@ -502,6 +505,7 @@ class AppState {
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
     this.client.whenOnline(flushPendingUploads);
+    this.client.whenOnline(() => void retryMissingAssets()); // 못 받은 에셋 다시 (2026-10-17)
     // 요청에서 만든 프로젝트: 문서에 사진이 없으면 요청 사진을 가져온다 (요청판, 2026-10-17)
     this.client.whenOnline(() => { if (this.role === 'owner' && this.access.status === 'ok' && this.access.requestId) this.importRequestPhotos(this.access.requestId); });
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
