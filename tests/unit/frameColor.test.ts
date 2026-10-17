@@ -22,7 +22,7 @@ describe('프레임이 있는 종류에는 프레임 색, 인쇄물 면은 출�
   });
   it('후렉스의 face 는 "출력면 색 (인쇄물 임시)", 갈바는 도색(몸통 = 프레임)', () => {
     expect(label(obj({ productId: 'board-flex' }), 'faceSystem')).toBe('출력면 색 (인쇄물 임시)');
-    expect(label(obj({ productId: 'board-flex' }), 'framePaintSystem')).toBe('프레임 색');
+    expect(label(obj({ productId: 'board-flex' }), 'framePaintSystem')).toBe('프레임 색 (알루미늄)');
     expect(has(obj({ productId: 'board-galva' }), 'faceSystem')).toBe(false);
     expect(has(obj({ productId: 'board-galva' }), 'paintSystem')).toBe(true);
   });
@@ -58,7 +58,7 @@ describe('그리기: 앞면은 출력면 색, 상자 옆면·테는 프레임 �
     const ch = newPart('channel', 'ch-front'); ch.items = [{ id: 't', kind: 'text', text: '간판', x: 0, y: 0, h: 300 }];
     const s2 = renderSpecOf({ ...flex, parts: [ch] }, place)!;
     expect(s2.sideColor).toBe('#141414');
-    expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.sideColor).toBe('#6b7075');
+    expect(renderSpecOf(obj({ productId: 'frame-plain', widthMm: 3000, heightMm: 600 }), place)!.sideColor).toBe('#6b7075');
   });
   it('시트 색이 카드·3D 앞면 글자 색에', () => {
     const sh = newPart('sheet', 'sh-cut'); sh.options = { sheetSystem: '기본색', sheetCode: '빨강' }; sh.items = [{ id: 't', kind: 'text', text: '시트', x: 0, y: 0, h: 200 }];
@@ -88,20 +88,27 @@ describe('도색은 포맥스·아크릴 판에도 (상황에 따라, 기본은 
 
 // 2026-10-17 사용자: "3d에서 프레임과 판을 구별하나?"
 describe('프레임 테: 판을 테가 둘러싸는 종류는 앞면 가장자리에 프레임 색 테', () => {
-  it('후렉스 40 · 라이트패널 20 · 액자 25 · 갈바/복합판/포맥스 0', () => {
-    expect(frameMmOf(obj({ productId: 'board-flex' }))).toBe(40);
+  it('후렉스 10(알루미늄 1cm) · 라이트패널 20 · 액자 25 · 갈바/복합판/포맥스 0, 테두리 두께 옵션으로 바꿀 수 있다', () => {
+    expect(frameMmOf(obj({ productId: 'board-flex' }))).toBe(10);
+    expect(frameMmOf(obj({ productId: 'board-lightpanel', options: { frameWidth: '35' } }))).toBe(35);
+    expect(frameMmOf(obj({ productId: 'board-lightpanel', options: { frameWidth: 'x' } }))).toBe(20);
+    expect(frameMmOf(obj({ productId: 'board-galva', options: { frameWidth: '35' } }))).toBe(0); // 테 없는 종류는 옵션도 없음
+    expect(has(obj({ productId: 'board-flex' }), 'frameWidth')).toBe(true);
+    expect(has(obj({ productId: 'board-galva' }), 'frameWidth')).toBe(false);
     expect(frameMmOf(obj({ productId: 'board-lightpanel' }))).toBe(20);
     expect(frameMmOf(obj({ productId: 'frame-plain' }))).toBe(25);
     for (const id of ['board-galva', 'board-acp', 'board-foamex', 'board-acrylic', 'banner']) expect(frameMmOf(obj({ productId: id })), id).toBe(0);
   });
   it('frameLook: 테 있는 종류는 색을 안 골라도 기본 회색 테, 테 없는 종류는 프레임 색을 골랐을 때만', () => {
-    expect(frameLook(obj({ productId: 'board-flex' }))).toEqual({ color: '#6b7075', mm: 40 });
-    expect(frameLook(obj({ productId: 'board-flex', options: { framePaintSystem: '기본색', framePaintCode: '검정' } }))).toEqual({ color: '#141414', mm: 40 });
+    expect(frameLook(obj({ productId: 'board-flex' }))).toEqual({ color: '#c8cbcf', mm: 10 }); // 알루미늄
+    expect(frameLook(obj({ productId: 'board-flex', options: { framePaintSystem: '기본색', framePaintCode: '검정' } }))).toEqual({ color: '#141414', mm: 10 });
+    expect(frameLook(obj({ productId: 'frame-plain' }))).toEqual({ color: '#6b7075', mm: 25 });
     expect(frameLook(obj({ productId: 'board-foamex' }))).toBeNull();
     expect(frameLook(obj({ productId: 'board-galva', options: { paintSystem: '기본색', paintCode: '검정' } }))).toEqual({ color: '#141414', mm: 0 });
   });
   it('renderSpecOf 가 frameMm 을 넘긴다 (몸통 없음은 0)', () => {
-    expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(40);
+    expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(10);
+    expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.sideColor).toBe('#c8cbcf');
     expect(renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(0);
   });
 });
