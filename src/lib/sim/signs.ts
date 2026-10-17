@@ -422,6 +422,18 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
       ctx.restore();
     }
   }
+  // 앞면 테: 프레임이 판을 둘러싸는 종류(후렉스·라이트패널·액자…)는 테를 프레임 색으로 그려 판과 구별 (2026-10-17 "3d에서 프레임과 판을 구별하나?")
+  if (spec.frameMm && spec.frameMm > 0 && !spec.bodyless) {
+    const fm = spec.frameMm * s;
+    const rr = Math.max(0, Math.min(0.5, spec.corner ?? 0)) * Math.min(canvas.width, canvas.height);
+    ctx.save();
+    ctx.beginPath();
+    if (rr > 0 && typeof ctx.roundRect === 'function') ctx.roundRect(0, 0, canvas.width, canvas.height, rr); else ctx.rect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = fm * 2; // 선 가운데가 가장자리라 안쪽으로 fm 만큼
+    ctx.strokeStyle = spec.sideColor;
+    ctx.stroke();
+    ctx.restore();
+  }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
