@@ -2,7 +2,7 @@
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
 import { PART_COLOR } from './partsLayout';
-import { paintHex } from './materials';
+import { paintAlpha, paintHex } from './materials';
 import { layerOrder } from './parts';
 import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
@@ -41,8 +41,16 @@ const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 export const fitScale = (measuredW: number, placementW: number) => (measuredW > placementW && measuredW > 0 ? placementW / measuredW : 1);
 
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
-/** 몸통 색: 도색(갈바 등) > 바탕색(후렉스·천갈이) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
+/** 몸통 색: 도색(갈바 등) > 바탕색(후렉스 등) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
 const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex(o.options, 'face') ?? paintHex(o.options, 'framePaint');
+/** 2D 보드에 그리는 바탕: 색(고른 색 > 종류 기본 겉모습) + 불투명도(고른 도색의 투명도). 종류가 없으면 null (시트 분류·분류 없음) — 2026-10-17 "사인물 바탕색 원본에 보이게" */
+export function bodyLook(o: SignObject): { color: string; opacity: number } | null {
+  const product = productById(signParts(o).bodyId);
+  if (!product || product.id === 'body-none') return null;
+  const base = BOARD_LOOK[product.id]?.faceColor ?? DEFAULT_LETTER3D.faceColor;
+  const key = o.options?.paintSystem ? 'paint' : o.options?.faceSystem ? 'face' : 'framePaint';
+  return { color: bodyPaintHex(o) ?? base, opacity: paintAlpha(o.options, key) };
+}
 const hasText = (t?: string) => !!(t ?? '').trim();
 
 /**
@@ -61,7 +69,8 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
         letterItems.push({
           text: it.text!.trim(), heightMm: it.h * sy, x: it.x * sx, y: it.y * sy, letterSpacing,
           depthMm: scashi ? parseFloat(String(part.options?.thickness ?? '')) || 10 : d.depthMm,
-          lighting: scashi ? 'none' : lightingOf(part.type), faceColor: d.faceColor, sideColor: d.sideColor,
+          // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
+          lighting: scashi ? 'none' : lightingOf(part.type), faceColor: paintHex(part.options, 'face') ?? d.faceColor, sideColor: paintHex(part.options, 'body') ?? d.sideColor,
         });
       } else {
         const b = itemBox(it);

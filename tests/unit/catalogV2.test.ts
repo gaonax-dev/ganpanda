@@ -114,9 +114,9 @@ describe('포맥스 · 현수막 · 라이트패널 · 액자 · 어닝', () => 
   it('어닝: 고정형/접이식, 접이식이면 작동(수동/자동), 수동이면 핸들 좌우·길이, 공통 펼침(mm)·제작사·천 코드(직접 입력)', () => {
     const fixed = obj({ productId: 'board-awning' });
     expect(values(fixed, 'form')).toEqual(['고정형', '접이식']);
-    expect(keys(fixed)).toEqual(['form', 'reach', 'maker', 'fabricCode']);
+    expect(keys(fixed)).toEqual(['form', 'reach', 'maker', 'fabricCode', 'faceSystem']); // 바탕색 (2026-10-17)
     const fold = obj({ productId: 'board-awning', options: { form: '접이식' } });
-    expect(keys(fold)).toEqual(['form', 'drive', 'handleSide', 'handleLength', 'reach', 'maker', 'fabricCode']);
+    expect(keys(fold)).toEqual(['form', 'drive', 'handleSide', 'handleLength', 'reach', 'maker', 'fabricCode', 'faceSystem']);
     expect(keys(obj({ productId: 'board-awning', options: { form: '접이식', drive: '자동' } }))).not.toContain('handleSide');
     expect(fields(fixed).find((f) => f.key === 'maker')!.kind).toBe('text');
   });

@@ -34,6 +34,15 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   await dlg.getByTestId('option-faceGloss').selectOption('무광');
   expect((await objOf(page)).options).toMatchObject({ faceSystem: 'RAL', faceCode: '1003', faceGloss: '무광' });
   await expect(dlg.getByTestId('quick-body')).toContainText('RAL 1003');
+  // 투명도: 확장 모드 슬라이더 → 2D 바탕이 반투명
+  await dlg.getByTestId('option-face-swatch-노랑').click();
+  await dlg.getByTestId('option-faceAlpha').fill('40');
+  expect((await objOf(page)).options.faceAlpha).toBe('40');
+  await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('sign-fill')).toHaveCount(1);
+  expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).opacity)).toBe('0.6');
+  await openObjectSettings(page);
+  await dlg.getByTestId('option-face-expand').click();
   // ✕ 도색 없음
   await dlg.getByTestId('option-face-none').click();
   await expect(dlg.getByTestId('option-face-now')).toContainText('도색 없음');
@@ -46,6 +55,16 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   await expect(dlg.getByTestId('part-option-body-color')).toBeVisible();
   await dlg.getByTestId('part-option-body-swatch-금색').click();
   await expect(dlg.getByTestId('quick-part')).toContainText('금색');
+  // 채널 앞면 색(시트): 전광 채널에 있고, 고르면 사진 위 2D 글자 색이 된다
+  await expect(dlg.getByTestId('part-option-face-color')).toBeVisible();
+  await dlg.getByTestId('part-option-face-swatch-노랑').click();
+  await dlg.getByTestId('add-item-text').click();
+  await dlg.getByTestId('item-text').fill('간판');
+  await page.getByTestId('width-mm').fill('3000');
+  await page.getByTestId('height-mm').fill('600');
+  await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay').locator('text')).toHaveAttribute('fill', '#ffcc00');
+  await openObjectSettings(page);
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('검정');
   await expect(page.getByTestId('object-summary')).toContainText('금색');

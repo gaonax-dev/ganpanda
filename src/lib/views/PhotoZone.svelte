@@ -9,6 +9,7 @@
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
+  import { bodyLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint } from '../core/homography';
@@ -23,7 +24,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    overlay, calib, onbox, gizmoPx = 48,
+    overlay, twoD = true, calib, onbox, gizmoPx = 48,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -75,6 +76,8 @@
     onrender?: () => void;
     /** 3D 단계: 사진 위에 겹칠 합성 결과(데이터 URL). 있으면 영역·디자인은 숨기고 편집하지 않는다 */
     overlay?: string;
+    /** 2D 단계: 바탕색·디자인·글자 겹침을 그린다 (원본 단계는 외곽선·치수만) — 2026-10-17 */
+    twoD?: boolean;
     /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
     oncamera?: () => void;
     cameraSet?: boolean;
@@ -406,17 +409,12 @@
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
     <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
-    <div class="designs" class:hidden={!!overlay} style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
-      <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다" — 원본 단계에도 보이게). 3D 단계는 합성 그림이 대신 -->
-      {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
-        {@const q = quadOf(o)}
-        {@const pw = o.widthMm! * 0.5}
-        {@const ph = o.heightMm! * 0.5}
-        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
-          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
-            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>
-          </div>
-        </div>
+    {#if twoD && !overlay}
+    <div class="designs" style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
+      <!-- 2D 단계 (2026-10-17 "사인물 바탕색 원본에 보이게 … 투명도"): 바탕(종류 기본 겉모습 또는 고른 색·투명도) → 입힌 디자인 → 글자·그림 순으로 겹친다 -->
+      {#each objects.filter((o) => bodyLook(o)) as o (o.id)}
+        {@const look = bodyLook(o)!}
+        <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o)}
@@ -427,7 +425,19 @@
           </div>
         </div>
       {/each}
+      <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
+      {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
+        {@const q = quadOf(o)}
+        {@const pw = o.widthMm! * 0.5}
+        {@const ph = o.heightMm! * 0.5}
+        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
+          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
+            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>
+          </div>
+        </div>
+      {/each}
     </div>
+    {/if}
   {:else}
     <div class="loading">불러오는 중…</div>
   {/if}
@@ -654,6 +664,7 @@
   .designs { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
   .pbox { position: relative; }
   .design { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .design.fill { pointer-events: none; }
   .warp { position: absolute; left: 0; top: 0; transform-origin: 0 0; opacity: 0.95; }
   svg.drawing { cursor: crosshair; }
   svg.pinning { cursor: copy; }

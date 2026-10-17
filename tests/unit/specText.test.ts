@@ -64,7 +64,7 @@ describe('체크한 항목만 적용 (applySpecItems)', () => {
     const o = obj({ productId: 'board-galva', options: { form: '돌출형' } });
     const p = applySpecItems(o, parseSpecText('포맥스 흰색'));
     expect(p.productId).toBe('board-foamex');
-    expect(p.options).toMatchObject({ paintSystem: '기본색', paintCode: '흰색' });
+    expect(p.options).toMatchObject({ faceSystem: '기본색', faceCode: '흰색' }); // 포맥스는 바탕색(face) 피커 (2026-10-17)
     expect(p.options).not.toHaveProperty('form'); // 분류가 바뀌면 옛 옵션은 비움
   });
 });

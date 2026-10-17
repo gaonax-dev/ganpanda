@@ -25,6 +25,15 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await setup(page, request);
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
+  // 단계 원본 / 2D / 3D (2026-10-17 "2d가 현재 보여주는 형식이고 원본은 실측만"): 기본 2D 에는 바탕이 그려지고, 원본은 외곽선·치수만
+  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
+  await expect(page.getByTestId('sign-fill')).toHaveCount(1);
+  expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 248, 230)'); // 후렉스 기본 바탕
+  await page.getByTestId('stage-original').click();
+  await expect(page.getByTestId('sign-fill')).toHaveCount(0);
+  await expect(page.getByTestId('sign-shape')).toHaveCount(1);
+  await page.getByTestId('stage-2d').click();
+  await expect(page.getByTestId('sign-fill')).toHaveCount(1);
   await page.getByTestId('stage-3d').click();
   const overlay = page.getByTestId('photo-overlay');
   await expect(overlay).toHaveCount(1, { timeout: 30_000 });
