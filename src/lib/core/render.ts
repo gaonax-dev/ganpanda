@@ -2,6 +2,7 @@
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
 import { PART_COLOR } from './partsLayout';
+import { layerOrder } from './parts';
 import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
@@ -49,7 +50,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   const sx = p.w / (o.widthMm || p.w), sy = p.h / (o.heightMm || p.h);
   const letterItems: NonNullable<SignSpec['letterItems']> = [];
   const faceItems: NonNullable<SignSpec['faceItems']> = [];
-  for (const part of o.parts ?? []) {
+  for (const part of layerOrder(o.parts ?? [])) { // 아래 시트부터 (시트 위에 시트)
     for (const it of part.items) {
       if (it.kind === 'text' && !hasText(it.text)) continue;
       if (it.kind === 'text' && part.kind !== 'sheet') {

@@ -100,6 +100,44 @@ export function commitParts(o: Pick<SignObject, 'options'>, parts: SignPart[]): 
   return { parts, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf)
 }
 
+/** p 가 올라간 것(on)을 따라 깊이: 프레임 면 0, 채널·시트 위 = 그것의 깊이 + 1 (순환·없는 id 는 0) */
+function depthOf(parts: SignPart[], p: SignPart, seen = new Set<string>()): number {
+  if (!p.on || p.on === 'frame' || seen.has(p.id)) return 0;
+  const base = parts.find((x) => x.id === p.on);
+  if (!base) return 0;
+  seen.add(p.id);
+  return depthOf(parts, base, seen) + 1;
+}
+/** 시트를 올릴 곳 후보 (2026-10-17 "안개커팅 위에 로고 돔보컷팅"): 프레임 면 · 채널 앞면 · 다른 시트 위 — 자기 자신과 자기 위에 올라온 것(순환)은 제외 */
+export function sheetTargets(parts: SignPart[], self: SignPart): { id: string; label: string }[] {
+  /** p 가 (직접 또는 건너서) self 위에 올라와 있나 — 그 위에 self 를 올리면 순환 */
+  const sitsOnSelf = (p: SignPart, seen = new Set<string>()): boolean => {
+    if (!p.on || p.on === 'frame' || seen.has(p.id)) return false;
+    if (p.on === self.id) return true;
+    seen.add(p.id);
+    const base = parts.find((x) => x.id === p.on);
+    return !!base && sitsOnSelf(base, seen);
+  };
+  const out: { id: string; label: string }[] = [{ id: 'frame', label: '프레임 면' }];
+  for (const p of parts) {
+    if (p.id === self.id || p.kind === 'scashi') continue;
+    if (p.kind === 'sheet' && sitsOnSelf(p)) continue;
+    out.push({ id: p.id, label: p.kind === 'channel' ? `${partLabel(p)} 앞면` : `${partSpecOf(p)} 위` });
+  }
+  return out;
+}
+/** 올린 곳 문구 (요약·주문서): 채널 앞면 / 시트 위. 프레임 면이면 null */
+export function onLabel(parts: SignPart[], p: SignPart): string | null {
+  if (!p.on || p.on === 'frame') return null;
+  const base = parts.find((x) => x.id === p.on);
+  return base ? (base.kind === 'channel' ? `${partLabel(base)} 앞면` : `${partSpecOf(base)} 위`) : null;
+}
+/** 그리는 순서(아래부터): 시트는 깊이 순(프레임 면 → 그 위), 채널·스카시(입체)는 뒤에. 같은 층은 원래 순서 */
+export function layerOrder(parts: SignPart[]): SignPart[] {
+  return parts.map((p, i) => ({ p, i, key: (p.kind === 'sheet' ? 0 : 100) + depthOf(parts, p) }))
+    .sort((a, b) => a.key - b.key || a.i - b.i).map((x) => x.p);
+}
+
 /** 종류를 바꿀 때: 새 종류에 붙일 수 없는 구성 요소는 빼고, 빠진 채널 위의 시트는 프레임 면으로. 저장된 구성 요소가 없으면 undefined(옛 데이터 그대로) */
 export function partsForProduct(o: SignObject, productId: string | undefined): SignPart[] | undefined {
   if (!o.parts) return undefined;
@@ -142,6 +180,7 @@ export function describeParts(o: SignObject): string[] {
   return partsOf(o).map((p) => {
     const texts = p.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()).map((i) => `"${(i.text ?? '').trim()}" ${Math.round(i.h)}mm`);
     const imgs = p.items.filter((i) => i.kind === 'image').length;
-    return [p.kind === 'sheet' ? partSpecOf(p) : partLabel(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : [])].join(' ');
+    const on = onLabel(partsOf(o), p);
+    return [p.kind === 'sheet' ? partSpecOf(p) : partLabel(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
   });
 }

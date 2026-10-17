@@ -42,6 +42,16 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await page.getByTestId('add-part-sheet-uv').click();
   const sh = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="sheet"]') });
   await expect(sh.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면']);
+  // 시트 위에 시트 (2026-10-17 "안개커팅 위에 로고 돔보컷팅"): 재질 시트(안개)를 더하면 UV 시트의 올릴 곳에 "… 위"
+  await page.getByTestId('add-part-sheet-cut').click();
+  const sheets = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="sheet"]') });
+  const uv = sheets.nth(0), frost = sheets.nth(1); // 시트 카드가 둘이 되므로 각각
+  await frost.getByTestId('part-option-sheetMat').selectOption('안개');
+  await expect(uv.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면', '재질 시트 안개 커팅 완컷 위']);
+  await uv.getByTestId('part-on').selectOption({ label: '재질 시트 안개 커팅 완컷 위' });
+  await expect(frost.getByTestId('part-on').locator('option')).toHaveText(['프레임 면', '전광 채널 앞면']); // 순환 금지
+  await frost.getByTestId('part-delete').click(); // 아래 시트를 지우면 프레임 면으로
+  await expect(uv.getByTestId('part-on')).toHaveValue('frame');
   await sh.getByTestId('add-item-image').click();
   await sh.getByTestId('item-w').fill('1000');
   await sh.getByTestId('item-h').fill('500');

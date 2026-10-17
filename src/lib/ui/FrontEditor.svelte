@@ -9,6 +9,7 @@
   import { itemAssetId } from '../render/itemImages';
   import type { PartItem, SignObject, SignPart } from '../core/model';
   import { PART_COLOR as COLOR } from '../core/partsLayout';
+  import { layerOrder } from '../core/parts';
   import { SNAP_PX, alignBox, frameBox, itemBox, resizeItem, snapMove, viewOf, type Align, type Box } from '../core/frontView';
 
   type Sel = { part: string; item: string } | null;
@@ -28,7 +29,7 @@
   const frame = $derived(frameBox(obj));
   const hasSize = $derived(!!(obj.widthMm && obj.heightMm));
   const VIEW_H = $derived(hasSize ? Math.round(Math.min(VIEW_H_MAX, Math.max(VIEW_H_MIN, (viewW - 2 * PAD_PX) * (frame.h / frame.w) + 2 * PAD_PX))) : VIEW_H_MAX);
-  const all = $derived(parts.flatMap((p) => p.items.map((it) => ({ p, it, box: itemBox(it) }))));
+  const all = $derived(layerOrder(parts).flatMap((p) => p.items.map((it) => ({ p, it, box: itemBox(it) }))));
   // 축척은 저장된 값으로만 — 끄는 동안 화면이 출렁이지 않게
   const view = $derived(viewOf(frame, all.map((a) => a.box), viewW, VIEW_H, PAD_PX));
 
@@ -121,7 +122,7 @@
     onpointermove={move} onpointerup={up} onpointercancel={up} onkeydown={key}
     onpointerdown={(e) => { if (e.target === e.currentTarget) sel = null; }}>
     <rect data-testid="front-frame" class="frame" class:nosize={!hasSize} x={fr.x} y={fr.y} width={fr.w} height={fr.h} />
-    {#each parts as p (p.id)}
+    {#each layerOrder(parts) as p (p.id)}
       {#each p.items as it0 (it0.id)}
         {@const it = shown(p, it0)}
         {@const r = rectOf(itemBox(it))}

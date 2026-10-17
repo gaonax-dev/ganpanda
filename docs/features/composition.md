@@ -58,7 +58,7 @@
 ```ts
 SignPart { id, kind: 'channel' | 'scashi' | 'sheet', type, options?, on?, items: PartItem[] }
 //  type = 채널 제품(ch-front·ch-halo·…) / 스카시 제품(ch-rubber·sc-titan·ch-scashi) / 시트(sh-cut·sh-print·sh-frost)
-//  on   = 시트를 올릴 곳: 'frame'(프레임 면) 또는 채널 구성 요소 id(그 채널 앞면)
+//  on   = 시트를 올릴 곳: 'frame'(프레임 면), 채널 구성 요소 id(그 채널 앞면), 또는 다른 시트 id(그 시트 위 — 2026-10-17)
 PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 //  위치 x·y = 간판 중앙 기준 mm (x 오른쪽 +, y 위 +), h = 글자 높이·그림 높이, w = 그림·시트 가로
 //  image = { sourceId, page } (디자인 파일) 또는 { assetId, name } (직접 올린 그림)
@@ -75,7 +75,7 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 ## 화면 (`ui/PartsEditor.svelte`)
 - 설정 창 맨 위는 **사인물 전체 치수**(가로·세로·두께, `size-section`; 2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에"), 그 아래 종류·모양·몸통 옵션.
 - 간판 분류의 설정 창: 몸통 옵션 아래 **구성 요소**(`parts-section`) — [+ 채널] [+ 스카시] [+ 커팅 시트] [+ UV 출력 시트]. 몸통 옵션의 채널·스카시 선택, 시트 칩, 문구 칸, 채널 글자수 칸은 구성 요소 카드로 옮겨져 숨김.
-- 카드(`part-card`): 세부 종류(`part-type`), 시트는 올릴 곳(`part-on`: 프레임 면 / 각 채널 앞면), 옵션(`part-option-<key>`, `partOptionFields`: 채널 = 채널 세부, 스카시 = 두께·재질·도색(+ 표면 마감·문자), 시트 = 시트 공통 + 시트별), 삭제.
+- 카드(`part-card`): 세부 종류(`part-type`), 시트는 올릴 곳(`part-on`: 프레임 면 / 각 채널 앞면 / **다른 시트 위** — 2026-10-17 사용자: "시트의 경우 안개커팅 위에 로고 돔보컷팅 이렇게 할 수 있어". `sheetTargets`: 자기 자신과 자기 위에 올라온 시트는 제외(순환 금지), 아래 시트를 지우면 프레임 면으로. 요약·주문서에 "(재질 시트 안개 커팅 완컷 위)", 정면도·3D·카드·PDF 는 아래 시트부터 그림 `layerOrder`), 옵션(`part-option-<key>`, `partOptionFields`: 채널 = 채널 세부, 스카시 = 두께·재질·도색(+ 표면 마감·문자), 시트 = 시트 공통 + 시트별), 삭제.
 - 내용 객체: [+ 글자] [+ 그림]. 글자: 글자(`item-text`)·글자수(`item-count`, 비우면 자동)·높이·X·Y. 그림: 디자인 파일 페이지(`item-image-source`) 또는 그림 올리기(`item-image-file`), 높이·가로·X·Y. 새 객체는 간판 중앙(0, 0), 높이 300mm.
 - 요약·주문서: 구성 요소마다 `이름 "글자" 높이mm … 그림 n` + 옵션 값(주문서는 기본값까지). 주문 JSON 품목에 `parts`(종류·이름·올릴 곳·옵션(기본값 채움)·객체).
 
