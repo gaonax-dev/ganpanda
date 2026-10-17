@@ -85,7 +85,7 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await page.getByTestId('add-part-channel').click();
   for (const k of ['chType', 'chBuild', 'chDepth', 'font', 'chFrame', 'bracket']) await expect(page.getByTestId(`part-option-${k}`)).toBeVisible();
   await page.getByTestId('part-option-chFrame').selectOption('200폭');
-  await expect(page.getByTestId('part-option-chFrameColor')).toBeVisible();
+  await expect(page.getByTestId('part-option-chFramePaint-color')).toBeVisible(); // 채널 프레임 색 피커 (2026-10-17)
   await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
   await page.getByTestId('part-type').selectOption('sc-titan'); // 스카시 탭 (카드 하나)
@@ -96,7 +96,8 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await expect(page.getByTestId('category-select').locator('option')).toHaveText(['분류 선택', '간판', '시트', '스카시', '포맥스', '현수막', '라이트패널', '액자', '어닝', '사인미러']);
   await pickCategory(page, 'lightpanel');
   await openObjectSettings(page);
-  for (const k of ['smps', 'place', 'frameColor']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  for (const k of ['smps', 'place']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  await expect(page.getByTestId('option-framePaint-color')).toBeVisible(); // 프레임 색 피커 (2026-10-17)
   await expect(page.getByTestId('option-channel')).toHaveCount(0); // 채널은 간판 옵션
   await page.getByTestId('close-object-settings').click();
   // LED 사인미러(따로 분류): 개(1식) 단가

@@ -1,0 +1,32 @@
+// 출력면 색 vs 프레임 색 (2026-10-17 사용자: "갈바나 후랙스 같이 프레임이 있는 경우 컬러를 넣을 수 있게 … 프레임과 구분지어야한다")
+import { expect, test, type Page } from '@playwright/test';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+
+const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
+
+test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레임 색은 평면도 카드 테두리로', async ({ page, request }) => {
+  await openOwnedProject(page, request, '프레임 색');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  const dlg = page.getByTestId('object-settings');
+  await dlg.getByTestId('product-select').selectOption('board-flex');
+  await expect(dlg.getByTestId('option-face-color')).toContainText('출력면 색 (인쇄물 임시)');
+  await expect(dlg.getByTestId('option-framePaint-color')).toContainText('프레임 색');
+  await dlg.getByTestId('option-face-swatch-노랑').click();
+  await dlg.getByTestId('option-framePaint-swatch-검정').click();
+  expect((await objOf(page)).options).toMatchObject({ faceSystem: '기본색', faceCode: '노랑', framePaintSystem: '기본색', framePaintCode: '검정' });
+  // 칩은 출력면 색(몸통 색), 2D 바탕도 출력면 색
+  await expect(dlg.getByTestId('quick-body')).toContainText('노랑');
+  expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 204, 0)');
+  // 치수를 넣으면 평면도 카드: 바탕 노랑 + 프레임 테두리 검정
+  await dlg.getByTestId('width-mm').fill('3000');
+  await dlg.getByTestId('height-mm').fill('600');
+  await dlg.getByTestId('close-object-settings').click();
+  const card = page.getByTestId('board-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByTestId('card-frame')).toHaveCount(1);
+  expect(await card.getByTestId('card-frame').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(20, 20, 20)');
+});

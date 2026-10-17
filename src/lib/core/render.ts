@@ -45,13 +45,17 @@ const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
 const isLitBody = (bodyId: string | undefined, o: SignObject) =>
   (['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명') || (bodyId === 'board-galva' && o.options?.light === 'LED');
 /** 몸통 색: 도색(갈바 등) > 바탕색(후렉스 등) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
-const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex(o.options, 'face') ?? paintHex(o.options, 'framePaint');
+/** 몸통 앞면 색: 도색(갈바·복합판) > 출력면·바탕색. 프레임 색은 앞면에 쓰지 않는다 (2026-10-17 "프레임과 구분") */
+const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex(o.options, 'face');
+/** 프레임(상자 옆면·테) 색: 프레임 도색 > 몸통 도색(갈바는 몸통이 곧 프레임). 없으면 null → 기본 회색 */
+export const frameHex = (o: SignObject) => paintHex(o.options, 'framePaint') ?? paintHex(o.options, 'paint');
+const FRAME_DEFAULT = '#6b7075';
 /** 2D 보드에 그리는 바탕: 색(고른 색 > 종류 기본 겉모습) + 불투명도(고른 도색의 투명도). 종류가 없으면 null (시트 분류·분류 없음) — 2026-10-17 "사인물 바탕색 원본에 보이게" */
 export function bodyLook(o: SignObject): { color: string; opacity: number } | null {
   const product = productById(signParts(o).bodyId);
   if (!product || product.id === 'body-none') return null;
   const base = BOARD_LOOK[product.id]?.faceColor ?? DEFAULT_LETTER3D.faceColor;
-  const key = o.options?.paintSystem ? 'paint' : o.options?.faceSystem ? 'face' : 'framePaint';
+  const key = o.options?.paintSystem ? 'paint' : 'face';
   return { color: bodyPaintHex(o) ?? base, opacity: paintAlpha(o.options, key) };
 }
 const hasText = (t?: string) => !!(t ?? '').trim();
@@ -77,7 +81,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
         });
       } else {
         const b = itemBox(it);
-        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: PART_COLOR[part.kind] });
+        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, part.kind === 'sheet' ? 'sheet' : 'paint') ?? PART_COLOR[part.kind] }); // 시트 색 (2026-10-17)
       }
     }
   }
@@ -113,7 +117,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
         ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
         lighting: !bodyless && isLitBody(bodyId, o) ? 'front' : 'none',
-        faceColor: look.faceColor, sideColor: '#6b7075', ...comp, ...(bodyless ? { bodyless: true } : {}),
+        faceColor: look.faceColor, sideColor: frameHex(o) ?? FRAME_DEFAULT, ...comp, ...(bodyless ? { bodyless: true } : {}),
       };
     }
   }
@@ -137,7 +141,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     // 내부 조명 옵션이 '비조명'이면 빛나지 않는다 (2026-10-16, 상단 조명은 주로 비조명 간판에)
     lighting: isLitBody(bodyId, o) ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
-    sideColor: letters ? '#6b7075' : l?.sideColor ?? '#6b7075',
+    sideColor: frameHex(o) ?? (letters ? FRAME_DEFAULT : l?.sideColor ?? FRAME_DEFAULT),
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
   };
 }

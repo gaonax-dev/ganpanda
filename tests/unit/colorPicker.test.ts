@@ -34,7 +34,7 @@ describe('색이 필요한 곳마다 도색 객체(컬러 피커): 후렉스·�
     const fields = optionGroupsFor(obj({ productId: 'board-flex' })).flatMap((g) => g.fields);
     const sys = fields.find((f) => f.key === 'faceSystem')!;
     expect(sys).toBeTruthy();
-    expect(sys.paint).toEqual({ prefix: 'face', part: 'system', label: '바탕색' });
+    expect(sys.paint).toEqual({ prefix: 'face', part: 'system', label: '출력면 색 (인쇄물 임시)' }); // 인쇄물 임시 색, 프레임 색과 구분 (2026-10-17)
     expect(optionGroupsFor(obj({ productId: 'board-reface' })).flatMap((g) => g.fields).some((f) => f.key === 'faceSystem')).toBe(true);
     const galva = optionGroupsFor(obj({ productId: 'board-galva', options: { paintSystem: '직접' } })).flatMap((g) => g.fields);
     expect(galva.find((f) => f.key === 'paintSystem')!.paint).toMatchObject({ prefix: 'paint', part: 'system' });

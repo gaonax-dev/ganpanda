@@ -61,8 +61,7 @@ describe('종류별 조합 옵션', () => {
   });
   it('라이트패널: 면 · SMPS 내장/외장 · 실내/옥외 방수 · 프레임색', () => {
     const o = obj({ productId: 'board-lightpanel' });
-    expect(keys(o).slice(0, 4)).toEqual(['sides', 'smps', 'place', 'frameColor']);
-    expect(values(o, 'frameColor')).toEqual(['블랙', '실버', '화이트']);
+    expect(keys(o).slice(0, 4)).toEqual(['sides', 'smps', 'place', 'framePaintSystem']); // 프레임 색 = 컬러 피커 (2026-10-17)
   });
   it('패브릭 라이트박스: 확산바 · 설치', () => {
     expect(keys(obj({ productId: 'board-fabric' })).slice(0, 2)).toEqual(['diffuser', 'mount']);
@@ -77,12 +76,12 @@ describe('종류별 조합 옵션', () => {
   });
   it('LED 사인미러: 거울 · 프레임 · 프레임색 · LED 빛 (채널 없음)', () => {
     const o = obj({ productId: 'board-mirror' });
-    expect(keys(o)).toEqual(['mirror', 'frame', 'frameColor', 'led', 'faceSystem']); // 바탕색 (2026-10-17 모든 사인물)
+    expect(keys(o)).toEqual(['mirror', 'frame', 'framePaintSystem', 'led', 'faceSystem']); // 프레임 색 피커 + 바탕색 (2026-10-17)
     expect(values(o, 'led')).toEqual(['주광색 5700K', '전구색 4000K']);
   });
   it('전광판: 색 · 모듈 · 면 (채널 없음)', () => {
     const o = obj({ productId: 'board-ledsign' });
-    expect(keys(o)).toEqual(['color', 'module', 'sides', 'faceSystem']);
+    expect(keys(o)).toEqual(['color', 'module', 'sides', 'framePaintSystem', 'faceSystem']); // 케이스 색 (2026-10-17)
     expect(values(o, 'module')).toEqual(['200mm', '240mm', '320mm']);
   });
   it('아크릴 액자·현판: 형태 · 소재 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음, 두께는 치수 두께 — 2026-10-16 중복 정리)', () => {
@@ -118,8 +117,8 @@ describe('채널 (입체 글자) 조합', () => {
     expect(keys(ch({}))).not.toContain('chDouble');
     expect(values(ch({}), 'font')).toEqual(['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)']);
     expect(values(ch({}), 'chFrame')).toEqual(['없음', '150폭', '200폭', '250폭', '300폭', '400폭']);
-    expect(keys(ch({}))).not.toContain('chFrameColor');
-    expect(values(ch({ chFrame: '200폭' }), 'chFrameColor')).toEqual(['진회색', '연회색', '검정', '백색']);
+    expect(keys(ch({}))).not.toContain('chFramePaintSystem');
+    expect(keys(ch({ chFrame: '200폭' }))).toContain('chFramePaintSystem'); // 채널 프레임 색 = 컬러 피커 (2026-10-17)
     expect(keys(ch({}))).toContain('bracket');
   });
 });

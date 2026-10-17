@@ -10,7 +10,7 @@
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { describeOptions } from '../core/options';
   import { faceBadge, faceClip } from '../core/cardFace';
-  import { bodyLook } from '../core/render';
+  import { bodyLook, frameHex } from '../core/render';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won, type QuoteLine } from '../core/quote';
   import { findMethod } from '../core/calcMethods';
@@ -204,6 +204,7 @@
       {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0)}
       {@const look = bodyLook(o)}
       {@const badge = faceBadge(o)}
+      {@const frame = frameHex(o)}
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
           class="face"
@@ -221,6 +222,7 @@
             <img class="flat" src={faces[o.id].url} alt="" draggable="false" />
           {/if}
           {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
+          {#if frame}<div class="frame" data-testid="card-frame" style:box-shadow="inset 0 0 0 {Math.max(2, Math.min(w, h) * 0.04)}px {frame}"></div>{/if}
           {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
           <PartsOverlay {o} mmW={w} mmH={h} {w} {h} />
         </div>
@@ -386,6 +388,7 @@
   .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
   .face img.flat { width: 100%; height: 100%; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
+  .frame { position: absolute; inset: 0; pointer-events: none; }
   .design-on { position: absolute; inset: 0; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
