@@ -107,14 +107,14 @@ export class Project {
 
   // ---------- 위치 코멘트(핀) ----------
 
-  addPin(p: Pick<Pin, 'photoId' | 'x' | 'y' | 'author'>): string {
+  addPin(p: Pick<Pin, 'photoId' | 'x' | 'y' | 'author'> & Partial<Pick<Pin, 'to'>>): string {
     const id = uid();
     const number = this.pinsOf(p.photoId).length + 1;
     this.pins.set(id, toYMap({ ...p, id, createdAt: Date.now(), resolved: false, number }));
     return id;
   }
 
-  updatePin(id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'resolved'>>) {
+  updatePin(id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'resolved' | 'to'>>) {
     this.patch(this.pins.get(id), patch);
   }
 

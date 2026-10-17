@@ -1,4 +1,5 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
+import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
@@ -224,8 +225,12 @@ class AppState {
     return p && d ? solveCamera(d, p.w, p.h) : null;
   });
   pins = $derived.by(() => (this.version, this.project.allPins()));
+  /** 나에게 보이는 말풍선: 모두에게 보낸 것 + 내가 보냈거나 받는 것 (+ 소유자는 전부) — core/pins.ts (2026-10-17) */
+  visiblePins = $derived(this.pins.filter((p) => pinVisibleTo(p, this.nickname, this.role)));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
+  /** 말풍선 받는 사람 후보 */
+  participants = $derived(participantsOf(this.peers.map((p) => p.name), this.messages, this.pins, this.nickname));
   sources = $derived.by(() => (this.version, this.project.allSources()));
   /** UV 뷰에서 고른 사인물 */
   uvObjectId = $state<string | null>(null);
@@ -546,6 +551,8 @@ class AppState {
       this.knownMessageIds.add(m.id);
       if (m.ts < this.startedAt) continue;
       if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' && !this.proposalMode ? this.selectedId : null, hidden: document.hidden })) continue;
+      const pin = this.project.pin(m.objectId);
+      if (pin && !pinVisibleTo(pin, this.nickname, this.role)) continue; // 남에게 보낸 말풍선의 대화는 알리지 않는다 (2026-10-17)
       const text = m.text || describeAttachments(m.attachments ?? []);
       this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text }];
       setTimeout(() => this.dismissToast(m.id), 8000);

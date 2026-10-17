@@ -8,6 +8,32 @@ async function clickPhoto(page: Page, x: number, y: number) {
   await page.mouse.click(b.x + x * k, b.y + y * k);
 }
 
+test('말풍선 받는 사람: 모두가 기본, 특정인에게 보내면 보낸 사람·받는 사람·소유자만 본다 (2026-10-17)', async ({ page, request, browser }) => {
+  const { session, projectId } = await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'editor'), '디자이너');
+  await expect(page.getByTestId('tool-pin')).toContainText('말풍선');
+  await page.keyboard.press('p');
+  await clickPhoto(page, 800, 300);
+  await expect(page.getByTestId('pin-panel')).toContainText('말풍선');
+  await expect(page.getByTestId('pin-to-label')).toHaveText('모두');
+  await expect(guest.getByTestId('pin')).toHaveCount(1);
+  // 받는 사람을 디자이너로: 디자이너와 보낸 사람(소유자)만 본다. 제3자(고객 '시공')는 못 본다
+  await expect(page.getByTestId('pin-to').locator('option', { hasText: '디자이너' })).toHaveCount(1); // 접속한 사람이 후보에
+  await page.getByTestId('pin-to').selectOption('디자이너');
+  await expect(page.getByTestId('pin-to-label')).toHaveText('디자이너');
+  await expect(guest.getByTestId('pin')).toHaveAttribute('data-to', '디자이너');
+  const third = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'), '시공'); // viewer: 좌석을 쓰지 않는다
+  await expect(third.getByTestId('photo-img')).toBeVisible();
+  await expect(third.getByTestId('pin')).toHaveCount(0);
+  await expect(page.getByTestId('pin')).toHaveCount(1); // 보낸 사람(소유자)
+  // 다시 모두에게
+  await page.getByTestId('pin-to').selectOption('');
+  await expect(third.getByTestId('pin')).toHaveCount(1);
+  await third.ctx.close();
+  await guest.ctx.close();
+});
+
 test('소유자가 핀을 꽂고 코멘트를 남기면 고객이 보고 답한다; 해결하면 흐려진다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);

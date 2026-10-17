@@ -147,13 +147,13 @@ export class Room extends DurableObject<Env> {
   }
 
   /** 위치 코멘트(핀) 추가 (RPC, viewer 용). 앱의 Project.addPin 과 같은 구조 */
-  async addPin(photoId: string, x: number, y: number, author: string) {
+  async addPin(photoId: string, x: number, y: number, author: string, to = '') {
     const pins = this.doc.getMap<Y.Map<unknown>>('pins');
     let number = 1;
     for (const m of pins.values()) if (m.get('photoId') === photoId) number++;
     const id = crypto.randomUUID();
     const m = new Y.Map<unknown>();
-    const pin = { id, photoId, x, y, author, createdAt: Date.now(), resolved: false, number };
+    const pin = { id, photoId, x, y, author, createdAt: Date.now(), resolved: false, number, ...(to ? { to } : {}) };
     this.doc.transact(() => {
       for (const [k, v] of Object.entries(pin)) m.set(k, v);
       pins.set(id, m);

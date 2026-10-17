@@ -320,7 +320,7 @@
         gizmoPx={app.gizmoSize}
         editable={app.canEdit}
         unread={app.unread}
-        pins={app.pins.filter((x) => x.photoId === p.id)}
+        pins={app.visiblePins.filter((x) => x.photoId === p.id)}
         selectedPinId={app.selectedPinId}
         oncreatepin={(x, y) => app.createPin(p.id, x, y)}
         onselectpin={(id) => app.selectPin(id)}
@@ -421,7 +421,7 @@
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="원형 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>◯<span class="lbl"> 원형</span></button>
-          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍<span class="lbl"> 핀</span></button>
+          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트, 받는 사람 지정 가능 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>💬<span class="lbl"> 말풍선</span></button>
           <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
           {#if SERVER_URL}
             <button data-testid="tool-magic" class:on={app.tool === 'magic'} disabled={no3d} title="자동 분리 · AI ({hint('toolMagic')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'magic')}>✨<span class="lbl"> 자동</span></button>
@@ -432,7 +432,7 @@
           <span class="sep"></span>
           <label class="file" title="사진 추가">＋<span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
         {:else}
-          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>📍 핀</button>
+          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>💬 말풍선</button>
           <span class="readonly">보기·대화만 가능</span>
         {/if}
         <button title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>

@@ -184,11 +184,12 @@ async function proposalLanding(req: Request, env: Env, projectId: string, token:
 /** viewer 가 사진 위에 핀을 꽂는다 (문서 편집 권한 없이) */
 async function postPin(req: Request, env: Env, room: string): Promise<Response> {
   if (req.method !== 'POST') return text('method not allowed', 405);
-  const b = await readJson<{ photoId?: string; x?: number; y?: number; author?: string }>(req);
+  const b = await readJson<{ photoId?: string; x?: number; y?: number; author?: string; to?: string }>(req);
   const photoId = typeof b?.photoId === 'string' ? b.photoId : '';
   const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
+  const to = typeof b?.to === 'string' ? b.to.trim().slice(0, 40) : ''; // 받는 사람 (2026-10-17 말풍선), 비우면 모두
   if (!photoId || !author || typeof b?.x !== 'number' || typeof b?.y !== 'number' || !isFinite(b.x) || !isFinite(b.y)) return text('bad pin', 400);
-  const pin = await env.ROOM.getByName(room).addPin(photoId, b.x, b.y, author);
+  const pin = await env.ROOM.getByName(room).addPin(photoId, b.x, b.y, author, to);
   return json({ pin }, 201);
 }
 
