@@ -46,8 +46,15 @@ test('소유자가 초대 링크를 만들고 복사한다 (역할 선택)', asy
   expect(url).toMatch(/\?room=[A-Za-z0-9_-]{16}&invite=[A-Za-z0-9_-]{32,}/);
   await expect(page.getByTestId('invite-item')).toHaveCount(1);
   await expect(page.getByTestId('invite-item')).toContainText('보기');
-  await page.getByTestId('invite-revoke').click();
-  await expect(page.getByTestId('invite-item')).toContainText('폐기됨');
+  // 만든 링크 다시 복사 (2026-10-17): 두 번째 링크를 만든 뒤 첫 링크의 [복사]를 누르면 그 주소가 입력칸에 온다
+  await page.getByTestId('invite-role-editor').click();
+  await page.getByTestId('invite-create').click();
+  await expect(page.getByTestId('invite-item')).toHaveCount(2);
+  await page.getByTestId('invite-copy').first().click();
+  await expect(page.getByTestId('invite-copy').first()).toContainText('복사됨');
+  await expect(page.getByTestId('invite-url')).toHaveValue(url);
+  await page.getByTestId('invite-revoke').first().click();
+  await expect(page.getByTestId('invite-item').first()).toContainText('폐기됨');
 });
 
 test('viewer 초대: 보고 대화할 수 있지만 편집은 못 한다', async ({ page, request, browser }) => {

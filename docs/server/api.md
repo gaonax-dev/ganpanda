@@ -40,7 +40,7 @@
 | POST | `/api/projects` `{name}` | 프로젝트 생성 (id = 방 이름, 16자) | 201 `{project}` / 400 |
 | PATCH | `/api/projects/:id` `{name}` | 이름 변경 (소유자) | 200 / 403 / 404 |
 | DELETE | `/api/projects/:id` | 삭제 + 초대 폐기 (소유자) | 204 / 403 |
-| GET | `/api/projects/:id/invites` | 초대 목록 (토큰은 돌려주지 않음, id = 해시 앞 16자) | `{invites}` |
+| GET | `/api/projects/:id/invites` | 초대 목록 (id = 해시 앞 16자). 소유자가 **다시 복사**할 수 있게 폐기 안 된 링크는 `url` 포함(2026-10-17, `invites.token` 원문 저장 — 그 전에 만든 링크는 없음). 제안 링크는 `kind:'proposal'` | `{invites[{id, role, createdAt, revoked, kind?, url?}]}` |
 | POST | `/api/projects/:id/invites` `{role: viewer\|editor, kind?: 'proposal'}` | 초대 링크 생성. `kind: 'proposal'` = 제안 보내기 링크 → 무료 요금제 월 건수 한도 (2026-10-17) | 201 `{token, role, url}` / 400 / **402 `{error:'proposal_limit', used, limit}`** |
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
 | PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|done, contractAmount?: number\|null, paidAmount?, quoteTotal?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만). `contractAmount: null` = 자동(견적 합계) 복구. `quoteTotal` 은 앱이 리스트 뷰 견적 합계를 저장 | 200 / 400 / 403 / 404 |

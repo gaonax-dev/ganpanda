@@ -19,8 +19,16 @@
     await refresh();
   }
   async function copy() {
-    await navigator.clipboard.writeText(url);
+    try { await navigator.clipboard.writeText(url); } catch { /* 클립보드 권한 없음 — 입력칸에서 직접 복사 */ }
     copied = true;
+  }
+  /** 만든 링크 다시 복사 (2026-10-17 사용자: "초대링크 다시보낼수 있게 복사버튼"): 위 입력칸에도 띄운다 */
+  let copiedId = $state('');
+  async function copyAgain(inv: InviteInfo) {
+    if (!inv.url) return;
+    url = inv.url; copied = false;
+    try { await navigator.clipboard.writeText(inv.url); } catch { /* 입력칸에서 직접 복사 */ }
+    copiedId = inv.id;
   }
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 </script>
@@ -50,9 +58,15 @@
       <ul>
         {#each invites as inv (inv.id)}
           <li data-testid="invite-item" class:revoked={inv.revoked}>
-            <span>{ROLE_LABEL[inv.role]} · {date(inv.createdAt)}</span>
+            <span>{inv.kind === 'proposal' ? '제안' : ROLE_LABEL[inv.role]} · {date(inv.createdAt)}</span>
             {#if inv.revoked}<small>폐기됨</small>
-            {:else}<button class="btn small danger" data-testid="invite-revoke" onclick={() => revokeInvite(room, inv.id).then(refresh)}>폐기</button>{/if}
+            {:else}
+              <span class="acts">
+                {#if inv.url}<button class="btn small" data-testid="invite-copy" title="이 링크를 다시 복사해 보내기" onclick={() => copyAgain(inv)}>{copiedId === inv.id ? '복사됨 ✓' : '복사'}</button>
+                {:else}<small title="이전에 만든 링크는 다시 복사할 수 없습니다. 새로 만들어 보내세요">복사 불가</small>{/if}
+                <button class="btn small danger" data-testid="invite-revoke" onclick={() => revokeInvite(room, inv.id).then(refresh)}>폐기</button>
+              </span>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -75,4 +89,6 @@
   ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
   li { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
   li.revoked { color: var(--muted); }
+  .acts { display: flex; gap: 4px; align-items: center; }
+  .acts small { color: var(--muted); font-size: 11px; }
 </style>

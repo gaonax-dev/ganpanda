@@ -11,7 +11,7 @@ const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
 export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; request_id?: string | null; group_id?: string | null; status?: string; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
-interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null }
+interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
 const newRoomId = () => randomToken().slice(0, 16);
@@ -147,7 +147,8 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     if (req.method === 'GET') {
       const rows = await env.DB.prepare('SELECT * FROM invites WHERE project_id = ? ORDER BY created_at').bind(project.id).all<InviteRow>();
       // 토큰은 돌려주지 않는다. id = 해시 앞 16자
-      return json({ invites: rows.results.map((r) => ({ id: r.token_hash.slice(0, 16), role: r.role, createdAt: r.created_at, revoked: !!r.revoked_at })) });
+      // url: 소유자가 다시 복사할 수 있게 (폐기된 것·옛 링크는 없음) — 2026-10-17 "초대링크 다시보낼수 있게 복사버튼"
+      return json({ invites: rows.results.map((r) => ({ id: r.token_hash.slice(0, 16), role: r.role, createdAt: r.created_at, revoked: !!r.revoked_at, ...(r.kind ? { kind: r.kind } : {}), ...(r.token && !r.revoked_at ? { url: inviteUrl(env, project.id, r.token) } : {}) })) });
     }
     if (req.method === 'POST') {
       const body = await readJson<{ role?: Role; kind?: string }>(req);
@@ -161,8 +162,8 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
         if (limit !== null && used >= limit) return json({ error: 'proposal_limit', used, limit }, 402);
       }
       const token = randomToken();
-      await env.DB.prepare('INSERT INTO invites (token_hash, project_id, role, created_at, kind) VALUES (?, ?, ?, ?, ?)')
-        .bind(await sha256hex(token), project.id, role, Date.now(), kind).run();
+      await env.DB.prepare('INSERT INTO invites (token_hash, project_id, role, created_at, kind, token) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(await sha256hex(token), project.id, role, Date.now(), kind, token).run();
       if (kind) await recordResponse(env, project, `/p/${project.id}/${token}`); // 요청판 응답 기록 (경로만 — 앱이 서버 주소를 붙인다)
       return json({ token, role, url: inviteUrl(env, project.id, token) }, 201);
     }

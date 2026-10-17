@@ -11,7 +11,7 @@ export interface ProjectInfo { id: string; name: string; createdAt: number; role
 export interface GroupInfo { id: string; name: string; createdAt: number; role: 'owner' | 'member'; canBilling: boolean }
 export interface TeamMember { accountId: string; email: string; name: string; canBilling: boolean; createdAt: number }
 export interface GroupView { group: GroupInfo; projects: ProjectInfo[] }
-export interface InviteInfo { id: string; role: Exclude<Role, 'owner'>; createdAt: number; revoked: boolean }
+export interface InviteInfo { id: string; role: Exclude<Role, 'owner'>; createdAt: number; revoked: boolean; /** 'proposal' = 제안 링크 */ kind?: string; /** 다시 복사용 (폐기·옛 링크는 없음) */ url?: string }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!SERVER_URL) throw new AuthError(0, '서버가 설정되지 않았습니다');
