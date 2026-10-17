@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, apiSetPlan } from './helpers';
 
 async function makeSign(page: import('@playwright/test').Page) {
   await uploadPhoto(page);
@@ -249,6 +249,7 @@ test('견적 줄 금액: 새 프로젝트는 직접 입력, [자동]으로 계�
   const memberEmail = `mem-${Math.random().toString(36).slice(2, 8)}@example.com`;
   const member = await apiLogin(request, memberEmail);
   await request.post('http://localhost:8787/api/me/team', { data: { email: memberEmail, canBilling: true }, headers: { authorization: `Bearer ${session}` } });
+  await apiSetPlan(request, session, 'basic'); // 소유자 + 멤버 동시 작업 (무료는 1명)
   const inv = await apiCreateInvite(request, session, projectId, 'editor');
   const m = await openInvited(browser, inv, '멤버', member);
   await m.getByTestId('view-list').click();

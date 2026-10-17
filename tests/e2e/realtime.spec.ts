@@ -1,9 +1,10 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
-import { apiCreateInvite, apiCreateProject, apiLogin, dragOnPhoto, openInvited, openObjectSettings, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiCreateProject, apiLogin, apiSetPlan, dragOnPhoto, openInvited, openObjectSettings, uploadPhoto } from './helpers';
 
 /** 소유자(제작자)가 만든 프로젝트와 editor 초대 링크 */
 async function newRoom(request: APIRequestContext) {
   const session = await apiLogin(request);
+  await apiSetPlan(request, session, 'basic'); // 제작자 + 직원 동시 작업
   const projectId = await apiCreateProject(request, session);
   return { session, projectId, invite: await apiCreateInvite(request, session, projectId, 'editor') };
 }

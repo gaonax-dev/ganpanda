@@ -25,6 +25,7 @@
 ## 좌석 (Account DO, `server/src/account.ts`)
 - 계정 ID로 `getByName`. SQLite `seats(sid, person, updated_at)`. `acquire(person, sid, limit)`: 이미 앉은 사람은 한도와 무관하게 허용, 아니면 `COUNT(DISTINCT person) < limit`일 때만.
 - Room 은 소켓 메시지가 올 때 30초(`SEAT_RENEW`)마다 `renew`, 닫히면 `release`. Account 는 90초(`SEAT_TTL`) 넘은 좌석을 정리합니다.
+- **viewer(고객) 소켓은 좌석을 받지 않습니다**(2026-10-17): `index.ts` 가 `acquire` 를 건너뛰고 `x-owner` 를 주지 않으므로 Room 도 갱신·반납하지 않습니다. 좌석은 세션(소유자·멤버)과 editor 초대만.
 - Worker 가 접속 시 `x-sid`·`x-owner`·`x-role` 헤더로 Room 에 넘깁니다.
 
 ## 테스트 환경

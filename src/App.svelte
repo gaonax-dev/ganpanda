@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app, type ViewKind } from './lib/state.svelte';
+  import { PLAN_LABEL } from './lib/auth';
   import BoardView from './lib/views/BoardView.svelte';
   import ListView from './lib/views/ListView.svelte';
   import UvView from './lib/views/UvView.svelte';
@@ -63,7 +64,6 @@
     // 'UV 뷰' → '디자인 파일' (2026-10-15 사용자: "uv맵이라고 했는데 디자인 파일 또는 소스 이미지로"). id 'uv' 는 데이터·테스트 호환상 유지
     { id: 'uv', label: '디자인 파일', short: '디자인' },
   ];
-  const PLAN_LABEL: Record<string, string> = { free: '무료', starter: '스타터', pro: '프로' };
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
 </script>
@@ -116,7 +116,8 @@
               <small>{app.account.email} · {PLAN_LABEL[app.account.plan] ?? app.account.plan}</small>
               {#if app.usage}
                 <small data-testid="usage-storage">저장 용량 {formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</small>
-                <small data-testid="usage-seats">동시접속 {app.usage.usage.seats} / {app.usage.limits.seats}명</small>
+                <small data-testid="usage-seats">동시 작업 {app.usage.usage.seats} / {app.usage.limits.seats}명</small>
+                <small data-testid="usage-proposals">이번 달 제안 {app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건' : ` / ${app.usage.limits.proposalsPerMonth}건`}</small>
               {/if}
               <label>표시 이름
                 <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
@@ -136,7 +137,7 @@
   <div class="banners">
     {#if app.seatLimit && app.sync !== 'online'}
       <div class="banner warn" data-testid="seat-limit">
-        동시접속 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 접속 중 — 자리가 나면 자동으로 연결됩니다. 더 많은 인원이 필요하면 요금제를 올려 주세요.
+        동시 작업 인원 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 작업 중 — 자리가 나면 자동으로 연결됩니다. 직원이 함께 작업하려면 요금제를 올려 주세요. (고객 열람은 인원에 들지 않습니다)
       </div>
     {/if}
     {#if app.updateAvailable}

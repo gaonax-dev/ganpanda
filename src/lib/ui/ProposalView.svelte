@@ -127,6 +127,10 @@
   {#if app.canEdit}
     <footer class="maker"><button class="btn small" data-testid="proposal-exit" onclick={() => (app.proposalMode = false)}>← 작업 화면으로</button></footer>
   {/if}
+  <!-- 무료 요금제의 제안 페이지: 간판다 표시 (2026-10-17 — 비용 0 의 확산 경로) -->
+  {#if app.access.status === 'ok' && app.access.branding}
+    <footer class="brand" data-testid="proposal-branding"><a href="https://ganpanda.co.kr" target="_blank" rel="noopener">간판다로 만든 제안 · 간판집이라면 무료로 시작하세요</a></footer>
+  {/if}
 </div>
 
 <style>
@@ -167,4 +171,7 @@
   .approve small { color: var(--muted); font-size: 12px; line-height: 1.4; }
   label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .maker { padding: 0 16px; }
+  .brand { padding: 8px 16px; text-align: center; font-size: 12px; }
+  .brand a { color: var(--muted); text-decoration: none; }
+  .brand a:hover { color: var(--accent); }
 </style>

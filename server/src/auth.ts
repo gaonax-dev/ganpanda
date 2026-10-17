@@ -1,4 +1,5 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
+import { PLANS } from './plans';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { hashPassword, validPassword, verifyPassword } from './password';
 import { usageOf } from './usage';
@@ -191,6 +192,14 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     await env.DB.prepare('UPDATE accounts SET password_hash = ? WHERE id = ?').bind(await hashPassword(body!.password!), me.id).run();
     if (resetOk) await env.DB.prepare('UPDATE sessions SET reset_until = NULL WHERE token_hash = ?').bind(me.sessionHash).run();
     return json({ ok: true });
+  }
+  // 개발 모드 전용 (AUTH_DEV_LINK=1, 로컬·E2E): 내 요금제 바꾸기. 운영에서는 관리자가 D1 에서 바꾼다 (결제 미구현)
+  if (pathname === '/api/me/plan' && req.method === 'PUT') {
+    if (env.AUTH_DEV_LINK !== '1') return text('not found', 404);
+    const body = await readJson<{ plan?: string }>(req);
+    if (!body?.plan || !(body.plan in PLANS)) return text('bad plan', 400);
+    await env.DB.prepare('UPDATE accounts SET plan = ? WHERE id = ?').bind(body.plan, me.id).run();
+    return json({ account: { ...publicAccount(me), plan: body.plan } });
   }
   if (pathname === '/api/me' && req.method === 'PATCH') {
     const body = await readJson<{ name?: string }>(req);

@@ -54,6 +54,12 @@ export async function apiCreateInvite(request: APIRequestContext, session: strin
   return (await r.json()).url;
 }
 
+/** 요금제 바꾸기 (개발 모드 전용 API). 소유자와 직원(editor)이 함께 접속하는 테스트는 베이직(2명) 이상이 필요하다 (2026-10-17: 무료 = 1명) */
+export async function apiSetPlan(request: APIRequestContext, session: string, plan: 'free' | 'basic' | 'pro') {
+  const r = await request.put(`${SERVER}/api/me/plan`, { data: { plan }, headers: { authorization: `Bearer ${session}` } });
+  if (!r.ok()) throw new Error(`set plan failed ${r.status()}`);
+}
+
 /** 로그인한 소유자로 새 프로젝트를 열어 둔 페이지 */
 export async function openOwnedProject(page: Page, request: APIRequestContext, name = '테스트 매장', displayName = '제작자') {
   const session = await apiLogin(request);

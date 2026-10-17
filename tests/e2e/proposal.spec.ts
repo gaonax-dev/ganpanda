@@ -54,6 +54,7 @@ test('제안 보내기: 실사 이미지 만들고 링크 발급 → 고객이 �
   await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,000');
   await expect(pg.getByTestId('proposal-total')).toContainText('원');
   await expect(guest.getByTestId('top-nav')).toBeHidden(); // 고객 페이지에는 작업용 상단 바가 없다
+  await expect(pg.getByTestId('proposal-branding')).toContainText('간판다로 만든 제안'); // 무료 요금제 (2026-10-17)
 
   // 질문
   await pg.getByTestId('proposal-ask').click();
@@ -106,4 +107,17 @@ test('서버 제안 링크 랜딩은 OG 메타를 주고 앱의 제안 페이지
   expect(html).toContain('og:title');
   expect(html).toContain('한울상사');
   expect(html).toContain(`&proposal=1`);
+});
+
+test('무료 요금제: 이번 달 제안 링크 3건을 넘으면 안내 (2026-10-17 요금제)', async ({ page, request }) => {
+  const { session, projectId } = await setup(page, request);
+  for (let i = 0; i < 3; i++) {
+    const r = await request.post(`http://localhost:8787/api/projects/${projectId}/invites`, { data: { role: 'viewer', kind: 'proposal' }, headers: { authorization: `Bearer ${session}` } });
+    expect(r.status()).toBe(201);
+  }
+  await page.getByTestId('proposal-button').click();
+  const dlg = page.getByTestId('proposal-dialog');
+  await dlg.getByTestId('proposal-build').click();
+  await expect(dlg.getByTestId('proposal-error')).toContainText('한 달 3건', { timeout: 30_000 });
+  await expect(dlg.getByTestId('proposal-link')).toHaveCount(0);
 });

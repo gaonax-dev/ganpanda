@@ -47,11 +47,12 @@ export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>
-  call<{ role: Role; project: { id: string; name: string }; seats: { used: number; limit: number }; billing?: boolean }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
+  call<{ role: Role; project: { id: string; name: string }; seats: { used: number; limit: number }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
 export const listInvites = (room: string) => call<{ invites: InviteInfo[] }>(`/api/projects/${room}/invites`).then((r) => r.invites);
-export const createInvite = (room: string, role: 'viewer' | 'editor') =>
-  call<{ token: string; role: Role; url: string }>(`/api/projects/${room}/invites`, { method: 'POST', body: JSON.stringify({ role }) });
+/** kind 'proposal' = 제안 보내기 링크 (무료 요금제는 월 건수 한도 → 402 proposal_limit) */
+export const createInvite = (room: string, role: 'viewer' | 'editor', kind?: 'proposal') =>
+  call<{ token: string; role: Role; url: string }>(`/api/projects/${room}/invites`, { method: 'POST', body: JSON.stringify({ role, ...(kind ? { kind } : {}) }) });
 export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api/projects/${room}/invites/${inviteId}`, { method: 'DELETE' });
 
 /** viewer 의 대화: 서버가 문서에 기록 */

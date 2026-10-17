@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openObjectSettings, openOwnedProject, uploadPhoto, apiSetPlan } from './helpers';
 
 test('로그인하면 내 프로젝트 목록이 보이고, 새 프로젝트를 만들어 들어간다', async ({ page, request }) => {
   const session = await apiLogin(request);
@@ -79,6 +79,7 @@ test('viewer 초대: 보고 대화할 수 있지만 편집은 못 한다', async
 
 test('editor 초대: 편집이 소유자에게 반영된다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
+  await apiSetPlan(request, session, 'basic'); // 소유자 + 직원 동시 작업 (무료는 1명)
   await uploadPhoto(page);
   const url = await apiCreateInvite(request, session, projectId, 'editor');
   const guest = await openInvited(browser, url, '디자이너');

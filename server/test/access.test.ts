@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { env } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import { TestClient, until } from './client';
 import { createInvite, createProject, get, json, login } from './helpers';
@@ -25,6 +26,9 @@ describe('방 접속 권한 (WebSocket)', () => {
   });
 
   it('editor 초대로 접속한 사람의 편집은 소유자에게 전달되고 저장된다', async () => {
+    // 무료는 동시 작업 1명(2026-10-17)이라 소유자 + 직원이 함께 있으려면 베이직
+    const me = await (await get('/api/me', owner)).json<{ account: { id: string } }>();
+    await env.DB.prepare('UPDATE accounts SET plan = ? WHERE id = ?').bind('basic', me.account.id).run();
     const inv = await createInvite(owner, project.id, 'editor');
     const o = await TestClient.connect(project.id, undefined, { session: owner });
     const e = await TestClient.connect(project.id, undefined, { invite: inv.token });
