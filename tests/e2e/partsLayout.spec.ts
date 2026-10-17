@@ -71,6 +71,8 @@ test('실사 합성: 채널 글자는 정면도의 왼쪽 자리에 입체로, �
 
 test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다', async ({ page, request }) => {
   await setup(page, request);
+  // 사진 위 외곽선 안에도 같은 배치 (원본 단계, 2026-10-17)
+  await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay').locator('text')).toHaveText('간판');
   const card = page.getByTestId('board-card').first();
   await expect(card.getByTestId('parts-overlay')).toBeVisible();
   await expect(card.getByTestId('parts-overlay').locator('text')).toHaveText('간판');
