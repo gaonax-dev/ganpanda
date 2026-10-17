@@ -24,7 +24,7 @@
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
-    overlay, twoD = true, calib, onbox, gizmoPx = 48,
+    overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
     toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
@@ -78,6 +78,8 @@
     overlay?: string;
     /** 2D 단계: 바탕색·디자인·글자 겹침을 그린다 (원본 단계는 외곽선·치수만) — 2026-10-17 */
     twoD?: boolean;
+    /** Alt/Option + 끌기 = 제자리에 복사해서 그 복사본을 옮김 (2026-10-17). 복사본 id 를 돌려준다 */
+    onduplicate?: (id: string) => string | null;
     /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
     oncamera?: () => void;
     cameraSet?: boolean;
@@ -135,7 +137,9 @@
     const plane = on ?? refPlaneOf(o);
     if (!plane) return;
     const from = toPhoto(e.clientX, e.clientY);
-    editing = { id: o.id, quad: o.quad, mode, from, orig: o.quad, plane, frame0: frameOf(plane, o.quad), wall0: applyHomography(plane.Hinv, from), sx, sy };
+    // Alt/Option + 옮기기 = 제자리 복사본을 옮긴다 (2026-10-17)
+    const id = (e.altKey && (mode === 'gfree' || mode === 'gx' || mode === 'gz') && onduplicate ? onduplicate(o.id) : null) ?? o.id;
+    editing = { id, quad: o.quad, mode, from, orig: o.quad, plane, frame0: frameOf(plane, o.quad), wall0: applyHomography(plane.Hinv, from), sx, sy };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   // ---------- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15 사용자: "메니폴레이터는 원근의 값을 기준으로 작동해야한다",
@@ -150,7 +154,8 @@
     e.stopPropagation();
     const a = anchor3(o, o.quad);
     if (!a) return;
-    editing = { id: o.id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad, axis, face3: a.plane, c3: a.c3, box0: boxDirOf(o, calWall) ?? undefined };
+    const id = (e.altKey && mode === 'bmove' && onduplicate ? onduplicate(o.id) : null) ?? o.id; // Alt = 제자리 복사
+    editing = { id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad, axis, face3: a.plane, c3: a.c3, box0: boxDirOf(o, calWall) ?? undefined };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   /** 화살표 길이(mm): 가장 잘 보이는 축이 화면에서 기본 매니퓰레이터 크기(px)가 되게 */
@@ -296,7 +301,9 @@
     e.stopPropagation();
     onselect(o.id);
     if (!editable || (tool !== 'select' && mode === 'move')) return;
-    editing = { id: o.id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad };
+    // Alt/Option + 끌기: 제자리에 복사하고 복사본을 끈다 (2026-10-17 "alt/option 누르고 이동하면 복사")
+    const id = (mode === 'move' && e.altKey && onduplicate ? onduplicate(o.id) : null) ?? o.id;
+    editing = { id, quad: o.quad, mode, from: toPhoto(e.clientX, e.clientY), orig: o.quad };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
 
@@ -363,6 +370,14 @@
   }
 </script>
 
+<!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
+{#snippet edgeBars(q: Pt[], down: (e: PointerEvent) => void)}
+  {#each [0, 1, 2, 3] as i (i)}
+    {@const a = q[i]}
+    {@const b = q[(i + 1) % 4]}
+    <line class="edge-bar" data-testid="gizmo-edge-{i}" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={7 * gu} role="button" tabindex="-1" onpointerdown={down}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></line>
+  {/each}
+{/snippet}
 {#snippet modeChips(at: Pt)}
   <!-- 매니퓰레이터 모드: 이동 ✥ / 회전 ⟳ / 크기 ⤡ (글자 대신 아이콘, 2026-10-15 사용자: "글자로 표시된 건 혼란스럽다") -->
   <g class="modes" transform="translate({at[0] - 33 * gu} {at[1] + 14 * gu})">
@@ -563,6 +578,7 @@
                   <circle class="gh" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
                 {/each}
                 <rect class="gh center" data-testid="gizmo-move" x={g3.c[0] - 6 * gu} y={g3.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree', 0, 0, face3)}><title>사인물 면 위에서 옮기기</title></rect>
+                {@render edgeBars(q, (e) => gizmoDown(e, o, 'gfree', 0, 0, face3))}
               {:else if gizmoMode === 'rotate'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const pts = g3.rings[a].map((p) => p.join(',')).join(' ')}
@@ -612,6 +628,7 @@
                 <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={6 * gu} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
                 <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={6 * gu} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
                 <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 6 * gu} y={g.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
+                {@render edgeBars(q, (e) => gizmoDown(e, o, 'gfree'))}
               {:else if gizmoMode === 'rotate'}
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
@@ -669,6 +686,8 @@
   svg.drawing { cursor: crosshair; }
   svg.pinning { cursor: copy; }
   .pin { cursor: pointer; }
+  .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
+  .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
   .pin.sel path { stroke: var(--accent); }
   .pin text { pointer-events: none; }

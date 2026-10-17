@@ -242,7 +242,9 @@
     const w = canvas.clientToWorld(e.clientX, e.clientY);
     const p = app.flatPlaced.get(o.id)!;
     const at = listToBoard(origin, p.x, p.y, k);
-    cardDrag = { id: o.id, dx: w.x - at.x, dy: w.y - at.y };
+    // Alt/Option + 끌기: 평면도 카드도 제자리에 복사해서 복사본을 끈다 (2026-10-17)
+    const id = (e.altKey ? app.duplicateInPlace() : null) ?? o.id;
+    cardDrag = { id, dx: w.x - at.x, dy: w.y - at.y };
     const move = (ev: PointerEvent) => { if (!cardDrag) return; const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy, k); app.project.updateObject(cardDrag.id, { listX: l.x, listY: l.y }); };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
@@ -300,6 +302,7 @@
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         twoD={app.stage === '2d'}
+        onduplicate={(id) => { app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
         editable={app.canEdit}
