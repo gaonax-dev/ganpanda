@@ -163,4 +163,8 @@
     .info { max-height: 55%; }
     .chat-sec { min-height: 160px; }
   }
+  /* 휴대폰 세로 보기: [상세정보] 패널도 전체 화면 (2026-10-17) */
+  @media (max-width: 720px) and (orientation: portrait) {
+    .panel { left: 0; right: 0; top: 0; bottom: 0; height: auto; border-radius: 0; border: 0; }
+  }
 </style>

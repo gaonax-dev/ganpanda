@@ -216,8 +216,15 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
   expect(ib.y + ib.height).toBeLessThanOrEqual(844); // 화면 안
   await expect(page.getByTestId('spec-apply')).toBeVisible(); // 확인 창의 단추도 (위쪽은 스크롤)
   await page.getByTestId('spec-cancel').click();
-  // 설정 창: 아래 단추가 화면 안
+  // 세로 보기: 패널이 전체 화면 (2026-10-17 "상세보기는 전창으로")
+  const pb2 = (await panel.boundingBox())!;
+  expect(pb2.width).toBeGreaterThanOrEqual(388);
+  expect(pb2.height).toBeGreaterThan(700);
+  // 설정 창: 전체 화면, 아래 단추가 화면 안
   await page.getByTestId('object-settings-open').click();
+  const dlgBox = (await page.getByTestId('object-settings').boundingBox())!;
+  expect(dlgBox.width).toBeGreaterThanOrEqual(388);
+  expect(dlgBox.height).toBeGreaterThanOrEqual(840);
   const del = page.getByTestId('delSign');
   await expect(del).toBeVisible();
   const db = (await del.boundingBox())!;
