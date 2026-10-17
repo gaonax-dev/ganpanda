@@ -64,6 +64,8 @@
     <input class="title" data-testid="object-name" value={obj.name} disabled={ro} oninput={(e) => { const v = e.currentTarget.value.trim(); if (v) update({ name: v }); }} />
     <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
+  <!-- 대화 위의 내용(연결·분류·사이즈·사양 글·칩·요약)은 길어지면 스크롤 — 휴대폰에서 대화 입력칸이 밀려 안 보이던 문제 (2026-10-17) -->
+  <div class="info">
 
   {#if obj.sameAs || shownIn.length || (linkTargets.length && !ro)}
     <section class="link" data-testid="link-section">
@@ -118,6 +120,7 @@
     {/if}
   </section>
 
+  </div>
   <section class="chat-sec">
     <Chat objectId={chatId} />
   </section>
@@ -152,10 +155,12 @@
     display: block; width: 100%; margin-top: 8px; text-align: left; cursor: pointer; font: inherit; font-size: 12px;
     background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); color: var(--warn); border-radius: 8px; padding: 6px 10px;
   }
-  .chat-sec { flex: 1; min-height: 220px; display: flex; flex-direction: column; padding: 0; border-bottom: 0; }
+  .info { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .chat-sec { flex: 1 1 auto; min-height: 220px; display: flex; flex-direction: column; padding: 0; border-bottom: 0; }
   /* 휴대폰 폭: 화면 아래쪽 시트 (사진이 위에 보이게) */
   @media (max-width: 720px) {
     .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; border-radius: 14px; }
-    .chat-sec { min-height: 120px; }
+    .info { max-height: 55%; }
+    .chat-sec { min-height: 160px; }
   }
 </style>

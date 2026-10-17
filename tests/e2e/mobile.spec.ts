@@ -192,3 +192,35 @@ test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르
   await expect(page.getByTestId('design-hint')).toContainText('정면 간판');
   await expect(page.getByTestId('link-toggle')).toContainText('정면 간판');
 });
+
+test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고, 설정 창의 아래 단추(복제·삭제·닫기)가 화면 안에 있다 (2026-10-17)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const id = app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600, note: '급함', depthMm: 100, options: { paintSystem: '기본색', paintCode: '흰색' }, parts: [{ id: 'c', kind: 'channel', type: 'ch-halo', options: { bodySystem: '기본색', bodyCode: '갈색', ledColor: '주백색' }, items: [] }] });
+    app.selectObject(id);
+  });
+  await page.getByTestId('quick-panel-open').click();
+  const panel = page.getByTestId('object-panel');
+  await expect(panel).toBeVisible();
+  // 사양 글 확인 창까지 열어 위쪽을 길게 만든다
+  await page.getByTestId('spec-text').fill('후렉스 검정 전광 3000K');
+  await page.getByTestId('spec-text').press('Enter');
+  await expect(page.getByTestId('spec-item')).toHaveCount(4);
+  const pb = (await panel.boundingBox())!;
+  const input = page.getByTestId('chat-input');
+  await expect(input).toBeVisible();
+  const ib = (await input.boundingBox())!;
+  expect(ib.y + ib.height).toBeLessThanOrEqual(pb.y + pb.height + 1); // 패널 안
+  expect(ib.y + ib.height).toBeLessThanOrEqual(844); // 화면 안
+  await expect(page.getByTestId('spec-apply')).toBeVisible(); // 확인 창의 단추도 (위쪽은 스크롤)
+  await page.getByTestId('spec-cancel').click();
+  // 설정 창: 아래 단추가 화면 안
+  await page.getByTestId('object-settings-open').click();
+  const del = page.getByTestId('delSign');
+  await expect(del).toBeVisible();
+  const db = (await del.boundingBox())!;
+  expect(db.y + db.height).toBeLessThanOrEqual(844);
+  await page.getByTestId('close-object-settings').click();
+});
