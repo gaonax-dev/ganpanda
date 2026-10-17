@@ -10,6 +10,7 @@ test('채널 간판에 문구를 넣으면 입체 보기로 3D 글자를 보고,
   await openObjectSettings(page);
   await page.getByTestId('product-select').selectOption('body-none');
   // 조합형 (2026-10-16): 채널 구성 요소(후광) + 글자 객체
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-channel').click();
   await page.getByTestId('part-type').selectOption('ch-halo');
   await expect(page.getByTestId('open-letter3d')).toHaveCount(0); // 글자 전에는 없음

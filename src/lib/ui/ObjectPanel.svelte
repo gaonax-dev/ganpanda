@@ -107,7 +107,7 @@
         <span>mm</span>
       </div>
       {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
-      <QuickSpec {obj} {ro} {update} compact onPick={(k) => { app.objectSettingsFocus = k; app.objectSettingsOpen = true; }} />
+      <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.objectSettingsOpen = true; }} />
     {/if}
     <div class="row">
       <p class="summary" data-testid="object-summary">

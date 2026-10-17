@@ -100,7 +100,7 @@ class AppState {
   /** 선택한 사인물의 세부 설정 창 */
   objectSettingsOpen = $state(false);
   /** 설정 창을 칩에서 열었을 때 바로 펼칠 요소 (빠른 설정, 2026-10-17) */
-  objectSettingsFocus = $state<'body' | 'channel' | 'led' | 'thick' | 'note' | null>(null);
+  objectSettingsFocus = $state<string | null>(null); // 'body' | 'part:<id>' | 'layout' | 'note' | 'price'
   /** 휴대폰 폭: 전체 속성 패널을 열었는가 (기본은 빠른 막대만 — 패널이 사진을 가리지 않게). 데스크톱에서는 항상 열림 */
   panelOpen = $state(false);
   /** 실사 보기 창 (사진 id) */

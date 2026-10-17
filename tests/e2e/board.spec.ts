@@ -57,6 +57,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
   await openObjectSettings(page);
   await expect(page.getByTestId('width-mm')).toHaveAttribute('placeholder', /2,000/);
   // 치수 미입력이어도 추정 치수로 예상 금액을 보여준다 (리스트 견적과 일치): 2㎡ × 커팅 시트 35,000
+  await page.getByTestId('object-settings').getByTestId('quick-price').click(); // 금액 탭
   await expect(page.getByTestId('object-price')).toContainText('추정 2,000×1,000');
   await expect(page.getByTestId('object-price')).toContainText('70,000원');
 
@@ -78,6 +79,7 @@ test('종류·시트 선택 → 리스트 뷰 전개도와 견적', async ({ pag
   await page.getByTestId('width-mm').fill('4000');
   await page.getByTestId('height-mm').fill('1000');
   await page.getByTestId('product-select').selectOption('board-acp');
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-sheet-uv').click(); // 조합형 (2026-10-16): 간판의 시트는 구성 요소
   await page.getByTestId('close-object-settings').click();
 
