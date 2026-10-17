@@ -9,7 +9,8 @@
   import { loadFont } from '../core/textShapes';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { describeOptions } from '../core/options';
-  import { faceClip } from '../core/cardFace';
+  import { faceBadge, faceClip } from '../core/cardFace';
+  import { bodyLook } from '../core/render';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won, type QuoteLine } from '../core/quote';
   import { findMethod } from '../core/calcMethods';
@@ -194,6 +195,8 @@
       {@const prod = productById(parts.bodyId)}
       {@const chan = CHANNEL_OPTIONS.find((c) => c.id === parts.channelId)?.label}
       {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0)}
+      {@const look = bodyLook(o)}
+      {@const badge = faceBadge(o)}
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
           class="face"
@@ -208,6 +211,7 @@
           {#if photo && faces[o.id]}
             <img class="flat" src={faces[o.id].url} alt="" draggable="false" />
           {/if}
+          {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
           {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
           <PartsOverlay {o} mmW={w} mmH={h} {w} {h} />
         </div>
@@ -215,7 +219,7 @@
         <div class="dim top" style:transform="scale({inv})" style:width="{w * viewport.zoom}px">{fmt(w)}{estimated ? ' (추정)' : ''}</div>
         <div class="dim side" style:transform="scale({inv})" style:height="{h * viewport.zoom}px"><span>{fmt(h)}</span></div>
         <div class="spec" style:transform="scale({inv})">
-          <b>{o.name}</b>
+          <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{o.name}</b>
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
           <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
           <span class="price">{won(amount)}</span>
@@ -371,7 +375,11 @@
   .face.sel { outline: 2px solid var(--accent); }
   .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
   .face img.flat { width: 100%; height: 100%; }
+  .fill { position: absolute; inset: 0; pointer-events: none; }
   .design-on { position: absolute; inset: 0; }
+  .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
+  .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
+  .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .spec .place { pointer-events: auto; }
   .dim { color: var(--dim); font-size: 11px; }
