@@ -667,6 +667,8 @@ class AppState {
   flatCards = $derived.by(() => this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ o, ...s }] : []; }));
   /** 보드 평면 구역 축척 (px/mm) — 프로젝트 설정, 모두에게 같음 */
   flatScale = $derived(clampFlatScale(this.settings.flatScale));
+  /** 보드 평면 구역 이동 (보드 px) — 프로젝트 설정 */
+  flatOffset = $derived(this.settings.flatOffset && Number.isFinite(this.settings.flatOffset.x) && Number.isFinite(this.settings.flatOffset.y) ? this.settings.flatOffset : { x: 0, y: 0 });
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
 
   // ---------- 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다") ----------

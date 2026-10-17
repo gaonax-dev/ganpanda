@@ -190,11 +190,21 @@
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
 
   // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 축척 px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
-  const origin = $derived(flatOrigin(app.photos));
+  const origin = $derived(flatOrigin(app.photos, 80, app.flatOffset));
   /** 평면 구역 전체 크기 (2026-10-17 사용자: "평면도 전체 사이즈 조절 가능하게"): 프로젝트 설정 flatScale. [−][+] 또는 오른쪽 아래 손잡이 끌기 */
   const k = $derived(app.flatScale);
   const bounds = $derived(flatBounds(origin, app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h })), k));
   const setScale = (v: number) => app.updateSettings({ flatScale: Math.round(clampFlatScale(v) * 1000) / 1000 });
+  /** 왼쪽 위 손잡이: 평면 구역 전체 이동 (2026-10-17 사용자: "왼쪽 상단에도 버튼이 있으면 좋겠다. 이건 이동") → 설정 flatOffset */
+  function moveDown(e: PointerEvent) {
+    if (e.button !== 0 || !app.canEdit) return;
+    e.stopPropagation();
+    const start = canvas.clientToWorld(e.clientX, e.clientY);
+    const base = { ...app.flatOffset };
+    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); app.updateSettings({ flatOffset: { x: Math.round(base.x + w.x - start.x), y: Math.round(base.y + w.y - start.y) } }); };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); app.editBoundary(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  }
   function handleDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
@@ -339,6 +349,7 @@
         {/if}
       </div>
       {#if bounds && app.canEdit}
+        <div class="flat-handle move" data-testid="flat-move" role="button" tabindex="-1" aria-label="평면 구역 이동" title="끌어서 평면 구역 전체 이동" style:left="{bounds.x}px" style:top="{bounds.y}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={moveDown}>✥</div>
         <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={handleDown}></div>
       {/if}
     {/if}
@@ -412,6 +423,7 @@
   .flat-label .scale { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; }
   .flat-label .scale .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
   .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid #1a1500; cursor: nwse-resize; z-index: 3; }
+  .flat-handle.move { width: 18px; height: 18px; cursor: move; display: grid; place-items: center; font-size: 12px; line-height: 1; color: #1a1500; }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
     color: var(--muted); pointer-events: none;

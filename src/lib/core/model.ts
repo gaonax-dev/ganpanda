@@ -153,6 +153,8 @@ export interface ProjectSettings {
   lineAmounts?: Record<string, number | 'auto'>;
   /** 보드 평면 구역 축척 (px/mm, 기본 0.1 — 2026-10-17 "평면도 전체 사이즈 조절") → core/boardCards.ts */
   flatScale?: number;
+  /** 보드 평면 구역 이동 (보드 px, 기본 0,0 — 2026-10-17 왼쪽 위 이동 손잡이) */
+  flatOffset?: { x: number; y: number };
 }
 
 export interface Message {

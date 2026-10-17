@@ -47,3 +47,13 @@ describe('평면 구역 크기 (px/mm, 프로젝트 설정 flatScale)', () => {
     expect(scaleFromHandle(o, cards, 100)).toBe(FLAT_SCALE_MIN); // 원점 안쪽
   });
 });
+
+// 평면 구역 이동 (2026-10-17 사용자: "왼쪽 상단에도 버튼이 있으면 좋겠다. 이건 이동")
+describe('평면 구역 이동 (프로젝트 설정 flatOffset, 보드 px)', () => {
+  const photos = [{ x: 100, y: 50, width: 1000, w: 2000, h: 1000 }];
+  it('원점 = 사진 아래 기본 원점 + 오프셋', () => {
+    expect(flatOrigin(photos)).toEqual({ x: 100, y: 630 });
+    expect(flatOrigin(photos, 80, { x: 250, y: -40 })).toEqual({ x: 350, y: 590 });
+    expect(flatOrigin([], 80, { x: 10, y: 10 })).toEqual({ x: 10, y: 10 });
+  });
+});
