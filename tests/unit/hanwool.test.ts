@@ -77,17 +77,17 @@ describe('종류별 조합 옵션', () => {
   });
   it('LED 사인미러: 거울 · 프레임 · 프레임색 · LED 빛 (채널 없음)', () => {
     const o = obj({ productId: 'board-mirror' });
-    expect(keys(o)).toEqual(['mirror', 'frame', 'frameColor', 'led']);
+    expect(keys(o)).toEqual(['mirror', 'frame', 'frameColor', 'led', 'faceSystem']); // 바탕색 (2026-10-17 모든 사인물)
     expect(values(o, 'led')).toEqual(['주광색 5700K', '전구색 4000K']);
   });
   it('전광판: 색 · 모듈 · 면 (채널 없음)', () => {
     const o = obj({ productId: 'board-ledsign' });
-    expect(keys(o)).toEqual(['color', 'module', 'sides']);
+    expect(keys(o)).toEqual(['color', 'module', 'sides', 'faceSystem']);
     expect(values(o, 'module')).toEqual(['200mm', '240mm', '320mm']);
   });
   it('아크릴 액자·현판: 형태 · 소재 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음, 두께는 치수 두께 — 2026-10-16 중복 정리)', () => {
     const o = obj({ productId: 'board-acrylic' });
-    expect(keys(o)).toEqual(['form', 'material', 'layers', 'mount']);
+    expect(keys(o)).toEqual(['form', 'material', 'layers', 'mount', 'faceSystem']);
     expect(keys(obj({ productId: 'board-acrylic', options: { layers: '컬러+화이트 (2레이어)' } }))).toContain('primer'); // 출력할 때만 전처리
     expect(values(o, 'form')).toEqual(['일반 판', '현판', '게시판', '액자', '번호판·층수·호수']);
     expect(values(o, 'layers')).toEqual(['출력 없음', '컬러 (1레이어)', '화이트 (1레이어)', '컬러+화이트 (2레이어)', '컬러+화이트+컬러 (3레이어)', '컬러+컬러 (2레이어)']);

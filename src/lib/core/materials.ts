@@ -49,6 +49,11 @@ export function paintHex(opts: Record<string, unknown> | undefined, prefix: stri
   if (sys === PAINT_SYSTEMS[2] && typeof code === 'string' && HEX_RE.test(code)) return code.toLowerCase();
   return null;
 }
+/** 도색 객체의 투명도(%) → 불투명도 0~1 (없으면 1). 2D 보드 바탕 표시용 */
+export function paintAlpha(opts: Record<string, unknown> | undefined, prefix: string): number {
+  const v = Number(opts?.[`${prefix}Alpha`]);
+  return Number.isFinite(v) && v > 0 ? Math.max(0, Math.min(1, 1 - v / 100)) : 1;
+}
 /** 도색 객체 → 읽는 말: 색 이름 / #hex / "RAL 9005" / 체계만. 없으면 null */
 export function paintLabel(opts: Record<string, unknown> | undefined, prefix: string): string | null {
   const sys = opts?.[`${prefix}System`] as string | undefined, code = opts?.[`${prefix}Code`] as string | undefined;

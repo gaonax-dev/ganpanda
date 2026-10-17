@@ -107,7 +107,8 @@ class AppState {
   renderPhotoId = $state<string | null>(null);
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
   /** 보드 단계: 원본(실측·편집) / 3D(모든 사진 위에 합성 결과를 겹침, 편집 없음). 2026-10-15 사용자: "3D 는 화면에 바로 올리고" */
-  stage = $state<'original' | '3d'>('original');
+  /** 보드 단계 (2026-10-17 사용자: "원본 2d 3d 이렇게 해줘. 2d가 현재 보여주는 형식이고 원본은 실측만 나오게"): original = 외곽선·치수만, 2d = 바탕색·디자인·글자 겹침(기본), 3d = 합성 */
+  stage = $state<'original' | '2d' | '3d'>('2d');
   /** 3D 단계의 사진별 합성 결과 (내용 키 + 데이터 URL) */
   stageRenders = $state<Record<string, { key: string; url: string }>>({});
   /** 지금 합성 중인 사진 수 */

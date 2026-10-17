@@ -15,6 +15,7 @@
   const sys = $derived((opts[`${prefix}System`] as string | undefined) ?? PAINT_SYSTEMS[0]);
   const code = $derived((opts[`${prefix}Code`] as string | undefined) ?? '');
   const hex = $derived(paintHex(opts, prefix));
+  const alpha = $derived(Number(opts[`${prefix}Alpha`]) || 0); // 투명도 % (0 = 불투명)
   const text = $derived(paintLabel(opts, prefix));
   const [NONE, BASIC, DIRECT] = PAINT_SYSTEMS;
   let expanded = $state(false);
@@ -55,6 +56,7 @@
         <label>컬러코드<input data-testid="{tp}{prefix}Code" value={code} placeholder={sys === 'RAL' ? '예: 9005' : sys === 'PANTONE' ? '예: 186 C' : '예: 코드'} disabled={ro} oninput={(e) => set(`${prefix}Code`, e.currentTarget.value)} /></label>
       {/if}
       {#if sys !== NONE}
+        <label class="alpha">투명도 {alpha}%<input type="range" min="0" max="90" step="5" data-testid="{tp}{prefix}Alpha" value={alpha} disabled={ro} oninput={(e) => set(`${prefix}Alpha`, e.currentTarget.value)} /></label>
         <label>광택<select data-testid="{tp}{prefix}Gloss" value={(opts[`${prefix}Gloss`] as string | undefined) ?? GLOSSES[0]} disabled={ro} onchange={(e) => set(`${prefix}Gloss`, e.currentTarget.value)}>
           {#each GLOSSES as g (g)}<option value={g}>{g}</option>{/each}
         </select></label>
@@ -79,4 +81,5 @@
   .ext { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px dashed var(--line); }
   .ext label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); }
   .ext input { width: 120px; }
+  .ext .alpha input { width: 110px; }
 </style>

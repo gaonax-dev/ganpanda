@@ -84,7 +84,8 @@
     {#if app.room && app.access.status === 'ok' && !app.proposalMode && app.view === 'board'}
       <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
       <div class="views stage" data-testid="stage">
-        <button data-testid="stage-original" class:on={app.stage === 'original'} onclick={() => (app.stage = 'original')}>원본</button>
+        <button data-testid="stage-original" class:on={app.stage === 'original'} title="사진 그대로 — 외곽선·치수만" onclick={() => (app.stage = 'original')}>원본</button>
+        <button data-testid="stage-2d" class:on={app.stage === '2d'} title="바탕색·디자인·글자를 사진 위에 평면으로" onclick={() => (app.stage = '2d')}>2D</button>
         <button data-testid="stage-3d" class:on={app.stage === '3d'} onclick={() => (app.stage = '3d')}>3D</button>
       </div>
     {/if}
