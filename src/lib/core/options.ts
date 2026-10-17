@@ -17,6 +17,8 @@ export interface OptionField {
   placeholder?: string;
   /** 조건부 표시 (같은 사인물의 다른 옵션 값에 따라) */
   when?: (opts: Options, o: SignObject) => boolean;
+  /** 도색 객체의 한 부분 — 화면은 세 필드를 컬러 피커 하나로 그린다 (2026-10-17) */
+  paint?: { prefix: string; part: 'system' | 'code' | 'gloss'; label: string };
 }
 export interface OptionGroup { title: string; fields: OptionField[] }
 
@@ -32,10 +34,10 @@ const txt = (key: string, label: string, placeholder: string, when?: OptionField
 const painted = (prefix: string) => (opts: Options) => !!opts[`${prefix}System`] && opts[`${prefix}System`] !== PAINT_SYSTEMS[0];
 const basic = (prefix: string) => (opts: Options) => opts[`${prefix}System`] === PAINT_SYSTEMS[1]; // 기본색: 색 이름 선택 (2026-10-17)
 const paint = (prefix: string, label: string, when?: OptionField['when']): OptionField[] => [
-  sel(`${prefix}System`, `${label} 색상 체계`, PAINT_SYSTEMS, when),
-  sel(`${prefix}Code`, `${label} 색`, NAMED_COLORS.map((c) => c.label), (opts, o) => (!when || when(opts, o)) && basic(prefix)(opts)),
-  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts) && !basic(prefix)(opts)),
-  sel(`${prefix}Gloss`, `${label} 광택`, GLOSSES, (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)),
+  { ...sel(`${prefix}System`, `${label} 색상 체계`, PAINT_SYSTEMS, when), paint: { prefix, part: 'system', label } },
+  { ...sel(`${prefix}Code`, `${label} 색`, NAMED_COLORS.map((c) => c.label), (opts, o) => (!when || when(opts, o)) && basic(prefix)(opts)), paint: { prefix, part: 'code', label } },
+  { ...txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts) && !basic(prefix)(opts)), paint: { prefix, part: 'code', label } },
+  { ...sel(`${prefix}Gloss`, `${label} 광택`, GLOSSES, (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)), paint: { prefix, part: 'gloss', label } },
 ];
 /** 재질 객체 (2026-10-16 사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다"): 재질 선택 + 도색 가능한 재질이면 도색 객체 */
 const material = (key: string, label: string, ids: string[], paintPrefix: string, paintLabel: string, when?: OptionField['when']): OptionField[] => [
@@ -110,10 +112,10 @@ const INDIRECT = sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 
 /** 제품별 옵션 (주문 사양) */
 export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 프레임 간판 (한울: 조명/비조명 · 카바/일반 텐션 · 단폭/장폭 4.5㎡ · 플렉스 UV/솔벤 양면·단면 출력)
-  'board-flex': [SIDES, sel('light', '내부 조명', ['LED', '형광등', '비조명']), sel('frame', '프레임 구조', ['일반 텐션', '카바']), sel('print', '플렉스 출력', ['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력'])],
+  'board-flex': [SIDES, sel('light', '내부 조명', ['LED', '형광등', '비조명']), sel('frame', '프레임 구조', ['일반 텐션', '카바']), sel('print', '플렉스 출력', ['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력']), ...paint('face', '바탕색')], // 바탕색 = 컬러 피커 (2026-10-17 "후랙스 갈바 모두 컬러피커로")
 
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
-  'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체')],
+  'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체'), ...paint('face', '바탕색')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
   'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), ...paint('paint', '도색')], // 간접조명은 상단 조명으로
   // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접

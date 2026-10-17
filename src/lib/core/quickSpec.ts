@@ -3,7 +3,7 @@
 // 색은 "기본색" 도색 객체(색 이름)로 — 세부 설정(PANTONE·RAL 코드, 광택)은 아래 사양 묶음에서 그대로 가능.
 import type { SignObject, SignPart } from './model';
 import { CHANNEL_OPTIONS, productById } from './catalog';
-import { colorHex, PAINT_SYSTEMS } from './materials';
+import { colorHex, PAINT_SYSTEMS, paintLabel } from './materials';
 import { optionGroupsFor } from './options';
 import { commitParts, newItem, newPart, partsOf } from './parts';
 import { DEFAULT_LETTER3D } from './letter3d';
@@ -21,18 +21,11 @@ export interface QuickSpec {
   led: { value: string; label: string; kelvin: string | null } | null;
 }
 
-/** 도색 객체 값 → 읽는 말: 기본색이면 색 이름, 체계가 있으면 "RAL 9005", 없으면 null */
-function paintLabel(opts: Record<string, unknown> | undefined, prefix: string): string | null {
-  const sys = opts?.[`${prefix}System`] as string | undefined, code = opts?.[`${prefix}Code`] as string | undefined;
-  if (!sys || sys === NONE) return null;
-  if (sys === BASIC) return code ?? null;
-  return code ? `${sys} ${code}` : sys;
-}
-/** 이 몸통의 도색 객체 키: 보이는 필드에 paintSystem 이 있으면 paint, framePaintSystem 이면 framePaint */
+/** 이 몸통의 도색 객체 키: 도색(paint) > 바탕색(face, 후렉스·천갈이) > 프레임 도색(framePaint) */
 function paintKeyOf(o: SignObject): string | null {
   const keys = new Set(optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key)));
   // 재질이 도색 불가(텐션 천)면 framePaintSystem 이 안 보인다 — 그래도 기본색을 고르면 재질을 그대로 두고 도색 키만 쓴다
-  return keys.has('paintSystem') ? 'paint' : keys.has('framePaintSystem') || keys.has('frameMat') ? 'framePaint' : null;
+  return keys.has('paintSystem') ? 'paint' : keys.has('faceSystem') ? 'face' : keys.has('framePaintSystem') || keys.has('frameMat') ? 'framePaint' : null;
 }
 
 export function quickSpecOf(o: SignObject): QuickSpec {

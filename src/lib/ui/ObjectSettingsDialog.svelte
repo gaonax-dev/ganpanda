@@ -8,6 +8,7 @@
   import PartsEditor from './PartsEditor.svelte';
   import QuickSpec from './QuickSpec.svelte';
   import SpecInput from './SpecInput.svelte';
+  import ColorField from './ColorField.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -161,9 +162,14 @@
         <section data-testid="option-group">
           <h3>{g.title}</h3>
           <div class="opts">
-            {#each g.fields as f (f.key)}
+            {#each g.fields as f (f.key + (f.paint?.part ?? ''))}
               {@const v = optionValue(f, obj.options ?? {})}
-              {#if f.kind === 'select'}
+              {#if f.paint?.part === 'system'}
+                <!-- 도색 객체 = 컬러 피커 (간단 견본 / 확장 체계·코드·광택), 코드·광택 필드는 그 안에서 -->
+                <ColorField prefix={f.paint.prefix} label={f.paint.label} opts={obj.options ?? {}} {ro} set={(k, val) => setOption({ key: k, label: k, kind: 'text' }, val)} />
+              {:else if f.paint}
+                <!-- 컬러 피커가 그린다 -->
+              {:else if f.kind === 'select'}
                 <label class="opt">{f.label}
                   <select data-testid="option-{f.key}" value={v} disabled={ro} onchange={(e) => setOption(f, e.currentTarget.value)}>
                     {#each f.values ?? [] as o2 (o2.id)}<option value={o2.id}>{o2.label}</option>{/each}
