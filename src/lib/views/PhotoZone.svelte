@@ -19,7 +19,7 @@
   import { app, type Tool } from '../state.svelte';
 
   let {
-    photo, url, zoom, objects, measures, selectedId, sameIds = [], tool, editable = true, unread = {},
+    photo, url, zoom, objects, measures, selectedId, sameIds = [], multiIds = [], tool, editable = true, unread = {},
     ontap,
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
@@ -66,7 +66,10 @@
     tool: Tool;
     toPhoto: (cx: number, cy: number) => Pt;
     oncreate: (shape: ShapeKind, quad: Pt[]) => void;
-    onselect: (id: string | null) => void;
+    /** add = Shift+클릭 (다중 선택에 더하기, 2026-10-17) */
+    onselect: (id: string | null, add?: boolean) => void;
+    /** 다중 선택에 든 다른 사인물들 (강조만, 매니퓰레이터는 주 선택에만) */
+    multiIds?: string[];
     onquad: (id: string, quad: Pt[]) => void;
     /** 외곽선과 벽에서 돌린 상태를 함께 저장 (turn = undefined 면 벽에 붙음) */
     /** 박스 방향 바꾸기 (평면 판 = 정면 축, 회전 고리 = 박스 방향. 둘 다 undefined = 자동) — 외곽선은 그대로 */
@@ -299,6 +302,7 @@
   function shapeDown(e: PointerEvent, o: SignObject, mode: number | 'move') {
     if (e.button !== 0) return;
     e.stopPropagation();
+    if (e.shiftKey && mode === 'move') { onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
     onselect(o.id);
     if (!editable || (tool !== 'select' && mode === 'move')) return;
     // Alt/Option + 끌기: 제자리에 복사하고 복사본을 끈다 (2026-10-17 "alt/option 누르고 이동하면 복사")
@@ -510,7 +514,8 @@
       {@const q = quadOf(o)}
       {@const m = measures.get(o.id)}
       {@const sel = o.id === selectedId}
-      {@const same = !sel && sameIds.includes(o.id)}
+      {@const multiSel = !sel && multiIds.includes(o.id)}
+      {@const same = !sel && !multiSel && sameIds.includes(o.id)}
       {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
       {@const turned = !!o.turn}
       {#if sel && editable && tool === 'select' && gizmoable(o)}
@@ -524,7 +529,7 @@
           </g>
         {/if}
       {/if}
-      <g class="sign" class:sel class:same class:warn>
+      <g class="sign" class:sel={sel || multiSel} class:same class:warn data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
           data-shape={o.shape}

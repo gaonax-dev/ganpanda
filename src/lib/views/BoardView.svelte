@@ -129,10 +129,7 @@
     else if (action === 'toolEllipse') app.tool = 'ellipse';
     else if (action === 'deleteSelection' && app.selectedId) {
       e.preventDefault();
-      app.editBoundary();
-      app.project.removeObject(app.selectedId);
-      app.editBoundary();
-      app.selectedId = null;
+      app.deleteSelection(); // 다중 선택이면 모두 (2026-10-17)
     }
   }
 
@@ -327,7 +324,8 @@
         onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad) => create(p.id, shape, quad)}
-        onselect={(id) => app.selectObject(id)}
+        onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
+        multiIds={app.multi}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
@@ -391,7 +389,17 @@
           <small>또는 사진을 여기로 끌어다 놓으세요</small>
         </div>
       {/if}
-      <div class="tools" role="toolbar">
+        {#if app.multi.length && app.canEdit}
+    <!-- 다중 선택 작업 막대 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기") -->
+    <div class="multibar" data-testid="multi-bar">
+      <span class="cnt" data-testid="multi-count">{app.selectionIds.length}개 선택</span>
+      <button class="btn small" data-testid="multi-apply" title="마지막에 고른 사인물의 종류·옵션·구성 요소·두께·문구를 나머지에 맞춥니다 (이름·치수·위치는 그대로)" onclick={() => app.applySelectedSpecToOthers()}>마지막 선택 구성으로 맞추기</button>
+      <button class="btn small" data-testid="multi-duplicate" title="각각 바로 옆에 복제" onclick={() => app.duplicateSelection()}>복사</button>
+      <button class="btn small danger" data-testid="multi-delete" onclick={() => app.deleteSelection()}>삭제</button>
+      <button class="icon" data-testid="multi-clear" title="선택 해제" onclick={() => app.selectObject(null)}>✕</button>
+    </div>
+  {/if}
+<div class="tools" role="toolbar">
         {#if app.canEdit}
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
@@ -434,6 +442,12 @@
   }
   .empty > * { pointer-events: auto; }
   .empty p { font-size: 16px; color: var(--text); margin: 0; }
+  .multibar {
+    position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 6;
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--accent); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); white-space: nowrap;
+  }
+  .multibar .cnt { font-size: 12px; color: var(--accent); font-weight: 700; margin-right: 4px; }
   .tools {
     position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
     display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 12px;
