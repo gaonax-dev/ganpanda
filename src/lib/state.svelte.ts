@@ -172,6 +172,10 @@ class AppState {
   /** 사인물 = 원본만 (리스트·견적·UV 대상). 연결된 영역은 제외 */
   signs = $derived(this.objects.filter((o) => !o.sameAs));
   selected = $derived.by(() => (this.selectedId ? this.objects.find((o) => o.id === this.selectedId) ?? null : null));
+  /** 다중 선택 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기"): Shift+클릭으로 더한 사인물들. selectedId 가 마지막 선택 */
+  multi = $state<string[]>([]);
+  /** 선택 전체 (마지막 선택이 맨 뒤) */
+  selectionIds = $derived([...this.multi.filter((id) => id !== this.selectedId), ...(this.selectedId ? [this.selectedId] : [])]);
   /** 선택한 사인물과 같은 사인물인 다른 영역들(원본·연결) — 다른 사진에서도 하이라이트 */
   sameAsSelected = $derived.by(() => {
     const s = this.selected;
@@ -722,8 +726,46 @@ class AppState {
     return c ? this.pasteClip(c, 1) : null;
   }
 
+  /** Shift+클릭: 선택에 더하기/빼기. 마지막으로 누른 것이 주 선택(selectedId) */
+  toggleSelect(id: string) {
+    if (!this.selectedId) { this.selectObject(id); return; }
+    const all = new Set(this.selectionIds);
+    if (all.has(id) && id !== this.selectedId) { all.delete(id); this.multi = [...all].filter((x) => x !== this.selectedId); return; }
+    if (id === this.selectedId) { // 주 선택을 빼면 남은 것 중 마지막이 주 선택
+      all.delete(id); const rest = [...all]; this.multi = rest.slice(0, -1); this.selectedId = rest.at(-1) ?? null; return;
+    }
+    all.add(this.selectedId); all.delete(id);
+    this.multi = [...all]; this.objectSettingsOpen = false; this.panelOpen = false; this.selectedId = id;
+  }
+  /** 선택한 사인물 모두 삭제 */
+  deleteSelection() {
+    if (!this.canEdit || !this.selectionIds.length) return;
+    this.editBoundary();
+    for (const id of this.selectionIds) this.project.removeObject(id);
+    this.editBoundary();
+    this.multi = []; this.selectedId = null;
+  }
+  /** 선택한 사인물 모두 복제 (각각 바로 옆에) → 복제본들이 선택 */
+  duplicateSelection() {
+    if (!this.canEdit || !this.selectionIds.length) return;
+    const ids = [...this.selectionIds];
+    const made: string[] = [];
+    for (const id of ids) { this.selectedId = id; this.multi = []; const nid = this.duplicateSelected(); if (nid) made.push(nid); }
+    this.multi = made.slice(0, -1); this.selectedId = made.at(-1) ?? null;
+  }
+  /** 마지막 선택(주 선택)의 구성(종류·옵션·구성 요소·시트·두께·입체 설정·문구)을 나머지 선택에 맞춘다. 이름·치수·위치·디자인·메모는 그대로 */
+  applySelectedSpecToOthers() {
+    const src = this.selected;
+    if (!this.canEdit || !src || !this.multi.length) return;
+    const spec = JSON.parse(JSON.stringify({ productId: src.productId, sheetIds: src.sheetIds, options: src.options, parts: src.parts, depthMm: src.depthMm, letter3d: src.letter3d, text: src.text, charCount: src.charCount, corner: src.corner })) as Partial<SignObject>;
+    this.editBoundary();
+    for (const id of this.multi) if (id !== src.id) this.project.updateObject(id, spec);
+    this.editBoundary();
+  }
+
   selectObject(id: string | null) {
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }
+    this.multi = [];
     this.selectedId = id;
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }
