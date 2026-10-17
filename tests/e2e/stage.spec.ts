@@ -44,6 +44,13 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   // 사인물 내용이 바뀌면 그 사진만 다시 합성
   await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { text: '카페' }); });
   await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(first);
+  // 정면도(구성 요소 글자 위치·크기)가 바뀌어도 다시 합성 (2026-10-17 사용자: "3d가 아직 정면도의 변경을 따르지 않는다")
+  const second = await overlay.getAttribute('src');
+  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { parts: [{ id: 'c', kind: 'channel', type: 'ch-front', options: {}, items: [{ id: 't', kind: 'text', text: '카페', x: 0, y: 0, h: 300 }] }] }); });
+  await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(second);
+  const third = await overlay.getAttribute('src');
+  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { parts: [{ id: 'c', kind: 'channel', type: 'ch-front', options: {}, items: [{ id: 't', kind: 'text', text: '카페', x: -900, y: 0, h: 450 }] }] }); });
+  await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(third);
   // 렌더링 버튼은 사진마다 그대로 (디자인 포함 최종 합성 창)
   await expect(page.getByTestId('render-open')).toContainText('렌더링');
   await page.getByTestId('stage-original').click();
