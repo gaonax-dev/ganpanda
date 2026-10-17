@@ -25,7 +25,8 @@
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
   let canvas: InfiniteCanvas;
   let faces: Record<string, { key: string; url: string }> = $state({});
-  let drag: { id: string; dx: number; dy: number; sx: number; sy: number } | null = $state(null);
+  /** 끌기: 주 카드 id, 포인터 오프셋, 끌리는 카드들의 시작 위치(mm), 지금까지의 이동량(mm). 선택에 든 카드를 끌면 선택 전체가 함께 (2026-10-17 "리스트의 정면도들을 다중선택하고 이동하게") */
+  let drag: { id: string; dx: number; dy: number; base: Record<string, { x: number; y: number }>; ddx: number; ddy: number } | null = $state(null);
   let fitted = false;
 
   /** 치수가 확정(입력 또는 추정)된 사인물만 전개도에 배치 — 보드의 평면 구역과 같은 목록·배치 (app.flatCards/flatPlaced) */
@@ -82,22 +83,28 @@
 
   function down(e: PointerEvent, id: string) {
     if (e.button !== 0) return;
-    if (!app.canEdit) { app.selectObject(id); return; }
     e.stopPropagation();
-    app.selectedId = id;
+    if (e.shiftKey) { app.toggleSelect(id, 'card'); return; } // 다중 선택 (카드끼리만)
+    const group = app.cardDragIds(id);
+    if (group.length === 1) app.selectObject(id, 'card');
+    if (!app.canEdit) return;
     const p = placed.get(id)!;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
-    drag = { id, dx: w.x - p.x, dy: w.y - p.y, sx: p.x, sy: p.y };
+    const base: Record<string, { x: number; y: number }> = {};
+    for (const gid of group) base[gid] = { ...placed.get(gid)! };
+    drag = { id, dx: w.x - p.x, dy: w.y - p.y, base, ddx: 0, ddy: 0 };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent) {
     if (!drag) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
-    drag = { ...drag, sx: w.x - drag.dx, sy: w.y - drag.dy };
+    const b = drag.base[drag.id];
+    drag = { ...drag, ddx: w.x - drag.dx - b.x, ddy: w.y - drag.dy - b.y };
   }
   function up() {
     if (!drag) return;
-    app.project.updateObject(drag.id, { listX: Math.round(drag.sx), listY: Math.round(drag.sy) });
+    const d = drag;
+    for (const [id, b] of Object.entries(d.base)) app.project.updateObject(id, { listX: Math.round(b.x + d.ddx), listY: Math.round(b.y + d.ddy) });
     drag = null;
   }
 
@@ -189,7 +196,7 @@
   <InfiniteCanvas bind:this={canvas} bind:viewport testid="list-canvas" onfit={fit} onbackgrounddown={() => { app.selectedId = null; }}>
     <!-- 사양 카드의 버튼·셀렉터는 카드 드래그와 무관 -->
     {#each sized as { o, w, h, estimated } (o.id)}
-      {@const pos = drag?.id === o.id ? { x: drag.sx, y: drag.sy } : placed.get(o.id)!}
+      {@const pos = drag?.base[o.id] ? { x: drag.base[o.id].x + drag.ddx, y: drag.base[o.id].y + drag.ddy } : placed.get(o.id)!}
       {@const photo = app.photos.find((p) => p.id === o.photoId)}
       {@const parts = signParts(o)}
       {@const prod = productById(parts.bodyId)}
@@ -201,6 +208,8 @@
         <div
           class="face"
           class:sel={app.selectedId === o.id}
+          class:multi={app.cardMulti.includes(o.id)}
+          data-multi={app.cardMulti.includes(o.id) || undefined}
           style:clip-path={clip(o, w, h)}
           role="button"
           tabindex="-1"
@@ -373,6 +382,7 @@
   .item { position: absolute; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #333; cursor: grab; outline: 1px solid rgba(255,255,255,0.25); }
   .face.sel { outline: 2px solid var(--accent); }
+  .face.multi { outline: 2px dashed var(--accent); }
   .face img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
   .face img.flat { width: 100%; height: 100%; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
