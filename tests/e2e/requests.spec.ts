@@ -6,6 +6,7 @@ test('고객이 요청을 올리면 간판사가 받아 제안으로 답하고, 
   const store = `정육점 ${Math.random().toString(36).slice(2, 7)}`; // 로컬 DB 에 남은 지난 실행의 요청과 구분
   // 간판사: 설정에서 요청 받기 + 지역
   await openOwnedProject(page, request, '간판사');
+  await page.evaluate(() => localStorage.setItem('ganpanda.requests', '1')); // 요청판 화면은 기본 숨김 (2026-10-17)
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await page.getByTestId('req-receive').check();
@@ -17,6 +18,8 @@ test('고객이 요청을 올리면 간판사가 받아 제안으로 답하고, 
   // 고객: 홍보자 코드가 붙은 요청 페이지 (로그인 없음)
   const ctx = await browser.newContext();
   const cust = await ctx.newPage();
+  await cust.goto('/');
+  await cust.evaluate(() => localStorage.setItem('ganpanda.requests', '1'));
   await cust.goto('/request?ref=promo-kim');
   await expect(cust.getByTestId('top-nav')).toBeHidden();
   await cust.getByTestId('req-photos').setInputFiles({ name: '가게.png', mimeType: 'image/png', buffer: await makePhoto(cust) });
@@ -64,4 +67,15 @@ test('고객이 요청을 올리면 간판사가 받아 제안으로 답하고, 
   await expect(answered.getByTestId('request-phone')).toContainText('010');
   await expect(answered.getByTestId('request-open')).toBeVisible();
   await ctx.close();
+});
+
+test('요청판 화면은 기본으로 숨김: 설정에 요청 받기 없음, /request 는 준비 중 (2026-10-17 "실측툴 기본기 먼저")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '간판사');
+  await page.goto('/');
+  await page.getByTestId('open-settings').click();
+  await expect(page.getByTestId('requests-section')).toHaveCount(0);
+  await page.getByTestId('close-settings').click();
+  await expect(page.getByTestId('request-list')).toHaveCount(0);
+  await page.goto('/request');
+  await expect(page.getByTestId('request-soon')).toContainText('준비 중');
 });

@@ -38,7 +38,7 @@
   async function reload() {
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
-      listRequests().then((rs) => (requests = rs)).catch(() => (requests = []));
+      if (app.requestsEnabled) listRequests().then((rs) => (requests = rs)).catch(() => (requests = []));
       const next: Record<string, GroupView> = {};
       await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
       views = next;
@@ -139,7 +139,7 @@
   {#if !app.authReady}
     <p class="hint">확인 중…</p>
   {:else if app.account}
-    {#if requests.length || app.requestSettings?.receive}
+    {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive)}
       <section class="requests" data-testid="request-list">
         <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = true)}>설정</button></small></h1>
         {#each requests as r (r.id)}

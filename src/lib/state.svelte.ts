@@ -72,6 +72,9 @@ class AppState {
   readonly page: 'request' | 'request-view' | null;
   /** 요청 받기 설정 (/api/me) */
   requestSettings = $state<{ receive: boolean; regions: string[] } | null>(null);
+  /** 요청판 화면 켜기 (2026-10-17 사용자: "우선 안보이게 해줘 현재는 간판 실측툴로서 기본기를 단단히 하겠다"). 서버·API 는 그대로, 화면만 숨김.
+      켜려면 빌드에 VITE_REQUESTS=1 또는 기기에 localStorage 'ganpanda.requests' = '1' (E2E·내부 확인용) */
+  readonly requestsEnabled = import.meta.env.VITE_REQUESTS === '1' || load('ganpanda.requests') === '1';
   /** 초대 토큰 (이 방에 초대 링크로 들어온 경우) */
   readonly invite: string | null;
   access = $state<Access>({ status: 'loading' });
