@@ -5,6 +5,7 @@
   import { partKindsFor, partsForProduct } from '../core/parts';
   import PartsEditor from './PartsEditor.svelte';
   import QuickSpec from './QuickSpec.svelte';
+  import SpecInput from './SpecInput.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -27,7 +28,15 @@
   const ro = $derived(!app.canEdit);
   const update = (patch: Partial<SignObject>) => { if (app.canEdit) app.project.updateObject(obj.id, patch); };
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)));
-  const close = () => (app.objectSettingsOpen = false);
+  const close = () => { app.objectSettingsOpen = false; app.objectSettingsFocus = null; };
+  /** 칩에서 열렸으면 그 요소 자리로 스크롤 (몸통 → 종류, 채널·LED → 구성 요소, 두께 → 두께, 메모 → 요청사항) */
+  const focus = app.objectSettingsFocus;
+  $effect(() => {
+    if (!focus) return;
+    const sel = focus === 'body' ? '[data-testid="product-select"]' : focus === 'thick' ? '[data-testid="thickness"]' : focus === 'note' ? '[data-testid="sign-note"]' : '[data-testid="parts-section"]';
+    const t = setTimeout(() => document.querySelector(sel)?.scrollIntoView({ block: 'center' }), 60);
+    return () => clearTimeout(t);
+  });
 
   /** 조합형 (2026-10-16): 분류마다 붙일 수 있는 구성 요소(채널·스카시·시트)를 카드로 — 간판뿐 아니라 시트·스카시·포맥스·라이트패널·액자·어닝·사인미러도
       ("사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘") */
@@ -96,7 +105,7 @@
         {/if}
       </section>
       <!-- 빠른 설정: 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k") -->
-      {#if category && category !== 'sheet'}<section data-testid="quick-section"><h3>빠른 설정 <span class="cat">세부는 아래 사양에서</span></h3><QuickSpec {obj} {ro} {update} /></section>{/if}
+      {#if category && category !== 'sheet'}<section data-testid="quick-section"><h3>빠른 설정 <span class="cat">세부는 아래 사양에서</span></h3>{#if !ro}<SpecInput {obj} {ro} {update} />{/if}<QuickSpec {obj} {ro} {update} initialOpen={focus} /></section>{/if}
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}
