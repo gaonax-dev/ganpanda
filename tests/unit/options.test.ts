@@ -8,7 +8,7 @@ const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((
 
 describe('주문 사양 옵션 스키마', () => {
   it('프레임(후렉스) 간판: 단면/양면 + 내부 조명 + 프레임 구조 + 출력 방식', () => {
-    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'faceSystem', 'channel', 'scashi', 'topLight']); // 채널·스카시 부착은 간판 옵션, 바탕색은 컬러 피커 (2026-10-17)
+    expect(keys(obj({ productId: 'board-flex' }))).toEqual(['sides', 'light', 'frame', 'print', 'faceSystem', 'framePaintSystem', 'channel', 'scashi', 'topLight']); // 채널·스카시 부착은 간판 옵션, 출력면 색·프레임 색은 컬러 피커 (2026-10-17)
   });
   it('갈바·스텐 전면 간판: 소재 + 돌출/일체형 + 도색 컬러코드(체계+코드), 간접조명은 상단 조명 (2026-10-16)', () => {
     expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'perforation', 'light', 'paintSystem', 'channel', 'scashi', 'topLight']); // 레이저 타공·내부 조명 (2026-10-17)
@@ -32,7 +32,7 @@ describe('주문 사양 옵션 스키마', () => {
   });
   it('시트: 코팅 + 종류별 + 컷팅(컷팅·컷 방식·완컷이면 보조시트) — 2026-10-16 컷팅은 옵션', () => {
     expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['coating', 'base', 'ink', 'cut', 'cutMode', 'transferTape']);
-    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['coating', 'sheetMat', 'cut', 'cutMode', 'transferTape']);
+    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['coating', 'sheetMat', 'sheetSystem', 'cut', 'cutMode', 'transferTape']); // 시트 색 (2026-10-17)
     expect(keys(obj({}))).toEqual([]);
   });
   it('요약 문구: 고른 값·켜진 토글·코드만', () => {
@@ -93,7 +93,7 @@ describe('간판 천갈이 (2026-10-15 사용자: "간판 천갈이가 따로 �
   });
   it('옵션: 면 · 원단 · 기존 원단 철거 · 내부 LED 교체', () => {
     const o = obj({ productId: 'board-reface' });
-    expect(keys(o)).toEqual(['sides', 'fabric', 'removeOld', 'ledReplace', 'faceSystem']); // 바탕색 (2026-10-17)
+    expect(keys(o)).toEqual(['sides', 'fabric', 'removeOld', 'ledReplace', 'faceSystem', 'framePaintSystem']); // 출력면 색 + 기존 프레임 색 (2026-10-17)
     const [g] = optionGroupsFor(o);
     expect(g.fields.find((f) => f.key === 'fabric')!.values!.map((v) => v.id)).toEqual(['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']);
   });

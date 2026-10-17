@@ -47,10 +47,12 @@ const material = (key: string, label: string, ids: string[], paintPrefix: string
   ...paint(paintPrefix, paintLabel, (opts, o) => (!when || when(opts, o)) && !!materialByLabel(opts[key] ?? labelsOf(ids)[0])?.paintable),
 ];
 const SIDES = sel('sides', '면', ['단면', '양면']);
+/** 출력면(후렉스·패브릭·현수막 등 인쇄물)의 임시 색 — 디자인이 정해지기 전 보드·3D 에 보이는 색. 프레임 색(framePaint)과 구분 (2026-10-17) */
+const PRINT_FACE = '출력면 색 (인쇄물 임시)';
 /** LED 색: 값은 이름 그대로, 표시에 색온도 (2026-10-17 빠른 설정 "후광 4000K") */
 const LED_KELVIN: Record<string, string> = { 백색: '5700K', 주백색: '4000K', 전구색: '3000K' };
-const LED_COLOR = (when?: OptionField['when']): OptionField =>
-  ({ key: 'ledColor', label: 'LED 색', kind: 'select', values: ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'].map((v) => ({ id: v, label: LED_KELVIN[v] ? `${v} (${LED_KELVIN[v]})` : v })), when });
+const LED_COLOR = (when?: OptionField['when'], key = 'ledColor', label = 'LED 색'): OptionField =>
+  ({ key, label, kind: 'select', values: ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'].map((v) => ({ id: v, label: LED_KELVIN[v] ? `${v} (${LED_KELVIN[v]})` : v })), when });
 /** 채널 옵션 (모든 간판 몸통에): 없음 또는 채널 종류. 고르면 세부 옵션이 따라온다 */
 const hasChannel = (opts: Options) => !!opts.channel && opts.channel !== CHANNEL_NONE;
 const isLit = (_opts: Options, o: SignObject) => o.productId !== 'ch-galva';
@@ -77,7 +79,9 @@ const CHANNEL_FIELDS: OptionField[] = [
   ...paint('face', '앞면 색 (시트)', (opts) => [CHANNEL_OPTIONS[0].label, CHANNEL_OPTIONS[2].label, CHANNEL_OPTIONS[4].label, CHANNEL_OPTIONS[5].label].includes(String(opts.channel))),
   txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이', hasChannel),
   sel('chFrame', '알루미늄 채널 프레임', ['없음', '150폭', '200폭', '250폭', '300폭', '400폭'], hasChannel),
-  sel('chFrameColor', '채널 프레임 색', ['진회색', '연회색', '검정', '백색'], (opts) => hasChannel(opts) && !!opts.chFrame && opts.chFrame !== '없음'),
+  ...paint('chFramePaint', '채널 프레임 색', (opts) => hasChannel(opts) && !!opts.chFrame && opts.chFrame !== '없음'), // 고정 선택(진회색…) → 컬러 피커 (2026-10-17 색 누락 점검)
+  // 캡(트림) 색: 캡·캡 단차 채널의 앞면 테두리 (2026-10-17 색 누락 점검)
+  ...paint('cap', '캡(트림) 색', (opts) => hasChannel(opts) && !isEpoxy(opts) && ['캡', '캡 단차(아크릴)'].includes(chTypeOf(opts))),
   tog('bracket', '까치발 (별도)', hasChannel),
 ];
 
@@ -116,13 +120,14 @@ const INDIRECT = sel('indirect', '간접조명', ['없음', 'T5 LED 주백색', 
 /** 제품별 옵션 (주문 사양) */
 export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 프레임 간판 (한울: 조명/비조명 · 카바/일반 텐션 · 단폭/장폭 4.5㎡ · 플렉스 UV/솔벤 양면·단면 출력)
-  'board-flex': [SIDES, sel('light', '내부 조명', ['LED', '형광등', '비조명']), sel('frame', '프레임 구조', ['일반 텐션', '카바']), sel('print', '플렉스 출력', ['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력']), ...paint('face', '바탕색')], // 바탕색 = 컬러 피커 (2026-10-17 "후랙스 갈바 모두 컬러피커로")
+  // 출력면 색 = 인쇄물이 정해지기 전 임시 색, 프레임 색 = 프레임(갈바·알루미늄) 도색 — 둘을 구분 (2026-10-17 사용자: "현재 배경컬러는 인쇄물의 임시컬러를 지정한 경우로 프레임과 구분지어야한다")
+  'board-flex': [SIDES, sel('light', '내부 조명', ['LED', '형광등', '비조명']), sel('frame', '프레임 구조', ['일반 텐션', '카바']), sel('print', '플렉스 출력', ['UV 양면 출력', 'UV 단면 출력', '솔벤 양면 출력', '솔벤 단면 출력']), ...paint('face', PRINT_FACE), ...paint('framePaint', '프레임 색')],
 
   // 천갈이: 기존 프레임에 원단만 교체. 철거·LED 교체는 현장마다 달라 토글로
-  'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체'), ...paint('face', '바탕색')],
+  'board-reface': [SIDES, sel('fabric', '원단', ['일반 후렉스', '고투과 후렉스(LED용)', '메쉬 후렉스']), tog('removeOld', '기존 원단 철거·폐기'), tog('ledReplace', '내부 LED 교체'), ...paint('face', PRINT_FACE), ...paint('framePaint', '기존 프레임 색')],
   // 갈바·스텐 전면 (한울: 두께 100 이하 · 1도 도장 기준 · 폭 150~1200)
   // 레이저 타공 + 내부 조명 (2026-10-17 사용자: "갈바에 레이저 타공과 내부 조명 옵션추가해줘") — 타공 글자·패턴 뒤에서 LED 가 비치는 간판
-  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), sel('perforation', '레이저 타공', ['없음', '글자 타공', '패턴 타공', '글자+패턴 타공']), sel('light', '내부 조명', ['비조명', 'LED']), ...paint('paint', '도색')], // 간접조명은 상단 조명으로
+  'board-galva': [...FRAME_MAT, sel('form', '형태', ['돌출형', '일체형(전면)']), sel('perforation', '레이저 타공', ['없음', '글자 타공', '패턴 타공', '글자+패턴 타공']), sel('light', '내부 조명', ['비조명', 'LED']), LED_COLOR((opts) => opts.light === 'LED', 'lightColor', '내부 조명 색'), ...paint('paint', '도색')], // 간접조명은 상단 조명으로. 내부 조명 색 (2026-10-17 색 누락 점검)
   // 트러스 (사용자 "트러스트": 채널을 잡는 프레임보다 가는 프레임) · 파이프 간접
   'board-truss': [...FRAME_MAT, ...paint('face', '바탕색')], // 조명은 상단 조명으로
   'board-pipe': [...FRAME_MAT, ...paint('face', '바탕색')],
@@ -130,10 +135,10 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 두께 = 치수 두께(빠른 선택 3~30T), UV 시트 = 구성 요소 (2026-10-16 중복 정리)
   'board-foamex': [...paint('face', '바탕색')], // 모든 사인물에 바탕색 (2026-10-17)
   // 현수막 (한울: 일반·솔벤 출력, 기본 마감(재단·막대·타공·끈고리 4개) + 추가 마감)
-  banner: [sel('print', '출력', ['일반', '솔벤']), tog('stitch', '줄미싱'), tog('endStitch', '양끝미싱'), tog('join', '장폭이음·사방미싱'), tog('band', '밴드미싱'), ...paint('face', '바탕색')],
+  banner: [sel('print', '출력', ['일반', '솔벤']), tog('stitch', '줄미싱'), tog('endStitch', '양끝미싱'), tog('join', '장폭이음·사방미싱'), tog('band', '밴드미싱'), ...paint('face', PRINT_FACE)],
   // 액자 (2026-10-15 사용자: "액자에 나무틀 패브릭도")
-  'frame-plain': [sel('frameColor', '프레임 색', ['실버', '화이트', '블랙']), ...paint('face', '바탕색')], // 출력물 = 시트 구성 요소
-  'frame-wood': [sel('wood', '나무틀', ['원목', '화이트', '블랙', '월넛']), sel('fabric', '패브릭', ['UV 패브릭 출력']), ...paint('face', '바탕색')],
+  'frame-plain': [...paint('framePaint', '프레임 색'), ...paint('face', PRINT_FACE)], // 출력물 = 시트 구성 요소. 프레임 색 고정 선택(실버·화이트·블랙) → 피커 (2026-10-17)
+  'frame-wood': [sel('wood', '나무틀', ['원목', '화이트', '블랙', '월넛', '도색']), ...paint('framePaint', '틀 도색', (opts) => opts.wood === '도색'), sel('fabric', '패브릭', ['UV 패브릭 출력']), ...paint('face', PRINT_FACE)],
   'board-acp': [SIDES, ...paint('paint', '도색')], // 실사·시트 마감 = 시트 구성 요소
   // 아크릴 간판·현판 (한울 아크릴가공: 현판·게시판·액자·번호판/층수/호수, 판재 출력 레이어, 전처리 프라이머)
   'board-acrylic': [
@@ -145,11 +150,11 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     ...paint('face', '바탕색'),
   ],
   // 라이트패널 (한울: 단면/양면 · SMPS 내장/외장 · 옥외 방수형 · 프레임 블랙/실버/화이트)
-  'board-lightpanel': [SIDES, sel('smps', 'SMPS (인버터)', ['내장형', '외장형']), sel('place', '설치', ['실내', '옥외 방수형']), sel('frameColor', '프레임 색', ['블랙', '실버', '화이트']), ...paint('face', '바탕색')],
+  'board-lightpanel': [SIDES, sel('smps', 'SMPS (인버터)', ['내장형', '외장형']), sel('place', '설치', ['실내', '옥외 방수형']), ...paint('framePaint', '프레임 색'), ...paint('face', PRINT_FACE)],
   // 패브릭 라이트박스 (한울: 바 높이 · 1㎡ 이하/이상 · 9구 확산바 · 조명용 패브릭 UV 출력 + 고무 팩킹)
-  'board-fabric': [tog('diffuser', '9구 확산바'), sel('mount', '설치', ['벽 부착', '천장 매달기', '스탠드']), ...paint('face', '바탕색')],
+  'board-fabric': [tog('diffuser', '9구 확산바'), sel('mount', '설치', ['벽 부착', '천장 매달기', '스탠드']), ...paint('framePaint', '프레임 색'), ...paint('face', PRINT_FACE)],
   // 지주 간판 (한울: 파이프·스텐·알미늄·갈바·갈바 사면 지주, 삼각기둥, 스텐/갈바 카바, LED 투광기)
-  'board-pole': [sel('pole', '지주', ['파이프 지주', '스텐 지주', '알미늄 지주', '갈바 지주', '갈바 사면 지주', '삼각기둥']), sel('cover', '카바', ['없음', '스텐 카바', '갈바 카바']), sel('light', '조명', ['LED 내부 조명', 'LED 투광기', '비조명']), ...paint('face', '바탕색')],
+  'board-pole': [sel('pole', '지주', ['파이프 지주', '스텐 지주', '알미늄 지주', '갈바 지주', '갈바 사면 지주', '삼각기둥']), sel('cover', '카바', ['없음', '스텐 카바', '갈바 카바']), sel('light', '조명', ['LED 내부 조명', 'LED 투광기', '비조명']), ...paint('framePaint', '지주·카바 도색'), ...paint('face', PRINT_FACE)],
   // 어닝 (한울: 일반 폴딩 어닝 RECACRIL 원단 / 패션 어닝 디지털 양면 출력)
   // 어닝 (2026-10-15 사용자: "고정형,접이식(수동,자동, 펼침, 제작사, 천코드,핸들좌우,핸들길이)", "펼침 = 벽에서 나오는 길이, 직접입력")
   'board-awning': [
@@ -160,12 +165,13 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     txt('reach', '펼침 (벽에서 나오는 길이 mm)', '예: 1200'),
     txt('maker', '제작사', '직접 입력'),
     txt('fabricCode', '천 코드', '직접 입력'),
-    ...paint('face', '바탕색'),
+    ...paint('face', '천 색'),
+    ...paint('framePaint', '프레임 색'),
   ],
   // LED 사인미러 (한울: 흑경·브론즈경·은경 · AL 누드 사각/R · 골드·화이트·블랙 · 주광 5700K/전구 4000K)
-  'board-mirror': [sel('mirror', '거울', ['은경', '흑경', '브론즈경']), sel('frame', '프레임', ['AL 누드 사각', 'AL 누드 사각 R']), sel('frameColor', '프레임 색', ['골드', '화이트', '블랙']), sel('led', 'LED 빛', ['주광색 5700K', '전구색 4000K']), ...paint('face', '바탕색')],
+  'board-mirror': [sel('mirror', '거울', ['은경', '흑경', '브론즈경']), sel('frame', '프레임', ['AL 누드 사각', 'AL 누드 사각 R']), ...paint('framePaint', '프레임 색'), sel('led', 'LED 빛', ['주광색 5700K', '전구색 4000K']), ...paint('face', '바탕색')],
   // 전광판 (한울: 3색 RW · 3색 RpG · 풀컬러 RpGB, 모듈 200/240/320mm, 단면/양면)
-  'board-ledsign': [sel('color', '색', ['3색 (RW)', '3색 (RpG)', '풀컬러 (RpGB)']), sel('module', '모듈', ['200mm', '240mm', '320mm']), SIDES, ...paint('face', '바탕색')],
+  'board-ledsign': [sel('color', '색', ['3색 (RW)', '3색 (RpG)', '풀컬러 (RpGB)']), sel('module', '모듈', ['200mm', '240mm', '320mm']), SIDES, ...paint('framePaint', '케이스 색'), ...paint('face', '바탕색')],
   // 에어간판 (한울: 2D 만, 완제품 통 높이 50cm 포함)
   'board-air': [...paint('face', '바탕색')],
   // 돌출 간판: 양면이 기본. 몸체가 갈바 도색일 때만 컬러코드. 브라켓(벽 고정 철물) 포함 여부
@@ -176,6 +182,7 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
     sel('body', '몸체', ['갈바 도색', '스텐', '후렉스', '아크릴']),
     sel('light', '내부 조명', ['LED', '비조명']),
     ...paint('paint', '도색', (opts) => (opts.body ?? '갈바 도색') === '갈바 도색'),
+    ...paint('face', PRINT_FACE, (opts) => ['후렉스', '아크릴'].includes(String(opts.body))), // 몸체가 후렉스·아크릴이면 출력면 (2026-10-17 색 누락 점검)
     sel('bracket', '브라켓', ['기본 브라켓 포함', '별도 제작', '기존 브라켓 사용']),
   ],
   // 옛 데이터(채널 제품이 종류): 채널 세부 옵션만
@@ -195,6 +202,8 @@ const PLATE_THICK_FIELD = sel('thick', '두께', ['3T', '5T', '8T', '10T', '15T'
 const LEGACY_FIELDS: Record<string, OptionField[]> = {
   'board-foamex': [PLATE_THICK_FIELD], 'board-acrylic': [PLATE_THICK_FIELD],
   'board-galva': [INDIRECT], 'board-pipe': [INDIRECT], 'board-truss': [sel('light', '조명', ['비조명', '간접 조명'])],
+  // 프레임 색 고정 선택 → 컬러 피커(framePaint)로 바뀜 (2026-10-17): 옛 값은 요약에만
+  'frame-plain': [sel('frameColor', '프레임 색', ['실버', '화이트', '블랙'])], 'board-lightpanel': [sel('frameColor', '프레임 색', ['블랙', '실버', '화이트'])], 'board-mirror': [sel('frameColor', '프레임 색', ['골드', '화이트', '블랙'])],
 };
 /** 스카시 공통: 시공 보조 부속품 */
 export const SCASHI_ACCESSORY_OPTIONS: OptionField[] = [
@@ -218,7 +227,7 @@ const INK = sel('ink', '잉크', ['UV', '솔벤트']);
 /** 시트별 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개") */
 export const SHEET_OPTIONS: Record<string, OptionField[]> = {
   'sh-print': [sel('base', '바탕', ['흰색', '회색']), INK, ...CUT('돔보컷팅')],
-  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램', '안개']), ...CUT('커팅')],
+  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램', '안개']), ...paint('sheet', '시트 색'), ...CUT('커팅')], // 시트 색 (2026-10-17 색 누락 점검: 단색 시트에 색이 없었다)
   'sh-frost': [...CUT('커팅')],
   'sh-perf': [INK],
 };

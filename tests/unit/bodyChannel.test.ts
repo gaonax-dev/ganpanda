@@ -28,7 +28,7 @@ describe('간판 = 몸통 + 채널 옵션 (2026-10-15 사용자: "몸통 선택�
   });
   it('옵션: 몸통 옵션 + 채널 선택, 채널을 고르면 채널 종류·LED 색·도색·글자 높이가 따라온다', () => {
     expect(keys(obj({ productId: 'board-galva' }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'perforation', 'light', 'paintSystem', 'channel', 'scashi', 'topLight']); // 2026-10-15 분류 재정리, 레이저 타공·내부 조명 2026-10-17: 프레임 재질, 스카시 부착 (간접조명은 2026-10-16 상단 조명으로)
-    expect(keys(obj({ productId: 'board-galva', options: { channel: '전광 채널' } }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'perforation', 'light', 'paintSystem', 'channel', 'chType', 'chBuild', 'chDepth', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'chFace', 'faceSystem', 'chHeight', 'chFrame', 'bracket', 'scashi', 'topLight']); // 채널 조합 (2026-10-15 한울), 앞면 색(시트) 2026-10-17
+    expect(keys(obj({ productId: 'board-galva', options: { channel: '전광 채널' } }))).toEqual(['frameMat', 'framePaintSystem', 'form', 'perforation', 'light', 'paintSystem', 'channel', 'chType', 'chBuild', 'chDepth', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'chFace', 'faceSystem', 'chHeight', 'chFrame', 'capSystem', 'bracket', 'scashi', 'topLight']); // 채널 조합 (2026-10-15 한울), 앞면 색(시트)·캡(트림) 색 2026-10-17
     expect(keys(obj({ productId: 'board-galva', options: { channel: '갈바 에폭시 채널 (비조명)' } }))).not.toContain('ledColor');
     expect(keys(obj({ productId: 'body-none' }))).toEqual(['channel', 'scashi', 'topLight']);
   });
