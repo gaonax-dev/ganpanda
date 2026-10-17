@@ -678,11 +678,13 @@
     {/each}
     {#each pins as pin (pin.id)}
       {@const r = 11 * u}
-      <g class="pin" class:sel={pin.id === selectedPinId} class:resolved={pin.resolved} data-testid="pin" data-resolved={pin.resolved}
+      <!-- 말풍선 모양 (2026-10-17 "핀을 말 풍선으로"): 둥근 상자 + 아래 꼬리가 지점을 가리킨다. 받는 사람이 있으면 data-to -->
+      <g class="pin" class:sel={pin.id === selectedPinId} class:resolved={pin.resolved} data-testid="pin" data-resolved={pin.resolved} data-to={pin.to || undefined}
         role="button" tabindex="-1" transform="translate({pin.x} {pin.y})"
         onpointerdown={(e) => pinDown(e, pin)} onpointermove={pinMove} onpointerup={pinUp}>
-        <path d="M0 0 L{-r * 0.9} {-r * 1.6} A{r * 1.25} {r * 1.25} 0 1 1 {r * 0.9} {-r * 1.6} Z" fill={colorFor(pin.author)} stroke="#fff" stroke-width={1.5 * u} />
-        <text y={-r * 1.9} font-size={r * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{pin.number}</text>
+        <title>{pin.author} → {pin.to || '모두'}</title>
+        <path d="M0 0 L{-r * 0.5} {-r * 1.1} H{-r * 1.5} Q{-r * 2.1} {-r * 1.1} {-r * 2.1} {-r * 1.7} V{-r * 3.1} Q{-r * 2.1} {-r * 3.7} {-r * 1.5} {-r * 3.7} H{r * 1.5} Q{r * 2.1} {-r * 3.7} {r * 2.1} {-r * 3.1} V{-r * 1.7} Q{r * 2.1} {-r * 1.1} {r * 1.5} {-r * 1.1} H{r * 0.5} Z" fill={colorFor(pin.author)} stroke="#fff" stroke-width={1.5 * u} />
+        <text y={-r * 1.95} font-size={r * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{pin.number}{#if pin.to}<tspan font-size={r * 0.8}> →</tspan>{/if}</text>
         {#if unread[pin.id]}
           <g transform="translate({r * 1.6} {-r * 3.2})">
             <circle r={r * 0.8} fill="var(--accent)" />

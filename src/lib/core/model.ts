@@ -128,6 +128,8 @@ export interface Pin {
   resolved: boolean;
   /** 사진 안에서 만든 순서 (표시용) */
   number: number;
+  /** 받는 사람 이름 (2026-10-17 말풍선). 없거나 빈 문자열 = 모두. 있으면 보낸 사람·받는 사람·소유자만 본다 → core/pins.ts */
+  to?: string;
 }
 
 export interface Attachment { assetId: string; name: string; type: string; size: number }
