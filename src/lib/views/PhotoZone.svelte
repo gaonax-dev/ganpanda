@@ -9,7 +9,7 @@
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
-  import { bodyLook } from '../core/render';
+  import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint } from '../core/homography';
@@ -442,6 +442,16 @@
       {#each objects.filter((o) => bodyLook(o)) as o (o.id)}
         {@const look = bodyLook(o)!}
         <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
+      {/each}
+      <!-- 프레임 테 (2026-10-17 "3d에서 프레임과 판을 구별하나?"): 바탕 위에 테 폭(mm)만큼 안으로 들어간 고리. 원근은 중심 기준 축소로 근사 -->
+      {#each objects.filter((o) => frameLook(o)?.mm && o.widthMm && o.heightMm) as o (o.id)}
+        {@const fl = frameLook(o)!}
+        {@const outer = outlinePts(o.shape, quadOf(o), o.polygon, o.corner)}
+        {@const c = outer.reduce((a, p) => [a[0] + p[0] / outer.length, a[1] + p[1] / outer.length], [0, 0])}
+        {@const kx = Math.max(0.2, 1 - (2 * fl.mm) / o.widthMm!)}
+        {@const ky = Math.max(0.2, 1 - (2 * fl.mm) / o.heightMm!)}
+        {@const inner = outer.map((p) => [c[0] + (p[0] - c[0]) * kx, c[1] + (p[1] - c[1]) * ky])}
+        <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {outer.map((p) => `${p[0]}px ${p[1]}px`).join(',')}, {inner.map((p) => `${p[0]}px ${p[1]}px`).join(',')})" style:background={fl.color}></div>
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o)}

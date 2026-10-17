@@ -21,9 +21,12 @@ test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레�
   // 칩은 출력면 색(몸통 색), 2D 바탕도 출력면 색
   await expect(dlg.getByTestId('quick-body')).toContainText('노랑');
   expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 204, 0)');
-  // 치수를 넣으면 평면도 카드: 바탕 노랑 + 프레임 테두리 검정
+  // 치수를 넣으면 2D 사진 위에 프레임 테(고리)가, 평면도 카드에는 바탕 노랑 + 프레임 테두리 검정
+  await expect(page.getByTestId('sign-frame')).toHaveCount(0); // 치수 전에는 테 폭을 모른다
   await dlg.getByTestId('width-mm').fill('3000');
   await dlg.getByTestId('height-mm').fill('600');
+  await expect(page.getByTestId('sign-frame')).toHaveCount(1);
+  expect(await page.getByTestId('sign-frame').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(20, 20, 20)');
   await dlg.getByTestId('close-object-settings').click();
   const card = page.getByTestId('board-card');
   await expect(card).toHaveCount(1);

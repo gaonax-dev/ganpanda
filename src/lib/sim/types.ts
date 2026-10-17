@@ -18,8 +18,10 @@ export interface SignSpec {
   lighting: Lighting;
   /** 채널: 면/LED 색 · 박스: 바탕색 */
   faceColor: string;
-  /** 채널: 옆면(몰딩) 색 · 박스: 프레임 색 */
+  /** 채널: 옆면(몰딩) 색 · 박스: 프레임 색 (옆면 + 앞면 테) */
   sideColor: string;
+  /** 박스 앞면 테(프레임이 앞에서 보이는 폭, mm). 0·없음 = 테 없이 판이 앞면 전체 (갈바·복합판·포맥스) — 2026-10-17 "3d에서 프레임과 판을 구별하나?" */
+  frameMm?: number;
   /** 박스 글자색 */
   textColor: string;
   /** 박스 위에 얹는 입체 글자 (간판 몸통 + 채널 옵션). 없으면 박스만 */

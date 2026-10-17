@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor, partOptionFields } from '../../src/lib/core/options';
-import { bodyLook, frameHex, renderSpecOf } from '../../src/lib/core/render';
+import { bodyLook, frameHex, frameLook, frameMmOf, renderSpecOf } from '../../src/lib/core/render';
 import { newPart } from '../../src/lib/core/parts';
 import { layoutParts } from '../../src/lib/core/partsLayout';
 
@@ -83,5 +83,25 @@ describe('도색은 포맥스·아크릴 판에도 (상황에 따라, 기본은 
     expect(bodyLook(o)!.color).toBe('#d62828');
     expect(renderSpecOf(o, place)!.faceColor).toBe('#d62828');
     expect(bodyLook(obj({ productId: 'board-acrylic', options: { faceSystem: '기본색', faceCode: '흰색', paintSystem: '도색 없음' } }))!.color).toBe('#f4f4f2');
+  });
+});
+
+// 2026-10-17 사용자: "3d에서 프레임과 판을 구별하나?"
+describe('프레임 테: 판을 테가 둘러싸는 종류는 앞면 가장자리에 프레임 색 테', () => {
+  it('후렉스 40 · 라이트패널 20 · 액자 25 · 갈바/복합판/포맥스 0', () => {
+    expect(frameMmOf(obj({ productId: 'board-flex' }))).toBe(40);
+    expect(frameMmOf(obj({ productId: 'board-lightpanel' }))).toBe(20);
+    expect(frameMmOf(obj({ productId: 'frame-plain' }))).toBe(25);
+    for (const id of ['board-galva', 'board-acp', 'board-foamex', 'board-acrylic', 'banner']) expect(frameMmOf(obj({ productId: id })), id).toBe(0);
+  });
+  it('frameLook: 테 있는 종류는 색을 안 골라도 기본 회색 테, 테 없는 종류는 프레임 색을 골랐을 때만', () => {
+    expect(frameLook(obj({ productId: 'board-flex' }))).toEqual({ color: '#6b7075', mm: 40 });
+    expect(frameLook(obj({ productId: 'board-flex', options: { framePaintSystem: '기본색', framePaintCode: '검정' } }))).toEqual({ color: '#141414', mm: 40 });
+    expect(frameLook(obj({ productId: 'board-foamex' }))).toBeNull();
+    expect(frameLook(obj({ productId: 'board-galva', options: { paintSystem: '기본색', paintCode: '검정' } }))).toEqual({ color: '#141414', mm: 0 });
+  });
+  it('renderSpecOf 가 frameMm 을 넘긴다 (몸통 없음은 0)', () => {
+    expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(40);
+    expect(renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(0);
   });
 });

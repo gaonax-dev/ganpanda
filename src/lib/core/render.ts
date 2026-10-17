@@ -50,6 +50,16 @@ const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex
 /** 프레임(상자 옆면·테) 색: 프레임 도색 > 몸통 도색(갈바는 몸통이 곧 프레임). 없으면 null → 기본 회색 */
 export const frameHex = (o: SignObject) => paintHex(o.options, 'framePaint') ?? paintHex(o.options, 'paint');
 const FRAME_DEFAULT = '#6b7075';
+/** 앞에서 보이는 프레임 테 폭(mm): 판(출력면)을 테가 둘러싸는 종류만. 갈바·복합판·포맥스·아크릴·현수막은 판이 곧 앞면이라 0 (2026-10-17 "3d에서 프레임과 판을 구별하나?") */
+const FRAME_MM: Record<string, number> = { 'board-flex': 40, 'board-reface': 40, 'board-lightpanel': 20, 'board-fabric': 25, 'frame-plain': 25, 'frame-wood': 40, 'board-mirror': 20, 'board-ledsign': 30, 'board-pole': 40 };
+export const frameMmOf = (o: SignObject) => FRAME_MM[signParts(o).bodyId ?? ''] ?? 0;
+/** 프레임 표시: 테가 있는 종류는 색(고른 색 또는 기본 회색)과 폭, 테 없는 종류는 프레임 색을 골랐을 때만 (옆면·카드 테두리용) */
+export function frameLook(o: SignObject): { color: string; mm: number } | null {
+  const mm = frameMmOf(o);
+  const hex = frameHex(o);
+  if (mm > 0) return { color: hex ?? FRAME_DEFAULT, mm };
+  return hex ? { color: hex, mm: 0 } : null;
+}
 /** 2D 보드에 그리는 바탕: 색(고른 색 > 종류 기본 겉모습) + 불투명도(고른 도색의 투명도). 종류가 없으면 null (시트 분류·분류 없음) — 2026-10-17 "사인물 바탕색 원본에 보이게" */
 export function bodyLook(o: SignObject): { color: string; opacity: number } | null {
   const product = productById(signParts(o).bodyId);
@@ -117,7 +127,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
         ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
         lighting: !bodyless && isLitBody(bodyId, o) ? 'front' : 'none',
-        faceColor: look.faceColor, sideColor: frameHex(o) ?? FRAME_DEFAULT, ...comp, ...(bodyless ? { bodyless: true } : {}),
+        faceColor: look.faceColor, sideColor: frameHex(o) ?? FRAME_DEFAULT, frameMm: bodyless ? 0 : frameMmOf(o), ...comp, ...(bodyless ? { bodyless: true } : {}),
       };
     }
   }
@@ -142,6 +152,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     lighting: isLitBody(bodyId, o) ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
     sideColor: frameHex(o) ?? (letters ? FRAME_DEFAULT : l?.sideColor ?? FRAME_DEFAULT),
+    frameMm: frameMmOf(o),
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
   };
 }
