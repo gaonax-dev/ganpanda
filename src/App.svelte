@@ -151,7 +151,7 @@
   </div>
   <main>
     {#if app.page === 'request'}
-      <div class="proposal"><RequestForm /></div>
+      <div class="proposal">{#if app.requestsEnabled}<RequestForm />{:else}<p class="soon" data-testid="request-soon">간판 견적 요청은 준비 중입니다. <a href="/">간판다 홈으로</a></p>{/if}</div>
     {:else if app.page === 'request-view'}
       <div class="proposal"><RequestView /></div>
     {:else if !app.room}
@@ -200,6 +200,7 @@
 {#if app.room && app.access.status === 'loading'}<Loading text="프로젝트 확인 중…" />{:else if app.room && app.access.status === 'ok' && !app.ready}<Loading text="프로젝트 불러오는 중…" />{/if}
 
 <style>
+  .soon { max-width: 560px; margin: 40px auto; padding: 0 16px; color: var(--muted); }
   .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
   .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
   .approval[data-status='changed'] { color: var(--warn); }
