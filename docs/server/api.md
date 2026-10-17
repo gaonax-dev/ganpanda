@@ -23,6 +23,7 @@
 | GET·POST | `/api/auth/{p}/callback` | 공급자 콜백 (애플은 POST form) → 302 `APP_URL/login#session=…&next=…` | 302 / 400 state / 502 공급자 오류 |
 | GET | `/api/me` | 내 계정 + 한도·사용량 + 기본 단가표 (`Authorization: Bearer <세션>`) | 200 `{account, prices, limits:{…}, usage:{…}}` / 401 |
 | PATCH | `/api/me` `{name}` | 표시 이름 변경 (40자) | 200 / 401 |
+| GET·PUT | `/api/me/colors` `{colors}` | 계정 색 라이브러리 (2026-10-17, JSON `{version:1, colors:[{id, kind(페인트·시트·천·필름), name≤40, hex, supplier?≤60, code?≤60, createdAt}]}`, 300개·60KB 이하). `/api/me` 응답에도 `colors` | 200 / 400 / 401 |
 | GET·PUT | `/api/me/prices` `{prices}` | 계정 기본 단가표 (JSON, 형식·크기만 검사: version 1, 숫자 ≥0, 키 100개·20KB 이하) | 200 / 400 / 401 |
 | POST | `/api/auth/logout` | 세션 삭제 | 204 / 401 |
 

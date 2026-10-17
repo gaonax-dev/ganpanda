@@ -34,6 +34,7 @@
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(한울 꼬리표)와 내 단가표 연결, 업로드·API 형식
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
+  - [color-library.md](features/color-library.md) — 색 라이브러리: 컬러 카드(페인트·시트·천·필름 + 이름·hex·공급사·코드), 계정 저장, 색 피커·사양 글에서 선택
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
   - [requests.md](features/requests.md) — 요청판(9차): 고객 견적 요청 → 지역 간판사 → 제안 링크, 홍보자 코드

@@ -11,8 +11,8 @@ const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', na
 const place = { cx: 0, cy: 0, w: 3000, h: 600 };
 
 describe('도색 객체: 직접 지정(hex) 체계와 색 읽기', () => {
-  it('체계: 도색 없음 / 기본색 / 직접 / PANTONE / RAL / KCC', () => {
-    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']);
+  it('체계: 도색 없음 / 기본색 / 직접 / PANTONE / RAL / KCC / 라이브러리', () => {
+    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC', '라이브러리']);
   });
   it('paintHex: 기본색은 이름 → hex, 직접은 hex 그대로, 코드 체계·없음은 null', () => {
     expect(paintHex({ paintSystem: '기본색', paintCode: '갈색' }, 'paint')).toMatch(/^#[0-9a-f]{6}$/);

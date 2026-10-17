@@ -1,6 +1,7 @@
 // 빠른 설정 (2026-10-17 사용자: "현재설정창과 퀵설정으로 만들수 있을까? 사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k").
 // 설정 창(치수 아래)과 휴대폰 빠른 막대에 세 칩: 몸통(종류·색) · 채널(종류·색) · LED(색온도). 값은 기존 옵션·구성 요소에 그대로 저장되고
 // 색은 "기본색" 도색 객체(색 이름)로 — 세부 설정(PANTONE·RAL 코드, 광택)은 아래 사양 묶음에서 그대로 가능.
+import { paintPatch, type ColorCard } from './colorLibrary';
 import type { SignObject, SignPart } from './model';
 import { CHANNEL_OPTIONS, productById } from './catalog';
 import { colorHex, PAINT_SYSTEMS, paintLabel } from './materials';
@@ -47,6 +48,9 @@ export interface QuickPatch {
   productId?: string;
   /** 색 이름(기본색) 또는 #hex(직접), null = 도색 없음 */
   bodyColor?: string | null;
+  /** 라이브러리 컬러 카드 (있으면 bodyColor 대신 스냅샷으로 저장, 2026-10-17) */
+  bodyCard?: ColorCard;
+  channelCard?: ColorCard;
   /** 채널 종류 id, null = 채널 없음 */
   channelType?: string | null;
   channelColor?: string | null;
@@ -61,6 +65,7 @@ export function applyQuick(o: SignObject, q: QuickPatch): Partial<SignObject> {
   if (q.bodyColor !== undefined) {
     const key = paintKeyOf({ ...o, productId: q.productId ?? o.productId }) ?? 'paint';
     if (q.bodyColor === null) { options[`${key}System`] = NONE; delete options[`${key}Code`]; }
+    else if (q.bodyCard) options = { ...options, ...paintPatch(key, q.bodyCard) };
     else options = { ...options, [`${key}System`]: sysOf(q.bodyColor), [`${key}Code`]: q.bodyColor };
   }
   if (q.channelType !== undefined || q.channelColor !== undefined || q.led !== undefined) {
@@ -78,6 +83,7 @@ export function applyQuick(o: SignObject, q: QuickPatch): Partial<SignObject> {
       } else if (q.channelType) ch.type = q.channelType;
       ch.options = { ...(ch.options ?? {}) };
       if (q.channelColor === null) { ch.options.bodySystem = NONE; delete ch.options.bodyCode; }
+      else if (q.channelColor && q.channelCard) ch.options = { ...ch.options, ...paintPatch('body', q.channelCard) };
       else if (q.channelColor) { ch.options.bodySystem = sysOf(q.channelColor); ch.options.bodyCode = q.channelColor; }
       if (q.led) ch.options.ledColor = q.led;
     }

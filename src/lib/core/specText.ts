@@ -5,15 +5,16 @@
 import type { SignObject } from './model';
 import { CHANNEL_OPTIONS, categoryOf, groupOfProduct, productById } from './catalog';
 import { NAMED_COLORS, shadeHex } from './materials';
+import type { ColorCard } from './colorLibrary';
 import { optionGroupsFor, partOptionFields, type OptionField } from './options';
 import { categoryPatch, newPart, partsOf } from './parts';
 import { applyQuick, ledLabel, type QuickPatch } from './quickSpec';
 
 export type SpecItem =
   | { kind: 'product'; id: string; label: string }
-  | { kind: 'bodyColor'; value: string; label: string }
+  | { kind: 'bodyColor'; value: string; label: string; card?: ColorCard }
   | { kind: 'channel'; id: string; label: string }
-  | { kind: 'channelColor'; value: string; label: string }
+  | { kind: 'channelColor'; value: string; label: string; card?: ColorCard }
   | { kind: 'led'; value: string; label: string }
   | { kind: 'size'; w: number; h: number; label: string }
   | { kind: 'thick'; mm: number; label: string }
@@ -43,8 +44,11 @@ const kelvinToLed = (k: number) => (k <= 3500 ? '전구색' : k <= 4800 ? '주�
 /** 옵션 값 맞추기에서 빼는 키: 다른 규칙이 맡는 것 (채널·스카시 선택, LED, 상단 조명 색) */
 const SKIP_KEYS = new Set(['channel', 'scashi', 'ledColor', 'topColor']);
 
-/** 토큰 → 색: 이름·별칭 그대로면 {name}, 연한/진한 + 색이면 밝게/어둡게 한 hex */
-function colorOf(tok: string): { value: string; label: string } | null {
+/** 토큰 → 색: 라이브러리 카드 이름이 먼저(내가 정한 색, 2026-10-17), 이름·별칭 그대로면 {name}, 연한/진한 + 색이면 밝게/어둡게 한 hex */
+function colorOf(tok: string, library: ColorCard[] = []): { value: string; label: string; card?: ColorCard } | null {
+  const cards = [...library].sort((a, b) => b.name.length - a.name.length);
+  const card = cards.find((c) => tok === c.name) ?? cards.find((c) => c.name.length >= 2 && tok.includes(c.name));
+  if (card) return { value: card.hex, label: card.name, card };
   const names = [...NAMED_COLORS.map((c) => c.label), ...Object.keys(COLOR_ALIASES)].sort((a, b) => b.length - a.length);
   const norm = (n: string) => COLOR_ALIASES[n] ?? n;
   const exact = names.find((n) => tok === n);
@@ -75,7 +79,7 @@ const norm = (s: string) => s.replace(/[\s()·/]/g, '').toLowerCase();
 /** 옵션 값 줄임말 → 선택지 값 (갈바 레이저 타공·내부 조명 등, 2026-10-17) */
 const OPTION_WORDS: Record<string, string> = { 타공: '글자 타공', 레이저타공: '글자 타공', 글자타공: '글자 타공', 패턴타공: '패턴 타공', 내부조명: 'LED', 조명: 'LED', led: 'LED' };
 
-export function parseSpecText(text: string, o?: SignObject): SpecItem[] {
+export function parseSpecText(text: string, o?: SignObject, library: ColorCard[] = []): SpecItem[] {
   const items: SpecItem[] = [];
   const leftovers: string[] = [];
   let src = text.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
@@ -109,11 +113,11 @@ export function parseSpecText(text: string, o?: SignObject): SpecItem[] {
     if (tok.includes('채널') || tok.includes('체널')) { if (!sawChannel) { items.push({ kind: 'channel', id: 'ch-front', label: '채널: 전광 채널' }); sawChannel = true; channelIdx = genericIdx = items.length - 1; } continue; }
     const prod = PRODUCT_ALIASES.find(([a]) => tok.includes(a));
     if (prod) { items.push({ kind: 'product', id: prod[1], label: `몸통: ${productById(prod[1])?.name ?? prod[1]}` }); continue; }
-    const color = colorOf(tok);
+    const color = colorOf(tok, library);
     if (color) {
       // 채널 뒤의 색은 채널 색, 아니면 첫 색은 몸통·둘째 색은 채널
       const forChannel = (sawChannel && items.length - 1 === channelIdx) || colors === 1;
-      items.push(forChannel ? { kind: 'channelColor', value: color.value, label: `채널 색: ${color.label}` } : { kind: 'bodyColor', value: color.value, label: `몸통 색: ${color.label}` });
+      items.push(forChannel ? { kind: 'channelColor', value: color.value, label: `채널 색: ${color.label}`, card: color.card } : { kind: 'bodyColor', value: color.value, label: `몸통 색: ${color.label}`, card: color.card });
       colors++;
       continue;
     }
@@ -147,9 +151,9 @@ export function applySpecItems(o: SignObject, items: SpecItem[]): Partial<SignOb
   if (product) q.productId = product.id;
   const chOpts: Record<string, string> = {};
   for (const i of items) {
-    if (i.kind === 'bodyColor') q.bodyColor = i.value;
+    if (i.kind === 'bodyColor') { q.bodyColor = i.value; q.bodyCard = i.card; }
     else if (i.kind === 'channel') q.channelType = i.id;
-    else if (i.kind === 'channelColor') q.channelColor = i.value;
+    else if (i.kind === 'channelColor') { q.channelColor = i.value; q.channelCard = i.card; }
     else if (i.kind === 'led') q.led = i.value;
     else if (i.kind === 'channelOption') chOpts[i.key] = i.value;
   }

@@ -17,7 +17,7 @@ describe('재질·도색 목록 (공급업체 자재를 나중에 붙일 수 있
     expect(MATERIALS.filter((m) => m.paintable).map((m) => m.id)).toEqual(['stain', 'iron', 'alu', 'galva']);
     expect(materialById('alu')!.label).toBe('알루미늄');
     expect(FACE_MATERIALS.map((m) => m.label)).toEqual(['아크릴', 'PC판']);
-    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']); // 기본색 = 색 이름, 직접 = 컬러 피커 hex (2026-10-17)
+    expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC', '라이브러리']); // 기본색 = 색 이름, 직접 = 컬러 피커 hex (2026-10-17)
     expect(GLOSSES).toEqual(['유광', '반광', '무광']);
   });
 });

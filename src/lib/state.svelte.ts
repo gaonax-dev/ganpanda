@@ -1,4 +1,5 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
+import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
@@ -26,7 +27,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
 import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { createHistory } from './core/history';
@@ -95,6 +96,8 @@ class AppState {
   usage = $state<Usage | null>(null);
   /** 계정 기본 단가표 (/api/me) */
   accountPrices = $state<unknown>(null);
+  /** 색 라이브러리 (2026-10-17 "색상관리가 중요하다"): 계정에 저장(서버) + 기기 사본(localStorage). 로그인 전에도 기기 사본으로 쓴다 → core/colorLibrary.ts */
+  colorLibrary = $state<ColorCard[]>(loadLocalColors());
   pricesOpen = $state(false);
   letter3dOpen = $state(false);
   /** 선택한 사인물의 세부 설정 창 */
@@ -332,6 +335,9 @@ class AppState {
     this.applyAccount(me?.account ?? null);
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
+    const colors = validColorLibrary(me?.colors);
+    if (colors) { this.colorLibrary = colors.colors; saveLocalColors(colors.colors); }
+    else if (me && this.colorLibrary.length) void this.persistColors(); // 기기에만 있던 라이브러리를 계정에 올린다
     this.requestSettings = me?.requestSettings ?? null;
   }
 
@@ -726,6 +732,15 @@ class AppState {
   duplicateSelected(): string | null {
     const c = this.clipOfSelected();
     return c ? this.pasteClip(c, 1) : null;
+  }
+
+  /** 컬러 카드 추가 → 기기 사본 + 계정(로그인 시) */
+  async addColorCard(card: ColorCard) { this.colorLibrary = [...this.colorLibrary.filter((c) => c.id !== card.id), card]; await this.persistColors(); }
+  async removeColorCard(id: string) { this.colorLibrary = this.colorLibrary.filter((c) => c.id !== id); await this.persistColors(); }
+  private async persistColors() {
+    saveLocalColors(this.colorLibrary);
+    if (!this.account) return;
+    try { await saveColors({ version: 1, colors: this.colorLibrary }); } catch { /* 오프라인·서버 오류: 기기 사본은 남는다 */ }
   }
 
   /** Shift+클릭: 선택에 더하기/빼기. 마지막으로 누른 것이 주 선택(selectedId) */
