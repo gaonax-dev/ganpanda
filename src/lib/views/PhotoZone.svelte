@@ -16,6 +16,7 @@
   import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
+  import { bubbleLabel, lastStateOf } from '../core/bubbles';
   import { app, type Tool } from '../state.svelte';
 
   let {
@@ -25,7 +26,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onselect, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -68,6 +69,8 @@
     oncreate: (shape: ShapeKind, quad: Pt[]) => void;
     /** add = Shift+클릭 (다중 선택에 더하기, 2026-10-17) */
     onselect: (id: string | null, add?: boolean) => void;
+    /** 사인물 말풍선을 눌렀을 때 (그 사인물의 대화 열기) — 2026-10-17 말풍선 = 소통 창구 */
+    onchat?: (id: string) => void;
     /** 다중 선택에 든 다른 사인물들 (강조만, 매니퓰레이터는 주 선택에만) */
     multiIds?: string[];
     onquad: (id: string, quad: Pt[]) => void;
@@ -540,6 +543,8 @@
       {@const multiSel = !sel && multiIds.includes(o.id)}
       {@const same = !sel && !multiSel && sameIds.includes(o.id)}
       {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
+      {@const chatId = o.sameAs ?? o.id}
+      {@const lastMsg = lastStateOf(app.messages, chatId)}
       {@const turned = !!o.turn}
       {#if sel && editable && tool === 'select' && gizmoable(o)}
         {@const bg = boxFor(o, q)}
@@ -569,6 +574,18 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"): 대화가 있는 사인물의 오른쪽 위 꼭짓점에 마지막 상태. 누르면 대화 열기 -->
+        {#if lastMsg && q.length === 4 && !overlay}
+          {@const br = 9 * u}
+          {@const label = bubbleLabel({ last: lastMsg, me: app.nickname })}
+          <g class="pin obj" data-testid="object-bubble" data-id={o.id} role="button" tabindex="-1" transform="translate({q[1][0]} {q[1][1]})"
+            onpointerdown={(e) => { if (e.button !== 0) return; e.stopPropagation(); (onchat ?? onselect)(o.id); }}>
+            <title>{label}</title>
+            <path d="M0 0 L{-br * 0.5} {-br * 1.1} H{-br * 1.5} Q{-br * 2.1} {-br * 1.1} {-br * 2.1} {-br * 1.7} V{-br * 3.1} Q{-br * 2.1} {-br * 3.7} {-br * 1.5} {-br * 3.7} H{br * 1.5} Q{br * 2.1} {-br * 3.7} {br * 2.1} {-br * 3.1} V{-br * 1.7} Q{br * 2.1} {-br * 1.1} {br * 1.5} {-br * 1.1} H{br * 0.5} Z" fill={colorFor(lastMsg.author)} stroke="#fff" stroke-width={1.5 * u} />
+            <text y={-br * 1.95} font-size={br * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{unread[chatId] ? unread[chatId] : '…'}</text>
+          </g>
+          {#if zoom * u >= 0.6}<text class="last" data-testid="object-bubble-last" x={q[1][0] + br * 2.5} y={q[1][1] - br * 2.0} font-size={br * 0.95} fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width={3 * u} paint-order="stroke" font-weight="600">{label}</text>{/if}
+        {/if}
         <!-- 이동 모드 변 막대: 매니퓰레이터가 있든 없든(다각형·면 없음) 선택한 외곽선마다 (2026-10-17 사용자: "이동 매니퓰레이터 막대 다 넣기로 했는데"). 꼭짓점 손잡이보다 아래 층 -->
         {#if sel && editable && tool === 'select' && !turned && gizmoMode === 'move'}
           {@render edgeBars(q, (e) => edgeDown(e, o, q))}
@@ -678,6 +695,7 @@
     {/each}
     {#each pins as pin (pin.id)}
       {@const r = 11 * u}
+      {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
       <!-- 말풍선 모양 (2026-10-17 "핀을 말 풍선으로"): 둥근 상자 + 아래 꼬리가 지점을 가리킨다. 받는 사람이 있으면 data-to -->
       <g class="pin" class:sel={pin.id === selectedPinId} class:resolved={pin.resolved} data-testid="pin" data-resolved={pin.resolved} data-to={pin.to || undefined}
         role="button" tabindex="-1" transform="translate({pin.x} {pin.y})"
@@ -692,6 +710,10 @@
           </g>
         {/if}
       </g>
+      <!-- 마지막 상태 (2026-10-17 "말풍선에는 마지막 상태만"): 해결됨 또는 마지막 메시지 요약 — 누르는 말풍선(g) 바깥에 두어 말풍선 중심을 눌러도 글이 가리지 않게 -->
+      {#if last && zoom * u >= 0.6}
+        <text class="last" data-testid="pin-last" x={pin.x + r * 2.5} y={pin.y - r * 2.0} font-size={r * 0.95} fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width={3 * u} paint-order="stroke" font-weight="600">{last}</text>
+      {/if}
     {/each}
     {#if tool === 'magic' && hoverPolygon}
       <polygon class="magic" data-testid="magic-preview" points={hoverPolygon.map((p) => p.join(',')).join(' ')} stroke-width={2 * u} />
@@ -722,7 +744,7 @@
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
   .pin.sel path { stroke: var(--accent); }
-  .pin text { pointer-events: none; }
+  .pin text, text.last { pointer-events: none; }
   .header {
     position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; height: 30px;
     display: flex; align-items: center; gap: 8px; padding: 0 2px; cursor: move; color: var(--muted); font-size: 13px;
