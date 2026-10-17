@@ -145,6 +145,14 @@
     editing = { id, quad: o.quad, mode, from, orig: o.quad, plane, frame0: frameOf(plane, o.quad), wall0: applyHomography(plane.Hinv, from), sx, sy };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
+  /** 변 막대 잡기: Shift = 다중 선택, 매니퓰레이터를 붙일 수 있고 면이 있으면 면 위에서(gfree, 원근 사진은 사인물 자신의 면), 아니면(다각형·면 없음) 화면에서 그대로 옮긴다 */
+  function edgeDown(e: PointerEvent, o: SignObject, q: Pt[]) {
+    if (e.button !== 0) return;
+    if (e.shiftKey) { e.stopPropagation(); onselect(o.id, true); return; }
+    const on = has3d && calib?.pose && calWall ? anchor3(o, q)?.plane ?? undefined : undefined;
+    if (gizmoable(o) && (on ?? refPlaneOf(o))) gizmoDown(e, o, 'gfree', 0, 0, on);
+    else shapeDown(e, o, 'move');
+  }
   // ---------- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15 사용자: "메니폴레이터는 원근의 값을 기준으로 작동해야한다",
   //            "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만") ----------
   const has3d = $derived(!!calib?.metric && !!calib.pose);
@@ -546,6 +554,10 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        <!-- 이동 모드 변 막대: 매니퓰레이터가 있든 없든(다각형·면 없음) 선택한 외곽선마다 (2026-10-17 사용자: "이동 매니퓰레이터 막대 다 넣기로 했는데"). 꼭짓점 손잡이보다 아래 층 -->
+        {#if sel && editable && tool === 'select' && !turned && gizmoMode === 'move'}
+          {@render edgeBars(q, (e) => edgeDown(e, o, q))}
+        {/if}
         <!-- 꼭짓점 손잡이는 매니퓰레이터보다 아래 층 (메뉴·손잡이를 가리지 않게) -->
         {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
           {#each q as p, i (i)}
@@ -583,7 +595,6 @@
                   <circle class="gh" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
                 {/each}
                 <rect class="gh center" data-testid="gizmo-move" x={g3.c[0] - 6 * gu} y={g3.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree', 0, 0, face3)}><title>사인물 면 위에서 옮기기</title></rect>
-                {@render edgeBars(q, (e) => gizmoDown(e, o, 'gfree', 0, 0, face3))}
               {:else if gizmoMode === 'rotate'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const pts = g3.rings[a].map((p) => p.join(',')).join(' ')}
@@ -633,7 +644,6 @@
                 <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={6 * gu} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
                 <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={6 * gu} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
                 <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 6 * gu} y={g.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
-                {@render edgeBars(q, (e) => gizmoDown(e, o, 'gfree'))}
               {:else if gizmoMode === 'rotate'}
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
