@@ -8,6 +8,7 @@
   import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import type { SignObject } from '../core/model';
+  import QuickSpec from './QuickSpec.svelte';
 
   let { obj }: { obj: SignObject } = $props();
 
@@ -86,6 +87,8 @@
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
     </div>
   {/if}
+  <!-- 빠른 설정 칩 (2026-10-17): 몸통·채널·LED — 휴대폰에서도 설정 창 없이 -->
+  <QuickSpec {obj} {ro} {update} compact />
   {#if obj.productId || obj.sheetIds.length}<small class="hint" data-testid="quick-detail">{productById(obj.productId)?.name ?? obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')} — 세부 종류·옵션은 [상세정보]</small>{/if}
 </div>
 

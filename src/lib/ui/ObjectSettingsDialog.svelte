@@ -4,6 +4,7 @@
   import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, thicknessFieldOf } from '../core/catalog';
   import { partKindsFor, partsForProduct } from '../core/parts';
   import PartsEditor from './PartsEditor.svelte';
+  import QuickSpec from './QuickSpec.svelte';
   import { charCountOf, quoteObject, won } from '../core/quote';
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
@@ -94,6 +95,8 @@
           <p class="hint">한 영역의 실제 치수를 입력하면, 같은 사진의 다른 영역 크기를 자동으로 추정하고 잘못 입력한 치수를 경고합니다.</p>
         {/if}
       </section>
+      <!-- 빠른 설정: 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k") -->
+      {#if category && category !== 'sheet'}<section data-testid="quick-section"><h3>빠른 설정 <span class="cat">세부는 아래 사양에서</span></h3><QuickSpec {obj} {ro} {update} /></section>{/if}
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}

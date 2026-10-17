@@ -5,7 +5,7 @@ import { thicknessLabel } from './catalog';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS, productById, takesLetters } from './catalog';
 import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
 import { describeParts, partsOf } from './parts';
-import { GLOSSES, PAINT_SYSTEMS, labelsOf, materialByLabel } from './materials';
+import { GLOSSES, NAMED_COLORS, PAINT_SYSTEMS, labelsOf, materialByLabel } from './materials';
 
 export type OptionValue = string | boolean;
 export type Options = Record<string, OptionValue>;
@@ -30,9 +30,11 @@ const txt = (key: string, label: string, placeholder: string, when?: OptionField
  * 키 = `${prefix}System` · `${prefix}Code` · `${prefix}Gloss`
  */
 const painted = (prefix: string) => (opts: Options) => !!opts[`${prefix}System`] && opts[`${prefix}System`] !== PAINT_SYSTEMS[0];
+const basic = (prefix: string) => (opts: Options) => opts[`${prefix}System`] === PAINT_SYSTEMS[1]; // 기본색: 색 이름 선택 (2026-10-17)
 const paint = (prefix: string, label: string, when?: OptionField['when']): OptionField[] => [
   sel(`${prefix}System`, `${label} 색상 체계`, PAINT_SYSTEMS, when),
-  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)),
+  sel(`${prefix}Code`, `${label} 색`, NAMED_COLORS.map((c) => c.label), (opts, o) => (!when || when(opts, o)) && basic(prefix)(opts)),
+  txt(`${prefix}Code`, `${label} 컬러코드`, '예: RAL 9005', (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts) && !basic(prefix)(opts)),
   sel(`${prefix}Gloss`, `${label} 광택`, GLOSSES, (opts, o) => (!when || when(opts, o)) && painted(prefix)(opts)),
 ];
 /** 재질 객체 (2026-10-16 사용자: "재질객체에 스텐, 철, 알루미늄 여기에 도색 객체를 추가해 사용한다"): 재질 선택 + 도색 가능한 재질이면 도색 객체 */
@@ -41,6 +43,10 @@ const material = (key: string, label: string, ids: string[], paintPrefix: string
   ...paint(paintPrefix, paintLabel, (opts, o) => (!when || when(opts, o)) && !!materialByLabel(opts[key] ?? labelsOf(ids)[0])?.paintable),
 ];
 const SIDES = sel('sides', '면', ['단면', '양면']);
+/** LED 색: 값은 이름 그대로, 표시에 색온도 (2026-10-17 빠른 설정 "후광 4000K") */
+const LED_KELVIN: Record<string, string> = { 백색: '5700K', 주백색: '4000K', 전구색: '3000K' };
+const LED_COLOR = (when?: OptionField['when']): OptionField =>
+  ({ key: 'ledColor', label: 'LED 색', kind: 'select', values: ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'].map((v) => ({ id: v, label: LED_KELVIN[v] ? `${v} (${LED_KELVIN[v]})` : v })), when });
 /** 채널 옵션 (모든 간판 몸통에): 없음 또는 채널 종류. 고르면 세부 옵션이 따라온다 */
 const hasChannel = (opts: Options) => !!opts.channel && opts.channel !== CHANNEL_NONE;
 const isLit = (_opts: Options, o: SignObject) => o.productId !== 'ch-galva';
@@ -58,7 +64,7 @@ const CHANNEL_FIELDS: OptionField[] = [
   sel('chDepth', '입체 두께', ['80mm (기준)', '100mm (+10%)'], (opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('chDepth', '입체 두께', ['25mm', '30mm', '35mm', '50mm', '60mm', '80mm'], (opts) => isEpoxy(opts)),
   tog('chDouble', '양면 (돌출용 전후광)', (opts) => opts.channel === CHANNEL_OPTIONS[2].label),
-  sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], (opts) => hasChannel(opts) && !isEpoxy(opts)),
+  LED_COLOR((opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('font', '서체', ['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)'], hasChannel),
   // 측면 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다")
   ...material('chSideMat', '측면 재질', ['alu', 'stain', 'iron', 'galva'], 'body', '측면', hasChannel),
@@ -166,7 +172,7 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   // 옛 데이터(채널 제품이 종류): 채널 세부 옵션만
   ...Object.fromEntries(['ch-front', 'ch-halo', 'ch-both', 'ch-galva'].map((id) => [id, [
     sel('chType', '채널 종류', ['캡', '오싸이', '일체형']),
-    sel('ledColor', 'LED 색', ['백색', '주백색', '전구색', '빨강', '파랑', 'RGB'], isLit),
+    LED_COLOR(isLit),
     ...paint('body', '알루미늄·측면·프레임 도색'),
     txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이'),
   ]])),

@@ -21,6 +21,13 @@ export const materialByLabel = (label: unknown) => [...MATERIALS, ...FACE_MATERI
 /** 재질 id 목록 → 이름 목록 (옵션 값) */
 export const labelsOf = (ids: string[]) => ids.map((id) => materialById(id)!.label);
 
-/** 도색 객체: 색상 체계(도색 없음이 기본) + 컬러코드 + 광택 */
-export const PAINT_SYSTEMS = ['도색 없음', 'PANTONE', 'RAL', 'KCC'];
+/** 도색 객체: 색상 체계(도색 없음이 기본) + 컬러코드 + 광택. 기본색 = 색 이름으로 바로 (2026-10-17 빠른 설정 "갈바 흰색 / 채널 갈색") */
+export const PAINT_SYSTEMS = ['도색 없음', '기본색', 'PANTONE', 'RAL', 'KCC'];
+/** 기본색: 이름 + 3D 에 쓰는 색 */
+export const NAMED_COLORS: { label: string; hex: string }[] = [
+  { label: '흰색', hex: '#f4f4f2' }, { label: '검정', hex: '#141414' }, { label: '회색', hex: '#8a8f94' }, { label: '진회색', hex: '#3a3f44' },
+  { label: '갈색', hex: '#6b4423' }, { label: '빨강', hex: '#d62828' }, { label: '파랑', hex: '#1f5fbf' }, { label: '노랑', hex: '#ffcc00' },
+  { label: '초록', hex: '#2e8b57' }, { label: '금색', hex: '#c9a227' }, { label: '은색', hex: '#d8dadd' },
+];
+export const colorHex = (label: unknown): string | null => NAMED_COLORS.find((c) => c.label === label)?.hex ?? null;
 export const GLOSSES = ['유광', '반광', '무광'];
