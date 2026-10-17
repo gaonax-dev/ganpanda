@@ -40,3 +40,27 @@ test('사인물 설정 창의 [복제]', async ({ page, request }) => {
   await expect.poll(async () => (await signs(page)).length).toBe(2);
   expect((await signs(page))[1].name).toMatch(/복사$/);
 });
+
+test('Alt/Option 을 누르고 사인물을 끌면 제자리에 복사되어 복사본이 옮겨지고 원본은 그대로 (2026-10-17)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [300, 200], [700, 300]);
+  const [orig] = await signs(page);
+  await page.keyboard.press('v');
+  const shape = page.getByTestId('sign-shape');
+  const b = (await shape.boundingBox())!;
+  await page.keyboard.down('Alt');
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 80, b.y + b.height / 2 + 60, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Alt');
+  await expect.poll(async () => (await signs(page)).length).toBe(2);
+  const all = await signs(page);
+  const same = all.find((o) => o.id === orig.id)!, copy = all.find((o) => o.id !== orig.id)!;
+  expect(same.quad).toEqual(orig.quad); // 원본은 제자리
+  expect(copy.name).toBe(`${orig.name} 복사`);
+  expect(copy.quad[0][0]).toBeGreaterThan(orig.quad[0][0] + 50); // 복사본이 끌린 만큼 옮겨짐
+  expect(copy.quad[0][1]).toBeGreaterThan(orig.quad[0][1] + 30);
+});

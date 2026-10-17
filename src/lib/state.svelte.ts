@@ -711,6 +711,11 @@ class AppState {
     if (!this.clipboard) return null;
     return this.pasteClip(this.clipboard, ++this.pasteCount);
   }
+  /** 제자리 복제 (Alt/Option + 끌기, 2026-10-17 "alt/option 누르고 이동하면 복사"): 같은 자리에 복사본을 만들어 고르고, 이어지는 끌기가 복사본을 옮긴다 */
+  duplicateInPlace(): string | null {
+    const c = this.clipOfSelected();
+    return c ? this.pasteClip(c, 0) : null;
+  }
   /** 복제: 클립보드는 그대로 두고 바로 옆에 하나 */
   duplicateSelected(): string | null {
     const c = this.clipOfSelected();
