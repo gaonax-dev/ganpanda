@@ -51,13 +51,24 @@ const bodyPaintHex = (o: SignObject) => paintHex(o.options, 'paint') ?? paintHex
 export const frameHex = (o: SignObject) => paintHex(o.options, 'framePaint') ?? paintHex(o.options, 'paint');
 const FRAME_DEFAULT = '#6b7075';
 /** 앞에서 보이는 프레임 테 폭(mm): 판(출력면)을 테가 둘러싸는 종류만. 갈바·복합판·포맥스·아크릴·현수막은 판이 곧 앞면이라 0 (2026-10-17 "3d에서 프레임과 판을 구별하나?") */
-const FRAME_MM: Record<string, number> = { 'board-flex': 40, 'board-reface': 40, 'board-lightpanel': 20, 'board-fabric': 25, 'frame-plain': 25, 'frame-wood': 40, 'board-mirror': 20, 'board-ledsign': 30, 'board-pole': 40 };
-export const frameMmOf = (o: SignObject) => FRAME_MM[signParts(o).bodyId ?? ''] ?? 0;
+// 후렉스 프레임은 알루미늄, 정면에서 보이는 두께 1cm (2026-10-17 사용자). 라이트박스류는 옵션 `frameWidth`(테두리 두께 mm)로 따로 지정할 수 있다
+export const FRAME_MM: Record<string, number> = { 'board-flex': 10, 'board-reface': 10, 'board-lightpanel': 20, 'board-fabric': 25, 'frame-plain': 25, 'frame-wood': 40, 'board-mirror': 20, 'board-ledsign': 30, 'board-pole': 40 };
+/** 알루미늄 프레임 종류의 기본 테 색 (프레임 색을 안 골랐을 때) */
+const ALU = '#c8cbcf';
+const FRAME_COLOR_DEFAULT: Record<string, string> = { 'board-flex': ALU, 'board-reface': ALU, 'board-lightpanel': ALU, 'board-fabric': ALU };
+export function frameMmOf(o: SignObject): number {
+  const bodyId = signParts(o).bodyId ?? '';
+  const base = FRAME_MM[bodyId] ?? 0;
+  if (!base) return 0;
+  const own = Number(o.options?.frameWidth);
+  return Number.isFinite(own) && own > 0 ? own : base;
+}
+const frameDefaultColor = (o: SignObject) => FRAME_COLOR_DEFAULT[signParts(o).bodyId ?? ''] ?? FRAME_DEFAULT;
 /** 프레임 표시: 테가 있는 종류는 색(고른 색 또는 기본 회색)과 폭, 테 없는 종류는 프레임 색을 골랐을 때만 (옆면·카드 테두리용) */
 export function frameLook(o: SignObject): { color: string; mm: number } | null {
   const mm = frameMmOf(o);
   const hex = frameHex(o);
-  if (mm > 0) return { color: hex ?? FRAME_DEFAULT, mm };
+  if (mm > 0) return { color: hex ?? frameDefaultColor(o), mm };
   return hex ? { color: hex, mm: 0 } : null;
 }
 /** 2D 보드에 그리는 바탕: 색(고른 색 > 종류 기본 겉모습) + 불투명도(고른 도색의 투명도). 종류가 없으면 null (시트 분류·분류 없음) — 2026-10-17 "사인물 바탕색 원본에 보이게" */
@@ -127,7 +138,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
         ...base, text: '', kind: 'lightbox', widthMm: p.w, heightMm: p.h, corner: o.shape === 'ellipse' ? 0.5 : o.corner,
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
         lighting: !bodyless && isLitBody(bodyId, o) ? 'front' : 'none',
-        faceColor: look.faceColor, sideColor: frameHex(o) ?? FRAME_DEFAULT, frameMm: bodyless ? 0 : frameMmOf(o), ...comp, ...(bodyless ? { bodyless: true } : {}),
+        faceColor: look.faceColor, sideColor: frameHex(o) ?? frameDefaultColor(o), frameMm: bodyless ? 0 : frameMmOf(o), ...comp, ...(bodyless ? { bodyless: true } : {}),
       };
     }
   }
@@ -151,7 +162,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
     // 내부 조명 옵션이 '비조명'이면 빛나지 않는다 (2026-10-16, 상단 조명은 주로 비조명 간판에)
     lighting: isLitBody(bodyId, o) ? 'front' : 'none',
     faceColor: letters ? look.faceColor : l?.faceColor ?? look.faceColor, // 글자가 있으면 입체 색은 글자 것
-    sideColor: frameHex(o) ?? (letters ? FRAME_DEFAULT : l?.sideColor ?? FRAME_DEFAULT),
+    sideColor: frameHex(o) ?? (letters ? frameDefaultColor(o) : l?.sideColor ?? frameDefaultColor(o)),
     frameMm: frameMmOf(o),
     ...(letters ? { letters, text: '' } : {}), // 글자는 입체로 얹으므로 면 글자는 비움
   };

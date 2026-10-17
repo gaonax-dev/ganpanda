@@ -76,12 +76,12 @@ describe('종류별 조합 옵션', () => {
   });
   it('LED 사인미러: 거울 · 프레임 · 프레임색 · LED 빛 (채널 없음)', () => {
     const o = obj({ productId: 'board-mirror' });
-    expect(keys(o)).toEqual(['mirror', 'frame', 'framePaintSystem', 'led', 'faceSystem']); // 프레임 색 피커 + 바탕색 (2026-10-17)
+    expect(keys(o)).toEqual(['mirror', 'frame', 'framePaintSystem', 'frameWidth', 'led', 'faceSystem']); // 프레임 색 피커 + 바탕색 (2026-10-17)
     expect(values(o, 'led')).toEqual(['주광색 5700K', '전구색 4000K']);
   });
   it('전광판: 색 · 모듈 · 면 (채널 없음)', () => {
     const o = obj({ productId: 'board-ledsign' });
-    expect(keys(o)).toEqual(['color', 'module', 'sides', 'framePaintSystem', 'faceSystem']); // 케이스 색 (2026-10-17)
+    expect(keys(o)).toEqual(['color', 'module', 'sides', 'framePaintSystem', 'frameWidth', 'faceSystem']); // 케이스 색 (2026-10-17)
     expect(values(o, 'module')).toEqual(['200mm', '240mm', '320mm']);
   });
   it('아크릴 액자·현판: 형태 · 소재 · 출력 레이어 · 전처리 · 부착 (액자 분류라 채널 없음, 두께는 치수 두께 — 2026-10-16 중복 정리)', () => {
