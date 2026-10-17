@@ -8,6 +8,7 @@
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
+  import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint } from '../core/homography';
@@ -406,6 +407,17 @@
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
     <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
     <div class="designs" class:hidden={!!overlay} style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
+      <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다" — 원본 단계에도 보이게). 3D 단계는 합성 그림이 대신 -->
+      {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
+        {@const q = quadOf(o)}
+        {@const pw = o.widthMm! * 0.5}
+        {@const ph = o.heightMm! * 0.5}
+        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
+          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
+            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>
+          </div>
+        </div>
+      {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o)}
         {@const c = o.design!.crop}
@@ -640,6 +652,7 @@
   .loading { display: grid; place-items: center; color: #999; }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .designs { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+  .pbox { position: relative; }
   .design { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
   .warp { position: absolute; left: 0; top: 0; transform-origin: 0 0; opacity: 0.95; }
   svg.drawing { cursor: crosshair; }
