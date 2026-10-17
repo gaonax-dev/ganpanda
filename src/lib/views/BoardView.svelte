@@ -122,6 +122,7 @@
     if (action === 'copy') { if (app.copySelected()) e.preventDefault(); return; }
     if (action === 'paste') { if (app.clipboard) { e.preventDefault(); app.pasteClipboard(); } return; }
     if (action === 'duplicate') { e.preventDefault(); app.duplicateSelected(); return; }
+    if (no3d && (action === 'toolMagic' || action === 'toolZone' || action === 'toolRect' || action === 'toolEllipse')) return; // 3D 단계에서는 그리기 도구 없음
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
@@ -187,6 +188,9 @@
   });
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
+  /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
+  const no3d = $derived(app.stage === '3d');
+  const NO3D = ' — 3D 단계에서는 사용할 수 없습니다 (원본·2D 에서)';
 
   // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 축척 px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
   const origin = $derived(flatOrigin(app.photos, 80, app.flatOffset));
@@ -415,12 +419,12 @@
 <div class="tools" role="toolbar">
         {#if app.canEdit}
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
-          <button data-testid="tool-rect" class:on={app.tool === 'rect'} title="사각 영역 ({hint('toolRect')})" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
-          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} title="원형 영역 ({hint('toolEllipse')})" onclick={() => (app.tool = 'ellipse')}>◯<span class="lbl"> 원형</span></button>
+          <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
+          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="원형 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>◯<span class="lbl"> 원형</span></button>
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="핀 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>📍<span class="lbl"> 핀</span></button>
-          <button data-testid="tool-zone" class:on={app.tool === 'zone'} title="작업 존 ({hint('toolZone')})" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
+          <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
           {#if SERVER_URL}
-            <button data-testid="tool-magic" class:on={app.tool === 'magic'} title="자동 분리 · AI ({hint('toolMagic')})" onclick={() => (app.tool = 'magic')}>✨<span class="lbl"> 자동</span></button>
+            <button data-testid="tool-magic" class:on={app.tool === 'magic'} disabled={no3d} title="자동 분리 · AI ({hint('toolMagic')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'magic')}>✨<span class="lbl"> 자동</span></button>
           {/if}
           <span class="sep"></span>
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}>↶</button>

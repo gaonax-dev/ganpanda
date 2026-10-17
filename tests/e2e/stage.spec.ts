@@ -35,6 +35,10 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await page.getByTestId('stage-2d').click();
   await expect(page.getByTestId('sign-fill')).toHaveCount(1);
   await page.getByTestId('stage-3d').click();
+  // 3D 에서는 그리기·존·자동 도구가 흐려지고(비활성), 선택·핀·사진 추가는 그대로 (2026-10-17 "3d에서는 툴바에서 작동하지 않는 기능이 있다")
+  for (const t of ['tool-rect', 'tool-ellipse', 'tool-zone', 'tool-magic']) await expect(page.getByTestId(t)).toBeDisabled();
+  await expect(page.getByTestId('tool-select')).toBeEnabled();
+  await expect(page.getByTestId('tool-pin')).toBeEnabled();
   const overlay = page.getByTestId('photo-overlay');
   await expect(overlay).toHaveCount(1, { timeout: 30_000 });
   await expect(overlay).toHaveAttribute('src', /^data:image\/png/);
@@ -56,4 +60,5 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await page.getByTestId('stage-original').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
+  await expect(page.getByTestId('tool-rect')).toBeEnabled();
 });
