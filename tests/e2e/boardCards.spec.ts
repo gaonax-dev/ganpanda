@@ -96,6 +96,15 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   });
   // 같은 사인물이 두 영역에 있어도 평면도 카드는 하나
   await expect(page.getByTestId('board-card')).toHaveCount(1);
+  // 배지·바탕색 (2026-10-17 "정면도에도 배경색 나오게 … 제목 왼쪽에 인디케이터 원본·설정·디자인"): 후렉스 몸통 → 설정, 바탕색 면이 있음
+  await expect(page.getByTestId('board-card').getByTestId('card-badge')).toHaveText('설정');
+  await expect(page.getByTestId('board-card').getByTestId('card-fill')).toHaveCount(1);
+  await page.evaluate((id) => { const app = (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(id, { productId: 'body-none', design: { sourceId: 'none', page: 0, crop: { x: 0, y: 0, w: 100, h: 50 } } }); }, ids.master);
+  await expect(page.getByTestId('board-card').getByTestId('card-badge')).toHaveText('디자인');
+  await page.evaluate((id) => { const app = (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(id, { design: undefined }); }, ids.master);
+  await expect(page.getByTestId('board-card').getByTestId('card-badge')).toHaveText('원본');
+  await expect(page.getByTestId('board-card').getByTestId('card-fill')).toHaveCount(0);
+  await page.evaluate((id) => { const app = (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(id, { productId: 'board-flex' }); }, ids.master);
   // 평면 구역이 화면에 들어오게 축소
   await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 2; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 700, clientY: 200, bubbles: true, cancelable: true })); });
   await expect(page.getByTestId('board-card')).toContainText('⇄');

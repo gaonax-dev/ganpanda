@@ -4,7 +4,8 @@
 -->
 <script lang="ts">
   import type { Photo, SignObject } from '../core/model';
-  import { faceClip } from '../core/cardFace';
+  import { faceBadge, faceClip } from '../core/cardFace';
+  import { bodyLook } from '../core/render';
   import { faceUrl } from '../photoDisplay';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
@@ -25,6 +26,9 @@
   const inv = $derived(1 / zoom);
   // 얼굴: 사진 영역을 펼친 작은 그림 (원본을 matrix3d 로 겹치면 휴대폰 메모리가 넘친다)
   let face = $state<string | undefined>(undefined);
+  // 바탕색(2026-10-17 "정면도에도 배경색 나오게"): 2D 무대의 sign-fill 과 같은 색·투명도를 사진 얼굴 위에
+  const look = $derived(bodyLook(o));
+  const badge = $derived(faceBadge(o));
   $effect(() => {
     const mm = { w: o.widthMm ?? w, h: o.heightMm ?? h };
     if (photo && o.quad.length === 4) faceUrl(photo.assetId, photo.w, o.quad, mm.w, mm.h).then((u) => (face = u));
@@ -36,13 +40,14 @@
   style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
+    {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
     {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
     <PartsOverlay {o} {mmW} {mmH} {w} {h} />
   </div>
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
-    <b>{linked ? '⇄ ' : ''}{o.name}</b>
+    <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
@@ -55,7 +60,11 @@
   .standalone .face { background: #e8e4d8; outline: 1px dashed rgba(255, 204, 0, 0.7); }
   .sel .face { outline: 2px solid var(--accent); }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }
+  .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
+  .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
+  .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
   .label { position: absolute; left: 0; top: 100%; margin-top: 4px; transform-origin: 0 0; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); white-space: nowrap; pointer-events: none; }
   .label b { font-size: 12px; }
   .muted { color: var(--muted); }
