@@ -9,7 +9,7 @@
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import type { PartItem, SignObject, SignPart } from '../core/model';
-  import { PART_KIND_LABEL, PART_TYPES, newItem, newPart, partLabel, partSpecOf, partsOf } from '../core/parts';
+  import { PART_KIND_LABEL, PART_TYPES, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
@@ -18,14 +18,8 @@
   let { obj, ro, update, kinds = ['channel', 'scashi', 'sheet'] }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; kinds?: SignPart['kind'][] } = $props();
 
   const parts = $derived(partsOf(obj));
-  /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
-  const LEGACY_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
-    'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
   const clone = (): SignPart[] => JSON.parse(JSON.stringify(parts));
-  function commit(next: SignPart[]) {
-    const options = Object.fromEntries(Object.entries(obj.options ?? {}).filter(([k]) => !LEGACY_KEYS.includes(k)));
-    update({ parts: next, options, sheetIds: [] }); // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf)
-  }
+  const commit = (next: SignPart[]) => update(commitParts(obj, next));
   const edit = (fn: (ps: SignPart[]) => void) => { const ps = clone(); fn(ps); commit(ps); };
   const addPart = (kind: SignPart['kind'], type?: string) => edit((ps) => ps.push(newPart(kind, type)));
   const setPart = (i: number, patch: Partial<SignPart>) => edit((ps) => Object.assign(ps[i], patch));

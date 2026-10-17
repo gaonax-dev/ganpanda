@@ -91,6 +91,15 @@ export function partsOf(o: SignObject): SignPart[] {
   return out;
 }
 
+/** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
+export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
+  'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
+/** 구성 요소 저장 패치: parts 로 저장하고 옛 옵션·sheetIds 를 정리 (설정 창 카드와 빠른 설정이 같이 씀) */
+export function commitParts(o: Pick<SignObject, 'options'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'options' | 'sheetIds'> {
+  const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));
+  return { parts, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf)
+}
+
 /** 종류를 바꿀 때: 새 종류에 붙일 수 없는 구성 요소는 빼고, 빠진 채널 위의 시트는 프레임 면으로. 저장된 구성 요소가 없으면 undefined(옛 데이터 그대로) */
 export function partsForProduct(o: SignObject, productId: string | undefined): SignPart[] | undefined {
   if (!o.parts) return undefined;

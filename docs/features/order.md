@@ -52,6 +52,8 @@ SHEET_COMMON_OPTIONS + SHEET_OPTIONS[sheetId]  // 시트 공통 + 시트별
 
 ## 화면
 - **사인물 설정 창**: 종류 아래에 옵션 묶음이 자동으로 나옵니다(`option-group`, 필드 `option-<key>`: select/checkbox/text). 시트를 고르면 시트 옵션. "요청사항"(`sign-note`).
+- **빠른 설정** (2026-10-17 사용자: "현재설정창과 퀵설정으로 만들수 있을까? 사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k"): 설정 창 치수 바로 아래(`quick-section`)와 휴대폰 빠른 막대에 **세 칩**(`ui/QuickSpec.svelte`, `quick-spec`) — [몸통 종류 · 색](`quick-body` → `quick-product`, `quick-body-color`) · [채널 종류 · 색](`quick-channel` → `quick-channel-type`, `quick-channel-color`) · [LED 색온도](`quick-led` → `quick-led-color`). 누르면 칩 아래에 선택지. 값은 기존 자리에 저장(`core/quickSpec.ts` `applyQuick`): 몸통 색 = 도색 객체 **기본색**(`paintSystem: '기본색', paintCode: '흰색'`, 프레임 재질 몸통은 `framePaint*`), 채널 = 첫 채널 구성 요소(없으면 만들고 옛 채널 옵션·문구는 구성 요소로 옮김, `commitParts`), 채널 색 = 측면 도색 기본색 + **3D 색**(`letter3d.sideColor`, 발광 안 하는 채널은 `faceColor` 도), LED 색 = `ledColor`. 채널 없음을 고르면 채널 구성 요소가 빠지고 그 위의 시트는 프레임 면으로. 시트 분류에는 없음.
+- **기본색**: 도색 객체의 색상 체계에 `기본색`(도색 없음 / 기본색 / PANTONE / RAL / KCC). 기본색이면 컬러코드 대신 **색 이름 선택**(흰색·검정·회색·진회색·갈색·빨강·파랑·노랑·초록·금색·은색, `NAMED_COLORS`, 3D 색 `colorHex`). **LED 색**은 값은 그대로(백색·주백색·전구색…)이고 표시에 색온도(백색 5700K · 주백색 4000K · 전구색 3000K).
 - **패널 요약**: 고른 옵션이 종류 뒤에 붙습니다(예: "갈바 간판 · 일체형(전면) · RAL · 도색 컬러코드 9005 · 반컷팅 · 3,000×600mm").
 - **사인물 리스트** 오른쪽: [주문 정보](`open-order` → `OrderDialog.svelte`, `app.orderOpen`), [주문서·견적서](`open-quote-sheet`).
 - **주문서**(`QuoteSheet.svelte`): 주문 정보가 하나라도 있으면 제목이 "주 문 서", 머리에 주문자·연락처·배송/시공·납기(`order-info`). 항목마다 사양 문구(기본값 포함)·문구·디자인 파일·요청사항. 아래에 추가 요청사항, 첨부 파일(UV 소스) 목록, **작업 파일 체크**(CMYK, 윤곽선, 칼선 레이어, 벡터 원본). [JSON 내보내기](`order-json`) → `orderJson()` 구조:
