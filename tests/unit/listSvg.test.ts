@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cardsBounds, listSvg } from '../../src/lib/core/listSvg';
+import { cardsBounds, listSvg, type SvgCard } from '../../src/lib/core/listSvg';
 
 describe('전개도 SVG (최종 출력 → PDF)', () => {
   const cards = [
@@ -57,8 +57,8 @@ describe('SVG 내보내기 옵션: 비율·글자 윤곽선', () => {
     expect(tenth).toMatch(/<rect[^>]*width="300\.00"/);
   });
   it('고정 비율에서 카드보다 넓은 라벨은 용지 오른쪽을 넘지 않는다', () => {
-    const wide = [{ id: 'a', name: '출입문', x: 0, y: 0, w: 300, h: 1800, lines: ['재질 시트 단색 커팅 완컷 보조시트 코팅 유광'], amount: '12,000원' }];
-    const pageWOf = (cards: typeof wide) => Number(listSvg({ title: 't', cards, scale: 0.1 }).match(/width="([\d.]+)mm"/)![1]);
+    const wide: SvgCard[] = [{ id: 'a', name: '출입문', x: 0, y: 0, w: 300, h: 1800, lines: ['재질 시트 단색 커팅 완컷 보조시트 코팅 유광'], amount: '12,000원' }];
+    const pageWOf = (cards: SvgCard[]) => Number(listSvg({ title: 't', cards, scale: 0.1 }).match(/width="([\d.]+)mm"/)![1]);
     const short = [{ ...wide[0], lines: [], amount: undefined }];
     expect(pageWOf(short)).toBeLessThan(90); // 카드 30mm + 여백
     expect(pageWOf(wide)).toBeGreaterThan(pageWOf(short) + 20); // 라벨 폭만큼 넓어짐 (한글 20자 ≈ 52mm)
