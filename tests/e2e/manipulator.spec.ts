@@ -291,17 +291,19 @@ test('X·Y·Z 단추·회전 고리는 박스 방향만 바꾼다: 외곽선·�
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('face-axes')).toHaveCount(0); // 이동 모드에서만
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
-  const boxY = await face.getAttribute('points');
+  // 외곽선 = 앞면(2026-10-17)이라 앞면 다각형은 그대로 — 뒷면으로 가는 모서리(세 번째 선)의 뒷점이 방향을 따라 바뀐다
+  const guideBack = () => page.getByTestId('box-guide').locator('line.edge').nth(2).getAttribute('x1');
+  const boxY = await guideBack();
   // X 판: 박스가 벽 가로로 — 외곽선 그대로, 상자만 바뀜
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await expect(g).toHaveAttribute('data-box', 'x');
   expect(await quadOf(page, id)).toEqual(q);
-  await expect(face).not.toHaveAttribute('points', boxY!);
+  await expect.poll(guideBack).not.toBe(boxY);
   // 켜진 X 판을 다시 누르면 자동(Y)
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBeNull();
-  await expect(face).toHaveAttribute('points', boxY!);
+  await expect.poll(guideBack).toBe(boxY);
   // Z 고리로 박스를 돌린다 — 외곽선은 그대로, 방향은 축 사이(none)
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
   await drag(page, 'gizmo-rot-z', 12, 6);

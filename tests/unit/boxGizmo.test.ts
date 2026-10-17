@@ -79,12 +79,14 @@ describe('박스 방향을 면 좌표로 (3D·상자 가이드가 쓰는 값)', 
     const d = localBoxDir(cal, pose, A.x);
     expect(Math.abs(d[0])).toBeCloseTo(1, 6);
   });
-  it('상자 가이드: 앞면 = 외곽선 꼭짓점을 그 방향으로 깊이만큼 옮긴 점', () => {
+  it('상자 가이드: 앞면 = 외곽선, 뒷면 = 외곽선 꼭짓점을 박스 방향의 반대로 깊이만큼 옮긴 점 (2026-10-17 외곽선 = 앞면)', () => {
     const base: Pt[] = [[1000, 3900], [5000, 3900], [5000, 3000], [1000, 3000]];
     const dir = localBoxDir(cal, pose, [Math.SQRT1_2, 0, Math.SQRT1_2 * A.y[2]]);
     const g = boxGuideOf(projectionFromPlane(cal, imgW, imgH), base, 500, dir)!;
-    const want = proj(add([1000, 3900, 0], [Math.SQRT1_2, 0, Math.SQRT1_2 * A.y[2]], 500));
-    expect(Math.hypot(g.front[0][0] - want[0], g.front[0][1] - want[1])).toBeLessThan(0.5);
+    const front0 = proj([1000, 3900, 0]);
+    expect(Math.hypot(g.front[0][0] - front0[0], g.front[0][1] - front0[1])).toBeLessThan(0.5);
+    const want = proj(add([1000, 3900, 0], [Math.SQRT1_2, 0, Math.SQRT1_2 * A.y[2]], -500));
+    expect(Math.hypot(g.back[0][0] - want[0], g.back[0][1] - want[1])).toBeLessThan(0.5);
   });
 });
 
