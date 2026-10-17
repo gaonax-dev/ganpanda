@@ -17,7 +17,13 @@
 - 하단 탭(`list-tabs`): [견적 ▲ 합계](`quote-toggle`) · 단가 · 주문 · 주문서 · PDF · ⤢(전개도 맞춤). 견적 창(`quote-panel`, `data-mode`)은 **접힘 → 반(50%) → 전체**: 탭의 [견적]으로 열고 닫고, 창 머리의 ⤢/⤡(`quote-size`)로 확대·축소, ✕로 접기. 처음엔 접혀 전개도가 보이고, 전개도 맞춤도 하단 탭만 빼고 화면 전체에 맞춥니다. E2E `tests/e2e/mobile.spec.ts`.
 
 ## PDF (전개도 → SVG → 인쇄, 2026-10-15)
-사용자: "리스트 뷰는 최종 출력에 사용될 것이다. 최종 출력에 사용되기 전에 svg 를 사용해 사인물을 pdf 로 작성한다". 견적 패널의 **[PDF]**(`export-pdf`): 전개도를 `core/listSvg.ts` `listSvg()` 로 **SVG** 로 그립니다 — A4 가로(297×210mm) 한 장에 전부 들어가는 축척(실물보다 크게는 안 함, "축척 1:n" 표기), 카드마다 사각(둥근 모서리)·입힌 디자인 이미지(data URL, clipPath)·위·옆 치수선(mm, 추정 표시)·이름·종류(몸통+채널+시트)·옵션·문구·두께·금액, 제목(프로젝트명)·날짜·합계. 배치는 리스트 뷰 그대로(`listX/listY`). 새 창에 SVG 를 띄우고 인쇄 대화상자(A4 가로, 여백 0) → 브라우저의 "PDF 로 저장". 팝업이 막히면 안내. 단위 테스트 `tests/unit/listSvg.test.ts`, E2E `tests/e2e/boardCards.spec.ts`. 후속: 여러 장 나눔, 치수 글자 크기 옵션, 파일로 바로 내려받기(svg2pdf).
+사용자: "리스트 뷰는 최종 출력에 사용될 것이다. 최종 출력에 사용되기 전에 svg 를 사용해 사인물을 pdf 로 작성한다". 견적 패널의 **[PDF]**(`export-pdf`): 전개도를 `core/listSvg.ts` `listSvg()` 로 **SVG** 로 그립니다 — A4 가로(297×210mm) 한 장에 전부 들어가는 축척(실물보다 크게는 안 함, "축척 1:n" 표기), 카드마다 사각(둥근 모서리)·입힌 디자인 이미지(data URL, clipPath)·위·옆 치수선(mm, 추정 표시)·이름·종류(몸통+채널+시트)·옵션·문구·두께·금액, 제목(프로젝트명)·날짜·합계. 배치는 리스트 뷰 그대로(`listX/listY`). 새 창에 SVG 를 띄우고 인쇄 대화상자(A4 가로, 여백 0) → 브라우저의 "PDF 로 저장". 팝업이 막히면 안내. 단위 테스트 `tests/unit/listSvg.test.ts`, E2E `tests/e2e/boardCards.spec.ts`. 후속: 여러 장 나눔, 치수 글자 크기 옵션.
+
+## SVG 내려받기 — 일러스트레이터 (2026-10-17)
+사용자: "리스트가 일러스트로 내보내기 되는가?" → "비율, 윤곽선은 옵션으로". 견적 패널 **[SVG]**(`export-svg`) → 옵션 패널(`svg-options`) → [내려받기](`svg-download`)로 `.svg` 파일. 같은 `listSvg()` 라 PDF 와 내용이 같고, 일러스트레이터에서 열면 치수가 mm 그대로(viewBox = 용지 mm).
+- **비율**: 실물 **1:1**(`svg-scale-1`, 기본 — 제작 도면, 카드가 실제 mm, 용지는 내용 + 여백·라벨 크기) / **1:10**(`svg-scale-10`, 큰 간판 — 일러 아트보드 한계 약 5.8m) / **A4 맞춤**(`svg-scale-a4`, PDF 와 같은 모양). `SvgSheet.scale`.
+- **글자 윤곽선**(`svg-outline`, 기본 켬): 모든 글자(제목·치수·라벨·구성 요소 글자)를 Pretendard Bold 로 `<path>` 로 바꿈 — 폰트가 없는 컴퓨터에서도 같은 모양, 대신 글자 편집 불가. 끄면 `<text>`(글꼴 대체될 수 있음). `core/svgText.ts` `outlineRenderer(font)`(opentype.js `getPath`, 정렬·기준선·폭 맞춤을 `<text>` 와 같게), `SvgSheet.text`.
+- 파일 이름 `<프로젝트> 전개도 1-1.svg` 등. `app.lastSvg` 에 마지막 SVG. 테스트: `tests/unit/listSvg.test.ts`(비율·윤곽선), `tests/e2e/boardCards.spec.ts`.
 
 ## 사진 보드에 올리기 (2026-10-15)
 사용자: "사인물 리스트의 사인물을 사진 보드에 올릴 수 있나?" → 사양 카드의 **[📷 사진에 올리기]**(`place-on-photo`: 사진이 하나면 버튼, 여럿이면 사진 셀렉터, 이미 그 사인물이 있는 사진은 "(이미 있음)"). `app.placeOnPhoto(signId, photoId)`: 그 사진 가운데에 폭 40%·치수 비율(치수가 없으면 원본 영역 비율)의 사각 영역을 만들고 **같은 사인물로 연결**(`linkObject`, 원본 규격·디자인·대화 공유, 견적은 하나) → 보드로 전환, 새 영역 선택, 그 사진을 화면에 맞춤(`app.reveal`). 자리·크기는 보드에서 끌어 맞춥니다. 편집 권한만. E2E: `tests/e2e/link.spec.ts`.

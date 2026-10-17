@@ -124,4 +124,15 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(svg).toContain('>3,000<');
   expect(svg).toContain('후렉스');
   await w.close();
+  // SVG 내려받기 (일러스트레이터): 실물 1:1 + 글자 윤곽선 (2026-10-17 "비율, 윤곽선은 옵션으로")
+  await page.getByTestId('export-svg').click();
+  await page.getByTestId('svg-scale-1').check();
+  await page.getByTestId('svg-outline').check();
+  const dl = page.waitForEvent('download');
+  await page.getByTestId('svg-download').click();
+  expect((await dl).suggestedFilename()).toMatch(/전개도 1-1\.svg$/);
+  const svg11 = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
+  expect(svg11).toContain('width="3000.00"'); // 카드가 실물 mm
+  expect(svg11).not.toContain('<text'); // 글자는 전부 path
+  expect(svg11).toContain('<path ');
 });

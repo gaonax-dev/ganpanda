@@ -2,6 +2,7 @@
 // 객체 좌표(간판 중앙 기준 mm, 위 +) → 그릴 곳(왼쪽 위 기준, 아래 +). 정면도 편집기와 같은 상자(itemBox)와 색.
 import type { PartItem, SignObject, SignPart } from './model';
 import { itemBox } from './frontView';
+import { svgText, type TextRenderer } from './svgText';
 
 /** 구성 요소 색 (정면도 편집기·카드·PDF·3D 앞면 공용) */
 export const PART_COLOR: Record<SignPart['kind'], string> = { channel: '#ff6b5e', scashi: '#e0b85a', sheet: '#5aa8ff' };
@@ -33,14 +34,14 @@ export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const f = (n: number) => n.toFixed(2);
 
-/** 객체 SVG 조각: 글자는 상자 폭에 맞춘 text(구성 요소 색), 그림은 image(주소가 있을 때) 또는 점선 상자. ox·oy 만큼 옮겨서 */
-export function partsSvg(items: LaidItem[], hrefOf: (l: LaidItem) => string | undefined, ox = 0, oy = 0): string {
+/** 객체 SVG 조각: 글자는 상자 폭에 맞춘 글자(구성 요소 색, 렌더러 기본 <text> — 윤곽선이면 <path>), 그림은 image(주소가 있을 때) 또는 점선 상자. ox·oy 만큼 옮겨서 */
+export function partsSvg(items: LaidItem[], hrefOf: (l: LaidItem) => string | undefined, ox = 0, oy = 0, text: TextRenderer = svgText): string {
   return items.map((l) => {
     const x = ox + l.x, y = oy + l.y;
     if (l.kind === 'text') {
       const t = (l.text ?? '').trim();
       if (!t) return '';
-      return `<text x="${f(x + l.w / 2)}" y="${f(y + l.h / 2)}" font-size="${f(l.h * 0.9)}" font-weight="700" textLength="${f(l.w * 0.96)}" lengthAdjust="spacingAndGlyphs" text-anchor="middle" dominant-baseline="central" fill="${l.color}">${esc(t)}</text>`;
+      return text(t, { x: x + l.w / 2, y: y + l.h / 2, size: l.h * 0.9, weight: 700, fitWidth: l.w * 0.96, anchor: 'middle', baseline: 'central', fill: l.color });
     }
     const href = hrefOf(l);
     return href

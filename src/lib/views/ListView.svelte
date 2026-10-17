@@ -4,7 +4,10 @@
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import { faceUrl } from '../photoDisplay';
-  import { listSvg, type SvgCard } from '../core/listSvg';
+  import { listSvg, type SvgCard, type SvgSheet } from '../core/listSvg';
+  import { outlineRenderer } from '../core/svgText';
+  import { loadFont } from '../core/textShapes';
+  import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { describeOptions } from '../core/options';
   import { faceClip } from '../core/cardFace';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
@@ -103,7 +106,30 @@
   let quoteMode = $state<'closed' | 'half' | 'full'>('closed');
 
   /** 전개도 SVG (디자인 이미지는 data URL 로 묻어 인쇄 창이 따로 불러오지 않게) */
-  export async function buildSvg(): Promise<string> {
+  /** SVG 내려받기 옵션 (일러스트레이터용, 2026-10-17 사용자: "비율, 윤곽선은 옵션으로"): 비율 = A4 맞춤 / 실물 1:1 / 1:10, 글자 윤곽선 */
+  let svgPanel = $state(false);
+  let svgScale = $state<'a4' | '1' | '0.1'>('1');
+  let svgOutline = $state(true);
+  let svgBusy = $state(false);
+  async function exportSvg() {
+    if (svgBusy) return;
+    svgBusy = true;
+    try {
+      const opts: Partial<SvgSheet> = {};
+      if (svgScale !== 'a4') opts.scale = Number(svgScale);
+      if (svgOutline) opts.text = outlineRenderer(await loadFont(fontUrl));
+      const svg = await buildSvg(opts);
+      app.lastSvg = svg;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      a.download = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 전개도${svgScale === 'a4' ? '' : svgScale === '1' ? ' 1-1' : ' 1-10'}.svg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      svgPanel = false;
+    } catch (e) { app.notice = `SVG 를 만들지 못했습니다: ${e instanceof Error ? e.message : e}`; }
+    finally { svgBusy = false; }
+  }
+  export async function buildSvg(opts: Partial<SvgSheet> = {}): Promise<string> {
     const toDataUrl = async (u: string) => { try { const b = await (await fetch(u)).blob(); return await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); } catch { return u; } };
     const cards: SvgCard[] = [];
     for (const { o, w, h, estimated } of sized) {
@@ -129,7 +155,7 @@
       cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner, items, itemHrefs });
     }
     const title = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 사인물 전개도`;
-    return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards });
+    return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards, ...opts });
   }
   /** SVG 를 인쇄 창에 띄운다 → 브라우저의 "PDF 로 저장" (A4 가로) */
   async function exportPdf() {
@@ -137,7 +163,12 @@
     app.lastSvg = svg;
     const w = window.open('', '_blank');
     if (!w) { app.notice = '팝업이 막혀 PDF 창을 열 수 없습니다. 팝업을 허용해 주세요.'; return; }
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>
+  .svgwrap { position: relative; }
+  .svgopts { position: absolute; right: 0; top: 100%; margin-top: 6px; z-index: 5; width: 280px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  .svgopts label { display: flex; align-items: center; gap: 6px; }
+  .svgopts small { color: var(--muted); }
+  .svgopts .btn { align-self: flex-end; margin-top: 4px; }@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
     w.document.close();
   }
 
@@ -234,6 +265,19 @@
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
         <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!sized.length} onclick={exportPdf}>PDF</button>
+        <span class="svgwrap">
+          <button class="btn small" data-testid="export-svg" title="일러스트레이터용 SVG 내려받기 (비율·윤곽선 옵션)" disabled={!sized.length} onclick={() => (svgPanel = !svgPanel)}>SVG</button>
+          {#if svgPanel}
+            <div class="svgopts" data-testid="svg-options">
+              <b>SVG 내려받기 <small>(일러스트레이터)</small></b>
+              <label><input type="radio" name="svgscale" value="1" bind:group={svgScale} data-testid="svg-scale-1" /> 실물 1:1 <small>(제작 도면, mm 그대로)</small></label>
+              <label><input type="radio" name="svgscale" value="0.1" bind:group={svgScale} data-testid="svg-scale-10" /> 1:10 <small>(큰 간판 · 아트보드 한계 5.8m)</small></label>
+              <label><input type="radio" name="svgscale" value="a4" bind:group={svgScale} data-testid="svg-scale-a4" /> A4 맞춤 <small>(PDF 와 같은 모양)</small></label>
+              <label><input type="checkbox" bind:checked={svgOutline} data-testid="svg-outline" /> 글자를 윤곽선으로 <small>(폰트 없어도 같은 모양, 글자 편집 불가)</small></label>
+              <button class="btn small primary" data-testid="svg-download" disabled={svgBusy} onclick={exportSvg}>{svgBusy ? '만드는 중…' : '내려받기'}</button>
+            </div>
+          {/if}
+        </span>
         <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
       </span>
     </header>

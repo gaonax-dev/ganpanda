@@ -1,6 +1,9 @@
-// 사인물 전개도 → SVG (최종 출력용, PDF 는 이 SVG 를 인쇄해 만든다)
+// 사인물 전개도 → SVG (최종 출력용, PDF 는 이 SVG 를 인쇄해 만든다. 일러스트레이터용 SVG 내려받기는 비율·윤곽선 옵션)
 // 2026-10-15 사용자: "리스트 뷰는 최종 출력에 사용될 것이다. 최종 출력에 사용되기 전에 svg 를 사용해 사인물을 pdf 로 작성한다"
+// 2026-10-17 사용자: "리스트가 일러스트로 내보내기 되는가?" → "비율, 윤곽선은 옵션으로"
 import { partsSvg, type LaidItem } from './partsLayout';
+import { svgText, type TextRenderer } from './svgText';
+
 export interface SvgCard {
   id: string; name: string;
   /** 배치 (mm, 리스트 뷰 좌표) */
@@ -17,8 +20,18 @@ export interface SvgCard {
   items?: LaidItem[];
   itemHrefs?: Record<string, string>;
 }
-export interface SvgSheet { title: string; subtitle?: string; cards: SvgCard[]; /** 용지 mm */ pageW?: number; pageH?: number; margin?: number }
+export interface SvgSheet {
+  title: string; subtitle?: string; cards: SvgCard[];
+  /** 용지 mm (scale 이 없을 때, 기본 A4 가로) */
+  pageW?: number; pageH?: number; margin?: number;
+  /** 고정 비율 (1 = 실물 1:1, 0.1 = 1:10). 주면 용지가 A4 가 아니라 카드 전체 + 여백 크기가 된다 (일러스트레이터용) */
+  scale?: number;
+  /** 글자 렌더러: 기본 <text>, 윤곽선이면 outlineRenderer(font) */
+  text?: TextRenderer;
+}
 
+/** 글자 폭 추정 (용지 mm): 한글·한자 1em, 그 외 0.6em */
+const textWidth = (s: string, size: number) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) > 0x2e80 ? 1 : 0.6) * size, 0);
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -31,24 +44,38 @@ export function cardsBounds(cards: SvgCard[]): { x: number; y: number; w: number
 }
 
 /**
- * A4 가로(기본 297×210mm) 한 장에 전부 들어가도록 축척을 정해 그린다. 치수선(위·옆)과 이름·사양·금액을 카드 아래에.
- * 글자 크기는 용지 mm 기준 고정(축척과 무관)이라 어떤 축척에서도 읽힌다
+ * 기본: A4 가로(297×210mm) 한 장에 전부 들어가도록 축척을 정해 그린다. scale 을 주면 그 비율로, 용지는 내용 크기에 맞춘다.
+ * 치수선(위·옆)과 이름·사양·금액을 카드 아래에. 글자 크기는 용지 mm 기준 고정(축척과 무관)이라 어떤 축척에서도 읽힌다
  */
 export function listSvg(sheet: SvgSheet): string {
-  const pageW = sheet.pageW ?? 297, pageH = sheet.pageH ?? 210, m = sheet.margin ?? 12;
+  const T = sheet.text ?? svgText;
+  const m = sheet.margin ?? 12;
   const header = 14, labelH = 16, dimPad = 10; // mm (용지)
   const b = cardsBounds(sheet.cards);
-  const availW = pageW - m * 2 - dimPad, availH = pageH - m * 2 - header - labelH - dimPad;
-  // 카드 사이 라벨 공간을 위해 세로 여유를 둔다
-  const k = Math.min(availW / b.w, availH / (b.h + sheet.cards.length * 0), 1); // 1 = 실물보다 크게 그리지 않음 (mm 그대로면 1:1)
+  // 라벨(이름·사양 줄·금액)이 카드 아래로 뻗는 높이: 가장 긴 라벨 기준
+  const labelLines = Math.max(0, ...sheet.cards.map((c) => c.lines.length + (c.amount ? 1 : 0)));
+  const labelsH = labelH + 3.6 * labelLines;
+  let pageW: number, pageH: number, k: number;
+  if (sheet.scale) {
+    k = sheet.scale;
+    // 카드 아래 라벨(이름·사양·금액)은 카드보다 넓을 수 있다 — 오른쪽으로 넘치는 만큼 용지를 넓힌다 (글자 폭 추정: 한글 1em, 그 외 0.6em)
+    const labelRight = Math.max(0, ...sheet.cards.map((c) => (c.x - b.x) * k + Math.max(textWidth(c.name, 3.2), ...c.lines.map((l) => textWidth(l, 2.6)), c.amount ? textWidth(c.amount, 2.8) : 0)));
+    pageW = Math.ceil(Math.max(b.w * k, labelRight) + m * 2 + dimPad + 12);
+    pageH = Math.ceil(b.h * k + m * 2 + header + dimPad + labelsH);
+  } else {
+    pageW = sheet.pageW ?? 297; pageH = sheet.pageH ?? 210;
+    const availW = pageW - m * 2 - dimPad, availH = pageH - m * 2 - header - labelH - dimPad;
+    k = Math.min(availW / b.w, availH / b.h, 1); // 1 = 실물보다 크게 그리지 않음 (mm 그대로면 1:1)
+  }
   const ox = m + dimPad - b.x * k, oy = m + header + dimPad - b.y * k;
   const X = (x: number) => (ox + x * k).toFixed(2), Y = (y: number) => (oy + y * k).toFixed(2);
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${pageW}mm" height="${pageH}mm" viewBox="0 0 ${pageW} ${pageH}" font-family="Pretendard, 'Apple SD Gothic Neo', sans-serif">`);
   parts.push(`<rect width="${pageW}" height="${pageH}" fill="#fff"/>`);
-  parts.push(`<text x="${m}" y="${m + 6}" font-size="5" font-weight="700" fill="#111">${esc(sheet.title)}</text>`);
-  if (sheet.subtitle) parts.push(`<text x="${pageW - m}" y="${m + 6}" font-size="3" fill="#666" text-anchor="end">${esc(sheet.subtitle)}</text>`);
-  parts.push(`<text x="${m}" y="${m + 10.5}" font-size="2.6" fill="#888">축척 1:${(1 / k).toFixed(1)} · 치수 mm</text>`);
+  parts.push(T(sheet.title, { x: m, y: m + 6, size: 5, weight: 700, fill: '#111' }));
+  if (sheet.subtitle) parts.push(T(sheet.subtitle, { x: pageW - m, y: m + 6, size: 3, fill: '#666', anchor: 'end' }));
+  const ratio = 1 / k;
+  parts.push(T(`축척 1:${Number.isInteger(ratio) ? ratio : ratio.toFixed(1)} · 치수 mm`, { x: m, y: m + 10.5, size: 2.6, fill: '#888' }));
   parts.push('<defs>');
   for (const c of sheet.cards) {
     if (!c.image) continue;
@@ -65,18 +92,19 @@ export function listSvg(sheet: SvgSheet): string {
       const sx = w / c.image.crop.w, sy = h / c.image.crop.h;
       parts.push(`<image clip-path="url(#clip-${esc(c.id)})" href="${esc(c.image.href)}" x="${(ox + c.x * k - c.image.crop.x * sx).toFixed(2)}" y="${(oy + c.y * k - c.image.crop.y * sy).toFixed(2)}" width="${(c.image.pageW * sx).toFixed(2)}" height="${(c.image.pageH * sy).toFixed(2)}" preserveAspectRatio="none"/>`);
     }
-    if (c.items?.length) parts.push(`<g data-items="${esc(c.id)}" transform="translate(${X(c.x)} ${Y(c.y)}) scale(${k.toFixed(6)})">${partsSvg(c.items, (l) => c.itemHrefs?.[l.id])}</g>`);
+    // 조합형 객체: 카드 좌표(mm)에서 그려 translate·scale 로 — 글자 렌더러에는 용지 좌표로 바꿔 넘긴다 (윤곽선 path 가 변환에 영향받지 않게)
+    if (c.items?.length) parts.push(`<g data-items="${esc(c.id)}">${partsSvg(c.items.map((l) => ({ ...l, x: ox + (c.x + l.x) * k, y: oy + (c.y + l.y) * k, w: l.w * k, h: l.h * k })), (l) => c.itemHrefs?.[l.id], 0, 0, T)}</g>`);
     // 치수선: 위(가로), 오른쪽(세로)
     const ty = oy + c.y * k - 3, rx2 = ox + (c.x + c.w) * k + 3;
     parts.push(`<line x1="${X(c.x)}" y1="${ty.toFixed(2)}" x2="${X(c.x + c.w)}" y2="${ty.toFixed(2)}" stroke="#2f8bff" stroke-width="0.25"/>`);
-    parts.push(`<text x="${(ox + (c.x + c.w / 2) * k).toFixed(2)}" y="${(ty - 1).toFixed(2)}" font-size="2.8" fill="#2f8bff" text-anchor="middle">${fmt(c.w)}${c.estimated ? ' (추정)' : ''}</text>`);
+    parts.push(T(`${fmt(c.w)}${c.estimated ? ' (추정)' : ''}`, { x: ox + (c.x + c.w / 2) * k, y: ty - 1, size: 2.8, fill: '#2f8bff', anchor: 'middle' }));
     parts.push(`<line x1="${rx2.toFixed(2)}" y1="${Y(c.y)}" x2="${rx2.toFixed(2)}" y2="${Y(c.y + c.h)}" stroke="#2f8bff" stroke-width="0.25"/>`);
-    parts.push(`<text x="${(rx2 + 1.5).toFixed(2)}" y="${(oy + (c.y + c.h / 2) * k + 1).toFixed(2)}" font-size="2.8" fill="#2f8bff">${fmt(c.h)}</text>`);
+    parts.push(T(fmt(c.h), { x: rx2 + 1.5, y: oy + (c.y + c.h / 2) * k + 1, size: 2.8, fill: '#2f8bff' }));
     // 라벨
     const ly = oy + (c.y + c.h) * k + 4;
-    parts.push(`<text x="${X(c.x)}" y="${ly.toFixed(2)}" font-size="3.2" font-weight="700" fill="#111">${esc(c.name)}</text>`);
-    c.lines.forEach((l, i) => parts.push(`<text x="${X(c.x)}" y="${(ly + 3.6 * (i + 1)).toFixed(2)}" font-size="2.6" fill="#444">${esc(l)}</text>`));
-    if (c.amount) parts.push(`<text x="${X(c.x)}" y="${(ly + 3.6 * (c.lines.length + 1)).toFixed(2)}" font-size="2.8" font-weight="700" fill="#b58900">${esc(c.amount)}</text>`);
+    parts.push(T(c.name, { x: ox + c.x * k, y: ly, size: 3.2, weight: 700, fill: '#111' }));
+    c.lines.forEach((l, i) => parts.push(T(l, { x: ox + c.x * k, y: ly + 3.6 * (i + 1), size: 2.6, fill: '#444' })));
+    if (c.amount) parts.push(T(c.amount, { x: ox + c.x * k, y: ly + 3.6 * (c.lines.length + 1), size: 2.8, weight: 700, fill: '#b58900' }));
     parts.push('</g>');
   }
   parts.push('</svg>');
