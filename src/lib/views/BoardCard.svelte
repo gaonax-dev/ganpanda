@@ -5,7 +5,7 @@
 <script lang="ts">
   import type { Photo, SignObject } from '../core/model';
   import { faceBadge, faceClip } from '../core/cardFace';
-  import { bodyLook, frameLook } from '../core/render';
+  import { bodyLook } from '../core/render';
   import { faceUrl } from '../photoDisplay';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
@@ -31,8 +31,6 @@
   // 바탕색(2026-10-17 "정면도에도 배경색 나오게"): 2D 무대의 sign-fill 과 같은 색·투명도를 사진 얼굴 위에
   const look = $derived(bodyLook(o));
   const badge = $derived(faceBadge(o));
-  // 프레임 색: 바탕 면의 테두리로 (2026-10-17 "프레임과 구분")
-  const frame = $derived(frameLook(o));
   $effect(() => {
     const mm = { w: o.widthMm ?? w, h: o.heightMm ?? h };
     if (photo && o.quad.length === 4) faceUrl(photo.assetId, photo.w, o.quad, mm.w, mm.h).then((u) => (face = u));
@@ -45,7 +43,6 @@
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
-    {#if frame && frame.mm > 0}<div class="frame" data-testid="card-frame" style:box-shadow="inset 0 0 0 {Math.max(1.5, frame.mm * (w / mmW))}px {frame.color}"></div>{/if}
     {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
     <PartsOverlay {o} {mmW} {mmH} {w} {h} />
   </div>
@@ -67,7 +64,6 @@
   .multi .face { outline: 2px dashed var(--accent); }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
-  .frame { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }

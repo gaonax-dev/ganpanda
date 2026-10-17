@@ -4,7 +4,7 @@ import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, upload
 
 const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
 
-test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레임 색은 평면도 카드 테두리로', async ({ page, request }) => {
+test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레임 테는 2D 사진 위 고리로 (평면도 카드에는 테두리 없음)', async ({ page, request }) => {
   await openOwnedProject(page, request, '프레임 색');
   await uploadPhoto(page);
   await page.keyboard.press('t');
@@ -21,7 +21,7 @@ test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레�
   // 칩은 출력면 색(몸통 색), 2D 바탕도 출력면 색
   await expect(dlg.getByTestId('quick-body')).toContainText('노랑');
   expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 204, 0)');
-  // 치수를 넣으면 2D 사진 위에 프레임 테(고리)가, 평면도 카드에는 바탕 노랑 + 프레임 테두리 검정
+  // 치수를 넣으면 2D 사진 위에 프레임 테(고리)가. 평면도 카드에는 테두리를 주지 않는다 (2026-10-17 "정면도들은 테두리를 주지 않는다")
   await expect(page.getByTestId('sign-frame')).toHaveCount(0); // 치수 전에는 테 폭을 모른다
   await dlg.getByTestId('width-mm').fill('3000');
   await dlg.getByTestId('height-mm').fill('600');
@@ -30,6 +30,6 @@ test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레�
   await dlg.getByTestId('close-object-settings').click();
   const card = page.getByTestId('board-card');
   await expect(card).toHaveCount(1);
-  await expect(card.getByTestId('card-frame')).toHaveCount(1);
-  expect(await card.getByTestId('card-frame').evaluate((e) => getComputedStyle(e).boxShadow)).toContain('rgb(20, 20, 20)');
+  await expect(card.getByTestId('card-fill')).toHaveCount(1);
+  await expect(card.getByTestId('card-frame')).toHaveCount(0);
 });

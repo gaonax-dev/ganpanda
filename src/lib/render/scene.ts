@@ -79,7 +79,7 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
 
 /**
  * 보드 **3D 단계**용 합성기 (2026-10-15 사용자: "3D 는 화면에 바로 올리고, 렌더링은 사진마다"): WebGL 뷰어 하나를 켜 둔 채 사진들을 차례로 그려
- * 주간 PNG 만 만든다. 디자인 이미지는 입히지 않고(가볍게) 사진 긴 변 ≤ 640px 로 — 사진마다 뷰어를 새로 만들지 않아 부하가 작다. 단계를 나가면 dispose
+ * 주간 PNG 만 만든다. 디자인 이미지도 입히고(2026-10-17, 2D 단계와 같은 모습) 사진 긴 변 ≤ 640px 로 — 사진마다 뷰어를 새로 만들지 않아 부하가 작다. 단계를 나가면 dispose
  */
 export class StageRenderer {
   private host: HTMLDivElement | null = null;
@@ -89,7 +89,7 @@ export class StageRenderer {
     const v = this.viewer;
     let built: BuiltSign[] = [];
     try {
-      built = await buildScene(v, photo, objects, plane, sources, font, { designs: false, maxW: 640, maxH: 480 });
+      built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480 }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
       v.setNight(false); for (const b of built) b.setNight(false);
       return v.exportPng(Math.min(photo.w, 1280), Math.min(photo.w, 1280) * (photo.h / photo.w));
     } finally {
