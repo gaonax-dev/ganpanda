@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiCreateInvite, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiSetPlan, openInvited, openOwnedProject, uploadPhoto } from './helpers';
 
 /** 사진 원본 픽셀 좌표 클릭 */
 async function clickPhoto(page: Page, x: number, y: number) {
@@ -10,6 +10,7 @@ async function clickPhoto(page: Page, x: number, y: number) {
 
 test('말풍선 받는 사람: 모두가 기본, 특정인에게 보내면 보낸 사람·받는 사람·소유자만 본다 (2026-10-17)', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
+  await apiSetPlan(request, session, 'pro'); // 편집자 좌석 (무료는 1석)
   await uploadPhoto(page);
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'editor'), '디자이너');
   await expect(page.getByTestId('tool-pin')).toContainText('말풍선');
