@@ -200,7 +200,7 @@
   .gz input { flex: 1; }
   .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 50; }
-  .dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+  .dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
   header { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
   h2 { margin: 0; font-size: 16px; }
   .tabs span { font-size: 13px; padding: 4px 10px; border-radius: 6px; }

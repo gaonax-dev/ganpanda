@@ -152,7 +152,7 @@
 
 <style>
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; z-index: 60; }
-  .dialog { width: min(1000px, calc(100vw - 32px)); height: min(640px, calc(100vh - 48px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dialog { width: min(1000px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 48px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   h2 { margin: 0; font-size: 15px; flex: 1; }
   header .icon { margin-left: 0; }

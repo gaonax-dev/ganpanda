@@ -221,10 +221,12 @@
 
 <style>
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
-  .dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
   h2 { flex: 1; margin: 0; font-size: 16px; }
-  .body { overflow: auto; }
+  .body { overflow: auto; min-height: 0; }
+  /* 휴대폰: 거의 전체 화면, 아래 단추(복제·삭제·닫기)가 항상 보이게 (2026-10-17) */
+  @media (max-width: 720px) { .dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } }
   section { padding: 10px 16px; border-bottom: 1px solid var(--line); }
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
