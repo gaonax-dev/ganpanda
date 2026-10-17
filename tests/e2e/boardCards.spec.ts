@@ -122,7 +122,20 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   const scale = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale);
   expect(scale).toBeLessThan(0.125);
   expect(scale).toBeGreaterThan(0.02);
-  // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY) — 축척은 보드 그리기만 바꾸고 mm 배치는 그대로
+  // 왼쪽 위 손잡이로 평면 구역 전체 이동 (2026-10-17): 설정 flatOffset, 카드가 같이 움직이고 mm 배치는 그대로
+  const posBefore = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master);
+  const cb = (await card.boundingBox())!;
+  const mb = (await page.getByTestId('flat-move').boundingBox())!;
+  await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(mb.x + mb.width / 2 + 50, mb.y + mb.height / 2 + 30, { steps: 4 });
+  await page.mouse.up();
+  const off = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatOffset?: { x: number; y: number } } } }).__ganpanda.settings.flatOffset!);
+  expect(off.x).toBeGreaterThan(0);
+  expect(off.y).toBeGreaterThan(0);
+  await expect.poll(async () => (await card.boundingBox())!.x - cb.x).toBeGreaterThan(40);
+  expect(await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master)).toEqual(posBefore);
+  // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY) — 축척·이동은 보드 그리기만 바꾸고 mm 배치는 그대로
   await page.getByTestId('view-list').click();
   const listPos = await page.evaluate(() => { const el = document.querySelector('[data-testid="list-card"]') as HTMLElement; return [parseFloat(el.style.left), parseFloat(el.style.top)]; });
   expect(listPos).toEqual(pos);

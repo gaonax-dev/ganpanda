@@ -7,9 +7,10 @@ export const BOARD_PX_PER_MM = 0.1;
  * 보드의 **평면 구역** 원점(world px): 모든 사진 아래. 평면도 카드는 여기에 리스트 뷰와 **같은 배치**(listX/listY mm × 축척)로 놓인다
  * (2026-10-15 사용자: "평면 사인물은 배치를 할 수 있어야 한다. 해당 배치는 리스트 뷰에서도 적용되고 리스트 뷰는 최종 출력에 사용될 것이다")
  */
-export function flatOrigin(photos: { x: number; y: number; width: number; w: number; h: number }[], gap = 80): { x: number; y: number } {
-  if (!photos.length) return { x: 0, y: 0 };
-  return { x: Math.min(...photos.map((p) => p.x)), y: Math.max(...photos.map((p) => p.y + p.width * (p.h / p.w))) + gap };
+export function flatOrigin(photos: { x: number; y: number; width: number; w: number; h: number }[], gap = 80, offset: { x: number; y: number } = { x: 0, y: 0 }): { x: number; y: number } {
+  // offset = 평면 구역 이동 (2026-10-17 사용자: "왼쪽 상단에도 버튼이 있으면 좋겠다. 이건 이동") — 프로젝트 설정 flatOffset, 보드 px
+  if (!photos.length) return { x: offset.x, y: offset.y };
+  return { x: Math.min(...photos.map((p) => p.x)) + offset.x, y: Math.max(...photos.map((p) => p.y + p.width * (p.h / p.w))) + gap + offset.y };
 }
 
 /** 평면 구역 축척(px/mm) 범위 — 프로젝트 설정 `flatScale` (2026-10-17 사용자: "평면도 전체 사이즈 조절 가능하게"). 리스트 좌표(mm)는 그대로, 보드에 그리는 크기만 바뀐다 */
