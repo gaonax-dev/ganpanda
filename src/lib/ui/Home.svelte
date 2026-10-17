@@ -8,6 +8,7 @@
   import { app } from '../state.svelte';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
+  import { listRequests, respondRequest, shopPhotoUrl, type ShopRequest } from '../requests';
 
   let projects = $state<ProjectInfo[] | null>(null);
   let groups = $state<GroupInfo[]>([]);
@@ -25,9 +26,19 @@
   /** 클릭해 입력 중인 금액 칸 */
   let editing = $state<{ id: string; field: 'paid' | 'contract' } | null>(null);
 
+  /** 받은 요청 (요청판, 2026-10-17): 요청 받기를 켰거나 답한 요청이 있을 때 */
+  let requests = $state<ShopRequest[]>([]);
+  let responding = $state('');
+  async function respond(r: ShopRequest) {
+    if (responding) return;
+    responding = r.id;
+    try { const p = await respondRequest(r.id); location.href = `/?room=${p.id}`; }
+    catch (e) { app.notice = e instanceof Error ? e.message : String(e); responding = ''; }
+  }
   async function reload() {
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
+      listRequests().then((rs) => (requests = rs)).catch(() => (requests = []));
       const next: Record<string, GroupView> = {};
       await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
       views = next;
@@ -128,6 +139,32 @@
   {#if !app.authReady}
     <p class="hint">확인 중…</p>
   {:else if app.account}
+    {#if requests.length || app.requestSettings?.receive}
+      <section class="requests" data-testid="request-list">
+        <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = true)}>설정</button></small></h1>
+        {#each requests as r (r.id)}
+          <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
+            <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
+            <div class="rbody">
+              <b>{r.store}</b> <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              {#if r.text}<p>{r.text}</p>{/if}
+              {#if r.responded}
+                <p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 제안을 보냈습니다</span></p>
+              {:else}
+                <p class="muted">제안 링크를 보내면 연락처가 보입니다.</p>
+              {/if}
+              {#if r.projectId}
+                <a class="btn small" data-testid="request-open" href="/?room={r.projectId}">프로젝트 열기</a>
+              {:else}
+                <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r)}>제안 만들기</button>
+              {/if}
+            </div>
+          </div>
+        {:else}
+          <p class="hint">아직 이 지역의 요청이 없습니다.</p>
+        {/each}
+      </section>
+    {/if}
     <section data-testid="project-list">
       <h1>내 프로젝트</h1>
       <form class="new" onsubmit={(e) => { e.preventDefault(); create(); }}>
@@ -251,6 +288,15 @@
 {/if}
 
 <style>
+  .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+  .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+  .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
+  .rphotos { display: flex; gap: 4px; flex-shrink: 0; }
+  .rphotos img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; }
+  .rbody { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .rbody p { margin: 0; }
+  .rbody .muted { color: var(--muted); }
+  .rbody .btn { align-self: flex-start; margin-top: 4px; }
   .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
   section { width: min(900px, 100%); }
   h1 { font-size: 22px; margin: 0 0 14px; }

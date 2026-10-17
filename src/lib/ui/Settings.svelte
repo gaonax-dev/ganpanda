@@ -2,12 +2,23 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { PLAN_LABEL } from '../auth';
+  import { setRequestSettings } from '../requests';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
   import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
 
   // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
   let members = $state<TeamMember[] | null>(null);
+  // 요청 받기 설정 (요청판)
+  let reqReceive = $state(app.requestSettings?.receive ?? false);
+  let reqRegions = $state((app.requestSettings?.regions ?? []).join(', '));
+  let reqBusy = $state(false), reqSaved = $state('');
+  async function saveRequests() {
+    reqBusy = true; reqSaved = '';
+    try { await setRequestSettings({ receive: reqReceive, regions: reqRegions.split(',').map((s) => s.trim()).filter(Boolean) }); await app.refreshMe(); reqSaved = '저장했습니다'; }
+    catch (e) { reqSaved = e instanceof Error ? e.message : String(e); }
+    finally { reqBusy = false; }
+  }
   let memberEmail = $state('');
   let memberError = $state('');
   async function loadTeam() { try { members = await listTeam(); } catch { members = []; } }
@@ -79,6 +90,14 @@
             <p class="row"><span>동시 작업 인원 <small>(직원 · 고객 열람은 세지 않음)</small></span><span data-testid="usage-seats">{app.usage.usage.seats} / {app.usage.limits.seats}명</span></p>
             <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
+        </section>
+        <!-- 요청판 (2026-10-17): 요청 받기 + 지역 → 홈 "받은 요청" -->
+        <section data-testid="requests-section">
+          <h3>견적 요청 받기</h3>
+          <p class="hint">켜 두면 이 지역 가게 사장들의 간판 견적 요청이 홈 "받은 요청"과 이메일로 옵니다. 요청에서 바로 프로젝트를 만들어 제안 링크로 답하고(요금제의 제안 건수), 제안을 보내면 연락처가 보입니다.</p>
+          <label class="check"><input type="checkbox" data-testid="req-receive" bind:checked={reqReceive} /> 요청 받기</label>
+          <label class="opt">지역 <small>(시/군/구까지, 여러 곳은 쉼표)</small><input data-testid="req-regions" bind:value={reqRegions} placeholder="예: 경기 광주시, 성남시 분당구" /></label>
+          <p class="row"><span class="hint" data-testid="req-saved">{reqSaved}</span><button class="btn small primary" data-testid="req-save" onclick={saveRequests} disabled={reqBusy}>저장</button></p>
         </section>
         <section data-testid="team-section">
           <h3>멤버</h3>

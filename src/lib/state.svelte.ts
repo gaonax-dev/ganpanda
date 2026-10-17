@@ -12,7 +12,8 @@ import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
-import { putAsset, StorageLimitError } from './assets';
+import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
+import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
@@ -33,7 +34,7 @@ import { productById, signParts } from './core/catalog';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
-import { assetUrl } from './assets';
+
 
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
@@ -42,7 +43,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -67,6 +68,10 @@ class AppState {
   compact = $state(typeof matchMedia === 'function' && matchMedia('(max-width: 720px)').matches);
   /** 현재 방(프로젝트). null = 홈 화면 */
   readonly room: string | null;
+  /** 로그인 없는 페이지 (요청판, 2026-10-17): /request = 요청 올리기, /r/<id> = 고객의 내 요청 페이지 */
+  readonly page: 'request' | 'request-view' | null;
+  /** 요청 받기 설정 (/api/me) */
+  requestSettings = $state<{ receive: boolean; regions: string[] } | null>(null);
   /** 초대 토큰 (이 방에 초대 링크로 들어온 경우) */
   readonly invite: string | null;
   access = $state<Access>({ status: 'loading' });
@@ -235,6 +240,7 @@ class AppState {
     this.project.onChange(() => this.version++);
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
+    this.page = url.pathname === '/request' ? 'request' : /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
     this.room = url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
     const inviteParam = url.searchParams.get('invite');
@@ -282,6 +288,29 @@ class AppState {
     this.authReady = true;
   }
 
+  /** 요청 사진 → 내 프로젝트의 사진 (소유자 용량에 쌓임). 동기화가 끝난 뒤 사진이 하나도 없을 때만, 한 번만 */
+  private importing = false;
+  private async importRequestPhotos(requestId: string) {
+    if (this.importing) return;
+    this.importing = true;
+    try {
+      await new Promise((r) => setTimeout(r, 800)); // 서버 문서가 먼저 도착하게
+      if (this.photos.length) return;
+      const n = await getRequestPhotoCount(requestId);
+      let right = 0;
+      for (let i = 0; i < n; i++) {
+        const blob = await fetchRequestPhoto(requestId, i);
+        const assetId = await putAsset(blob);
+        const { w, h } = await imageSize((await assetUrl(assetId))!);
+        const width = 1200;
+        this.project.addPhoto({ name: `요청 사진 ${i + 1}`, assetId, w, h, x: right, y: 0, width });
+        right += width + 120;
+      }
+    } catch (e) {
+      this.notice = `요청 사진을 가져오지 못했습니다: ${e instanceof Error ? e.message : e}`;
+    } finally { this.importing = false; }
+  }
+
   async refreshMe() {
     this.applyMe(await fetchMe());
   }
@@ -290,6 +319,7 @@ class AppState {
     this.applyAccount(me?.account ?? null);
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
+    this.requestSettings = me?.requestSettings ?? null;
   }
 
   // ---------- 카메라 설정 (사진별, 사인물과 무관) ----------
@@ -431,7 +461,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing, branding: !!a.branding };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing, branding: !!a.branding, ...(a.requestId ? { requestId: a.requestId } : {}) };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
@@ -453,6 +483,8 @@ class AppState {
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
     this.client.whenOnline(flushPendingUploads);
+    // 요청에서 만든 프로젝트: 문서에 사진이 없으면 요청 사진을 가져온다 (요청판, 2026-10-17)
+    this.client.whenOnline(() => { if (this.role === 'owner' && this.access.status === 'ok' && this.access.requestId) this.importRequestPhotos(this.access.requestId); });
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
     this.client.whenOnline(() => {
       // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")

@@ -19,6 +19,8 @@
   import OrderDialog from './lib/ui/OrderDialog.svelte';
   import Loading from './lib/ui/Loading.svelte';
   import ProposalView from './lib/ui/ProposalView.svelte';
+  import RequestForm from './lib/ui/RequestForm.svelte';
+  import RequestView from './lib/ui/RequestView.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -70,7 +72,7 @@
 
 <div class="shell">
   <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->
-  <nav class="top" class:hidden={app.proposalMode && !app.canEdit} data-testid="top-nav">
+  <nav class="top" class:hidden={(app.proposalMode && !app.canEdit) || !!app.page} data-testid="top-nav">
     <a class="logo" href="/" data-testid="go-projects">간판다</a>
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
@@ -148,7 +150,11 @@
     {/if}
   </div>
   <main>
-    {#if !app.room}
+    {#if app.page === 'request'}
+      <div class="proposal"><RequestForm /></div>
+    {:else if app.page === 'request-view'}
+      <div class="proposal"><RequestView /></div>
+    {:else if !app.room}
       <Home />
     {:else if app.access.status === 'denied'}
       <AccessDenied />

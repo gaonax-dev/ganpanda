@@ -47,7 +47,7 @@ export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>
-  call<{ role: Role; project: { id: string; name: string }; seats: { used: number; limit: number }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
+  call<{ role: Role; project: { id: string; name: string }; seats: { used: number; limit: number }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
 export const listInvites = (room: string) => call<{ invites: InviteInfo[] }>(`/api/projects/${room}/invites`).then((r) => r.invites);
 /** kind 'proposal' = 제안 보내기 링크 (무료 요금제는 월 건수 한도 → 402 proposal_limit) */

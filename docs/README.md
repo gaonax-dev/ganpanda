@@ -36,6 +36,7 @@
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
+  - [requests.md](features/requests.md) — 요청판(9차): 고객 견적 요청 → 지역 간판사 → 제안 링크, 홍보자 코드
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴
   - [projects-invites.md](features/projects-invites.md) — 프로젝트 소유, 초대 링크 역할(owner/editor/viewer)
