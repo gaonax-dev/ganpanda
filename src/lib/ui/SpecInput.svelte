@@ -14,7 +14,7 @@
   function parse() {
     const t = text.trim();
     if (!t) return;
-    items = parseSpecText(t);
+    items = parseSpecText(t, obj); // 그 종류의 옵션 값(비조명·양면…)도 맞춘다
     checked = items.map(() => true);
   }
   function apply() {

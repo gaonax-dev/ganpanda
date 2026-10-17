@@ -6,7 +6,7 @@
   테스트 id 는 옛 필드 그대로: <tp><prefix>System · <tp><prefix>Code · <tp><prefix>Gloss (tp = option- / part-option-)
 -->
 <script lang="ts">
-  import { GLOSSES, NAMED_COLORS, PAINT_SYSTEMS, paintHex, paintLabel } from '../core/materials';
+  import { BASIC_COLORS, GLOSSES, NAMED_COLORS, PAINT_SYSTEMS, paintHex, paintLabel } from '../core/materials';
 
   let { prefix, label, opts, ro, set, tp = 'option-' }: {
     prefix: string; label: string; opts: Record<string, string | boolean>; ro: boolean;
@@ -31,7 +31,7 @@
   </div>
   <div class="swatches">
     <button type="button" class="sw none" class:on={sys === NONE} data-testid="{tp}{prefix}-none" title="도색 없음" disabled={ro} onclick={clear}>✕</button>
-    {#each NAMED_COLORS as c (c.label)}
+    {#each BASIC_COLORS as c (c.label)}
       <button type="button" class="sw" class:on={sys === BASIC && code === c.label} data-testid="{tp}{prefix}-swatch-{c.label}" title={c.label} style:background={c.hex} disabled={ro} onclick={() => pickNamed(c.label)}></button>
     {/each}
     <label class="sw pick" class:on={sys === DIRECT} title="직접 고르기">

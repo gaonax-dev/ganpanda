@@ -23,12 +23,23 @@ export const labelsOf = (ids: string[]) => ids.map((id) => materialById(id)!.lab
 
 /** 도색 객체: 색상 체계(도색 없음이 기본) + 컬러코드 + 광택. 기본색 = 색 이름으로 바로 (2026-10-17 빠른 설정 "갈바 흰색 / 채널 갈색") */
 export const PAINT_SYSTEMS = ['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']; // 직접 = 컬러 피커로 고른 #hex (2026-10-17)
-/** 기본색: 이름 + 3D 에 쓰는 색 */
-export const NAMED_COLORS: { label: string; hex: string }[] = [
-  { label: '흰색', hex: '#f4f4f2' }, { label: '검정', hex: '#141414' }, { label: '회색', hex: '#8a8f94' }, { label: '진회색', hex: '#3a3f44' },
-  { label: '갈색', hex: '#6b4423' }, { label: '빨강', hex: '#d62828' }, { label: '파랑', hex: '#1f5fbf' }, { label: '노랑', hex: '#ffcc00' },
-  { label: '초록', hex: '#2e8b57' }, { label: '금색', hex: '#c9a227' }, { label: '은색', hex: '#d8dadd' },
+/** 기본색: 이름 + 3D 에 쓰는 색. basic = 컬러 피커 견본 줄에 보이는 11개, 나머지는 글·확장 모드에서 (2026-10-17 "연한베이지 … 버건디" 도 알아보게) */
+export const NAMED_COLORS: { label: string; hex: string; basic?: boolean }[] = [
+  { label: '흰색', hex: '#f4f4f2', basic: true }, { label: '검정', hex: '#141414', basic: true }, { label: '회색', hex: '#8a8f94', basic: true }, { label: '진회색', hex: '#3a3f44', basic: true },
+  { label: '갈색', hex: '#6b4423', basic: true }, { label: '빨강', hex: '#d62828', basic: true }, { label: '파랑', hex: '#1f5fbf', basic: true }, { label: '노랑', hex: '#ffcc00', basic: true },
+  { label: '초록', hex: '#2e8b57', basic: true }, { label: '금색', hex: '#c9a227', basic: true }, { label: '은색', hex: '#d8dadd', basic: true },
+  { label: '아이보리', hex: '#f3ead8' }, { label: '베이지', hex: '#d9c7a3' }, { label: '크림', hex: '#f6e9c9' }, { label: '연회색', hex: '#c4c8cc' },
+  { label: '주황', hex: '#f26b1d' }, { label: '분홍', hex: '#e8739a' }, { label: '보라', hex: '#6a3fa0' }, { label: '남색', hex: '#1f2f5f' }, { label: '하늘', hex: '#7cc4f0' },
+  { label: '연두', hex: '#9ccc3c' }, { label: '청록', hex: '#1f8f8f' }, { label: '민트', hex: '#8fd9c8' }, { label: '버건디', hex: '#7a1f2e' }, { label: '와인', hex: '#722f37' },
+  { label: '카키', hex: '#7a7a4a' }, { label: '구리', hex: '#b87333' }, { label: '로즈골드', hex: '#d8a39d' }, { label: '네이비', hex: '#1b2a4a' }, { label: '올리브', hex: '#6b7a2a' },
 ];
+export const BASIC_COLORS = NAMED_COLORS.filter((c) => c.basic);
+/** 밝게/어둡게 (연한·진한): 0 < k < 1 → 흰색/검정 쪽으로 k 만큼 */
+export function shadeHex(hex: string, toward: 'light' | 'dark', k: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (shift: number) => { const v = (n >> shift) & 255; const t = toward === 'light' ? v + (255 - v) * k : v * (1 - k); return Math.round(Math.max(0, Math.min(255, t))).toString(16).padStart(2, '0'); };
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+}
 export const colorHex = (label: unknown): string | null => NAMED_COLORS.find((c) => c.label === label)?.hex ?? null;
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 /** 도색 객체 → 3D·칩에 쓰는 색: 기본색은 이름 → hex, 직접은 hex 그대로. 코드 체계(PANTONE·RAL·KCC)·없음은 null */
