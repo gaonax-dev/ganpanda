@@ -244,6 +244,8 @@
   .body { overflow: auto; min-height: 0; }
   /* 휴대폰: 거의 전체 화면, 아래 단추(복제·삭제·닫기)가 항상 보이게 (2026-10-17) */
   @media (max-width: 720px) { .dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } }
+  /* 휴대폰 세로 보기: 상세 창은 전체 화면 (2026-10-17 사용자: "모바일(세로보기)에서는 상세보기는 전창으로") */
+  @media (max-width: 720px) and (orientation: portrait) { .backdrop { place-items: stretch; } .dialog { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: 0; } }
   section { padding: 10px 16px; border-bottom: 1px solid var(--line); }
   h3 { margin: 0 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .est { color: var(--warn); font-weight: 500; }
