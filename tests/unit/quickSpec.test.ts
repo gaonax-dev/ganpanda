@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { applyQuick, quickSpecOf } from '../../src/lib/core/quickSpec';
-import { NAMED_COLORS, PAINT_SYSTEMS, colorHex } from '../../src/lib/core/materials';
+import { BASIC_COLORS, PAINT_SYSTEMS, colorHex } from '../../src/lib/core/materials';
 import { optionGroupsFor, partOptionFields } from '../../src/lib/core/options';
 import { newPart } from '../../src/lib/core/parts';
 import { describeOptions } from '../../src/lib/core/options';
@@ -12,7 +12,7 @@ const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', na
 describe('기본색 도색 (색 이름으로 바로)', () => {
   it('색상 체계에 기본색이 있고, 고르면 컬러코드 대신 색 이름 선택', () => {
     expect(PAINT_SYSTEMS).toEqual(['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC']);
-    expect(NAMED_COLORS.map((c) => c.label)).toEqual(['흰색', '검정', '회색', '진회색', '갈색', '빨강', '파랑', '노랑', '초록', '금색', '은색']);
+    expect(BASIC_COLORS.map((c) => c.label)).toEqual(['흰색', '검정', '회색', '진회색', '갈색', '빨강', '파랑', '노랑', '초록', '금색', '은색']); // 견본 줄의 기본 11개 (전체 어휘는 더 많음)
     expect(colorHex('갈색')).toMatch(/^#[0-9a-f]{6}$/);
     expect(colorHex('없는색')).toBeNull();
     const fields = optionGroupsFor(obj({ productId: 'board-galva', options: { paintSystem: '기본색' } })).flatMap((g) => g.fields);

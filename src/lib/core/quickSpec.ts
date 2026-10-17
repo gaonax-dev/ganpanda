@@ -9,7 +9,9 @@ import { commitParts, newItem, newPart, partsOf } from './parts';
 import { DEFAULT_LETTER3D } from './letter3d';
 
 const BASIC = PAINT_SYSTEMS[1]; // 기본색
+const DIRECT = PAINT_SYSTEMS[2]; // 직접 (#hex)
 const NONE = PAINT_SYSTEMS[0]; // 도색 없음
+const sysOf = (v: string) => (v.startsWith('#') ? DIRECT : BASIC);
 
 /** LED 색 → 색온도 표기 (값은 그대로 저장, 표시만) */
 export const LED_KELVIN: Record<string, string> = { 백색: '5700K', 주백색: '4000K', 전구색: '3000K' };
@@ -43,7 +45,7 @@ export function quickSpecOf(o: SignObject): QuickSpec {
 
 export interface QuickPatch {
   productId?: string;
-  /** 색 이름(기본색), null = 도색 없음 */
+  /** 색 이름(기본색) 또는 #hex(직접), null = 도색 없음 */
   bodyColor?: string | null;
   /** 채널 종류 id, null = 채널 없음 */
   channelType?: string | null;
@@ -59,7 +61,7 @@ export function applyQuick(o: SignObject, q: QuickPatch): Partial<SignObject> {
   if (q.bodyColor !== undefined) {
     const key = paintKeyOf({ ...o, productId: q.productId ?? o.productId }) ?? 'paint';
     if (q.bodyColor === null) { options[`${key}System`] = NONE; delete options[`${key}Code`]; }
-    else options = { ...options, [`${key}System`]: BASIC, [`${key}Code`]: q.bodyColor };
+    else options = { ...options, [`${key}System`]: sysOf(q.bodyColor), [`${key}Code`]: q.bodyColor };
   }
   if (q.channelType !== undefined || q.channelColor !== undefined || q.led !== undefined) {
     const parts: SignPart[] = JSON.parse(JSON.stringify(partsOf(o)));
@@ -76,7 +78,7 @@ export function applyQuick(o: SignObject, q: QuickPatch): Partial<SignObject> {
       } else if (q.channelType) ch.type = q.channelType;
       ch.options = { ...(ch.options ?? {}) };
       if (q.channelColor === null) { ch.options.bodySystem = NONE; delete ch.options.bodyCode; }
-      else if (q.channelColor) { ch.options.bodySystem = BASIC; ch.options.bodyCode = q.channelColor; }
+      else if (q.channelColor) { ch.options.bodySystem = sysOf(q.channelColor); ch.options.bodyCode = q.channelColor; }
       if (q.led) ch.options.ledColor = q.led;
     }
     const committed = commitParts({ ...o, options }, parts);
@@ -84,7 +86,7 @@ export function applyQuick(o: SignObject, q: QuickPatch): Partial<SignObject> {
     options = committed.options ?? options;
     // 3D 색: 채널 색을 옆면에, 발광하지 않는 채널(후광·에폭시 등)은 앞면에도
     if (ch && q.channelColor) {
-      const hex = colorHex(q.channelColor);
+      const hex = q.channelColor.startsWith('#') ? q.channelColor : colorHex(q.channelColor);
       if (hex) {
         const lit = ch.type === 'ch-front' || ch.type === 'ch-both' || ch.type === 'ch-acrylic' || ch.type === 'ch-bulb';
         patch.letter3d = { ...DEFAULT_LETTER3D, ...(o.letter3d ?? {}), sideColor: hex, ...(lit ? {} : { faceColor: hex }) };

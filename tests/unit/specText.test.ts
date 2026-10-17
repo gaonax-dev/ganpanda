@@ -68,3 +68,47 @@ describe('체크한 항목만 적용 (applySpecItems)', () => {
     expect(p.options).not.toHaveProperty('form'); // 분류가 바뀌면 옛 옵션은 비움
   });
 });
+
+// 2026-10-17 사용자 입력 "후랙스 연한베이지 비조명 체널 버건디 전광 두께 120" → "이렇게 넣어도 자동으로 구성되게 할 수 있어?"
+describe('더 넓게 알아보기: 철자 변형·색 어휘·옵션 값·두께', () => {
+  it('후랙스 연한베이지 비조명 채널 버건디 전광 두께 120 → 전부 항목으로, 메모는 없음', () => {
+    const o = obj({ productId: 'board-galva' });
+    const items = parseSpecText('후랙스 연한베이지 비조명 체널 버건디 전광 두께 120', o);
+    expect(items.map((i) => i.kind)).toEqual(['product', 'bodyColor', 'option', 'channel', 'channelColor', 'thick']);
+    expect(items[0]).toMatchObject({ id: 'board-flex' });
+    expect(items[1]).toMatchObject({ kind: 'bodyColor', label: '몸통 색: 연한 베이지' });
+    expect((items[1] as { value: string }).value).toMatch(/^#[0-9a-f]{6}$/); // 연한 = 밝게 → 직접 hex
+    expect(items[2]).toMatchObject({ kind: 'option', key: 'light', value: '비조명', label: '내부 조명: 비조명' });
+    expect(items[4]).toMatchObject({ kind: 'channelColor', value: '버건디' });
+    expect(items[5]).toMatchObject({ kind: 'thick', mm: 120 });
+    expect(items.some((i) => i.kind === 'note')).toBe(false);
+  });
+  it('옵션 값은 그 종류(글에 적힌 종류 우선)의 선택지와 맞춘다: 후렉스 양면 카바 / 갈바 일체형', () => {
+    expect(parseSpecText('후렉스 양면 카바', obj({ productId: 'board-galva' })).map((i) => i.kind === 'option' ? `${i.key}=${i.value}` : i.kind)).toEqual(['product', 'sides=양면', 'frame=카바']);
+    expect(parseSpecText('일체형', obj({ productId: 'board-galva' })).map((i) => i.kind === 'option' ? `${i.key}=${i.value}` : i.kind)).toEqual(['form=일체형(전면)']);
+  });
+  it('채널 옵션 값(캡·오싸이·용접·타카)은 채널 구성 요소 옵션으로', () => {
+    const items = parseSpecText('전광 오싸이 용접', obj({ productId: 'board-galva' }));
+    expect(items.map((i) => (i.kind === 'channelOption' ? `${i.key}=${i.value}` : i.kind))).toEqual(['channel', 'chType=오싸이', 'chBuild=용접']);
+  });
+  it('색 어휘: 베이지·버건디·네이비·아이보리·주황 … 는 기본색으로, 연한/진한 은 밝게/어둡게 한 직접 hex', () => {
+    expect(kinds('베이지 네이비')).toEqual(['bodyColor:베이지', 'channelColor:네이비']);
+    const dark = parseSpecText('진한빨강')[0] as { value: string; label: string };
+    expect(dark.label).toBe('몸통 색: 진한 빨강');
+    expect(dark.value).toMatch(/^#/);
+    expect(dark.value).not.toBe('#d62828');
+  });
+  it('적용: 옵션 값·채널 옵션·직접 hex 색·두께가 모두 들어간다', () => {
+    const o = obj({ productId: 'board-galva', widthMm: 3000, heightMm: 600 });
+    const p = applySpecItems(o, parseSpecText('후랙스 연한베이지 비조명 체널 버건디 전광 오싸이 두께 120', o));
+    const next = { ...o, ...p } as SignObject;
+    expect(next.productId).toBe('board-flex');
+    expect(next.options).toMatchObject({ light: '비조명', faceSystem: '직접' });
+    expect(String(next.options!.faceCode)).toMatch(/^#/);
+    expect(next.parts![0]).toMatchObject({ kind: 'channel', type: 'ch-front', options: { chType: '오싸이', bodySystem: '기본색', bodyCode: '버건디' } });
+    expect(next.depthMm).toBe(120);
+    const q = quickSpecOf(next);
+    expect(q.body.color).toMatch(/^#/);
+    expect(q.channel).toMatchObject({ color: '버건디' });
+  });
+});

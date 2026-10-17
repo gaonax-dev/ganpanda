@@ -112,3 +112,30 @@ test('패널: 사이즈 → 사양 글 → 확인 창에서 체크 → 적용하
   await expect(panelChips.getByTestId('quick-note')).toContainText('기존 간판 철거');
   expect((await objOf(page)).note).toBe('기존 간판 철거');
 });
+
+test('사양 글: "후랙스 연한베이지 비조명 체널 버건디 전광 두께 120" 이 전부 항목으로 잡히고 메모가 없다 (2026-10-17)', async ({ page, request }) => {
+  await openOwnedProject(page, request, '사양 글 2');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await page.getByTestId('spec-text').fill('후랙스 연한베이지 비조명 체널 버건디 전광 두께 120');
+  await page.getByTestId('spec-text').press('Enter');
+  const items = page.getByTestId('spec-item');
+  await expect(items).toHaveCount(6);
+  await expect(items.filter({ hasText: '요청사항' })).toHaveCount(0);
+  await expect(items.nth(0)).toContainText('몸통: 후렉스');
+  await expect(items.nth(1)).toContainText('몸통 색: 연한 베이지');
+  await expect(items.nth(2)).toContainText('내부 조명: 비조명');
+  await expect(items.nth(3)).toContainText('채널: 전광 채널');
+  await expect(items.nth(4)).toContainText('채널 색: 버건디');
+  await expect(items.nth(5)).toContainText('두께: 120');
+  await page.getByTestId('spec-apply').click();
+  const o = await objOf(page);
+  expect(o).toMatchObject({ productId: 'board-flex', depthMm: 120 });
+  expect(o.options).toMatchObject({ light: '비조명', faceSystem: '직접' });
+  expect(o.parts[0]).toMatchObject({ kind: 'channel', type: 'ch-front', options: { bodySystem: '기본색', bodyCode: '버건디' } });
+  const chips = page.getByTestId('object-panel').getByTestId('quick-spec');
+  await expect(chips.getByTestId('quick-body')).toContainText('후렉스');
+  await expect(chips.getByTestId('quick-part')).toContainText('버건디');
+});
