@@ -151,6 +151,8 @@ export interface ProjectSettings {
   quoteMode?: 'manual' | 'auto';
   /** 줄 키 → 수동 금액 또는 'auto'(자동 전환) */
   lineAmounts?: Record<string, number | 'auto'>;
+  /** 보드 평면 구역 축척 (px/mm, 기본 0.1 — 2026-10-17 "평면도 전체 사이즈 조절") → core/boardCards.ts */
+  flatScale?: number;
 }
 
 export interface Message {

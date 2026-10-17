@@ -109,7 +109,20 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   const pos = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master);
   expect(pos[0]).toBeGreaterThan(0);
   expect(pos[1]).toBeGreaterThan(0);
-  // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY)
+  // 평면 구역 전체 크기 (2026-10-17): [+] 로 1.25배, 카드 폭도 1.25배. 손잡이를 끌면 비율대로
+  const before = (await card.boundingBox())!.width;
+  await page.getByTestId('flat-scale-up').click();
+  await expect(page.getByTestId('flat-scale-value')).toHaveText('125%');
+  await expect.poll(async () => (await card.boundingBox())!.width / before).toBeCloseTo(1.25, 1);
+  const hb = (await page.getByTestId('flat-handle').boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 - 60, hb.y + hb.height / 2, { steps: 4 });
+  await page.mouse.up();
+  const scale = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale);
+  expect(scale).toBeLessThan(0.125);
+  expect(scale).toBeGreaterThan(0.02);
+  // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY) — 축척은 보드 그리기만 바꾸고 mm 배치는 그대로
   await page.getByTestId('view-list').click();
   const listPos = await page.evaluate(() => { const el = document.querySelector('[data-testid="list-card"]') as HTMLElement; return [parseFloat(el.style.left), parseFloat(el.style.top)]; });
   expect(listPos).toEqual(pos);
