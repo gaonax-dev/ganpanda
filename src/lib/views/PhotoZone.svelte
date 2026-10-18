@@ -649,12 +649,13 @@
             {@const skew = skewOf(alignPlane, q)}
             {@const tilt = tiltOf(frameOf(alignPlane, q))}
             <!-- 벽 기준 비틀림이 25° 를 넘으면 돌출면 등 다른 면에 그린 외곽선로 보고 제안하지 않는다 -->
+            {@const mAt = menuAt(q, g3.c)}
+            <!-- 단추 자리 = 외곽선 아래 [이동] 칩 오른쪽 (2026-10-18 사용자: "원근 교정버튼이 모바일에서 모서리 컨트롤러에 가까워 오터치된다" — 전엔 오른쪽 아래 꼭짓점 옆) -->
             {#if !editing && skew <= 25 && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
-                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
+                {@render iconBtn([mAt[0] + 26 * gu, mAt[1] + 23 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
               </g>
             {/if}
-            {@const mAt = menuAt(q, g3.c)}
             <g class="gizmo box3" data-testid="gizmo" data-mode={gizmoMode} data-box={cur}>
               {#if gizmoMode === 'move'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
