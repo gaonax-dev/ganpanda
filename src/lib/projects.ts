@@ -59,6 +59,10 @@ export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api
 export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[] }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
+/** 퀵입력이 못 알아본 글 표본 보내기 (2026-10-18 "메모로 전환하는 글만 모아서") — 실패해도 조용히 */
+export const postSpecSample = (body: { text: string; leftover: string; recognized: string[]; productId?: string }) =>
+  call<{ id: string }>('/api/spec-samples', { method: 'POST', body: JSON.stringify(body) });
+
 /** viewer 가 자기 메시지 지우기 (2026-10-18) */
 export const deleteMessage = (room: string, invite: string | null, body: { id: string; author: string }) =>
   call<{ ok: true }>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'DELETE', body: JSON.stringify(body) });

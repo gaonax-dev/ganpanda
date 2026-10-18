@@ -6,7 +6,8 @@
     "dev": "wrangler dev --port 8787",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "types": "wrangler types"
+    "types": "wrangler types",
+    "samples": "wrangler d1 execute ganpanda --remote --command \"SELECT datetime(created_at/1000, 'unixepoch', 'localtime') AS at, product_id, leftover, text FROM spec_samples ORDER BY created_at DESC LIMIT 300\""
   },
   "dependencies": {
     "lib0": "^0.2.119",

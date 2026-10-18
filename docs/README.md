@@ -35,6 +35,7 @@
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(한울 꼬리표)와 내 단가표 연결, 업로드·API 형식
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
+  - [spec-vocabulary.md](features/spec-vocabulary.md) — 사양 글 사전: 못 알아본 글을 묻고 배우기, 개인 > 지역 > 전국 우선순위, 이의 (2026-10-18 설계)
   - [patent-bubble.md](product/patent-bubble.md) — 말풍선(지점·영역 지정 소통, 받는 사람, 마지막 상태) 특허 준비 자료 (발명 설명·청구항 초안·일정)
   - [color-library.md](features/color-library.md) — 색 라이브러리: 컬러 카드(페인트·시트·천·필름 + 이름·hex·공급사·코드), 계정 저장, 색 피커·사양 글에서 선택
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획

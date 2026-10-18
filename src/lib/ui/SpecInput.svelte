@@ -7,6 +7,8 @@
   import type { SignObject } from '../core/model';
   import { applySpecItems, parseSpecText, type SpecItem } from '../core/specText';
   import { app } from '../state.svelte';
+  import { sampleOf } from '../core/specSamples';
+  import { postSpecSample } from '../projects';
 
   let { obj, ro, update }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void } = $props();
   let text = $state('');
@@ -18,12 +20,17 @@
     items = parseSpecText(t, obj, app.colorLibrary); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름도 맞춘다
     checked = items.map(() => true);
   }
+  /** 못 알아본 글 보내기 (2026-10-18 사용자: "메모로 전환하는 글만 모아서 ai로 전환하는 방식으로") — 요청사항으로 넘어간 부분이 있을 때만 보이고, 기기에 기억 */
+  let share = $state(localStorage.getItem('ganpanda.specShare') !== '0');
+  const sample = $derived(items ? sampleOf(text, items, obj.productId) : null);
   function apply() {
     if (!items || ro) return;
     const picked = items.filter((_, i) => checked[i]);
     if (picked.length) update(applySpecItems(obj, picked));
+    if (sample && share) postSpecSample(sample).catch(() => {}); // 로그인 안 했거나 오프라인이면 그냥 넘어간다
     items = null; text = '';
   }
+  const setShare = (v: boolean) => { share = v; try { localStorage.setItem('ganpanda.specShare', v ? '1' : '0'); } catch { /* 저장 못 해도 동작 */ } };
   const cancel = () => (items = null);
 </script>
 
@@ -39,6 +46,9 @@
         {#each items as it, i (i)}
           <label class="item" data-testid="spec-item" data-kind={it.kind}><input type="checkbox" bind:checked={checked[i]} /> {it.label}</label>
         {/each}
+        {#if sample}
+          <label class="item share" data-testid="spec-share" title="못 알아본 글만 보냅니다 (프로젝트·사진·고객 정보 없음). 퀵입력이 더 많은 표현을 알아보게 하는 데 씁니다"><input type="checkbox" checked={share} onchange={(e) => setShare(e.currentTarget.checked)} /> 못 알아본 글을 보내 퀵입력 개선에 쓰기</label>
+        {/if}
         <div class="acts">
           <button class="btn small primary" data-testid="spec-apply" onclick={apply}>적용</button>
           <button class="btn small" data-testid="spec-cancel" onclick={cancel}>취소</button>
@@ -60,4 +70,5 @@
   label.item { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
   label.item input { width: auto; margin: 0; }
   .acts { display: flex; gap: 6px; margin-top: 4px; }
+  label.item.share { color: var(--muted); margin-top: 4px; }
 </style>
