@@ -8,7 +8,9 @@ import { componentKinds, componentOf } from './components';
 
 export const FRAME_ID = 'frame';
 /** 내용 객체 종류 (글자·그림) — 구성 요소 종류는 레지스트리 */
-export const ITEM_KINDS = ['text', 'image'] as const;
+export const ITEM_KINDS = ['text', 'image', 'shape'] as const;
+/** 그룹 (2단계): 자식을 묶어 함께 옮기는 레이어 — 자기 spec·단가·3D 없음, 펼친 parts 거울에서는 오프셋만 남고 사라진다 */
+export const GROUP_KIND = 'group';
 export type LayerBox = Layer['box'];
 const FILL: LayerBox = { x: 0, y: 0, w: 0, h: 0 }; // w·h 0 = 부모 전체(채움)
 
@@ -17,7 +19,9 @@ const isItemKind = (kind: string) => (ITEM_KINDS as readonly string[]).includes(
 
 /** 내용 객체 → 레이어 (좌표는 부모 기준 — 구성 요소는 프레임을 채우므로 간판 중심 기준 값 그대로) */
 function itemLayer(it: PartItem): Layer {
-  const spec: Record<string, unknown> = it.kind === 'text' ? { text: it.text ?? '', ...(it.count ? { count: it.count } : {}) } : { ...(it.image ? { image: it.image } : {}) };
+  const spec: Record<string, unknown> = it.kind === 'text' ? { text: it.text ?? '', ...(it.count ? { count: it.count } : {}) }
+    : it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) }
+    : { ...(it.image ? { image: it.image } : {}) };
   return { id: it.id, kind: it.kind, spec, box: { x: it.x, y: it.y, w: it.w ?? 0, h: it.h }, children: [] };
 }
 function partLayer(p: SignPart, parts: SignPart[], seen: Set<string>): Layer {
@@ -37,26 +41,63 @@ export function fromParts(parts: SignPart[]): Layer[] {
 }
 
 /** 레이어 트리 → 펼친 구성 요소 (on = 부모 구성 요소 id, 프레임 바로 아래면 'frame' — 올라가는 종류일 때만). 좌표는 부모 오프셋을 더해 간판 중심 기준으로 */
+/** 내용 객체 레이어 → PartItem (좌표는 간판 중심 기준 절대 mm) */
+function itemOf(c: Layer, ax: number, ay: number): PartItem {
+  const s = c.spec as { text?: string; count?: number; image?: PartItem['image']; shape?: PartItem['shape']; fill?: string; stroke?: string };
+  return {
+    id: c.id, kind: c.kind as PartItem['kind'], ...(c.kind === 'text' ? { text: s.text ?? '' } : {}), ...(s.count ? { count: s.count } : {}),
+    ...(c.kind === 'shape' ? { shape: s.shape ?? 'rect', ...(s.fill ? { fill: s.fill } : {}), ...(s.stroke ? { stroke: s.stroke } : {}) } : {}),
+    x: ax, y: ay, h: c.box.h, ...(c.box.w ? { w: c.box.w } : {}), ...(s.image ? { image: s.image } : {}),
+  };
+}
+/**
+ * 레이어 트리 → 펼친 구성 요소. 내용 객체는 **가장 가까운 구성 요소 조상**에 거두고(그룹은 투명 — 오프셋만 더해짐), 구성 요소는 on = 부모 구성 요소 id / 'frame'.
+ * 좌표는 부모 오프셋을 누적해 간판 중심 기준으로. 프레임 바로 아래의 내용 객체(구성 요소 없음)는 거둘 곳이 없어 빠진다
+ */
 export function toParts(layers: Layer[]): SignPart[] {
   const out: SignPart[] = [];
-  const walk = (ls: Layer[], parent: Layer | null, ox: number, oy: number) => {
+  const walk = (ls: Layer[], parent: SignPart | null, ox: number, oy: number) => {
     for (const l of ls) {
-      if (!isPartKind(l.kind)) continue; // 내용 객체는 부모 구성 요소가 거둔다
+      const ax = ox + l.box.x, ay = oy + l.box.y;
+      if (isItemKind(l.kind)) { if (parent) parent.items.push(itemOf(l, ax, ay)); continue; }
+      if (!isPartKind(l.kind)) { walk(l.children, parent, ax, ay); continue; } // 그룹 등: 투명
       const { type, ...options } = l.spec as { type?: string } & Record<string, string | boolean>;
-      const items: PartItem[] = l.children.filter((c) => isItemKind(c.kind)).map((c) => {
-        const s = c.spec as { text?: string; count?: number; image?: PartItem['image'] };
-        return {
-          id: c.id, kind: c.kind as PartItem['kind'], ...(c.kind === 'text' ? { text: s.text ?? '' } : {}), ...(s.count ? { count: s.count } : {}),
-          x: ox + l.box.x + c.box.x, y: oy + l.box.y + c.box.y, h: c.box.h, ...(c.box.w ? { w: c.box.w } : {}), ...(s.image ? { image: s.image } : {}),
-        };
-      });
-      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), items };
-      if (parent || l.spec.on !== undefined || sits(l.kind)) part.on = parent ? parent.id : FRAME_ID;
+      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), items: [] };
+      if (parent || sits(l.kind)) part.on = parent ? parent.id : FRAME_ID;
       out.push(part);
-      walk(l.children.filter((c) => !isItemKind(c.kind)), l, ox + l.box.x, oy + l.box.y);
+      walk(l.children, part, ax, ay);
     }
   };
   walk(layers, null, 0, 0);
+  return out;
+}
+
+/** 어떤 레이어가 어떤 자식을 받나: 프레임 = 구성 요소·그룹, 구성 요소 = 내용 객체·그룹·(올릴 수 있으면) 시트, 그룹 = 부모와 같음 */
+export function canHold(parentKind: string | typeof FRAME_ID, childKind: string, ancestors: string[] = []): boolean {
+  if (parentKind === GROUP_KIND) { const up = ancestors.at(-1) ?? FRAME_ID; return canHold(up, childKind, ancestors.slice(0, -1)); }
+  if (childKind === GROUP_KIND) return true;
+  if (parentKind === FRAME_ID) return isPartKind(childKind);
+  if (!isPartKind(parentKind)) return false;
+  if (isItemKind(childKind)) return true;
+  return isPartKind(childKind) && !!componentOf(parentKind).host && sits(childKind);
+}
+
+export interface PlacedItem { item: PartItem; part: SignPart; /** 간판 앞면에서 올라선 높이 (mm) — 자기 구성 요소를 뺀 조상 구성 요소 두께의 합 */ z: number }
+/** 3D 용: 트리를 그리는 순서로 걸으며 내용 객체마다 (절대 좌표, 거둔 구성 요소, 깊이 z) — 시트 위 채널 위 시트가 깊이대로 선다 (2단계) */
+export function placedItems(layers: Layer[], depthOf: (part: SignPart) => number): PlacedItem[] {
+  const out: PlacedItem[] = [];
+  const walk = (ls: Layer[], parent: SignPart | null, ox: number, oy: number, z: number) => {
+    for (const l of ls) {
+      const ax = ox + l.box.x, ay = oy + l.box.y;
+      if (isItemKind(l.kind)) { if (parent) out.push({ item: itemOf(l, ax, ay), part: parent, z }); continue; }
+      if (!isPartKind(l.kind)) { walk(l.children, parent, ax, ay, z); continue; }
+      const { type, ...options } = l.spec as { type?: string } & Record<string, string | boolean>;
+      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), items: [] };
+      // 이 구성 요소의 자식은 그 두께만큼 더 앞에 (자식 구성 요소·그 내용 객체). 자기 글자(밀어내기)는 z 에서 시작해 두께만큼 솟는다
+      walk(l.children, part, ax, ay, z + (parent ? depthOf(parent) : 0));
+    }
+  };
+  walk(layers, null, 0, 0, 0);
   return out;
 }
 /** 올라가는 종류(시트)만 on 을 적는다 — 종류 모듈 sits (함수 안에서만 읽어 모듈 초기화 순서와 무관) */

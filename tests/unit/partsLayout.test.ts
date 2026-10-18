@@ -75,4 +75,13 @@ describe('전개도 PDF (listSvg) 에 객체', () => {
     expect(svg).toContain('data-items="o"');
     expect(svg).toContain('>바로바로</text>');
   });
+
+  it('도형 (2단계): 사각·원·선을 채움·선 색으로, 둘 다 없으면 종류 색 점선', async () => {
+    const { shapeSvg } = await import('../../src/lib/core/partsLayout');
+    expect(shapeSvg({ shape: 'ellipse', fill: '#ff0000', w: 100, h: 50, color: '#5aa8ff' }, 10, 20)).toContain('<ellipse cx="60.00" cy="45.00" rx="50.00" ry="25.00" fill="#ff0000" stroke="none"');
+    expect(shapeSvg({ shape: 'rect', stroke: '#000000', w: 100, h: 50, color: '#5aa8ff' }, 0, 0)).toMatch(/<rect [^>]*fill="none" stroke="#000000"/);
+    expect(shapeSvg({ shape: 'rect', w: 100, h: 50, color: '#5aa8ff' }, 0, 0)).toMatch(/stroke="#5aa8ff"[^>]*stroke-dasharray/);
+    expect(shapeSvg({ shape: 'line', stroke: '#111', w: 100, h: 10, color: '#5aa8ff' }, 0, 0)).toMatch(/<line x1="0.00" y1="5.00" x2="100.00" y2="5.00" stroke="#111"/);
+  });
 });
+

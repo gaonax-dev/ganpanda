@@ -213,7 +213,7 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
     let b: BuiltSign;
     try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
     catch { continue; }
-    bakeOffset(b.group, L.x, L.y, spec.bodyless ? 0 : spec.depthMm);
+    bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
     box.group.add(b.group);
     built.push(b);
   }
@@ -411,25 +411,10 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     ctx.letterSpacing = `${spec.letterSpacing * size}px`;
     ctx.fillText(text, canvas.width / 2, canvas.height / 2 + size * 0.04);
   }
-  // 조합형 앞면 객체 (그림, 시트의 글자): 정면도 자리에 평면으로 (2026-10-16 4단계)
-  for (const it of spec.faceItems ?? []) {
-    const left = (w / 2 + it.x - it.w / 2) * s, top = (h / 2 - it.y - it.h / 2) * s;
-    const img = images?.[it.id];
-    if (it.kind === 'image' && img) ctx.drawImage(img, left, top, it.w * s, it.h * s);
-    else if (it.kind === 'text' && it.text) {
-      const size = it.h * s * 0.9;
-      ctx.save();
-      ctx.font = `800 ${size}px ${fontFamily}`;
-      const mw = ctx.measureText(it.text).width;
-      ctx.translate(left + (it.w * s) / 2, top + (it.h * s) / 2);
-      if (mw > 0) ctx.scale((it.w * s * 0.96) / mw, 1); // 2D 와 같이 상자 폭 96% 에 늘이고 줄임 (2026-10-18)
-      ctx.fillStyle = it.color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(it.text, 0, 0);
-      ctx.restore();
-    }
-  }
+  // 조합형 앞면 객체 (그림, 시트의 글자, 도형): 정면도 자리에 평면으로 (2026-10-16 4단계). 앞면에서 올라선 것(z > 0.5mm: 채널 앞면 위 시트 — 2단계)은 텍스처가 아니라 그 높이의 얇은 판으로
+  const raised = (spec.faceItems ?? []).filter((it) => (it.z ?? 0) > 0.5);
+  for (const it of (spec.faceItems ?? []).filter((it) => !((it.z ?? 0) > 0.5))) drawFaceItem(ctx, it, (w / 2 + it.x - it.w / 2) * s, (h / 2 - it.y - it.h / 2) * s, it.w * s, it.h * s, images?.[it.id], fontFamily);
+  const planes = raised.map((it) => facePlane(it, d, images?.[it.id], fontFamily));
   // 앞면 테: 프레임이 판을 둘러싸는 종류(후렉스·라이트패널·액자…)는 테를 프레임 색으로 그려 판과 구별 (2026-10-17 "3d에서 프레임과 판을 구별하나?")
   if (spec.frameMm && spec.frameMm > 0 && !spec.bodyless) {
     const fm = spec.frameMm * s;
@@ -461,6 +446,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   mesh.userData.signId = spec.id;
   mesh.visible = !spec.bodyless; // 몸통 없음: 상자는 자리만 (글자만 보임)
   group.add(mesh);
+  for (const pl of planes) group.add(pl.mesh);
 
   let glow: THREE.Mesh | null = null;
   if (lit && !spec.bodyless) {
@@ -480,7 +466,53 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     },
     dispose() {
       geo.dispose(); tex.dispose(); front.dispose(); frame.dispose();
+      for (const pl of planes) pl.dispose();
       if (glow) { glow.geometry.dispose(); (glow.material as THREE.MeshBasicMaterial).map?.dispose(); (glow.material as THREE.Material).dispose(); }
     },
   };
+}
+
+type FaceItem = NonNullable<SignSpec['faceItems']>[number];
+/** 앞면 객체 하나를 캔버스에 (텍스처·올라선 판 공용): 그림 / 글자(상자 폭 96% 에 맞춤) / 도형(사각·원·선, 채움·선 색) */
+function drawFaceItem(ctx: CanvasRenderingContext2D, it: FaceItem, left: number, top: number, w: number, h: number, img: CanvasImageSource | undefined, fontFamily: string) {
+  if (it.kind === 'image') { if (img) ctx.drawImage(img, left, top, w, h); return; }
+  if (it.kind === 'shape') {
+    const fill = it.fill ?? null, stroke = it.stroke ?? (it.fill ? null : it.color);
+    ctx.save();
+    ctx.lineWidth = Math.max(1, Math.max(w, h) * 0.02);
+    if (it.shape === 'line') { ctx.strokeStyle = it.stroke ?? it.fill ?? it.color; ctx.lineWidth = Math.max(1, h * 0.5); ctx.beginPath(); ctx.moveTo(left, top + h / 2); ctx.lineTo(left + w, top + h / 2); ctx.stroke(); ctx.restore(); return; }
+    ctx.beginPath();
+    if (it.shape === 'ellipse') ctx.ellipse(left + w / 2, top + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); else ctx.rect(left, top, w, h);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+    ctx.restore();
+    return;
+  }
+  if (!it.text) return;
+  const size = h * 0.9;
+  ctx.save();
+  ctx.font = `800 ${size}px ${fontFamily}`;
+  const mw = ctx.measureText(it.text).width;
+  ctx.translate(left + w / 2, top + h / 2);
+  if (mw > 0) ctx.scale((w * 0.96) / mw, 1); // 2D 와 같이 상자 폭 96% 에 늘이고 줄임 (2026-10-18)
+  ctx.fillStyle = it.color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(it.text, 0, 0);
+  ctx.restore();
+}
+/** 앞면에서 올라선 객체(2단계: 채널 앞면 위 시트의 글자·그림·도형) = 그 높이에 떠 있는 얇은 판. 자리는 정점에 굽는다(warpToQuad·recessBox 가 정점만 보므로) */
+function facePlane(it: FaceItem, boxDepth: number, img: CanvasImageSource | undefined, fontFamily: string): { mesh: THREE.Mesh; dispose(): void } {
+  const canvas = document.createElement('canvas');
+  const s = 512 / Math.max(it.w, it.h, 1);
+  canvas.width = Math.max(2, Math.ceil(it.w * s)); canvas.height = Math.max(2, Math.ceil(it.h * s));
+  drawFaceItem(canvas.getContext('2d')!, it, 0, 0, canvas.width, canvas.height, img, fontFamily);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+  const geo = new THREE.PlaneGeometry(it.w, it.h);
+  geo.translate(it.x, it.y, boxDepth + (it.z ?? 0) + 0.3);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.part = 'faceItem';
+  return { mesh, dispose() { geo.dispose(); tex.dispose(); mat.dispose(); } };
 }

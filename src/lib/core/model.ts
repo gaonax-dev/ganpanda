@@ -29,8 +29,14 @@ export interface Photo {
 /** 내용 객체 (글자·그림): 간판 중앙 기준 위치(mm, x 오른쪽 +, y 위 +), 높이 h(글자 높이·그림 높이), 그림·시트 면적용 가로 w */
 export interface PartItem {
   id: string;
-  kind: 'text' | 'image';
+  /** shape = 도형 (레이어 구조 2단계, 2026-10-18): 사각·원·선 — 채움·선 색 */
+  kind: 'text' | 'image' | 'shape';
   text?: string;
+  shape?: 'rect' | 'ellipse' | 'line';
+  /** 채움 색 (#hex, 비우면 없음) */
+  fill?: string;
+  /** 선 색 (#hex, 비우면 없음) */
+  stroke?: string;
   /** 글자수 직접 지정 (없으면 문구에서 셈) */
   count?: number;
   x: number;

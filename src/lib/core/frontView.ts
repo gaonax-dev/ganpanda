@@ -17,7 +17,7 @@ export type Align = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 
 /** 객체 상자: 글자는 가로를 넣지 않았으면 글자수 × 높이 × 비율, 그림은 정사각 */
 export function itemBox(it: PartItem): Box {
-  const w = it.w ?? (it.kind === 'text' ? Math.max(1, charCountOf({ text: it.text })) * it.h * TEXT_CHAR_ASPECT : it.h);
+  const w = it.w ?? (it.kind === 'text' ? Math.max(1, charCountOf({ text: it.text })) * it.h * TEXT_CHAR_ASPECT : it.h); // 그림·도형은 정사각
   return { x: it.x, y: it.y, w, h: it.h };
 }
 

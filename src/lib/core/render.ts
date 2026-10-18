@@ -3,7 +3,8 @@ import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } 
 import { itemBox } from './frontView';
 import { componentOf } from './components';
 import { paintAlpha, paintHex } from './materials';
-import { layerOrder } from './parts';
+import { partsOf } from './parts';
+import { layersOf, placedItems } from './layers';
 import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
@@ -95,24 +96,29 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   const sx = p.w / (o.widthMm || p.w), sy = p.h / (o.heightMm || p.h);
   const letterItems: NonNullable<SignSpec['letterItems']> = [];
   const faceItems: NonNullable<SignSpec['faceItems']> = [];
-  for (const part of layerOrder(o.parts ?? [])) { // 아래 시트부터 (시트 위에 시트)
-    for (const it of part.items) {
-      if (it.kind === 'text' && !hasText(it.text)) continue;
-      const c = componentOf(part.kind); // 종류 모듈: 밀어내기 여부·두께·조명·도색 키 (0단계)
-      if (it.kind === 'text' && c.extrude) {
-        const b = itemBox(it); // 글자 상자 (가로 없으면 글자수 × 높이 × 0.9) — 3D 글자도 이 상자에 맞춘다 (2026-10-18)
-        letterItems.push({
-          text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing,
-          depthMm: c.depthMm(part, o),
-          // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
-          lighting: c.lighting(part), faceColor: paintHex(part.options, c.paint.face) ?? d.faceColor, sideColor: paintHex(part.options, c.paint.side) ?? d.sideColor,
-        });
-      } else {
-        const b = itemBox(it);
-        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, c.paint.face) ?? c.color }); // 시트 색 (2026-10-17)
-      }
+  // 레이어 트리를 걸으며 깊이 누적 (2단계): 채널 앞면 위 시트의 글자·그림은 채널 두께만큼 앞에, 시트 위 시트는 그대로. 그룹은 오프셋만
+  const placed = placedItems(layersOf(o, partsOf(o)), (part) => componentOf(part.kind).depthMm(part, o));
+  for (const { item: it, part, z } of placed) {
+    if (it.kind === 'text' && !hasText(it.text)) continue;
+    const c = componentOf(part.kind); // 종류 모듈: 밀어내기 여부·두께·조명·도색 키 (0단계)
+    const zMm = z * Math.min(sx, sy);
+    if (it.kind === 'text' && c.extrude) {
+      const b = itemBox(it); // 글자 상자 (가로 없으면 글자수 × 높이 × 0.9) — 3D 글자도 이 상자에 맞춘다 (2026-10-18)
+      letterItems.push({
+        text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing, ...(zMm ? { z: zMm } : {}),
+        depthMm: c.depthMm(part, o),
+        // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
+        lighting: c.lighting(part), faceColor: paintHex(part.options, c.paint.face) ?? d.faceColor, sideColor: paintHex(part.options, c.paint.side) ?? d.sideColor,
+      });
+    } else {
+      const b = itemBox(it);
+      faceItems.push({
+        id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),
+        x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, c.paint.face) ?? c.color, ...(zMm ? { z: zMm } : {}), // 시트 색 (2026-10-17)
+      });
     }
   }
+  faceItems.sort((a, b) => (a.z ?? 0) - (b.z ?? 0)); // 앞면(텍스처)에 깔리는 것부터, 같은 높이는 트리 순서
   return { ...(letterItems.length ? { letterItems } : {}), ...(faceItems.length ? { faceItems } : {}) };
 }
 

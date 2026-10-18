@@ -74,3 +74,22 @@ test('정면도에서 글자를 끌어 옮기고, 중앙선에 붙고, 정렬·�
   await page.mouse.up();
   expect((await itemOf(page)).h).toBeGreaterThan(600);
 });
+
+test('도형 (2단계): + 도형 으로 넣고 모양·채움을 바꾸면 정면도에 그대로', async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="channel"]').click();
+  await page.getByTestId('add-item-shape').click();
+  const shapeRow = page.getByTestId('part-item').filter({ has: page.getByTestId('item-shape') });
+  await expect(shapeRow).toHaveCount(1);
+  await shapeRow.getByTestId('item-shape').selectOption('ellipse');
+  await shapeRow.getByTestId('item-w').fill('900');
+  await page.getByTestId('object-settings').getByTestId('quick-layout').click();
+  const editor = page.getByTestId('front-editor');
+  await expect(editor.getByTestId('front-item')).toHaveCount(2);
+  await expect(editor.locator('ellipse')).toHaveCount(1);
+  const parts = await page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: { parts: { items: { kind: string; shape?: string; fill?: string; w?: number }[] }[]; layers: unknown[] }[] } }).__ganpanda.objects[0])));
+  expect(parts.parts[0].items[1]).toMatchObject({ kind: 'shape', shape: 'ellipse', w: 900 });
+  expect(parts.parts[0].items[1].fill).toMatch(/^#/); // 종류 색으로 채워 시작
+  expect(parts.layers).toHaveLength(1); // 레이어 트리도 함께 저장 (1단계)
+});
+

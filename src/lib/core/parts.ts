@@ -39,7 +39,7 @@ export function newPart(kind: SignPart['kind'], type = componentOf(kind).types[0
 }
 /** 새 내용 객체: 간판 중앙, 글자 높이·그림 높이 300mm */
 export function newItem(kind: PartItem['kind']): PartItem {
-  return { id: uid(), kind, ...(kind === 'text' ? { text: '' } : {}), x: 0, y: 0, h: 300 };
+  return { id: uid(), kind, ...(kind === 'text' ? { text: '' } : {}), ...(kind === 'shape' ? { shape: 'rect' as const, w: 300 } : {}), x: 0, y: 0, h: 300 };
 }
 
 /** 구성 요소 이름 (세부 종류 이름 — 종류 모듈이 정한다) */
@@ -168,7 +168,8 @@ export function describeParts(o: SignObject): string[] {
   return partsOf(o).map((p) => {
     const texts = p.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()).map((i) => `"${(i.text ?? '').trim()}" ${Math.round(i.h)}mm`);
     const imgs = p.items.filter((i) => i.kind === 'image').length;
+    const shapes = p.items.filter((i) => i.kind === 'shape').length;
     const on = onLabel(partsOf(o), p);
-    return [partSpecOf(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
+    return [partSpecOf(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(shapes ? [`도형 ${shapes}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
   });
 }

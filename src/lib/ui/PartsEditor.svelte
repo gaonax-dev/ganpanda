@@ -32,7 +32,7 @@
     ps.splice(i, 1);
     for (const p of ps) if (p.on === gone) p.on = 'frame'; // 지운 채널·시트 위의 시트는 프레임 면으로
   });
-  const addItem = (i: number, kind: PartItem['kind']) => edit((ps) => ps[i].items.push(newItem(kind)));
+  const addItem = (i: number, kind: PartItem['kind']) => edit((ps) => { const it = newItem(kind); if (kind === 'shape') it.fill = componentOf(ps[i].kind).color; ps[i].items.push(it); }); // 도형은 종류 색으로 채워 시작 (2단계)
   const setItem = (i: number, j: number, patch: Partial<PartItem>) => edit((ps) => Object.assign(ps[i].items[j], patch));
   const delItem = (i: number, j: number) => edit((ps) => ps[i].items.splice(j, 1));
   /** 정면도에서 고칠 때 (구성 요소·객체 id 로) */
@@ -121,6 +121,13 @@
             {#if it.kind === 'text'}
               <input class="txt" data-testid="item-text" value={it.text ?? ''} placeholder="글자" disabled={ro} oninput={(e) => setItem(i, j, { text: e.currentTarget.value })} />
               <label title="비우면 글자에서 셉니다 (공백 제외)">글자수<input type="number" data-testid="item-count" value={it.count ?? ''} placeholder={String(charCountOf({ text: it.text }))} disabled={ro} oninput={(e) => setItem(i, j, { count: num(e.currentTarget.value) || undefined })} /></label>
+            {:else if it.kind === 'shape'}
+              <!-- 도형 (2단계): 사각·원·선 + 채움·선 색 -->
+              <select data-testid="item-shape" value={it.shape ?? 'rect'} disabled={ro} onchange={(e) => setItem(i, j, { shape: e.currentTarget.value as PartItem['shape'] })}>
+                <option value="rect">사각</option><option value="ellipse">원</option><option value="line">선</option>
+              </select>
+              <label title="채움 색">채움<input type="color" data-testid="item-fill" value={it.fill ?? '#ffffff'} disabled={ro} oninput={(e) => setItem(i, j, { fill: e.currentTarget.value })} /><input type="checkbox" title="채움 없음" checked={!it.fill} disabled={ro} onchange={(e) => setItem(i, j, { fill: e.currentTarget.checked ? undefined : componentOf(p.kind).color })} /></label>
+              <label title="선 색">선<input type="color" data-testid="item-stroke" value={it.stroke ?? '#000000'} disabled={ro} oninput={(e) => setItem(i, j, { stroke: e.currentTarget.value })} /><input type="checkbox" title="선 없음" checked={!it.stroke} disabled={ro} onchange={(e) => setItem(i, j, { stroke: e.currentTarget.checked ? undefined : '#000000' })} /></label>
             {:else}
               <select data-testid="item-image-source" value={sourceValue(it)} disabled={ro} onchange={(e) => pickSource(i, j, e.currentTarget.value)}>
                 <option value="">디자인 파일에서…</option>
@@ -130,7 +137,7 @@
               {#if it.image && 'assetId' in it.image}<span class="fname" data-testid="item-image-name">{it.image.name ?? '그림'}</span>{/if}
             {/if}
             <label>높이<input type="number" data-testid="item-h" value={it.h} disabled={ro} oninput={(e) => setItem(i, j, { h: num(e.currentTarget.value) })} /></label>
-            {#if it.kind === 'image' || componentOf(p.kind).itemWidth}<label>가로<input type="number" data-testid="item-w" value={it.w ?? ''} disabled={ro} oninput={(e) => setItem(i, j, { w: num(e.currentTarget.value) || undefined })} /></label>{/if}
+            {#if it.kind !== 'text' || componentOf(p.kind).itemWidth}<label>가로<input type="number" data-testid="item-w" value={it.w ?? ''} disabled={ro} oninput={(e) => setItem(i, j, { w: num(e.currentTarget.value) || undefined })} /></label>{/if}
             <label>X<input type="number" data-testid="item-x" value={it.x} disabled={ro} oninput={(e) => setItem(i, j, { x: num(e.currentTarget.value) })} /></label>
             <label>Y<input type="number" data-testid="item-y" value={it.y} disabled={ro} oninput={(e) => setItem(i, j, { y: num(e.currentTarget.value) })} /></label>
             {#if !ro}<button class="icon del" data-testid="item-delete" title="지우기" onclick={() => delItem(i, j)}>✕</button>{/if}
@@ -140,6 +147,7 @@
           <div class="adds">
             <button class="btn small" data-testid="add-item-text" onclick={() => addItem(i, 'text')}>+ 글자</button>
             <button class="btn small" data-testid="add-item-image" onclick={() => addItem(i, 'image')}>+ 그림</button>
+            <button class="btn small" data-testid="add-item-shape" onclick={() => addItem(i, 'shape')}>+ 도형</button>
           </div>
         {/if}
       </div>
@@ -164,6 +172,8 @@
   .item.sel { background: rgba(90, 168, 255, 0.08); }
   .item label { display: flex; align-items: center; gap: 3px; font-size: 12px; }
   .item input[type='number'] { width: 70px; }
+  .item input[type='color'] { width: 28px; height: 22px; padding: 0; border: 0; background: none; }
+  .item input[type='checkbox'] { width: auto; }
   .item .txt { flex: 1; min-width: 120px; }
   .file input { width: 160px; }
   .fname { font-size: 12px; opacity: 0.8; }

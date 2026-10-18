@@ -129,11 +129,17 @@
         {@const r = rectOf(itemBox(it))}
         {@const isSel = !!sel && sel.part === p.id && sel.item === it.id}
         {@const url = urls[assetOf(it) ?? '']}
-        <g data-testid="front-item" data-selected={isSel} class="item" class:ro role="button" tabindex="-1" aria-label={it.text || '그림'}
+        <g data-testid="front-item" data-selected={isSel} class="item" class:ro role="button" tabindex="-1" aria-label={it.kind === 'text' ? it.text || '글자' : it.kind === 'shape' ? '도형' : '그림'}
           onpointerdown={(e) => down(e, p, it0, 'move')}>
           {#if it.kind === 'text'}
             <rect class="box" x={r.x} y={r.y} width={r.w} height={r.h} style:stroke={COLOR[p.kind]} />
             <text x={r.x + r.w / 2} y={r.y + r.h / 2} font-size={r.h * 0.9} textLength={r.w * 0.96} lengthAdjust="spacingAndGlyphs" fill={COLOR[p.kind]}>{it.text || '글자'}</text>
+          {:else if it.kind === 'shape'}
+            <!-- 도형 (2단계): 사각·원·선, 채움·선 색. 둘 다 없으면 종류 색 점선 -->
+            {#if it.shape === 'ellipse'}<ellipse cx={r.x + r.w / 2} cy={r.y + r.h / 2} rx={r.w / 2} ry={r.h / 2} fill={it.fill ?? 'none'} stroke={it.stroke ?? (it.fill ? 'none' : COLOR[p.kind])} stroke-width="1.5" stroke-dasharray={it.fill || it.stroke ? undefined : '4 3'} />
+            {:else if it.shape === 'line'}<line x1={r.x} y1={r.y + r.h / 2} x2={r.x + r.w} y2={r.y + r.h / 2} stroke={it.stroke ?? it.fill ?? COLOR[p.kind]} stroke-width={Math.max(1, r.h * 0.5)} />
+            {:else}<rect x={r.x} y={r.y} width={r.w} height={r.h} fill={it.fill ?? 'none'} stroke={it.stroke ?? (it.fill ? 'none' : COLOR[p.kind])} stroke-width="1.5" stroke-dasharray={it.fill || it.stroke ? undefined : '4 3'} />{/if}
+            <rect class="box" x={r.x} y={r.y} width={r.w} height={r.h} style:stroke="transparent" />
           {:else if url}
             <image href={url} x={r.x} y={r.y} width={r.w} height={r.h} preserveAspectRatio="none" />
             <rect class="box" x={r.x} y={r.y} width={r.w} height={r.h} style:stroke={COLOR[p.kind]} />

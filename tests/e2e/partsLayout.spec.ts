@@ -30,7 +30,8 @@ async function setup(page: Page, request: Parameters<typeof openOwnedProject>[1]
       photoId: app.project.allPhotos()[0].id, name: '띠', shape: 'rect', quad: rect(0, 3700, 9000, 1000), sheetIds: [], widthMm: 9000, heightMm: 1000, productId: 'board-galva',
       parts: [
         { id: 'c', kind: 'channel', type: 'ch-front', items: [{ id: 't', kind: 'text', text: '간판', x: -3000, y: 0, h: 700 }] },
-        { id: 'h', kind: 'sheet', type: 'sh-print', on: 'frame', items: [{ id: 'i', kind: 'image', image: { assetId, name: 'blue.png' }, x: 3000, y: 0, h: 800, w: 800 }] },
+        { id: 'h', kind: 'sheet', type: 'sh-print', on: 'frame', items: [{ id: 'i', kind: 'image', image: { assetId, name: 'blue.png' }, x: 3000, y: 0, h: 800, w: 800 }, { id: 'e', kind: 'shape', shape: 'ellipse', fill: '#ff0000', x: 1500, y: 0, h: 300, w: 300 }] }, // 도형 (2단계)
+        { id: 'r', kind: 'sheet', type: 'sh-cut', on: 'c', items: [{ id: 'r1', kind: 'shape', shape: 'rect', fill: '#ffffff', x: -3000, y: 420, h: 100, w: 600 }] }, // 채널 앞면 위 시트 → 3D 에서 채널 두께만큼 올라선 판 (2단계)
       ],
     });
     return { left: applyHomography(H, [1500, 4200]) as [number, number], right: applyHomography(H, [7500, 4200]) as [number, number], mid: applyHomography(H, [4500, 4200]) as [number, number] };
@@ -77,6 +78,7 @@ test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다'
   await expect(card.getByTestId('parts-overlay')).toBeVisible();
   await expect(card.getByTestId('parts-overlay').locator('text')).toHaveText('간판');
   await expect(card.getByTestId('parts-overlay').locator('image')).toHaveCount(1);
+  await expect(card.getByTestId('parts-overlay').locator('ellipse')).toHaveCount(1); // 도형 (2단계)
   // 글자는 카드 왼쪽 1/3 쯤 (−3000 / 9000)
   const cb = (await card.boundingBox())!, tb = (await card.getByTestId('parts-overlay').locator('text').boundingBox())!;
   expect((tb.x + tb.width / 2 - cb.x) / cb.width).toBeCloseTo(1 / 6, 1);
@@ -88,6 +90,7 @@ test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다'
   const svg = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
   expect(svg).toContain('data-items=');
   expect(svg).toContain('>간판</text>');
+  expect(svg).toMatch(/<ellipse [^>]*fill="#ff0000"/); // 도형은 전개도 SVG 에도
   expect(svg).toMatch(/<image xlink:href="data:image\/png;base64,[^"]+" href="data:image\/png;base64,[^"]+" x=/); // 일러스트레이터용 xlink:href (2026-10-18)
   await w.close();
 });

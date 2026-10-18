@@ -48,7 +48,7 @@
 | `depthMm?` | 보드 두께·돌출 깊이 (규격 필드) |
 | `options?` | 주문 사양 옵션 (`core/options.ts` 스키마 키 → 값). 규격 필드 → [../features/order.md](../features/order.md) |
 | `note?` | 사인물별 요청사항 (규격 필드) |
-| `parts?` | 조합형 구성 요소(채널·스카시·시트 + 글자·그림, 간판 중심 기준 mm; `on` = 올린 곳). 2026-10-18 부터 `layers` 의 **거울**(펼친 형식) → `core/parts.ts`, [../features/composition.md](../features/composition.md) |
+| `parts?` | 조합형 구성 요소(채널·스카시·시트 + 글자·그림·**도형**(`kind: 'shape'`, `shape` rect/ellipse/line, `fill?`·`stroke?` — 2026-10-18 2단계), 간판 중심 기준 mm; `on` = 올린 곳). 2026-10-18 부터 `layers` 의 **거울**(펼친 형식) → `core/parts.ts`, [../features/composition.md](../features/composition.md) |
 | `layers?` | **레이어 트리**(2026-10-18 레이어 구조 1단계): 프레임(= 사인물 자체)의 자식들 `Layer{id, kind, spec, box(부모 중심 기준 mm), children, visible?, locked?, opacity?, face?}`. 시트는 올린 것의 자식, 글자·그림은 구성 요소의 자식. `parts` 와 함께 저장하고 둘이 같을 때만 트리를 믿는다 → `core/layers.ts`, [composition-layers.md](composition-layers.md) |
 | `sameAs?` | **다른 사진의 같은 사인물**(원본 id). 연결된 영역은 규격을 원본에서 읽고 위치만 자기 것 → `core/link.ts` |
 

@@ -75,3 +75,39 @@ describe('저장 규칙: layers + 거울 parts', () => {
     expect(f).toMatchObject({ id: FRAME_ID, kind: 'frame', spec: { productId: 'board-galva', frameMat: '스텐', depthMm: 100 }, box: { w: 3000, h: 600 } });
   });
 });
+
+// 2단계 (2026-10-18): 그룹·도형·깊이 누적
+describe('2단계: 그룹은 투명, 도형 왕복, 깊이 누적', async () => {
+  const { GROUP_KIND, canHold, placedItems } = await import('../../src/lib/core/layers');
+  it('그룹 안의 객체는 가장 가까운 구성 요소에 거두고 오프셋이 더해진다 (거울에서 그룹은 사라짐)', () => {
+    const ch = newPart('channel', 'ch-front');
+    const ls = fromParts([ch]);
+    ls[0].children.push({ id: 'g', kind: GROUP_KIND, spec: {}, box: { x: 1000, y: 200, w: 0, h: 0 }, children: [
+      { id: 't1', kind: 'text', spec: { text: 'A' }, box: { x: -100, y: 0, w: 0, h: 300 }, children: [] },
+      { id: 's1', kind: 'shape', spec: { shape: 'ellipse', fill: '#ff0000' }, box: { x: 200, y: 50, w: 400, h: 300 }, children: [] },
+    ] });
+    const back = toParts(ls);
+    expect(back).toHaveLength(1);
+    expect(back[0].items).toEqual([
+      expect.objectContaining({ id: 't1', kind: 'text', text: 'A', x: 900, y: 200, h: 300 }),
+      expect.objectContaining({ id: 's1', kind: 'shape', shape: 'ellipse', fill: '#ff0000', x: 1200, y: 250, w: 400, h: 300 }),
+    ]);
+    expect(fromParts(back)[0].children.map((c) => c.kind)).toEqual(['text', 'shape']); // 그룹 없이 다시 — 도형은 spec 으로 돌아온다
+    expect(fromParts(back)[0].children[1].spec).toEqual({ shape: 'ellipse', fill: '#ff0000' });
+  });
+  it('받을 수 있는 자식: 프레임 = 구성 요소·그룹, 채널 = 글자·그림·도형·시트·그룹, 스카시 = 시트 못 받음, 그룹 = 부모와 같음', () => {
+    expect(canHold(FRAME_ID, 'channel')).toBe(true); expect(canHold(FRAME_ID, 'text')).toBe(false); expect(canHold(FRAME_ID, GROUP_KIND)).toBe(true);
+    expect(canHold('channel', 'sheet')).toBe(true); expect(canHold('channel', 'shape')).toBe(true); expect(canHold('channel', 'channel')).toBe(false);
+    expect(canHold('scashi', 'sheet')).toBe(false); expect(canHold('sheet', 'sheet')).toBe(true);
+    expect(canHold(GROUP_KIND, 'text', ['channel'])).toBe(true); expect(canHold(GROUP_KIND, 'text', [])).toBe(false);
+  });
+  it('깊이 누적: 채널 앞면 위 시트의 그림은 채널 두께만큼 앞, 채널 글자는 0, 시트 위 시트는 0', () => {
+    const ch = newPart('channel', 'ch-front'); ch.items = [{ ...newItem('text'), text: 'A', h: 300 }];
+    const onCh = newPart('sheet', 'sh-print'); onCh.on = ch.id; onCh.items = [{ ...newItem('image'), h: 100, w: 100 }];
+    const base = newPart('sheet', 'sh-cut'); const top = newPart('sheet', 'sh-print'); top.on = base.id; top.items = [{ ...newItem('image'), h: 50, w: 50 }];
+    const depth = (p: { kind: string }) => (p.kind === 'channel' ? 80 : 0);
+    const placed = placedItems(fromParts([ch, onCh, base, top]), depth);
+    expect(placed.map((x) => [x.item.kind, x.part.id, x.z])).toEqual([['text', ch.id, 0], ['image', onCh.id, 80], ['image', top.id, 0]]);
+  });
+});
+

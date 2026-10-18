@@ -300,9 +300,10 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성
   await expect(page.getByTestId('quick-chat-open')).toHaveCount(0);
   await page.getByTestId('mobile-record').click();
   await expect(page.getByTestId('mobile-record')).toContainText('■');
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(2500); // 전체 실행 부하에서도 넉넉히 녹음되게 (짧으면 '녹음이 너무 짧습니다'로 버려진다)
   await page.getByTestId('mobile-record').click();
-  await expect(page.getByTestId('mobile-record')).toContainText('녹음', { timeout: 10_000 });
+  await expect(page.getByTestId('mobile-record')).toContainText('녹음', { timeout: 15_000 });
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: { notice: string } }).__ganpanda.notice)).not.toMatch(/짧습니다|보내지 못했습니다|마이크/);
   const chat = page.getByTestId('object-chat');
   await expect(chat).toHaveCount(0); // 말풍선은 열리지 않는다 — 녹음은 대화와 따로
   await expect(page.locator('[data-testid="object-bubble"], [data-testid="card-bubble"]')).toHaveCount(0); // 사인물에 말풍선도 생기지 않는다 ("녹음하면 말풍선 계속 생긴다")

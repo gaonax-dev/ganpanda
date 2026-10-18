@@ -94,6 +94,16 @@ describe('옵션·요약·3D', () => {
     const spec2 = renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 900, parts: [ch] }), { cx: 0, cy: 0, w: 1500, h: 450 } as never)!; // 자리가 절반 크기
     expect(spec2.letterItems![0]).toEqual(expect.objectContaining({ widthMm: 1000, heightMm: 225, x: 150, y: -50 }));
   });
+  it('2단계: 채널 앞면 위 시트의 그림·도형은 채널 두께(z)만큼 앞에, 도형은 채움·선 색을 가진다', () => {
+    const ch = newPart('channel', 'ch-halo'); ch.items = [{ ...newItem('text'), text: '카페', h: 450 }];
+    const sh = newPart('sheet', 'sh-print'); sh.on = ch.id; sh.items = [{ ...newItem('image'), h: 100, w: 100, x: 500 }, { ...newItem('shape'), shape: 'ellipse', fill: '#ff0000', h: 200, w: 300 }];
+    const o = obj({ productId: 'board-galva', widthMm: 3000, heightMm: 900, parts: [ch, sh], letter3d: { depthMm: 120, faceColor: '#fff', sideColor: '#000', letterSpacing: 0 } });
+    const spec = renderSpecOf(o, { cx: 0, cy: 0, w: 3000, h: 900 } as never)!;
+    expect(spec.letterItems![0].z).toBeUndefined();
+    expect(spec.faceItems!.map((f) => [f.kind, f.z])).toEqual([['image', 120], ['shape', 120]]);
+    expect(spec.faceItems![1]).toMatchObject({ shape: 'ellipse', fill: '#ff0000', w: 300, h: 200 });
+    expect(describeParts(o)[1]).toContain('그림 1 도형 1');
+  });
 });
 
 describe('요약 문구에 구성 요소', async () => {
