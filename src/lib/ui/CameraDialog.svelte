@@ -228,9 +228,10 @@
         <section>
           <h3>AI 제안</h3>
           <div class="row">
-            <select class="axes" data-testid="camera-auto-axes" title="자동 제안이 두 선 쌍에 붙일 축" value={app.autoAxes} disabled={ro} onchange={(e) => app.setAutoAxes(e.currentTarget.value as 'xy' | 'xz')}>
-              <option value="xy">실내 XY</option>
-              <option value="xz">실외 XZ</option>
+            <select class="axes" data-testid="camera-auto-axes" title="자동 제안이 두 선 쌍에 붙일 벽면: 가로에 가까운 선 쌍 · 세로에 가까운 선 쌍" value={app.autoAxes} disabled={ro} onchange={(e) => app.setAutoAxes(e.currentTarget.value as 'xz' | 'yz' | 'xy')}>
+              <option value="xz">정면 벽 (가로 X · 높이 Z)</option>
+              <option value="yz">옆 벽 (깊이 Y · 높이 Z)</option>
+              <option value="xy">바닥·천장 (가로 X · 깊이 Y)</option>
             </select>
             <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
             <button class="btn small" data-testid="camera-snap" disabled={ro || app.cameraBusy} title="선 끝점을 사진 속 모서리에 붙입니다" onclick={() => app.snapCamera()}>모서리에 붙이기</button>

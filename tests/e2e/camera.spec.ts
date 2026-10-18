@@ -45,16 +45,16 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 1); // 축 선 끝점 8 + 원점 + 기준 중심선 끝 핸들
   // 사진의 직선에서 자동 제안 → 선이 바뀐다
   const before = await page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft));
-  // 자동 제안의 축 옵션: 기본 실내 XY → 둘째 쌍 +Y, 실외 XZ → +Z
-  await expect(dlg.getByTestId('camera-auto-axes')).toHaveValue('xy');
+  // 자동 제안의 벽면 옵션: 기본 정면 벽 → +X·+Z, 옆 벽 → +Y·+Z (2026-10-18)
+  await expect(dlg.getByTestId('camera-auto-axes')).toHaveValue('xz'); // 기본 = 정면 벽 (2026-10-18)
   await dlg.getByTestId('camera-propose').click();
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft)), { timeout: 15_000 }).not.toBe(before);
   const axesOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { axes?: { first: string; second: string } } } }).__ganpanda.cameraDraft.axes);
-  expect(await axesOf()).toEqual({ first: '+x', second: '+y' });
-  await dlg.getByTestId('camera-auto-axes').selectOption('xz');
+  expect(await axesOf()).toEqual({ first: '+x', second: '+z' });
+  await dlg.getByTestId('camera-auto-axes').selectOption('yz');
   await dlg.getByTestId('camera-propose').click();
-  await expect.poll(axesOf, { timeout: 15_000 }).toEqual({ first: '+x', second: '+z' });
-  expect(await page.evaluate(() => localStorage.getItem('ganpanda.autoAxes'))).toBe('xz');
+  await expect.poll(axesOf, { timeout: 15_000 }).toEqual({ first: '+y', second: '+z' });
+  expect(await page.evaluate(() => localStorage.getItem('ganpanda.autoAxes2'))).toBe('yz');
 
   // 정확한 값으로: 띠 위·아래(가로), 문 좌·우(세로), 원점 = 벽 좌하단, 기준 = 문 폭 1000
   const [bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0], [0, 0], [9000, 0]]);

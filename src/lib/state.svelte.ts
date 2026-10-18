@@ -143,8 +143,10 @@ class AppState {
   /** 사진과 입력 치수가 다르다는 경고 표시 (옵션, 기본 꺼짐 — 2026-10-14 사용자: "사이즈는 제작을 위한 메모, 경고는 옵션") */
   warnMeasure = $state(load('ganpanda.warnMeasure') === '1');
   /** 축 선 자동 제안의 축: 실내 XY(가로+세로) / 실외 XZ(가로+높이). 기본 XY, 기기에 저장 (2026-10-15 사용자) */
-  autoAxes = $state<'xy' | 'xz'>(load('ganpanda.autoAxes') === 'xz' ? 'xz' : 'xy');
-  setAutoAxes(v: 'xy' | 'xz') { this.autoAxes = v; save('ganpanda.autoAxes', v); }
+  /** 축 선 자동 제안이 두 선 쌍에 붙일 벽면 (2026-10-18 사용자: "자동 원근 처리하면 수직 벽 그리드를 표시할 수 있어야 … 수직 벽은 xz, yz 벽을 설정하는 셀렉터도 필요"):
+   *  xz = 정면 벽(가로 X·높이 Z, 기본 — 간판은 거의 세워진 벽에), yz = 옆 벽(깊이 Y·높이 Z), xy = 바닥·천장(가로 X·깊이 Y). 옛 '실내 XY' 기본이 수직선을 깊이로 풀어 원근이 어긋났다. 새 키로 저장해 옛 값은 버린다 */
+  autoAxes = $state<'xz' | 'yz' | 'xy'>((['xz', 'yz', 'xy'] as const).find((v) => v === load('ganpanda.autoAxes2')) ?? 'xz');
+  setAutoAxes(v: 'xz' | 'yz' | 'xy') { this.autoAxes = v; save('ganpanda.autoAxes2', v); }
   /** 매니퓰레이터 기본 크기 (화면 px, 기기에 저장, 2026-10-15 사용자: "기본 매니퓰레이터 크기 조절 가능하게") */
   gizmoSize = $state(Math.min(96, Math.max(32, Number(load('ganpanda.gizmoSize')) || 48)));
   setGizmoSize(v: number) { this.gizmoSize = Math.min(96, Math.max(32, Math.round(v))); save('ganpanda.gizmoSize', String(this.gizmoSize)); }
@@ -382,8 +384,9 @@ class AppState {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
       const found = gray && proposeAxisLines(gray);
       if (!gray || !found) return false;
-      // 첫 쌍 = 가로 선(+X), 둘째 쌍 = 실내 XY 면 세로(+Y) / 실외 XZ 면 높이(+Z) — 옵션 app.autoAxes (기본 XY, 2026-10-15 사용자)
-      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: { first: '+x', second: this.autoAxes === 'xz' ? '+z' : '+y' } });
+      // 첫 쌍(가로에 가까운 선) · 둘째 쌍(세로에 가까운 선)에 붙일 축: 정면 벽 X·Z(기본) / 옆 벽 Y·Z / 바닥 X·Y — 옵션 app.autoAxes (2026-10-18)
+      const ax = this.autoAxes === 'yz' ? { first: '+y' as const, second: '+z' as const } : this.autoAxes === 'xy' ? { first: '+x' as const, second: '+y' as const } : { first: '+x' as const, second: '+z' as const };
+      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: ax });
       return true;
     } finally { this.cameraBusy = false; }
   }
