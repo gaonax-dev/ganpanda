@@ -140,8 +140,6 @@
   /** 매니퓰레이터 메뉴 자리: 외곽선 맨 아래보다 조금 아래, 가운데 x (화살표·고리·손잡이와 겹치지 않게) */
   const menuAt = (q: Pt[], c: Pt): Pt => [c[0], Math.max(c[1], ...q.map((p) => p[1])) + 6 * gu];
   const gizmoable = (o: SignObject) => o.shape !== 'polygon' && o.quad.length === 4;
-  /** 변 막대가 꼭짓점에서 떨어지는 거리 (화면 px): 꼭짓점 터치 영역(반지름 12) + 여유 */
-  const EDGE_BAR_GAP = 22;
   function gizmoDown(e: PointerEvent, o: SignObject, mode: GizmoMode, sx = 0, sy = 0, on?: RefPlane) {
     if (e.button !== 0 || !editable) return;
     e.stopPropagation();
@@ -367,16 +365,7 @@
 </script>
 
 <!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
-<!-- 막대는 변의 가운데 부분만: 양 끝은 꼭짓점 손잡이 자리로 비운다 (2026-10-17 사용자: "변은 가운데 선택에서만, 지금 꼭짓점 선택이 힘들다") -->
-{#snippet edgeBars(q: Pt[], down: (e: PointerEvent) => void)}
-  {#each [0, 1, 2, 3] as i (i)}
-    {@const a = q[i]}
-    {@const b = q[(i + 1) % 4]}
-    {@const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1}
-    {@const gap = Math.min(len * 0.3, EDGE_BAR_GAP * u) / len}
-    <line class="edge-bar" data-testid="gizmo-edge-{i}" x1={a[0] + (b[0] - a[0]) * gap} y1={a[1] + (b[1] - a[1]) * gap} x2={b[0] - (b[0] - a[0]) * gap} y2={b[1] - (b[1] - a[1]) * gap} stroke-width={7 * gu} role="button" tabindex="-1" onpointerdown={down}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></line>
-  {/each}
-{/snippet}
+
 {#snippet modeChips(at: Pt)}
   <!-- 매니퓰레이터 모드 단추 (2026-10-18 사용자: "회전 스케일 우선 숨겨줘, 이동도 이동 선택하면 나오게 기본은 안나오게"): [이동 ✥] 하나, 누르면 켜고 끈다. 회전·크기는 단축키 E·R 로만 -->
   <g class="modes" transform="translate({at[0] - 11 * gu} {at[1] + 14 * gu})">
@@ -567,19 +556,17 @@
             ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
         {/if}
-        <!-- 휴대폰: 외곽선을 따라 굵은(보이지 않는) 터치 띠 + 변 가운데 손잡이 (2026-10-18 사용자: "사인물 아웃라인 모바일에서 터치 이동 안 된다. 꼭지점처럼 작동하게") — 누르면 사인물 전체를 옮긴다 -->
-        {#if sel && editable && tool === 'select' && !turned && app.compact}
-          <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, o.polygon, o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+        <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 사인물 전체 이동(원근 사진은 면 위, 아니면 평행). 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 -->
+        {#if sel && editable && tool === 'select' && !turned}
+          {#if app.compact}
+            <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, o.polygon, o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+          {/if}
           {#each [0, 1, 2, 3] as i (i)}
             {@const a = q[i]}
             {@const b = q[(i + 1) % 4]}
-            <circle class="edge-handle" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={11 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+            <circle class="hit" data-testid="edge-hit-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+            <circle class="handle edge" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></circle>
           {/each}
-        {/if}
-        <!-- 이동 모드 변 막대: 매니퓰레이터가 있든 없든(다각형·면 없음) 선택한 외곽선마다 (2026-10-17 사용자: "이동 매니퓰레이터 막대 다 넣기로 했는데"). 꼭짓점 손잡이보다 아래 층 -->
-        <!-- 변 막대는 기본 컨트롤의 일부 (2026-10-18 사용자: "기존의 이동에 보이는 기본 컨트롤(아웃라인 다듬는)에 호버에 나오는 라인 이동 툴"): 데스크톱은 늘 있고 흐리게, 호버에 밝게. 휴대폰은 변 가운데 손잡이로 -->
-        {#if sel && editable && tool === 'select' && !turned && !app.compact}
-          {@render edgeBars(q, (e) => edgeDown(e, o, q))}
         {/if}
         <!-- 꼭짓점 손잡이는 매니퓰레이터보다 아래 층 (메뉴·손잡이를 가리지 않게) -->
         {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
@@ -735,8 +722,7 @@
   svg.drawing { cursor: crosshair; }
   svg.pinning { cursor: copy; }
   .pin { cursor: pointer; }
-  .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
-  .edge-handle { fill: rgba(255, 204, 0, 0.35); stroke: var(--accent); cursor: move; }
+  .handle.edge { cursor: move; }
   .touch-outline { fill: none; stroke: transparent; pointer-events: stroke; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
