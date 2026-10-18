@@ -152,3 +152,4 @@
 | 2026-10-18 | 메시지(대화·코멘트·음성 메모) 지우기: 편집 권한은 아무 글이나, viewer 는 자기 글만(서버 DELETE) | 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다" → [../features/communication.md](../features/communication.md) |
 | 2026-10-18 | 보드 단계 이름: 원본 → **실측** (실측 · 2D · 3D). 코드 값 `original` 은 그대로 | 사용자: "원본 2D 3D를 실측,2D,3D 으로 변경해줘" → [../features/photo-board.md](../features/photo-board.md) |
 | 2026-10-18 | 조합형 사인물 구조 개편: **0단계 구성 요소 레지스트리 + 1단계 레이어 트리**를 진행하고, **몸통도 프레임 레이어**로 본다. 컴포넌트는 코드 모듈(JSON 정의는 2차) | 사용자: "사인물 구성의 모듈화와 클래스화가 아직 부족해보인다. 조합형을 위한 레이어 형태의 자유로운 구성이 필요하다" → 제안 → "0,1, 몸통도 프레임 레이어" → [../architecture/composition-layers.md](../architecture/composition-layers.md) |
+| 2026-10-18 | 레이어 구조의 목적에 **퀵입력 → AI 구성 생성**을 포함: 레지스트리가 스키마를 내보내고(describeSchema), AI 출력은 관대하게 정규화(normalizeLayers)해 확인 창 뒤 적용. 사전 매칭 파서는 폴백 | 사용자: "퀵입력시 ai로 구성을 생성하는데 원활하게 하는 목적도 있다" → [../architecture/composition-layers.md](../architecture/composition-layers.md) 0절 |
