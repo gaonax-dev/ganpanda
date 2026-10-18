@@ -91,6 +91,18 @@
             <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
         </section>
+        <!-- 사양 글 사전 (V2, 2026-10-19): 내 규칙 목록·삭제, 전국 기본값 수 -->
+        <section data-testid="rules-section">
+          <h3>사양 글 사전 <small class="hint">퀵입력이 못 알아본 말에 답한 뜻 — 내 사전이 전국 기본값보다 먼저</small></h3>
+          {#if app.specRules.length}
+            <ul class="rules">
+              {#each app.specRules as r (r.phrase)}
+                <li data-testid="rule-row"><b>{r.phrase}</b> → {r.meaning.map((m) => m.label).join(' · ')} <button class="icon" data-testid="rule-delete" title="지우기" onclick={() => app.removeSpecRule(r.phrase)}>✕</button></li>
+              {/each}
+            </ul>
+          {:else}<p class="hint">아직 없습니다. 퀵입력 확인 창에서 뜻을 고르면 여기에 쌓입니다.</p>{/if}
+          <p class="hint">전국 기본값(여러 계정이 같은 뜻으로 쓰는 말) {app.specDefaults.length}개</p>
+        </section>
         <!-- 요청판 (2026-10-17): 요청 받기 + 지역 → 홈 "받은 요청". 지금은 숨김 (app.requestsEnabled) -->
         {#if app.requestsEnabled}
         <section data-testid="requests-section">
@@ -188,6 +200,9 @@
 </div>
 
 <style>
+  .rules { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+  .rules li { display: flex; align-items: center; gap: 6px; }
+  .rules .icon { margin-left: auto; }
   .row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13px; }
   .bar { height: 6px; background: var(--input); border-radius: 3px; overflow: hidden; margin: 2px 0 6px; }
   .bar i { display: block; height: 100%; background: var(--accent); }

@@ -40,3 +40,16 @@ describe('내 규칙 맞추기', () => {
     expect(cs.some((c) => c.id.startsWith('channelOption:chType:'))).toBe(true);
   });
 });
+
+// V2 (2026-10-19): 전국 기본값은 내 사전 다음, 기본 사전 앞; 출처 표시
+describe('전국 기본값과 출처', () => {
+  const nationalBoth: SpecRule = { phrase: '뒷광', meaning: [{ kind: 'channel', id: 'ch-both', label: '채널: 전후광 채널' }] };
+  it('내 사전 > 전국 > 기본 사전', () => {
+    const mineFirst = parseSpecText('갈바 뒷광', obj({}), [], [halo], [nationalBoth]);
+    expect(mineFirst.find((i) => i.kind === 'channel')).toMatchObject({ id: 'ch-halo', src: { tag: '내 사전', phrase: '뒷광' } });
+    const national = parseSpecText('갈바 뒷광', obj({}), [], [], [nationalBoth]);
+    expect(national.find((i) => i.kind === 'channel')).toMatchObject({ id: 'ch-both', src: { tag: '전국', phrase: '뒷광' } });
+    expect(national.find((i) => i.kind === 'channel')!.label).toContain('(전국: 뒷광)');
+    expect(national.some((i) => i.kind === 'note')).toBe(false);
+  });
+});

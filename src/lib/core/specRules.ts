@@ -1,6 +1,6 @@
 // 사양 글 개인 사전 (2026-10-18 V1, docs/features/spec-vocabulary.md): 퀵입력이 못 알아본 말에 사용자가 답한 뜻을 규칙으로 두고,
 // 다음부터는 기본 사전보다 **먼저**(긴 말부터) 맞춘다. 뜻은 확인 창 항목(SpecItem)들 — 레지스트리의 값에서 고른다(meaningChoices).
-import type { SpecItem } from './specText';
+import type { SpecItem, SpecSource } from './specText';
 import type { SignObject } from './model';
 import type { ColorCard } from './colorLibrary';
 import { CATEGORY_GROUPS, CHANNEL_OPTIONS, productById, productsOf } from './catalog';
@@ -10,6 +10,8 @@ import { newPart } from './parts';
 import { ledLabel } from './quickSpec';
 
 export interface SpecRule { phrase: string; meaning: SpecItem[] }
+/** 전국 기본값 (V2): 대세 뜻 + 계정 수 */
+export interface SpecDefault extends SpecRule { count: number }
 export type Meaning = Exclude<SpecItem, { kind: 'note' }>;
 
 export const normPhrase = (p: string) => p.trim().replace(/\s+/g, ' ');
@@ -22,14 +24,14 @@ export function validRule(r: SpecRule): boolean {
 export const meaningKey = (items: SpecItem[]) => JSON.stringify(items.map(({ label: _l, ...rest }) => Object.fromEntries(Object.entries(rest).sort())));
 
 /** 글에서 내 규칙의 말을 먼저 찾아 그 뜻을 항목으로, 남은 글을 돌려준다. 긴 말부터, 한 규칙은 한 번 */
-export function matchRules(text: string, rules: SpecRule[]): { items: SpecItem[]; rest: string } {
+export function matchRules(text: string, rules: SpecRule[], tag: SpecSource['tag'] = '내 사전'): { items: SpecItem[]; rest: string } {
   const items: SpecItem[] = [];
   let rest = text;
   for (const r of [...rules].filter(validRule).sort((a, b) => b.phrase.length - a.phrase.length)) {
     const p = normPhrase(r.phrase);
     const at = rest.indexOf(p);
     if (at < 0) continue;
-    items.push(...r.meaning.map((m) => ({ ...m, label: `${m.label} (내 사전: ${p})` }) as SpecItem));
+    items.push(...r.meaning.map((m) => ({ ...m, label: `${m.label} (${tag}: ${p})`, src: { tag, phrase: p } }) as SpecItem));
     rest = `${rest.slice(0, at)} ${rest.slice(at + p.length)}`;
   }
   return { items, rest: rest.replace(/\s+/g, ' ').trim() };
@@ -58,3 +60,10 @@ export function loadLocalRules(): SpecRule[] {
   try { const v = JSON.parse(localStorage.getItem(KEY) ?? '[]'); return Array.isArray(v) ? v.filter(validRule) : []; } catch { return []; }
 }
 export function saveLocalRules(rules: SpecRule[]) { try { localStorage.setItem(KEY, JSON.stringify(rules)); } catch { /* 기기에 못 남겨도 동작 */ } }
+
+const DKEY = 'ganpanda.specDefaults';
+export function loadLocalDefaults(): SpecDefault[] {
+  try { const v = JSON.parse(localStorage.getItem(DKEY) ?? '[]'); return Array.isArray(v) ? v.filter((r) => validRule(r) && typeof r.count === 'number') : []; } catch { return []; }
+}
+export function saveLocalDefaults(d: SpecDefault[]) { try { localStorage.setItem(DKEY, JSON.stringify(d)); } catch { /* 무시 */ } }
+

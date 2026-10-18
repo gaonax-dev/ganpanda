@@ -11,7 +11,7 @@ import { categoryPatch, newPart, partsOf } from './parts';
 import { applyQuick, ledLabel, type QuickPatch } from './quickSpec';
 import { matchRules, type SpecRule } from './specRules';
 
-export type SpecItem =
+export type SpecItem = (
   | { kind: 'product'; id: string; label: string }
   | { kind: 'bodyColor'; value: string; label: string; card?: ColorCard }
   | { kind: 'channel'; id: string; label: string }
@@ -21,7 +21,10 @@ export type SpecItem =
   | { kind: 'thick'; mm: number; label: string }
   | { kind: 'option'; key: string; value: string; label: string }
   | { kind: 'channelOption'; key: string; value: string; label: string }
-  | { kind: 'note'; text: string; label: string };
+  | { kind: 'note'; text: string; label: string }
+) & { src?: SpecSource };
+/** 항목의 출처 (내 사전·전국 기본값으로 알아본 것 — 확인 창에서 "다른 뜻이에요" 가능) */
+export type SpecSource = { tag: '내 사전' | '전국'; phrase: string };
 
 /** 종류 별칭 (글에 들어 있으면) → 제품 id. 긴 것부터 맞춘다. 철자 변형(후랙스·플랙스·포멕스)도 */
 const PRODUCT_ALIASES: [string, string][] = [
@@ -80,12 +83,13 @@ const norm = (s: string) => s.replace(/[\s()·/]/g, '').toLowerCase();
 /** 옵션 값 줄임말 → 선택지 값 (갈바 레이저 타공·내부 조명 등, 2026-10-17) */
 const OPTION_WORDS: Record<string, string> = { 타공: '글자 타공', 레이저타공: '글자 타공', 글자타공: '글자 타공', 패턴타공: '패턴 타공', 내부조명: 'LED', 조명: 'LED', led: 'LED' };
 
-export function parseSpecText(text: string, o?: SignObject, library: ColorCard[] = [], rules: SpecRule[] = []): SpecItem[] {
-  // 내 사전(개인 규칙)이 기본 사전보다 먼저 — 못 알아보던 말에 사용자가 답한 뜻 (2026-10-18 V1, docs/features/spec-vocabulary.md)
-  const matched = matchRules(text, rules);
-  const items: SpecItem[] = [...matched.items];
+export function parseSpecText(text: string, o?: SignObject, library: ColorCard[] = [], rules: SpecRule[] = [], defaults: SpecRule[] = []): SpecItem[] {
+  // 내 사전(개인 규칙) > 전국 기본값(대세) > 기본 사전 — 못 알아보던 말에 사용자가 답한 뜻 (2026-10-18 V1 · 10-19 V2, docs/features/spec-vocabulary.md)
+  const mine = matchRules(text, rules, '내 사전');
+  const nation = matchRules(mine.rest, defaults, '전국');
+  const items: SpecItem[] = [...mine.items, ...nation.items];
   const leftovers: string[] = [];
-  let src = matched.rest.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
+  let src = nation.rest.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
   // 사이즈 "3000x600" / "3,000 × 600" 는 공백이 있을 수 있어 먼저 뽑는다
   src = src.replace(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/g, (_m, w: string, h: string) => { items.push({ kind: 'size', w: Number(w), h: Number(h), label: `사이즈: ${Number(w).toLocaleString('ko-KR')}×${Number(h).toLocaleString('ko-KR')}mm` }); return ' '; });
   const tokens = src.split(/\s+/).filter(Boolean);

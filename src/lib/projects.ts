@@ -63,6 +63,8 @@ export const postMessage = (room: string, invite: string | null, body: { objectI
 export const getSpecRules = () => call<{ rules: { phrase: string; meaning: unknown[] }[] }>('/api/me/spec-rules').then((r) => r.rules);
 export const putSpecRule = (rule: { phrase: string; meaning: unknown[] }) => call<{ rule: unknown }>('/api/me/spec-rules', { method: 'PUT', body: JSON.stringify(rule) });
 export const deleteSpecRule = (phrase: string) => call<{ ok: true }>('/api/me/spec-rules', { method: 'DELETE', body: JSON.stringify({ phrase }) });
+/** 전국 기본값 (V2): 말마다 대세 뜻 */
+export const getSpecDefaults = () => call<{ defaults: { phrase: string; meaning: unknown[]; count: number }[] }>('/api/spec-rules/defaults').then((r) => r.defaults);
 /** 같은 말에 다른 계정들이 정한 뜻 — 계정 수 순 (추천은 대세) */
 export const suggestSpecRule = (phrase: string) => call<{ suggestions: { meaning: unknown[]; count: number }[] }>(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`).then((r) => r.suggestions);
 

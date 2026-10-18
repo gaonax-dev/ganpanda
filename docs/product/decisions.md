@@ -163,3 +163,4 @@
 | 2026-10-18 | 레이어 구조 2단계 구현: 3D 가 레이어 트리를 걸어 깊이 누적(채널 앞면 위 시트는 채널 두께만큼 올라선 판), 도형 객체(사각·원·선, 채움·선 색), 그룹 레이어(코어, 만드는 UI 는 3단계) | 사용자: "레이어 2단계" → [../architecture/composition-layers.md](../architecture/composition-layers.md) 7절 |
 | 2026-10-18 | 레이어 구조 3단계 구현: 설정 창 [배치] 탭에 레이어 패널(위가 맨 위, 눈·자물쇠·▲▼·체크→그룹·풀기·이름), 숨김 = 만들지 않음(견적·3D·카드에서 빠짐), 잠금 = 정면도에서 못 끔. 기존 편집은 트리에 병합되어 그룹·이름·보이기가 유지 | 사용자: "진행해줘" → [../architecture/composition-layers.md](../architecture/composition-layers.md) 7절 |
 | 2026-10-19 | 레이어 구조 4단계 중 세트 라이브러리 구현(계정 저장, 비율 유지 넣기). 새 컴포넌트는 공급사 사양이 정해진 뒤, 거울 parts 제거는 보류 | 사용자: "순서대로 진행해줘" → [../architecture/composition-layers.md](../architecture/composition-layers.md) 7절 4단계 |
+| 2026-10-19 | 사양 글 사전 V2 구현: 전국 기본값은 서버가 자동으로(5곳 문턱, 교체는 3곳 차+30일 — 운영자 확인 단계는 생략), 이의 = 개인 규칙 + 한 표, 설정에 규칙 목록·삭제 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) 10절 |

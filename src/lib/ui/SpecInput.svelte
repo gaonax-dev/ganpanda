@@ -18,9 +18,9 @@
   function parse() {
     const t = text.trim();
     if (!t) return;
-    items = parseSpecText(t, obj, app.colorLibrary, app.specRules); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름·내 사전도 맞춘다
+    items = parseSpecText(t, obj, app.colorLibrary, app.specRules, app.specDefaults); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름·내 사전·전국 기본값도 맞춘다
     checked = items.map(() => true);
-    meanings = []; suggestions = [];
+    meanings = []; suggestions = []; dispute = null;
     const left = items.find((i) => i.kind === 'note')?.text;
     if (left && app.account) suggestSpecRule(normPhrase(left)).then((s) => { if (items?.some((i) => i.kind === 'note' && i.text === left)) suggestions = s as { meaning: Meaning[]; count: number }[]; }).catch(() => {});
   }
@@ -33,16 +33,22 @@
   const choices = $derived(meaningChoices(obj, app.colorLibrary));
   const groups = $derived([...new Set(choices.map((c) => c.group))]);
   const addMeaning = (id: string) => { const c = choices.find((x) => x.id === id); if (c && !meanings.some((m) => meaningKey([m]) === meaningKey([c.item]))) meanings = [...meanings, c.item]; };
+  /** 이의 (V2, 2026-10-19 "대세가 기본값", 이의 = 한 표 + 개인 규칙): 전국 기본값으로 알아본 말에 "다른 뜻이에요" → 그 말의 뜻을 다시 고른다 */
+  let dispute = $state<string | null>(null);
+  const askPhrase = $derived(dispute ?? (items?.find((i) => i.kind === 'note')?.text ?? null));
+  function startDispute(phrase: string) { dispute = phrase; meanings = []; suggestions = []; if (app.account) suggestSpecRule(phrase).then((s) => { if (dispute === phrase) suggestions = s as { meaning: Meaning[]; count: number }[]; }).catch(() => {}); }
   function apply() {
     if (!items || ro) return;
     const note = items.find((i) => i.kind === 'note');
-    const learned = note && meanings.length ? { phrase: normPhrase(note.text), meaning: meanings } : null;
-    // 뜻을 골랐으면 그 항목을 적용하고 메모는 넣지 않는다 (규칙으로 배움). 아니면 지금처럼 메모 + 표본
-    const picked = [...items.filter((it, i) => checked[i] && !(learned && it.kind === 'note')), ...(learned ? learned.meaning : [])];
+    const phrase = dispute ?? (note ? normPhrase(note.text) : null);
+    const learned = phrase && meanings.length ? { phrase, meaning: meanings } : null;
+    // 뜻을 골랐으면 그 항목을 적용하고 메모(또는 이의한 전국 항목)는 넣지 않는다 (규칙으로 배움). 아니면 지금처럼 메모 + 표본
+    const replaced = (it: SpecItem) => !!learned && (dispute ? it.src?.phrase === dispute : it.kind === 'note');
+    const picked = [...items.filter((it, i) => checked[i] && !replaced(it)), ...(learned ? learned.meaning : [])];
     if (picked.length) update(applySpecItems(obj, picked));
     if (learned) void app.saveSpecRule(learned);
     else if (sample && share) postSpecSample(sample).catch(() => {}); // 로그인 안 했거나 오프라인이면 그냥 넘어간다
-    items = null; text = ''; meanings = []; suggestions = [];
+    items = null; text = ''; meanings = []; suggestions = []; dispute = null;
   }
   const setShare = (v: boolean) => { share = v; try { localStorage.setItem('ganpanda.specShare', v ? '1' : '0'); } catch { /* 저장 못 해도 동작 */ } };
   const cancel = () => (items = null);
@@ -58,11 +64,12 @@
       {#if items.length}
         <p>이렇게 적용할까요? 아닌 것은 체크를 빼세요.</p>
         {#each items as it, i (i)}
-          <label class="item" data-testid="spec-item" data-kind={it.kind}><input type="checkbox" bind:checked={checked[i]} /> {it.label}</label>
+          <label class="item" data-testid="spec-item" data-kind={it.kind} data-src={it.src?.tag}><input type="checkbox" bind:checked={checked[i]} /> {it.label}
+            {#if it.src?.tag === '전국' && dispute !== it.src.phrase}<button class="btn small" data-testid="spec-dispute" title="이 말을 다른 뜻으로 씁니다 — 내 사전에 저장되고 그 뜻에 한 표" onclick={(e) => { e.preventDefault(); startDispute(it.src!.phrase); }}>다른 뜻이에요</button>{/if}</label>
         {/each}
-        {#if sample}
+        {#if sample || dispute}
           <div class="ask" data-testid="spec-ask">
-            <p><b>'{sample.leftover}'</b>는 무엇인가요? 뜻을 고르면 다음부터 바로 알아봅니다.</p>
+            <p><b>'{askPhrase}'</b>는 무엇인가요? 뜻을 고르면 다음부터 바로 알아봅니다.{#if dispute} <small>(전국 기본값과 다른 내 뜻 — 내 사전에 저장)</small>{/if}</p>
             {#if suggestions.length}
               <div class="suggest">{#each suggestions as s, i (i)}<button class="btn small" data-testid="spec-suggest" title="다른 사용자 {s.count}곳이 이 뜻으로 씁니다" onclick={() => (meanings = s.meaning)}>추천: {s.meaning.map((m) => m.label).join(' · ')} <small>({s.count}곳)</small></button>{/each}</div>
             {/if}
@@ -77,7 +84,7 @@
             {/if}
           </div>
         {/if}
-        {#if sample && !meanings.length}
+        {#if sample && !meanings.length && !dispute}
           <label class="item share" data-testid="spec-share" title="못 알아본 글만 보냅니다 (프로젝트·사진·고객 정보 없음). 퀵입력이 더 많은 표현을 알아보게 하는 데 씁니다"><input type="checkbox" checked={share} onchange={(e) => setShare(e.currentTarget.checked)} /> 못 알아본 글을 보내 퀵입력 개선에 쓰기</label>
         {/if}
         <div class="acts">

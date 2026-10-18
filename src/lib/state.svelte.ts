@@ -1,7 +1,7 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
 import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
-import { loadLocalRules, saveLocalRules, validRule, type SpecRule } from './core/specRules';
+import { loadLocalDefaults, loadLocalRules, saveLocalDefaults, saveLocalRules, validRule, type SpecDefault, type SpecRule } from './core/specRules';
 import { loadLocalSets, saveLocalSets, validSetLibrary, type SignSet } from './core/setLibrary';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
@@ -31,7 +31,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
-import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
+import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
@@ -106,6 +106,8 @@ class AppState {
   colorLibrary = $state<ColorCard[]>(loadLocalColors());
   /** 사양 글 개인 사전 (2026-10-18 V1): 계정에 저장(서버) + 기기 사본. 퀵입력 파서가 기본 사전보다 먼저 본다 → core/specRules.ts */
   specRules = $state<SpecRule[]>(loadLocalRules());
+  /** 전국 기본값 (V2 대세): 내 사전 다음, 기본 사전 앞 */
+  specDefaults = $state<SpecDefault[]>(loadLocalDefaults());
   /** 세트 라이브러리 (2026-10-19 4단계): 레이어 묶음을 계정에 저장(서버) + 기기 사본 → core/setLibrary.ts */
   setLibrary = $state<SignSet[]>(loadLocalSets());
   pricesOpen = $state(false);
@@ -371,6 +373,7 @@ class AppState {
   async removeSet(id: string) { this.setLibrary = this.setLibrary.filter((s) => s.id !== id); await this.persistSets(); }
   async loadSpecRules() {
     try { const rules = (await getSpecRules()) as SpecRule[]; this.specRules = rules.filter(validRule); saveLocalRules(this.specRules); } catch { /* 오프라인이면 기기 사본 */ }
+    try { const d = (await getSpecDefaults()) as SpecDefault[]; this.specDefaults = d.filter((r) => validRule(r)); saveLocalDefaults(this.specDefaults); } catch { /* 기기 사본 */ }
   }
   /** 못 알아본 말에 답한 뜻을 규칙으로 (같은 말은 갱신). 로그인 전엔 기기에만 */
   async saveSpecRule(rule: SpecRule) {
