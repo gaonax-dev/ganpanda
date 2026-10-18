@@ -6,6 +6,7 @@
 import type { PartItem, SignObject, SignPart } from './model';
 import { CHANNEL_OPTIONS, SCASHI_OPTIONS, isChannelProduct, productById, takesLetters } from './catalog';
 import { COMPONENTS, componentOf } from './components';
+import { fromParts, toParts } from './layers';
 
 /**
  * 분류(종류)마다 붙일 수 있는 구성 요소 (2026-10-16 사용자: "사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘").
@@ -52,6 +53,7 @@ const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.
 const normalizePart = (p: SignPart): SignPart => componentOf(p.kind).normalize?.(p) ?? p;
 export function partsOf(o: SignObject): SignPart[] {
   if (o.parts) { const n = o.parts.map(normalizePart); return n.some((p, i) => p !== o.parts![i]) ? n : o.parts; }
+  if (o.layers) return toParts(o.layers).map(normalizePart); // 트리만 저장된 사인물 (1단계 이후)
   const kinds = partKindsFor(o);
   if (!kinds.length) return [];
   const opts = o.options ?? {};
@@ -85,9 +87,9 @@ export function partsOf(o: SignObject): SignPart[] {
 export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
   'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
 /** 구성 요소 저장 패치: parts 로 저장하고 옛 옵션·sheetIds 를 정리 (설정 창 카드와 빠른 설정이 같이 씀) */
-export function commitParts(o: Pick<SignObject, 'options'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'options' | 'sheetIds'> {
+export function commitParts(o: Pick<SignObject, 'options'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
   const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));
-  return { parts, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf)
+  return { parts, layers: fromParts(parts), options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf). layers = 트리(1단계), parts 는 그 거울
 }
 
 /** p 가 올라간 것(on)을 따라 깊이: 프레임 면 0, 채널·시트 위 = 그것의 깊이 + 1 (순환·없는 id 는 0) */
@@ -143,7 +145,7 @@ export function categoryPatch(o: SignObject, g: string, productId: string | unde
   const parts = partsForProduct(o, productId);
   const hasSheet = o.sheetIds.length || (parts ?? []).some((p) => p.kind === 'sheet');
   // 남은 구성 요소가 없으면 비운다(undefined) — 시트 분류는 시트 목록에서 다시 만든다
-  return { productId, options: undefined, parts: parts?.length ? parts : undefined, ...(g === 'sheet' && !hasSheet ? { sheetIds: ['sh-cut'] } : {}) };
+  return { productId, options: undefined, parts: parts?.length ? parts : undefined, layers: parts?.length ? fromParts(parts) : undefined, ...(g === 'sheet' && !hasSheet ? { sheetIds: ['sh-cut'] } : {}) };
 }
 
 /**

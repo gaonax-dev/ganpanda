@@ -804,7 +804,7 @@ class AppState {
   applySelectedSpecToOthers() {
     const src = this.selected;
     if (!this.canEdit || !src || !this.multi.length) return;
-    const spec = JSON.parse(JSON.stringify({ productId: src.productId, sheetIds: src.sheetIds, options: src.options, parts: src.parts, depthMm: src.depthMm, letter3d: src.letter3d, text: src.text, charCount: src.charCount, corner: src.corner })) as Partial<SignObject>;
+    const spec = JSON.parse(JSON.stringify({ productId: src.productId, sheetIds: src.sheetIds, options: src.options, parts: src.parts, layers: src.layers, depthMm: src.depthMm, letter3d: src.letter3d, text: src.text, charCount: src.charCount, corner: src.corner })) as Partial<SignObject>;
     this.editBoundary();
     for (const id of this.multi) if (id !== src.id) this.project.updateObject(id, spec);
     this.editBoundary();

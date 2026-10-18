@@ -109,5 +109,10 @@ export const registry = new Map<string, Component>();
 - 달라진 동작 하나: 스카시 글자의 3D 색이 스카시 **도색**(`paint`)을 따른다 — 전엔 채널 키(face/body)를 봐서 도색이 비치지 않았다(2D 정면도는 이미 도색을 썼음).
 - 남긴 종류 이름 비교(허용 목록, `tests/unit/components.test.ts` 가 개수를 지킨다): 분류 판정(`catalog.ts` 시트 분류·첫 채널·첫 스카시, `parts.ts` 시트 분류·옛 데이터 변환), 채널 전용 UI(`quickSpec.ts`·`specText.ts`·`ObjectSettingsDialog` 채널 탭), 입체 보기(`letter3d.ts` = 채널 글자), 옛 형식 3D(`render.ts` letters). 이것들은 "종류 자체"를 가리키는 곳이라 레지스트리로 옮길 대상이 아니다.
 
-### 1단계 — 레이어 트리 (진행 중)
+### 1단계 — 레이어 트리 (구현됨 2026-10-18)
+- 모델: `Layer{id, kind, name?, spec, box{x,y,w,h,rot?}, children, visible?, locked?, opacity?, face?}`(`core/model.ts`), `SignObject.layers?: Layer[]` = 프레임의 자식들. `box` 는 **부모 중심 기준 mm**(상자 중심, 위 +), `w·h 0` = 부모 채움(구성 요소)·자동(글자 폭).
+- `core/layers.ts`: `fromParts`(펼친 구성 요소 → 트리: `on` 으로 올린 시트는 그 아래, 글자·그림은 구성 요소의 자식, 없는 id 위는 프레임 면), `toParts`(트리 → 펼침: `on` = 부모 id/`frame`, 부모 오프셋을 더해 간판 중심 기준 좌표로), `sameParts`(정규형 비교), `layersOf(o, parts)`, `frameOf(o, children)`(프레임 레이어 = 사인물 자체: 종류·옵션·두께·치수가 spec), `flatten`(그리는 순서로 펼친 목록 + 절대 상자), `findLayer`.
+- **저장 규칙(병행 기간)**: `commitParts`·`categoryPatch` 가 `layers`(트리)와 `parts`(펼친 거울)를 **함께** 쓴다. 읽는 쪽은 둘이 같을 때만 트리를 믿고, 다르면(옛 클라이언트가 parts 만 고침) parts 에서 트리를 다시 만든다. 트리만 있는 사인물도 `partsOf` 가 읽는다(`toParts`). 연결(`sameAs`)의 규격 필드(`link.ts SPEC_FIELDS`)·다중 선택 "구성 맞추기"에 `layers` 포함. 거울을 없애고 트리만 저장하는 시점은 2단계(3D·정면도가 트리를 직접 읽을 때) 이후.
+- 프레임 레이어는 저장하지 않는다 — `SignObject` 가 곧 프레임(1:1: 치수·`sameAs`·디자인·말풍선이 사인물에 붙어 있음). 2단계에서 3D·견적이 `frameOf(o, layersOf(o))` 트리를 순회하면 프레임도 같은 인터페이스(`Component`)로 다룬다.
+- 아직 안 한 것(2단계 이후): 트리 순회 3D(깊이 누적), `group`·`shape` 컴포넌트, 레이어 패널 UI(보이기·잠금·순서), 정면도 편집기의 트리 선택, 세트 라이브러리.
 

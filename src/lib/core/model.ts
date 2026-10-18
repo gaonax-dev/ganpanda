@@ -50,6 +50,25 @@ export interface SignPart {
   items: PartItem[];
 }
 
+/**
+ * 레이어 (레이어 구조 1단계, 2026-10-18): "어디에, 어떤 순서로, 무엇 위에". kind = 구성 요소 종류(채널·스카시·시트 — core/components) 또는 내용 객체(text·image).
+ * spec = 종류 모듈의 옵션(구성 요소: type + 옵션 / 글자: text·count / 그림: image). box = **부모 중심 기준** mm(x 오른쪽 +, y 위 +; 상자 중심), w·h 0 = 부모 채움·자동.
+ * children = 아래→위 그리는 순서. 프레임(루트)은 SignObject 자체(종류·옵션·치수·두께) — core/layers.ts frameOf
+ */
+export interface Layer {
+  id: string;
+  kind: string;
+  name?: string;
+  spec: Record<string, unknown>;
+  box: { x: number; y: number; w: number; h: number; rot?: number };
+  children: Layer[];
+  visible?: boolean;
+  locked?: boolean;
+  opacity?: number;
+  /** 부모의 어느 면에 붙나 (기본 front) */
+  face?: 'front' | 'top' | 'side' | 'back';
+}
+
 export interface SignObject {
   id: string;
   /** 사진 id. '' = 사진 없이 보드에 직접 만든 사인물(평면도 카드만, quad 는 빈 배열) — 나중에 사진의 영역이 이것과 연결(sameAs)된다 */
@@ -68,8 +87,10 @@ export interface SignObject {
   faceAxis?: 'x' | 'y' | 'z';
   /** 박스 방향 (2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"): 회전 고리로 돌린 상자의 방향, 원근 설정의 벽 좌표 단위 벡터. 사진마다의 배치. 있으면 faceAxis 보다 우선 */
   boxDir?: [number, number, number];
-  /** 조합형 구성 요소 (2026-10-16): 간판 프레임에 붙는 채널·스카시·시트와 그 글자·그림. 없으면 옛 필드에서 읽는다(core/parts.ts) */
+  /** 조합형 구성 요소 (2026-10-16): 간판 프레임에 붙는 채널·스카시·시트와 그 글자·그림. 없으면 옛 필드에서 읽는다(core/parts.ts). 1단계부터 layers 의 **거울**(펼친 형식) — 함께 저장 */
   parts?: SignPart[];
+  /** 레이어 트리 (1단계, 2026-10-18): 프레임의 자식들. parts 와 같은 내용을 트리로(부모 기준 좌표, 시트는 올린 것의 자식). core/layers.ts */
+  layers?: Layer[];
   widthMm?: number;
   heightMm?: number;
   /** 보드 두께·돌출 깊이 (mm). 채널 글자 두께는 letter3d.depthMm (2026-10-15 사용자: "두께가 필요해") */
