@@ -25,6 +25,8 @@ async function addSign(page: Page, quad: Pt[]) {
     return id;
   }, quad);
 }
+/** 매니퓰레이터는 기본 숨김 (2026-10-18) → 이동 모드를 켠다 */
+async function moveMode(page: Page) { await page.keyboard.press('w'); await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move'); }
 async function drag(page: Page, testid: string, dx: number, dy: number) {
   const h = page.getByTestId(testid);
   const b = (await h.boundingBox())!;
@@ -48,15 +50,16 @@ test('매니퓰레이터: 원근 축 X·Y·Z 화살표 / 회전 고리 3개 / �
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await moveMode(page);
   await expect(page.getByTestId('gizmo')).toBeVisible();
   // 모드: 이동(기본) → 회전 → 크기, 모드마다 손잡이가 다르다
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move');
   for (const t of ['gizmo-x-neg', 'gizmo-y-neg', 'gizmo-z-neg']) await expect(page.getByTestId(t)).toHaveCount(1); // 반대 방향 손잡이 = 6방향 (2026-10-18)
   for (const t of ['gizmo-x', 'gizmo-y', 'gizmo-z', 'gizmo-move']) await expect(page.getByTestId(t)).toHaveCount(1);
   await expect(page.getByTestId('gizmo-rot-x')).toHaveCount(0);
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('e'); // 회전은 단추를 숨겨 단축키로 (2026-10-18)
   for (const t of ['gizmo-rot-x', 'gizmo-rot-y', 'gizmo-rot-z', 'gizmo-ring-x', 'gizmo-ring-y', 'gizmo-ring-z']) await expect(page.getByTestId(t)).toHaveCount(1);
-  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('r');
   await expect(page.getByTestId('gizmo').locator('[data-testid^="gizmo-size-"]')).toHaveCount(8);
   await expect(page.getByTestId('sign-handle')).toHaveCount(0); // 크기 모드에선 꼭짓점 손잡이 대신 크기 손잡이
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
@@ -83,6 +86,7 @@ test('매니퓰레이터 자리 = 외곽선 대각선 교점 (새로 그린 사�
   await setCamera(page);
   // 사진에 그냥 그린 사각형(벽 원근과 다름)
   const id = await addSign(page, [[500, 120], [760, 140], [770, 260], [490, 250]]);
+  await moveMode(page);
   const q = await quadOf(page, id);
   const at = await page.evaluate(async (q) => { const mp = '/src/lib/core/manipulator.ts'; const { quadCenter } = await import(/* @vite-ignore */ mp); return quadCenter(q) as Pt; }, q);
   const c = (await page.getByTestId('gizmo-move').boundingBox())!;
@@ -98,6 +102,7 @@ test('원근 매니퓰레이터: 손으로 비튼 외곽선은 [⊞ 원근에 �
   const q = await rectOnWall(page, 1000, 3800, 3000, 800);
   const hand: Pt[] = [[q[0][0], q[0][1] - 30], q[1], [q[2][0] + 25, q[2][1]], q[3]];
   const id = await addSign(page, hand);
+  await moveMode(page);
   const guide = page.getByTestId('persp-guide');
   await expect(guide).toBeVisible();
   expect(Number(await guide.getAttribute('data-skew'))).toBeGreaterThan(3);
@@ -112,6 +117,7 @@ test('원근 설정이 없는 사진에서도 매니퓰레이터로 옮긴다 (�
   await openOwnedProject(page, request);
   await loadSample(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await moveMode(page);
   await expect(page.getByTestId('gizmo')).toBeVisible();
   const before = await quadOf(page, id);
   await drag(page, 'gizmo-move', 40, -20);
@@ -124,6 +130,7 @@ test('3D 단계: 사인물을 눌러 고르면 매니퓰레이터가 뜨고, 옮
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await moveMode(page);
   await page.evaluate(() => (window as unknown as { __ganpanda: { selectObject(id: string | null): void } }).__ganpanda.selectObject(null));
   await page.getByTestId('stage-3d').click();
   const overlay = page.getByTestId('photo-overlay');
@@ -167,7 +174,8 @@ test('크기 모드(외곽선만): 노란 꼭짓점 손잡이는 비율 유지, 
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 2000, 800));
-  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  await moveMode(page);
+  await page.keyboard.press('r');
   // 벽 위 크기(mm)로 잰다 — 사진 px 비율은 원근 때문에 자리마다 다르다
   const wallSize = () => page.evaluate(async (id) => {
     const mp = '/src/lib/core/manipulator.ts'; const { frameOf } = await import(/* @vite-ignore */ mp);
@@ -203,13 +211,14 @@ test('원근 설정이 없는 사진: 박스 회전 고리·평면 판이 없다
   await openOwnedProject(page, request);
   await loadSample(page);
   await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
+  await moveMode(page);
   await expect(page.getByTestId('gizmo')).toBeVisible();
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('e'); // 회전은 단추를 숨겨 단축키로 (2026-10-18)
   await expect(page.getByTestId('gizmo-rotate')).toHaveCount(1);
   await expect(page.getByTestId('gizmo-rot-x')).toHaveCount(0);
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('face-axes')).toHaveCount(0);
-  await page.getByTestId('gizmo-mode-scale').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('r');
   await expect(page.getByTestId('gizmo').locator('[data-testid^="gizmo-size-"]')).toHaveCount(8);
 });
 
@@ -218,32 +227,30 @@ test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async 
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
+  await moveMode(page);
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
 
-test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보인다(자홍 점선 제안 상자는 없음). 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {
+test('상자 가이드는 없음(2026-10-18 "매니퓰레이터 아웃라인 제거"); 손으로 비튼 외곽선에 원근 맞추기 제안; 버튼은 아이콘', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
   const q = await rectOnWall(page, 1000, 3800, 3000, 800);
   const id = await addSign(page, q);
-  const box = page.getByTestId('box-guide');
-  await expect(box).toHaveCount(1);
-  expect(await box.locator('line.edge').count()).toBe(12);
-  await expect(page.getByTestId('box-guide-target')).toHaveCount(0); // 원근에 맞음
+  await moveMode(page);
+  await expect(page.getByTestId('box-guide')).toHaveCount(0); // 상자 가이드 제거 (2026-10-18)
   // 손으로 비튼 외곽선이어도 제안 상자는 없다 (2026-10-15 사용자: "너무 복잡해")
   const hand: Pt[] = [[q[0][0], q[0][1] - 30], q[1], [q[2][0] + 25, q[2][1]], q[3]];
   await page.evaluate(({ id, hand }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { quad: hand }), { id, hand });
   await expect(page.getByTestId('persp-align')).toHaveCount(1);
-  await expect(page.getByTestId('box-guide-target')).toHaveCount(0);
-  // 시트(두께 없음)는 상자 없음
+  // 시트(두께 없음)
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { productId: undefined, sheetIds: ['sh-cut'] }), id);
   await expect(page.getByTestId('box-guide')).toHaveCount(0);
   // 아이콘 버튼에는 설명(title)
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('e'); // 회전은 단추를 숨겨 단축키로 (2026-10-18)
   await expect(page.getByTestId('gizmo-rot-z').locator('title')).toHaveText(/박스/);
   await expect(page.getByTestId('gizmo-mode-move').locator('title')).toHaveText('이동 (W)');
 });
@@ -253,6 +260,7 @@ test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)
   await loadSample(page);
   await setCamera(page);
   await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await moveMode(page);
   const arrow = async () => { const c = (await page.getByTestId('gizmo-move').boundingBox())!, x = (await page.getByTestId('gizmo-x').boundingBox())!; return Math.hypot(x.x + x.width / 2 - (c.x + c.width / 2), x.y + x.height / 2 - (c.y + c.height / 2)); };
   const before = await arrow();
   await page.getByTestId('open-settings').click();
@@ -270,6 +278,7 @@ test('돌출 간판 면에 그린 외곽선: 박스는 벽 가로(X) 방향으�
   await setCamera(page);
   const q = await sideQuad(page, 300, 3000, 900, 0, 1200);
   const id = await addSign(page, q);
+  await moveMode(page);
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-box', 'x');
   await expect(page.getByTestId('persp-align')).toHaveCount(0);
   expect(await quadOf(page, id)).toEqual(q);
@@ -282,7 +291,8 @@ test('X·Y·Z 단추·회전 고리는 박스 방향만 바꾼다: 외곽선·�
   await setCamera(page);
   const q = await rectOnWall(page, 1000, 3800, 3000, 800);
   const id = await addSign(page, q);
-  const g = page.getByTestId('gizmo'), face = page.getByTestId('box-guide').locator('polygon.face');
+  await moveMode(page);
+  const g = page.getByTestId('gizmo');
   await expect(g).toHaveAttribute('data-box', 'y');
   await expect(page.getByTestId('face-y')).toHaveAttribute('data-on', 'true');
   // 2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다" — 판 대신 모드 단추 아래 X·Y·Z 단추
@@ -290,28 +300,22 @@ test('X·Y·Z 단추·회전 고리는 박스 방향만 바꾼다: 외곽선·�
   for (const a of ['x', 'y', 'z']) await expect(page.getByTestId(`face-${a}`).locator('text')).toHaveText(a.toUpperCase());
   const mode = (await page.getByTestId('gizmo-mode-move').boundingBox())!, fy = (await page.getByTestId('face-y').boundingBox())!;
   expect(fy.y).toBeGreaterThan(mode.y + mode.height - 1); // 모드 단추 아래
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('e'); // 회전은 단추를 숨겨 단축키로 (2026-10-18)
   await expect(page.getByTestId('face-axes')).toHaveCount(0); // 이동 모드에서만
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
-  // 외곽선 = 앞면(2026-10-17)이라 앞면 다각형은 그대로 — 뒷면으로 가는 모서리(세 번째 선)의 뒷점이 방향을 따라 바뀐다
-  const guideBack = () => page.getByTestId('box-guide').locator('line.edge').nth(2).getAttribute('x1');
-  const boxY = await guideBack();
   // X 판: 박스가 벽 가로로 — 외곽선 그대로, 상자만 바뀜
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await expect(g).toHaveAttribute('data-box', 'x');
   expect(await quadOf(page, id)).toEqual(q);
-  await expect.poll(guideBack).not.toBe(boxY);
   // 켜진 X 판을 다시 누르면 자동(Y)
   await page.getByTestId('face-x').dispatchEvent('pointerdown', { button: 0 });
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBeNull();
-  await expect.poll(guideBack).toBe(boxY);
   // Z 고리로 박스를 돌린다 — 외곽선은 그대로, 방향은 축 사이(none)
-  await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
+  await page.keyboard.press('e'); // 회전은 단추를 숨겨 단축키로 (2026-10-18)
   await drag(page, 'gizmo-rot-z', 12, 6);
   await expect.poll(() => fieldOf(page, id, 'boxDir')).not.toBeNull();
   expect(await quadOf(page, id)).toEqual(q);
-  await expect(face).not.toHaveAttribute('points', boxY!);
   await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 });
   await expect(g).toHaveAttribute('data-box', 'none');
 });
@@ -322,11 +326,11 @@ test('QWER: Q 선택 도구, W 이동, E 회전, R 크기 (매니퓰레이터 �
   await loadSample(page);
   await setCamera(page);
   await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+  await moveMode(page);
   const g = page.getByTestId('gizmo');
   await page.keyboard.press('e'); await expect(g).toHaveAttribute('data-mode', 'rotate');
   await page.keyboard.press('r'); await expect(g).toHaveAttribute('data-mode', 'scale');
   await page.keyboard.press('w'); await expect(g).toHaveAttribute('data-mode', 'move');
-  await expect(page.getByTestId('gizmo-mode-rotate').locator('title')).toHaveText('회전 (E)');
   await page.keyboard.press('t'); await expect(page.getByTestId('tool-rect')).toHaveClass(/on/);
   await page.keyboard.press('q'); await expect(page.getByTestId('tool-select')).toHaveClass(/on/);
 });
@@ -336,7 +340,8 @@ test('매니퓰레이터 아래 메뉴(모드·X/Y/Z 단추)는 항상 맨 위�
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
-  await addSign(page, await rectOnWall(page, 1000, 3800, 700, 300)); // 작은 사인물 = 손잡이·고리가 메뉴와 겹치기 쉬움
+  await addSign(page, await rectOnWall(page, 1000, 3800, 700, 300));
+  await moveMode(page); // 작은 사인물 = 손잡이·고리가 메뉴와 겹치기 쉬움
   const topAt = (testid: string) => page.evaluate((tid) => {
     const el = document.querySelector(`[data-testid="${tid}"]`)!;
     const r = el.getBoundingClientRect();
@@ -345,8 +350,8 @@ test('매니퓰레이터 아래 메뉴(모드·X/Y/Z 단추)는 항상 맨 위�
   }, testid);
   const click = async (testid: string) => { const b = (await page.getByTestId(testid).boundingBox())!; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); };
   for (const m of ['rotate', 'scale', 'move'] as const) {
-    for (const c of ['gizmo-mode-move', 'gizmo-mode-rotate', 'gizmo-mode-scale']) expect(await topAt(c)).toBe(c);
-    await click(`gizmo-mode-${m}`);
+    expect(await topAt('gizmo-mode-move')).toBe('gizmo-mode-move'); // 모드 단추는 이동 하나 (2026-10-18)
+    if (m === 'move') { await page.keyboard.press('w'); if ((await page.getByTestId('gizmo').getAttribute('data-mode')) !== 'move') await click('gizmo-mode-move'); } else await page.keyboard.press(m === 'rotate' ? 'e' : 'r');
     await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', m);
   }
   for (const f of ['face-x', 'face-y', 'face-z']) expect(await topAt(f)).toBe(f);
