@@ -51,6 +51,13 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft)), { timeout: 15_000 }).not.toBe(before);
   const axesOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { axes?: { first: string; second: string } } } }).__ganpanda.cameraDraft.axes);
   expect(await axesOf()).toEqual({ first: '+x', second: '+z' });
+  // 축 선 설정을 바꿔 두면 자동 제안이 그 축을 지킨다 (2026-10-18 사용자: "설정에 x, y 설정하고 자동으로 측정하면 x, z로 변경되어 결과가 나온다. 설정의 자동에서 따르게")
+  await dlg.getByTestId('camera-axis-2').selectOption('+y');
+  expect(await axesOf()).toEqual({ first: '+x', second: '+y' });
+  await dlg.getByTestId('camera-propose').click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { cameraBusy: boolean } }).__ganpanda.cameraBusy), { timeout: 15_000 }).toBe(false);
+  expect(await axesOf()).toEqual({ first: '+x', second: '+y' });
+  await dlg.getByTestId('camera-axis-2').selectOption('+z');
 
   // 정확한 값으로: 띠 위·아래(가로), 문 좌·우(세로), 원점 = 벽 좌하단, 기준 = 문 폭 1000
   const [bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0], [0, 0], [9000, 0]]);
