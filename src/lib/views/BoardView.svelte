@@ -310,7 +310,7 @@
         zoom={viewport.zoom}
         objects={app.objects.filter((o) => o.photoId === p.id)}
         measures={app.measures}
-        selectedId={app.selectedId}
+        selectedId={app.selectionKind === 'card' ? null : app.selectedId}
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
@@ -343,7 +343,7 @@
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
         onchat={(id) => app.openChat(id)}
-        multiIds={app.shapeMulti}
+        multiIds={app.selectionKind === 'card' ? app.selectionIds : app.shapeMulti}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
@@ -377,7 +377,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectedId === o.id || app.sameAsSelected.includes(o.id)} multi={app.cardMulti.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>

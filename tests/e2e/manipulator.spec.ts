@@ -51,6 +51,7 @@ test('매니퓰레이터: 원근 축 X·Y·Z 화살표 / 회전 고리 3개 / �
   await expect(page.getByTestId('gizmo')).toBeVisible();
   // 모드: 이동(기본) → 회전 → 크기, 모드마다 손잡이가 다르다
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move');
+  for (const t of ['gizmo-x-neg', 'gizmo-y-neg', 'gizmo-z-neg']) await expect(page.getByTestId(t)).toHaveCount(1); // 반대 방향 손잡이 = 6방향 (2026-10-18)
   for (const t of ['gizmo-x', 'gizmo-y', 'gizmo-z', 'gizmo-move']) await expect(page.getByTestId(t)).toHaveCount(1);
   await expect(page.getByTestId('gizmo-rot-x')).toHaveCount(0);
   await page.getByTestId('gizmo-mode-rotate').dispatchEvent('pointerdown', { button: 0 });
@@ -135,6 +136,7 @@ test('3D 단계: 사인물을 눌러 고르면 매니퓰레이터가 뜨고, 옮
   await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2);
   await expect(page.getByTestId('gizmo')).toBeVisible();
   // 3D 그림 위에서도 항상 보이고 눌린다: 손잡이 자리의 맨 위 요소가 손잡이, 선마다 어두운 테두리
+  for (const t of ['gizmo-x-neg', 'gizmo-z-neg']) await expect(page.getByTestId(t)).toHaveCount(1); // 4방향 (2026-10-18)
   for (const t of ['gizmo-x', 'gizmo-z', 'gizmo-move']) {
     const top = await page.getByTestId(t).evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.getAttribute('data-testid'); });
     expect(top).toBe(t);

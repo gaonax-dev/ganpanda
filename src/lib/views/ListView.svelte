@@ -217,9 +217,9 @@
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
           class="face"
-          class:sel={app.selectedId === o.id}
-          class:multi={app.cardMulti.includes(o.id)}
-          data-multi={app.cardMulti.includes(o.id) || undefined}
+          class:sel={app.selectionKind === 'shape' && app.selectedId === o.id}
+          class:multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)}
+          data-multi={(app.selectionKind === 'card' && app.selectionIds.includes(o.id)) || undefined}
           style:clip-path={clip(o, w, h)}
           role="button"
           tabindex="-1"
