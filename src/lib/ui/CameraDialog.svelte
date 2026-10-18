@@ -86,7 +86,7 @@
   const m = (mm: number) => (mm / 1000).toFixed(2);
   /**
    * 기준 길이 (2026-10-14 사용자: "중심선들 중에 하나 선택하고 그 선 안에서 길이 변경하고 기준길이 넣는다"):
-   * 원점에서 뻗는 중심선(X/Y/Z) 하나를 **사진에서 눌러** 고르면 그 선의 끝 핸들이 선 위에서만 움직이고(= 선 길이 변경),
+   * 원점에서 뻗는 중심선(X/Y/Z) 하나를 **목록에서** 고르면(사진의 선을 눌러 바꾸던 것은 2026-10-18 제거 — 끌다가 축이 바뀜) 그 선의 끝 핸들이 선 위에서만 움직이고(= 선 길이 변경, 원점의 −쪽·+쪽 모두),
    * 그 선의 실제 길이(mm)를 넣는다. 고르지 않은 두 중심선은 1m 길이로 그려진다. 옛 형식(from/to, 선 선택)은 편집하는 순간 이 형식으로
    */
   const refAxis = $derived<'x' | 'y' | 'z'>(draft.ref && ('from' in draft.ref || 'point' in draft.ref) ? draft.ref.axis : 'x');
@@ -183,14 +183,13 @@
                   {#each overlay.cube as s, i (i)}<line class="cube" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1.5 / scale} />{/each}
                 </g>
               {/if}
-              <!-- 중심선 (원점 축 X·Y·Z): 누르면 기준 길이 축이 된다. 고른 축은 핸들까지 늘어나고 자홍 테두리 -->
+              <!-- 중심선 (원점 축 X·Y·Z): 기준 길이 축은 목록(camera-ref-axis)에서만 고른다 (2026-10-18 사용자: "방향막대를 클릭하면 변경되는데 이거 제거"). 고른 축은 핸들까지 늘어나고 자홍 테두리, 핸들은 원점의 −쪽·+쪽 어디로든 -->
               {#if sol}
                 {#each (['x', 'y', 'z'] as const) as axis (axis)}
                   {@const end = centerEnd(axis)}
                   {#if end}
                     {#if axis === refAxis}<line class="refglow" x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={11 / scale} pointer-events="none" />{/if}
-                    <line class="center" data-testid="camera-center-line" data-axis={axis} class:isref={axis === refAxis} style:stroke={AXIS_COLOR[axis]} x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={(axis === refAxis ? 4 : 3) / scale} role="button" tabindex="-1" onpointerdown={(e) => { if (!ro) { e.stopPropagation(); setRefAxis(axis); } }} />
-                    <line class="centerhit" x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={14 / scale} role="button" tabindex="-1" onpointerdown={(e) => { if (!ro) { e.stopPropagation(); setRefAxis(axis); } }} />
+                    <line class="center" data-testid="camera-center-line" data-axis={axis} class:isref={axis === refAxis} style:stroke={AXIS_COLOR[axis]} x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={(axis === refAxis ? 4 : 3) / scale} pointer-events="none" />
                     <text class="axlabel" style:fill={AXIS_COLOR[axis]} x={end[0]} y={end[1] - 8 / scale} font-size={14 / scale} stroke-width={3 / scale}>{axis.toUpperCase()}</text>
                   {/if}
                 {/each}
@@ -228,12 +227,7 @@
         <section>
           <h3>AI 제안</h3>
           <div class="row">
-            <select class="axes" data-testid="camera-auto-axes" title="자동 제안이 두 선 쌍에 붙일 벽면: 가로에 가까운 선 쌍 · 세로에 가까운 선 쌍" value={app.autoAxes} disabled={ro} onchange={(e) => app.setAutoAxes(e.currentTarget.value as 'xz' | 'yz' | 'xy')}>
-              <option value="xz">정면 벽 (가로 X · 높이 Z)</option>
-              <option value="yz">옆 벽 (깊이 Y · 높이 Z)</option>
-              <option value="xy">바닥·천장 (가로 X · 깊이 Y)</option>
-            </select>
-            <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
+            <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} title="가로에 가까운 선 쌍 → X 가로, 세로에 가까운 선 쌍 → Z 높이. 옆 벽(깊이 Y)은 아래 축 선에서 쌍의 축을 바꾸세요" onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
             <button class="btn small" data-testid="camera-snap" disabled={ro || app.cameraBusy} title="선 끝점을 사진 속 모서리에 붙입니다" onclick={() => app.snapCamera()}>모서리에 붙이기</button>
           </div>
           {#if proposeFailed}<p class="warn" data-testid="camera-propose-failed">뚜렷한 직선을 찾지 못했습니다. 선을 직접 놓으세요.</p>{/if}
@@ -247,7 +241,7 @@
             <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={refMm || ''} placeholder="실측 거리" disabled={ro} oninput={(e) => setRefMm(Number(e.currentTarget.value))} />
             <span>mm</span>
           </div>
-          <p class="hint">원점에서 뻗는 <b>중심선(X·Y·Z) 중 하나를 사진에서 누르세요.</b> 고른 중심선은 자홍으로 빛나고, 끝의 핸들을 그 선 위에서 끌어 길이를 바꾼 뒤 그 길이의 실측값(mm)을 넣습니다. 원점을 실측 구간의 한쪽 끝(문틀·벽 모서리)에 두면 됩니다.</p>
+          <p class="hint">원점에서 뻗는 <b>중심선(X·Y·Z) 중 하나를 목록에서 고르세요.</b> 고른 중심선은 자홍으로 빛나고, 끝의 핸들을 그 선 위에서(원점의 어느 쪽으로든) 끌어 길이를 바꾼 뒤 그 길이의 실측값(mm)을 넣습니다. 원점을 실측 구간의 한쪽 끝(문틀·벽 모서리)에 두면 됩니다.</p>
         </section>
         <section>
           <h3>축 선 <span class="legend" style:color={pairColor('x')}>■</span> 첫 쌍 <span class="legend" style:color={pairColor('y')}>■</span> 둘째 쌍 <span class="legend" style:color={pairColor('z')}>■</span> 셋째 쌍 — 색은 축(X 빨강·Y 초록·Z 파랑)을 따릅니다</h3>
@@ -306,8 +300,6 @@
   .stage img { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
   .reflabel { fill: #ff8ae6; }
-  .center { cursor: pointer; }
-  .centerhit { stroke: transparent; cursor: pointer; }
   .refglow { stroke: rgba(255, 77, 210, 0.5); }
   .axlabel { font-weight: 700; }
   .handle { fill: #fff; cursor: grab; }
