@@ -608,12 +608,14 @@
           {#if face3 && g3}
             {@const dirNow = editing?.id === o.id && editing.box ? editing.box : boxDirOf({ ...o, quad: q }, calWall)}
             {@const cur = dirNow ? (axisOfDir(pose, dirNow) ?? 'none') : 'none'}
-            <!-- 원근에 맞추기: 사인물이 놓인 면(face3) 기준 — 벽이 아닌 면으로 판정돼도, 많이 기울어도(25° 까지) 단추가 나온다 (2026-10-18 사용자: "원근 안 맞을 때 자동 배치 버튼 안 나와") -->
-            {@const skew = skewOf(face3, q)}
-            {@const tilt = tiltOf(frameOf(face3, q))}
+            <!-- 원근에 맞추기 (2026-10-18 사용자: "원근 안 맞을 때 자동 배치 버튼 안 나와" → "이전과 다르게 잘 못 맞춘다"): 기준 면 = 사용자가 정면 축·박스 방향을 직접 정했으면 그 면, 아니면 **벽**.
+                 비뚤어진 외곽선은 면 자동 판정이 흔들려(옆면으로 보기도) 그 면에 맞추면 엉뚱해지므로, 자동이면 늘 벽에 맞춘다. 많이 기울어도(25° 까지) 단추가 나온다 -->
+            {@const alignPlane = o.faceAxis || o.boxDir ? face3 : calWall}
+            {@const skew = skewOf(alignPlane, q)}
+            {@const tilt = tiltOf(frameOf(alignPlane, q))}
             {#if !editing && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
-                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, face3), '#ff4dd2')}
+                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
               </g>
             {/if}
             {@const mAt = menuAt(q, g3.c)}
