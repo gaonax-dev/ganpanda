@@ -613,7 +613,8 @@
             {@const alignPlane = o.faceAxis || o.boxDir ? face3 : calWall}
             {@const skew = skewOf(alignPlane, q)}
             {@const tilt = tiltOf(frameOf(alignPlane, q))}
-            {#if !editing && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
+            <!-- 벽 기준 비틀림이 25° 를 넘으면 돌출면 등 다른 면에 그린 외곽선로 보고 제안하지 않는다 -->
+            {#if !editing && skew <= 25 && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
                 {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
               </g>
