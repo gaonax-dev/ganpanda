@@ -453,10 +453,13 @@
       {#each objects.filter((o) => frameLook(o)?.mm && o.widthMm && o.heightMm) as o (o.id)}
         {@const fl = frameLook(o)!}
         {@const outer = outlinePts(o.shape, quadOf(o), o.polygon, o.corner)}
+        <!-- 안쪽 선 = 사인물 좌표(0~1)에서 테 폭(mm)만큼 들어간 사각형을 외곽선 호모그래피로 투영 → 원근에서도 폭이 고른 테 (2026-10-18 캡처: 중심 기준 축소 근사는 비뚤어진 외곽선에서 테가 한쪽만 두꺼웠다) -->
+        {@const fx = Math.min(0.4, fl.mm / o.widthMm!)}
+        {@const fy = Math.min(0.4, fl.mm / o.heightMm!)}
+        {@const Hf = solveHomography(UNIT_RECT, quadOf(o))}
+        {@const innerQ = ([[fx, fy], [1 - fx, fy], [1 - fx, 1 - fy], [fx, 1 - fy]] as Pt[]).map((p) => applyHomography(Hf, p))}
         {@const c = outer.reduce((a, p) => [a[0] + p[0] / outer.length, a[1] + p[1] / outer.length], [0, 0])}
-        {@const kx = Math.max(0.2, 1 - (2 * fl.mm) / o.widthMm!)}
-        {@const ky = Math.max(0.2, 1 - (2 * fl.mm) / o.heightMm!)}
-        {@const inner = outer.map((p) => [c[0] + (p[0] - c[0]) * kx, c[1] + (p[1] - c[1]) * ky])}
+        {@const inner = o.shape === 'polygon' ? outer.map((p) => [c[0] + (p[0] - c[0]) * (1 - 2 * fx), c[1] + (p[1] - c[1]) * (1 - 2 * fy)]) : outlinePts(o.shape, innerQ, undefined, o.corner)}
         <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {outer.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')}, {inner.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
