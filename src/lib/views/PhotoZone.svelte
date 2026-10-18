@@ -155,12 +155,15 @@
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   /** 변 막대 잡기: Shift = 다중 선택, 매니퓰레이터를 붙일 수 있고 면이 있으면 면 위에서(gfree, 원근 사진은 사인물 자신의 면), 아니면(다각형·면 없음) 화면에서 그대로 옮긴다 */
+  /** 변 막대·변 손잡이·굵은 외곽선 터치: 원근이 맞춰진 사진이면 사인물 면 위에서, 아니면 꼭짓점처럼 사진 위 평행 이동 (2026-10-18 "꼭지점처럼 작동하게" — 전에는 원근 없는 사진에서도 면 추정으로 옮겨 외곽선이 비뚤어졌다) */
   function edgeDown(e: PointerEvent, o: SignObject, q: Pt[]) {
     if (e.button !== 0) return;
     if (e.shiftKey) { e.stopPropagation(); onselect(o.id, true); return; }
-    const on = has3d && calib?.pose && calWall ? anchor3(o, q)?.plane ?? undefined : undefined;
-    if (gizmoable(o) && (on ?? refPlaneOf(o))) gizmoDown(e, o, 'gfree', 0, 0, on);
-    else shapeDown(e, o, 'move');
+    if (has3d && calib?.pose && calWall && gizmoable(o)) {
+      const on = anchor3(o, q)?.plane;
+      if (on) { gizmoDown(e, o, 'gfree', 0, 0, on); return; }
+    }
+    shapeDown(e, o, 'move');
   }
   // ---------- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15 사용자: "메니폴레이터는 원근의 값을 기준으로 작동해야한다",
   //            "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만") ----------
@@ -564,8 +567,9 @@
             ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
         {/if}
-        <!-- 휴대폰: 변 가운데 손잡이 (2026-10-18 사용자: "모바일에서는 아웃라인 변이 선택되지 않는데 변 가운데 컨트롤로 나오게 모바일에서만") — 누르면 변 막대와 같이 옮긴다 -->
+        <!-- 휴대폰: 외곽선을 따라 굵은(보이지 않는) 터치 띠 + 변 가운데 손잡이 (2026-10-18 사용자: "사인물 아웃라인 모바일에서 터치 이동 안 된다. 꼭지점처럼 작동하게") — 누르면 사인물 전체를 옮긴다 -->
         {#if sel && editable && tool === 'select' && !turned && app.compact}
+          <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, o.polygon, o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
           {#each [0, 1, 2, 3] as i (i)}
             {@const a = q[i]}
             {@const b = q[(i + 1) % 4]}
@@ -733,6 +737,7 @@
   .pin { cursor: pointer; }
   .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
   .edge-handle { fill: rgba(255, 204, 0, 0.35); stroke: var(--accent); cursor: move; }
+  .touch-outline { fill: none; stroke: transparent; pointer-events: stroke; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
   .confirms { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 360px; }

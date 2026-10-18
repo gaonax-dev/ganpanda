@@ -242,3 +242,35 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
   expect(db.y + db.height).toBeLessThanOrEqual(844);
   await page.getByTestId('close-object-settings').click();
 });
+
+test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 사인물이 꼭짓점처럼 평행 이동한다 (2026-10-18)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const id = app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 300], [1000, 300], [1000, 600], [200, 600]], sheetIds: [] });
+    app.selectObject(id);
+  });
+  const quad = () => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { quad: number[][] }[] } }).__ganpanda.objects[0].quad);
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (x: number, y: number) => [{ x, y, radiusX: 4, radiusY: 4, force: 1, id: 1 }];
+  const dragTouch = async (x: number, y: number, dx: number, dy: number) => {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tp(x, y) });
+    for (let i = 1; i <= 6; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: tp(x + (dx * i) / 6, y + (dy * i) / 6) }); await page.waitForTimeout(20); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(150);
+  };
+  const translated = (a: number[][], b: number[][]) => { const dx = b[0][0] - a[0][0], dy = b[0][1] - a[0][1]; return Math.abs(dx) > 1 && b.every((p, i) => Math.abs(p[0] - a[i][0] - dx) < 0.5 && Math.abs(p[1] - a[i][1] - dy) < 0.5); };
+  await expect(page.getByTestId('sign-touch-outline')).toHaveCount(1);
+  // 변 손잡이
+  const q0 = await quad();
+  const h = (await page.getByTestId('edge-handle-0').boundingBox())!;
+  await dragTouch(h.x + h.width / 2, h.y + h.height / 2, 50, 30);
+  const q1 = await quad();
+  expect(translated(q0, q1)).toBe(true);
+  // 외곽선 띠 (오른쪽 변 위, 안쪽 아님)
+  const s = (await page.getByTestId('sign-shape').boundingBox())!;
+  await dragTouch(s.x + s.width - 1, s.y + s.height * 0.3, -40, 20);
+  const q2 = await quad();
+  expect(translated(q1, q2)).toBe(true);
+});
