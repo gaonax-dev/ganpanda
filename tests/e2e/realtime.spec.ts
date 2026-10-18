@@ -35,8 +35,10 @@ test('두 사람이 같은 방에서 사진·영역·대화를 실시간으로 �
   await expect(b.getByTestId('sign-shape')).toHaveCount(1);
 
   await b.getByTestId('sign-shape').click();
+  await b.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await b.getByTestId('chat-input').fill('크기 확인 부탁드려요');
   await b.getByTestId('chat-input').press('Enter');
+  await a.getByTestId('object-chat-open').click();
   await expect(a.getByTestId('chat-bubble')).toContainText('크기 확인 부탁드려요');
   await expect(a.getByTestId('chat-bubble')).not.toHaveClass(/mine/);
 });

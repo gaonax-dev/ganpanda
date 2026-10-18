@@ -37,6 +37,7 @@ test('입력칸에서는 ⌘Z 가 글자 되돌리기로 남는다 (앱 실행 �
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
+  await page.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await page.getByTestId('chat-input').fill('메모');
   await page.getByTestId('chat-input').press('ControlOrMeta+z');
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);

@@ -95,6 +95,8 @@ test('오브젝트별 대화 (카톡형)', async ({ page }) => {
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
+  await page.getByTestId('object-chat-open').click(); // 대화는 말풍선 창에서 (2026-10-18)
+  await expect(page.getByTestId('object-chat')).toBeVisible();
   await page.getByTestId('chat-input').fill('가로 4m 맞나요?');
   await page.getByTestId('chat-input').press('Enter');
   await expect(page.getByTestId('chat-bubble')).toHaveCount(1);

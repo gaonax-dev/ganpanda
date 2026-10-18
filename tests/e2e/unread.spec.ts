@@ -12,6 +12,7 @@ test('보고 있지 않은 사인물에 메시지가 오면 배지·토스트가
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await expect(guest.getByTestId('sign-shape')).toHaveCount(2);
   await guest.getByTestId('sign-shape').first().click();
+  await guest.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await guest.getByTestId('chat-input').fill('첫 번째 간판 색상 문의');
   await guest.getByTestId('chat-input').press('Enter');
 
@@ -19,7 +20,7 @@ test('보고 있지 않은 사인물에 메시지가 오면 배지·토스트가
   await expect(page.getByTestId('sign-unread').first()).toContainText('1');
   await expect(page.getByTestId('unread-total')).toContainText('1');
   await expect(page.getByTestId('toast')).toContainText('첫 번째 간판 색상 문의');
-  await page.getByTestId('toast').click(); // 토스트를 누르면 그 사인물이 열린다
+  await page.getByTestId('toast').click(); // 토스트를 누르면 그 사인물의 말풍선 창이 열린다
   await expect(page.getByTestId('chat-bubble')).toContainText('첫 번째 간판 색상 문의');
   await expect(page.getByTestId('sign-unread')).toHaveCount(0);
   await expect(page.getByTestId('unread-total')).toHaveCount(0);
@@ -37,6 +38,7 @@ test('내가 보낸 메시지는 안 읽음으로 세지 않는다', async ({ pa
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
+  await page.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await page.getByTestId('chat-input').fill('메모');
   await page.getByTestId('chat-input').press('Enter');
   await expect(page.getByTestId('chat-bubble')).toHaveCount(1);

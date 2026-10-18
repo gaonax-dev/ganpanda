@@ -58,6 +58,7 @@
     </select>
     <button class="btn small val" class:on={editing === 'name'} data-testid="quick-name" title="이름" onclick={openName}>{obj.name}</button>
     <button class="btn small val" class:on={editing === 'size'} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
+    <button class="btn small" data-testid="quick-chat-open" title="말풍선 (대화)" onclick={() => app.openChat(obj.id)}>💬{app.unread[obj.sameAs ?? obj.id] ? ` ${app.unread[obj.sameAs ?? obj.id]}` : ''}</button>
     <button class="btn small primary" data-testid="quick-panel-open" onclick={() => (app.panelOpen = true)}>상세정보</button>
   </div>
   {#if pending}

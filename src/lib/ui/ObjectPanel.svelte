@@ -7,7 +7,6 @@
   import { quoteObject, won } from '../core/quote';
   import { describeOptions } from '../core/options';
   import type { SignObject } from '../core/model';
-  import Chat from './Chat.svelte';
   import SpecInput from './SpecInput.svelte';
   import QuickSpec from './QuickSpec.svelte';
 
@@ -15,7 +14,6 @@
 
   // 패널이 열려 있는 동안 이 사인물의 새 메시지는 읽은 것으로
   const chatId = $derived(obj.sameAs ?? obj.id);
-  $effect(() => { app.messages; app.markSeen(chatId); });
   /** 연결 대상 후보: 다른 사인물(원본)들 */
   const linkTargets = $derived(app.signs.filter((s) => s.id !== obj.id && s.id !== obj.sameAs));
   const copies = $derived(copiesOf(obj.sameAs ?? obj.id, app.objects));
@@ -62,6 +60,8 @@
   <header>
     <!-- 입력 즉시 저장: 바깥을 눌러 패널이 닫히면 change 가 오지 않아 이름이 사라졌음 (2026-10-15 사용자: "웹에서 사인물 이름 변경" 안 됨) -->
     <input class="title" data-testid="object-name" value={obj.name} disabled={ro} oninput={(e) => { const v = e.currentTarget.value.trim(); if (v) update({ name: v }); }} />
+    <!-- 대화는 말풍선 창으로 (2026-10-18 "속성 패널에서 대화 섹션 빼줘") -->
+    <button class="icon chat" title="말풍선 (이 사인물의 대화)" data-testid="object-chat-open" onclick={() => app.openChat(obj.id)}>💬{#if app.unread[chatId]}<i data-testid="object-chat-unread">{app.unread[chatId]}</i>{/if}</button>
     <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
   <!-- 대화 위의 내용(연결·분류·사이즈·사양 글·칩·요약)은 길어지면 스크롤 — 휴대폰에서 대화 입력칸이 밀려 안 보이던 문제 (2026-10-17) -->
@@ -121,12 +121,11 @@
   </section>
 
   </div>
-  <section class="chat-sec">
-    <Chat objectId={chatId} />
-  </section>
 </aside>
 
 <style>
+  .icon.chat { position: relative; }
+  .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   .panel {
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; z-index: 5;
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
@@ -156,12 +155,10 @@
     background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); color: var(--warn); border-radius: 8px; padding: 6px 10px;
   }
   .info { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
-  .chat-sec { flex: 1 1 auto; min-height: 220px; display: flex; flex-direction: column; padding: 0; border-bottom: 0; }
   /* 휴대폰 폭: 화면 아래쪽 시트 (사진이 위에 보이게) */
   @media (max-width: 720px) {
     .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; border-radius: 14px; }
     .info { max-height: 55%; }
-    .chat-sec { min-height: 160px; }
   }
   /* 휴대폰 세로 보기: [상세정보] 패널도 전체 화면 (2026-10-17) */
   @media (max-width: 720px) and (orientation: portrait) {

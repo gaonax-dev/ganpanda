@@ -208,14 +208,20 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
   await page.getByTestId('spec-text').fill('후렉스 검정 전광 3000K');
   await page.getByTestId('spec-text').press('Enter');
   await expect(page.getByTestId('spec-item')).toHaveCount(4);
-  const pb = (await panel.boundingBox())!;
+  await expect(page.getByTestId('spec-apply')).toBeVisible(); // 확인 창의 단추도 (위쪽은 스크롤)
+  await page.getByTestId('spec-cancel').click();
+  // 대화는 말풍선 창에서 (2026-10-18): 💬 를 누르면 창이 화면 안에, 입력칸도 창 안에
+  await page.getByTestId('object-chat-open').click();
+  const chat = page.getByTestId('object-chat');
+  await expect(chat).toBeVisible();
+  const pb = (await chat.boundingBox())!;
   const input = page.getByTestId('chat-input');
   await expect(input).toBeVisible();
   const ib = (await input.boundingBox())!;
-  expect(ib.y + ib.height).toBeLessThanOrEqual(pb.y + pb.height + 1); // 패널 안
+  expect(ib.y + ib.height).toBeLessThanOrEqual(pb.y + pb.height + 1); // 창 안
   expect(ib.y + ib.height).toBeLessThanOrEqual(844); // 화면 안
-  await expect(page.getByTestId('spec-apply')).toBeVisible(); // 확인 창의 단추도 (위쪽은 스크롤)
-  await page.getByTestId('spec-cancel').click();
+  await page.getByTestId('object-chat-close').click(); // 말풍선 창을 닫으면 다시 속성 패널
+  await expect(panel).toBeVisible();
   // 세로 보기: 패널이 전체 화면 (2026-10-17 "상세보기는 전창으로")
   const pb2 = (await panel.boundingBox())!;
   expect(pb2.width).toBeGreaterThanOrEqual(388);

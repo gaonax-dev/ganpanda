@@ -109,6 +109,11 @@ class AppState {
   objectSettingsFocus = $state<string | null>(null); // 'body' | 'part:<id>' | 'layout' | 'note' | 'price'
   /** 휴대폰 폭: 전체 속성 패널을 열었는가 (기본은 빠른 막대만 — 패널이 사진을 가리지 않게). 데스크톱에서는 항상 열림 */
   panelOpen = $state(false);
+  /** 사인물 말풍선 창이 열린 사인물 id (2026-10-18 "속성 패널에서 대화 섹션 빼줘" — 대화는 말풍선 창에서) */
+  chatObjectId = $state<string | null>(null);
+  /** 사인물 말풍선 창 열기: 그 사인물을 선택하고 대화 창을 연다 */
+  openChat(id: string) { if (id !== this.selectedId) this.selectObject(id); this.chatObjectId = id; }
+  closeChat() { this.chatObjectId = null; }
   /** 실사 보기 창 (사진 id) */
   renderPhotoId = $state<string | null>(null);
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
@@ -568,7 +573,7 @@ class AppState {
   openFromToast(t: Toast) {
     this.dismissToast(t.id);
     this.view = 'board';
-    if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.selectObject(t.objectId);
+    if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.openChat(t.objectId); // 사인물이면 말풍선 창 (2026-10-18)
   }
 
   /** 자동 분리 도구 준비: 모델 로드 + 사진 분석 (사진당 한 번) */
@@ -808,7 +813,7 @@ class AppState {
   }
 
   selectObject(id: string | null, kind: 'shape' | 'card' = 'shape') {
-    if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; }
+    if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; this.chatObjectId = null; }
     this.multi = [];
     this.selectionKind = kind;
     this.selectedId = id;

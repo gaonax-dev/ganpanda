@@ -11,6 +11,7 @@ test('대화에 사진을 첨부하면 썸네일로 보이고 상대도 본다; 
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 150], [700, 250]);
+  await page.getByTestId('object-chat-open').click(); // 대화는 말풍선 창에서 (2026-10-18)
   await attachImage(page, '참고.png');
   await page.getByTestId('chat-input').fill('이런 느낌으로요');
   await page.getByTestId('chat-input').press('Enter');
@@ -25,6 +26,7 @@ test('대화에 사진을 첨부하면 썸네일로 보이고 상대도 본다; 
 
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await guest.getByTestId('sign-shape').click();
+  await guest.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await expect(guest.getByTestId('chat-image')).toHaveCount(1);
   await expect(guest.getByTestId('chat-image')).toHaveJSProperty('complete', true);
   await expect(guest.getByTestId('chat-file')).toContainText('도면.pdf');
@@ -38,9 +40,11 @@ test('고객(viewer)도 현장 사진을 첨부해 보낼 수 있다', async ({ 
   await dragOnPhoto(page, [300, 150], [700, 250]);
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await guest.getByTestId('sign-shape').click();
+  await guest.getByTestId('object-chat-open').click(); // 말풍선 창 (2026-10-18)
   await attachImage(guest, '현장.png');
   await guest.getByTestId('chat-send').click();
   await expect(guest.getByTestId('chat-image')).toHaveCount(1);
+  await page.getByTestId('object-chat-open').click();
   await expect(page.getByTestId('chat-image')).toHaveCount(1);
   await expect(page.getByTestId('chat-image')).toHaveJSProperty('complete', true);
   await guest.ctx.close();
