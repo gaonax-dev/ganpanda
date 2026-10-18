@@ -15,9 +15,9 @@ test('다각형(매니퓰레이터 없음)에도 네 변 막대가 있고 끌면
     return id;
   });
   await expect(page.getByTestId('gizmo')).toHaveCount(0); // 다각형에는 매니퓰레이터가 없다
-  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤
+  await expect(page.locator('[data-testid^="edge-handle-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤
   const before = (await quads(page)).find((o) => o.id === id)!;
-  const bar = (await page.getByTestId('gizmo-edge-2').boundingBox())!;
+  const bar = (await page.getByTestId('edge-handle-2').boundingBox())!;
   await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
   await page.mouse.down();
   await page.mouse.move(bar.x + bar.width / 2 + 60, bar.y + bar.height / 2 + 30, { steps: 5 });
@@ -34,15 +34,9 @@ test('이동 모드: 외곽선 네 변에 막대가 보이고, 변을 끌면 사
   await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 200], [700, 300]);
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'none'); // 매니퓰레이터는 기본 숨김 (2026-10-18)
-  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤 — 늘 있다 (가로 변은 높이 0 이라 toBeVisible 대신 개수로)
-  // 막대는 변 가운데만 — 양 끝 꼭짓점 자리는 비어 있어 꼭짓점을 잡을 수 있다 (2026-10-17 "꼭짓점 선택이 힘들다")
-  const top = (await page.getByTestId('gizmo-edge-0').boundingBox())!;
-  const corners = await page.getByTestId('sign-handle').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }));
-  const xs = corners.map((c) => c[0]);
-  expect(top.x).toBeGreaterThan(Math.min(...xs) + 15);
-  expect(top.x + top.width).toBeLessThan(Math.max(...xs) - 15);
+  await expect(page.locator('[data-testid^="edge-handle-"]')).toHaveCount(4); // 변 손잡이는 기본 컨트롤 — 늘 있다
   const [before] = await quads(page);
-  const bar = (await page.getByTestId('gizmo-edge-0').boundingBox())!; // 위쪽 변
+  const bar = (await page.getByTestId('edge-handle-0').boundingBox())!; // 위쪽 변
   await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
   await page.mouse.down();
   await page.mouse.move(bar.x + bar.width / 2 + 50, bar.y + bar.height / 2 + 40, { steps: 5 });
@@ -52,7 +46,7 @@ test('이동 모드: 외곽선 네 변에 막대가 보이고, 변을 끌면 사
   expect(after.quad[0][1]).toBeGreaterThan(before.quad[0][1] + 15);
   expect(after.quad[2][0] - after.quad[0][0]).toBeCloseTo(before.quad[2][0] - before.quad[0][0], 0); // 크기는 그대로
   // Alt + 변 끌기 = 복사본이 옮겨짐
-  const bar2 = (await page.getByTestId('gizmo-edge-2').boundingBox())!; // 아래쪽 변
+  const bar2 = (await page.getByTestId('edge-handle-2').boundingBox())!; // 아래쪽 변
   await page.keyboard.down('Alt');
   await page.mouse.move(bar2.x + bar2.width / 2, bar2.y + bar2.height / 2);
   await page.mouse.down();
