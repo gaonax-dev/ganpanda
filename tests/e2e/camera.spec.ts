@@ -42,7 +42,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   await page.getByTestId('camera-open').click();
   const dlg = page.getByTestId('camera-dialog');
   await expect(dlg).toBeVisible();
-  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 1); // 축 선 끝점 8 + 원점 + 기준 중심선 끝 핸들
+  await expect(dlg.getByTestId('camera-handle')).toHaveCount(4 * 2 + 1 + 2); // 축 선 끝점 8 + 원점 + 기준 선분 양 끝 (2026-10-18 시작도 끌 수 있게)
   // 사진의 직선에서 자동 제안 → 선이 바뀐다
   const before = await page.evaluate(() => JSON.stringify((window as unknown as { __ganpanda: { cameraDraft: unknown } }).__ganpanda.cameraDraft));
   // 자동 제안은 언제나 가로 쌍 → +X, 세로 쌍 → +Z (실내/실외 옵션 제거, 2026-10-18)
@@ -68,30 +68,45 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
   }, { bandTL, bandTR, bandBL, bandBR, doorTL, doorBL, doorTR, doorBR, origin, wallBR });
   await expect(dlg.getByTestId('camera-result')).toContainText('초점거리');
   await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('x');
-  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="x"]')).toHaveClass(/isref/); // X 중심선이 기준
-  await expect(dlg.locator('[data-testid="camera-handle"][data-key="r"]')).toHaveCount(1); // 그 끝의 핸들
+  await expect(dlg.getByTestId('camera-ref-line')).toHaveAttribute('data-axis', 'x'); // X 축 위 기준 선분
+  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="x"]')).toHaveCount(0); // 길이가 있는 축은 방향바 없음 (2026-10-18)
+  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="z"]')).toHaveCount(1);
+  await expect(dlg.locator('[data-testid="camera-handle"][data-key="rb"]')).toHaveCount(1); // 양 끝 핸들
   // 기준 축은 목록에서만 바꾼다 — 사진의 중심선을 눌러도 바뀌지 않는다 (2026-10-18 사용자: "방향막대를 클릭하면 변경되는데 이거 제거")
   await dlg.locator('[data-testid="camera-center-line"][data-axis="z"]').dispatchEvent('pointerdown', { bubbles: true, pointerId: 1 });
   await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('x');
   await dlg.getByTestId('camera-ref-axis').selectOption('z');
   await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('z');
-  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="z"]')).toHaveClass(/isref/);
+  await expect(dlg.getByTestId('camera-ref-line')).toHaveAttribute('data-axis', 'z');
+  await expect(dlg.locator('[data-testid="camera-center-line"][data-axis="x"]')).toHaveCount(1);
   await dlg.getByTestId('camera-ref-axis').selectOption('x');
   await expect(dlg.getByTestId('camera-ref-axis')).toHaveValue('x');
   // 기준 길이 핸들은 원점을 지나 −쪽으로도 간다 (2026-10-18 사용자: "길이 막대는 방향의 −영역 +영역 모두 이동 가능해야해")
   {
     const o = (await dlg.locator('[data-testid="camera-handle"][data-key="o"]').boundingBox())!;
-    const r = (await dlg.locator('[data-testid="camera-handle"][data-key="r"]').boundingBox())!;
+    const r = (await dlg.locator('[data-testid="camera-handle"][data-key="rb"]').boundingBox())!;
     const ox = o.x + o.width / 2, oy = o.y + o.height / 2, rx = r.x + r.width / 2, ry = r.y + r.height / 2;
     await page.mouse.move(rx, ry); await page.mouse.down();
     const tx = ox - (rx - ox) * 0.2, ty = oy - (ry - oy) * 0.2;
     for (let i = 1; i <= 6; i++) await page.mouse.move(rx + (tx - rx) * i / 6, ry + (ty - ry) * i / 6);
     await page.mouse.up();
-    const ref = await page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { origin: number[]; ref: { point: number[] } } } }).__ganpanda.cameraDraft);
-    expect(ref.ref.point[0]).toBeLessThan(ref.origin[0]); // 원점 왼쪽(−X)
-    const r2 = (await dlg.locator('[data-testid="camera-handle"][data-key="r"]').boundingBox())!;
+    const draftOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { origin: number[]; ref: { from: number[]; to: number[] } } } }).__ganpanda.cameraDraft);
+    const ref = await draftOf();
+    expect(ref.ref.to[0]).toBeLessThan(ref.origin[0]); // 원점 왼쪽(−X)
+    const r2 = (await dlg.locator('[data-testid="camera-handle"][data-key="rb"]').boundingBox())!;
     expect(r2.x + r2.width / 2).toBeLessThan(ox);
     await expect(dlg.getByTestId('camera-result')).toContainText('초점거리'); // 여전히 풀린다
+    // 선분을 잡아 끌면 길이(두 끝 사이) 그대로 축을 따라 전체 이동 (2026-10-18 사용자: "길이 라인을 잡으면 길이 전체이동")
+    const h = (await dlg.getByTestId('camera-ref-hit').boundingBox())!;
+    const hx = h.x + h.width / 2, hy = h.y + h.height / 2;
+    await page.mouse.move(hx, hy); await page.mouse.down();
+    for (let i = 1; i <= 5; i++) await page.mouse.move(hx + 40 * i, hy);
+    await page.mouse.up();
+    const moved = await draftOf();
+    const len = (r: { from: number[]; to: number[] }) => Math.hypot(r.to[0] - r.from[0], r.to[1] - r.from[1]);
+    expect(len(moved.ref)).toBeCloseTo(len(ref.ref), 0);
+    expect(moved.ref.from[0]).toBeGreaterThan(ref.ref.from[0] + 50);
+    expect(moved.ref.to[0]).toBeGreaterThan(ref.ref.to[0] + 50);
   }
   await page.evaluate((wallBR) => { const app = (window as unknown as { __ganpanda: { cameraDraft: { ref: unknown } } }).__ganpanda; app.cameraDraft = { ...app.cameraDraft, ref: { axis: 'x', point: wallBR, mm: 9000 } }; }, wallBR);
   await expect(dlg.getByTestId('camera-3d')).toBeVisible(); // fSpy 처럼 3D 격자·축이 사진에 겹쳐 보인다
@@ -143,7 +158,8 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   // fSpy 식: 원점을 끌면 카메라 위치가 실시간으로 바뀌고, 화각이 표시된다
   await expect(dlg.getByTestId('camera-fov')).toContainText('화각');
   const posBefore = await dlg.getByTestId('camera-position').textContent();
-  const refBefore = await page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { ref: { point: [number, number] } } } }).__ganpanda.cameraDraft.ref.point);
+  const refOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { ref: { from: [number, number]; to: [number, number] } } } }).__ganpanda.cameraDraft.ref);
+  const refBefore = await refOf();
   const oh = dlg.locator('[data-testid="camera-handle"][data-key="o"]');
   const ob = (await oh.boundingBox())!;
   await page.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2);
@@ -151,9 +167,10 @@ test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평�
   await page.mouse.move(ob.x + ob.width / 2 + 60 * scale, ob.y + ob.height / 2, { steps: 4 });
   await page.mouse.up();
   await expect(dlg.getByTestId('camera-position')).not.toHaveText(posBefore!);
-  // 기준 길이 끝점은 피봇과 같이 이동
-  const refAfter = await page.evaluate(() => (window as unknown as { __ganpanda: { cameraDraft: { ref: { point: [number, number] } } } }).__ganpanda.cameraDraft.ref.point);
-  expect(Math.abs(refAfter[0] - (refBefore[0] + 60))).toBeLessThanOrEqual(3);
+  // 기준 길이 선분(양 끝)은 피봇과 같이 이동
+  const refAfter = await refOf();
+  expect(Math.abs(refAfter.from[0] - (refBefore.from[0] + 60))).toBeLessThanOrEqual(3);
+  expect(Math.abs(refAfter.to[0] - (refBefore.to[0] + 60))).toBeLessThanOrEqual(3);
   // 축 선택·리버스: 첫 쌍을 −X 로 하면 거울상 경고, 둘째 쌍은 자동으로 Y 유지
   await dlg.getByTestId('camera-axis-1').selectOption('-x');
   await expect(dlg.getByTestId('camera-axis-2')).toHaveValue('+z');

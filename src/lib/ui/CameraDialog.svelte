@@ -14,7 +14,7 @@
   let svg: SVGSVGElement = $state()!;
   let host: HTMLDivElement = $state()!;
   let scale = $state(1); // 화면 px / 사진 px
-  let drag: { key: string; pointerId: number } | null = $state(null);
+  let drag: { key: string; pointerId: number; start?: { p: Pt; from: Pt; to: Pt } } | null = $state(null);
   let loupe: HTMLCanvasElement | undefined = $state(undefined);
   let loupeAt = $state<Pt | null>(null);
   /** Shift 를 누른 동안만 돋보기 */
@@ -86,26 +86,33 @@
   const m = (mm: number) => (mm / 1000).toFixed(2);
   /**
    * 기준 길이 (2026-10-14 사용자: "중심선들 중에 하나 선택하고 그 선 안에서 길이 변경하고 기준길이 넣는다"):
-   * 원점에서 뻗는 중심선(X/Y/Z) 하나를 **목록에서** 고르면(사진의 선을 눌러 바꾸던 것은 2026-10-18 제거 — 끌다가 축이 바뀜) 그 선의 끝 핸들이 선 위에서만 움직이고(= 선 길이 변경, 원점의 −쪽·+쪽 모두),
+   * 축(X/Y/Z) 하나를 **목록에서** 고르면(사진의 선을 눌러 바꾸던 것은 2026-10-18 제거 — 끌다가 축이 바뀜) 그 축 선 위에 기준 선분(from→to)이 놓이고 양 끝 핸들이 선 위에서만 움직인다(원점의 −쪽·+쪽 모두, 선분을 잡으면 전체 이동),
    * 그 선의 실제 길이(mm)를 넣는다. 고르지 않은 두 중심선은 1m 길이로 그려진다. 옛 형식(from/to, 선 선택)은 편집하는 순간 이 형식으로
    */
   const refAxis = $derived<'x' | 'y' | 'z'>(draft.ref && ('from' in draft.ref || 'point' in draft.ref) ? draft.ref.axis : 'x');
   const refMm = $derived(draft.ref?.mm ?? 0);
   const refLine = $derived(refLineOf(draft, false, sol ?? undefined));
   const REF_AXIS_LABEL = { x: 'X 가로 (빨강)', y: 'Y 세로 (초록)', z: 'Z 높이 (파랑)' } as const;
-  /** 고른 중심선의 끝점 (없으면 원점에서 축 방향으로 떨어진 기본 위치) */
-  function refEnd(axis: 'x' | 'y' | 'z'): Pt {
+  /**
+   * 기준 길이 선분의 양 끝 (축 선 위, 원점의 −쪽·+쪽 어디든). 시작도 끌 수 있고(2026-10-18 사용자: "시작도 컨트롤 가능하게"), 없으면 원점에서 축 방향으로
+   * 떨어진 자리에 둔다 — 원점 핸들과 겹치면 처음 잡기 어렵다("원점에 있으면 처음 선택이 어려우니 센터에서 떨어진 자리에"). 옛 point 형식은 원점→점
+   */
+  function refEnds(axis: 'x' | 'y' | 'z'): [Pt, Pt] {
     const r = draft.ref;
-    let b: Pt;
-    if (r && 'point' in r && r.axis === axis) b = r.point;
-    else if (r && 'from' in r && r.axis === axis) b = r.to;
-    else { const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt); const L = Math.min(photo.w, photo.h); b = [draft.origin[0] + dir[0] * L * 0.3, draft.origin[1] + dir[1] * L * 0.3]; }
-    return sol ? snapToAxis(sol, axis, b) : b;
+    let a: Pt, b: Pt;
+    if (r && 'from' in r && r.axis === axis) { a = r.from; b = r.to; }
+    else if (r && 'point' in r && r.axis === axis) { a = draft.origin; b = r.point; }
+    else {
+      const dir = sol ? sol.axisImageDir[axis] : ([1, 0] as Pt); const L = Math.min(photo.w, photo.h);
+      a = [draft.origin[0] + dir[0] * L * 0.15, draft.origin[1] + dir[1] * L * 0.15]; b = [draft.origin[0] + dir[0] * L * 0.45, draft.origin[1] + dir[1] * L * 0.45];
+    }
+    return sol ? [snapToAxis(sol, axis, a), snapToAxis(sol, axis, b)] : [a, b];
   }
-  function setRefAxis(axis: 'x' | 'y' | 'z') { set({ ref: { axis, point: refEnd(axis), mm: draft.ref?.mm || 1000 } }); }
-  const setRefMm = (mm: number) => set({ ref: { axis: refAxis, point: refEnd(refAxis), mm: Math.max(1, mm || 1) } });
-  /** 중심선 끝 (고른 축은 핸들까지, 나머지는 1m) */
-  const centerEnd = (axis: 'x' | 'y' | 'z'): Pt | null => (axis === refAxis && refLine ? refLine.b : overlay?.axes[axis]?.b ?? null);
+  const setRef = (axis: 'x' | 'y' | 'z', from: Pt, to: Pt, mm: number) => set({ ref: { axis, from, to, mm } });
+  function setRefAxis(axis: 'x' | 'y' | 'z') { const [from, to] = refEnds(axis); setRef(axis, from, to, draft.ref?.mm || 1000); }
+  const setRefMm = (mm: number) => { const [from, to] = refEnds(refAxis); setRef(refAxis, from, to, Math.max(1, mm || 1)); };
+  /** 방향바(중심선) 끝: 원점에서 1m. 기준 길이가 있는 축은 방향바 대신 기준 선분만 그린다 (2026-10-18 사용자: "길이가 있는 쪽은 방향바 없도록") */
+  const centerEnd = (axis: 'x' | 'y' | 'z'): Pt | null => (axis === refAxis ? null : overlay?.axes[axis]?.b ?? null);
   const linesOf = (axis: Axis): [Line, Line] | undefined => (axis === 'x' ? draft.x : axis === 'y' ? draft.y : draft.z);
   const toPhoto = (e: PointerEvent): Pt => {
     const r = svg.getBoundingClientRect();
@@ -116,11 +123,25 @@
       // 원점(피봇)을 옮기면 기준 길이 끝점도 같은 만큼 따라간다 (2026-10-14 사용자) — 축 위로는 풀이 때 다시 붙는다
       const d: Pt = [p[0] - draft.origin[0], p[1] - draft.origin[1]];
       const r = draft.ref;
-      const end: Pt | undefined = r && 'point' in r ? [r.point[0] + d[0], r.point[1] + d[1]] : r && 'from' in r ? [r.to[0] + d[0], r.to[1] + d[1]] : undefined;
-      set({ origin: p, ...(r && end && ('point' in r || 'from' in r) ? { ref: { axis: r.axis, point: end, mm: r.mm } } : {}) });
+      if (r && ('point' in r || 'from' in r)) {
+        const [a, b] = refEnds(r.axis);
+        set({ origin: p, ref: { axis: r.axis, from: [a[0] + d[0], a[1] + d[1]], to: [b[0] + d[0], b[1] + d[1]], mm: r.mm } });
+      } else set({ origin: p });
       return;
     }
-    if (key === 'r') { set({ ref: { axis: refAxis, point: sol ? snapToAxis(sol, refAxis, p) : p, mm: refMm || 1000 } }); return; }
+    if (key === 'ra' || key === 'rb') {
+      const [a, b] = refEnds(refAxis), q = sol ? snapToAxis(sol, refAxis, p) : p;
+      setRef(refAxis, key === 'ra' ? q : a, key === 'rb' ? q : b, refMm || 1000);
+      return;
+    }
+    if (key === 'rl') { // 선분을 잡으면 길이 그대로 축을 따라 전체 이동 (2026-10-18 사용자: "길이 라인을 잡으면 길이 전체이동")
+      const st = drag?.start;
+      if (!st) return;
+      let d: Pt = [p[0] - st.p[0], p[1] - st.p[1]];
+      if (sol) { const dir = sol.axisImageDir[refAxis], n2 = dir[0] * dir[0] + dir[1] * dir[1]; if (n2 > 1e-12) { const t = (d[0] * dir[0] + d[1] * dir[1]) / n2; d = [dir[0] * t, dir[1] * t]; } }
+      setRef(refAxis, [st.from[0] + d[0], st.from[1] + d[1]], [st.to[0] + d[0], st.to[1] + d[1]], refMm || 1000);
+      return;
+    }
     const axis = key[0] as Axis, i = Number(key[1]), end = key[2] as 'a' | 'b';
     const lines = linesOf(axis);
     if (!lines) return;
@@ -131,7 +152,8 @@
     if (ro) return;
     e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    drag = { key, pointerId: e.pointerId };
+    const [from, to] = refEnds(refAxis);
+    drag = { key, pointerId: e.pointerId, ...(key === 'rl' ? { start: { p: toPhoto(e), from, to } } : {}) };
     shift = e.shiftKey;
     loupeAt = toPhoto(e); drawLoupe();
   }
@@ -183,13 +205,12 @@
                   {#each overlay.cube as s, i (i)}<line class="cube" x1={s.a[0]} y1={s.a[1]} x2={s.b[0]} y2={s.b[1]} stroke-width={1.5 / scale} />{/each}
                 </g>
               {/if}
-              <!-- 중심선 (원점 축 X·Y·Z): 기준 길이 축은 목록(camera-ref-axis)에서만 고른다 (2026-10-18 사용자: "방향막대를 클릭하면 변경되는데 이거 제거"). 고른 축은 핸들까지 늘어나고 자홍 테두리, 핸들은 원점의 −쪽·+쪽 어디로든 -->
+              <!-- 방향바(중심선, 원점 축 X·Y·Z, 1m): 기준 길이 축은 목록(camera-ref-axis)에서만 고른다 (2026-10-18 사용자: "방향막대를 클릭하면 변경되는데 이거 제거"). 기준 길이가 있는 축은 방향바 대신 아래 기준 선분 -->
               {#if sol}
                 {#each (['x', 'y', 'z'] as const) as axis (axis)}
                   {@const end = centerEnd(axis)}
                   {#if end}
-                    {#if axis === refAxis}<line class="refglow" x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={11 / scale} pointer-events="none" />{/if}
-                    <line class="center" data-testid="camera-center-line" data-axis={axis} class:isref={axis === refAxis} style:stroke={AXIS_COLOR[axis]} x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={(axis === refAxis ? 4 : 3) / scale} pointer-events="none" />
+                    <line class="center" data-testid="camera-center-line" data-axis={axis} style:stroke={AXIS_COLOR[axis]} x1={draft.origin[0]} y1={draft.origin[1]} x2={end[0]} y2={end[1]} stroke-width={3 / scale} pointer-events="none" />
                     <text class="axlabel" style:fill={AXIS_COLOR[axis]} x={end[0]} y={end[1] - 8 / scale} font-size={14 / scale} stroke-width={3 / scale}>{axis.toUpperCase()}</text>
                   {/if}
                 {/each}
@@ -207,8 +228,14 @@
                 {/if}
               {/each}
               {#if refLine && sol}
+                <!-- 기준 길이 선분: 축 선 위 from→to, 양 끝 핸들(ra·rb), 선분을 잡으면 전체 이동(rl) — 2026-10-18 -->
+                <line class="refglow" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={11 / scale} pointer-events="none" />
+                <line class="refline" data-testid="camera-ref-line" data-axis={refAxis} style:stroke={AXIS_COLOR[refAxis]} x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={4 / scale} pointer-events="none" />
+                <line class="refhit" data-testid="camera-ref-hit" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={16 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rl')} />
+                <text class="axlabel" style:fill={AXIS_COLOR[refAxis]} x={refLine.b[0]} y={refLine.b[1] - 8 / scale} font-size={14 / scale} stroke-width={3 / scale}>{refAxis.toUpperCase()}</text>
                 <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 12 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
-                <circle data-testid="camera-handle" data-key="r" class="handle ref" class:on={drag?.key === 'r'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'r')} />
+                <circle data-testid="camera-handle" data-key="ra" class="handle ref" class:on={drag?.key === 'ra'} cx={refLine.a[0]} cy={refLine.a[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'ra')} />
+                <circle data-testid="camera-handle" data-key="rb" class="handle ref" class:on={drag?.key === 'rb'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rb')} />
               {/if}
               <g class="origin" transform="translate({draft.origin[0]} {draft.origin[1]})">
                 <line x1={-14 / scale} x2={14 / scale} y1="0" y2="0" stroke-width={2 / scale} /><line y1={-14 / scale} y2={14 / scale} x1="0" x2="0" stroke-width={2 / scale} />
@@ -241,7 +268,7 @@
             <input data-testid="camera-ref-mm" type="number" min="1" step="10" value={refMm || ''} placeholder="실측 거리" disabled={ro} oninput={(e) => setRefMm(Number(e.currentTarget.value))} />
             <span>mm</span>
           </div>
-          <p class="hint">원점에서 뻗는 <b>중심선(X·Y·Z) 중 하나를 목록에서 고르세요.</b> 고른 중심선은 자홍으로 빛나고, 끝의 핸들을 그 선 위에서(원점의 어느 쪽으로든) 끌어 길이를 바꾼 뒤 그 길이의 실측값(mm)을 넣습니다. 원점을 실측 구간의 한쪽 끝(문틀·벽 모서리)에 두면 됩니다.</p>
+          <p class="hint"><b>축(X·Y·Z)을 목록에서 고르면</b> 그 축 선 위에 자홍으로 빛나는 <b>기준 선분</b>이 놓입니다. 양 끝 핸들을 축 선 위에서(원점의 어느 쪽으로든) 끌어 실측 구간(문틀·벽 모서리 사이)에 맞추고, 선분을 잡아 끌면 길이 그대로 옮겨집니다. 그 길이의 실측값(mm)을 넣습니다.</p>
         </section>
         <section>
           <h3>축 선 <span class="legend" style:color={pairColor('x')}>■</span> 첫 쌍 <span class="legend" style:color={pairColor('y')}>■</span> 둘째 쌍 <span class="legend" style:color={pairColor('z')}>■</span> 셋째 쌍 — 색은 축(X 빨강·Y 초록·Z 파랑)을 따릅니다</h3>
@@ -301,6 +328,7 @@
   .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
   .reflabel { fill: #ff8ae6; }
   .refglow { stroke: rgba(255, 77, 210, 0.5); }
+  .refhit { stroke: transparent; cursor: move; }
   .axlabel { font-weight: 700; }
   .handle { fill: #fff; cursor: grab; }
   .handle.ref { stroke: #ff4dd2; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
