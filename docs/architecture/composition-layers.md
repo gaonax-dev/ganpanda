@@ -1,8 +1,8 @@
-# 조합형 사인물의 레이어 구조 — 제안 (2026-10-18, 미결정)
+# 조합형 사인물의 레이어 구조 (2026-10-18 결정: 0·1단계 진행, 몸통도 프레임 레이어)
 
 사용자: "사인물 구성의 모듈화와 클래스화가 아직 부족해 보인다. 조합형을 위한 레이어 형태의 자유로운 구성이 필요하다. 제안해 줄 수 있나"
 
-상태: **제안**. 결정되면 [../product/decisions.md](../product/decisions.md)에 적고 이 문서를 설계 문서로 바꾼다. 현재 구현은 [../features/composition.md](../features/composition.md).
+상태: **결정됨**(사용자 2026-10-18: "0,1, 몸통도 프레임 레이어"). 컴포넌트 정의는 코드 모듈(권장안), 옛 형식 병행 기간은 1단계에서 정한다. 구현 상태는 아래 7절과 [../features/composition.md](../features/composition.md).
 
 ## 1. 지금 구조의 한계
 
@@ -98,3 +98,16 @@ export const registry = new Map<string, Component>();
 3. **프레임도 레이어로**: 몸통 옵션(프레임 색·테두리·판 두께·상단 조명)을 `frame` 레이어의 spec 으로 옮기는 데 동의하는지. 옵션 패널 모양은 유지 가능.
 4. **컴포넌트 정의 방식**: 코드 모듈(권장, 타입 검사·테스트 용이) vs JSON(코드 없이 추가 — 2차).
 5. **옛 형식 병행 기간**: 저장을 새 형식으로만 할 시점.
+
+## 7. 구현 상태
+
+### 0단계 — 구성 요소 레지스트리 (구현됨 2026-10-18)
+- `src/lib/core/components/`: `types.ts`(`Component`·`PartPriceCtx` 인터페이스), `channel.ts`·`scashi.ts`·`sheet.ts`(종류 모듈), `letters.ts`(입체 글자 공통 단가), `index.ts`(`COMPONENTS`·`componentOf(kind)`·`componentKinds()`).
+- 모듈이 가진 것: `label`·`color`·`types`, `init`(시트 `on='frame'`)·`normalize`(시트 halfCut→cutMode), `typeLabel`·`spec`·`hasSpec`·`chip`, `optionFields`·`specKeys`, `host`(위에 올릴 수 있을 때 자리 문구)·`sits`·`layer`(0 면 / 100 입체)·`itemWidth`, 3D `extrude`·`depthMm`·`lighting`·`paint{face,side}`, `price(part, ctx)`.
+- 옮긴 곳: `parts.ts`(이름·구성내역·올릴 곳·층·새 요소·옛 옵션 정리), `partsLayout.ts`(색·도색 키), `quote.ts`(구성 요소 줄 — `finish/need` 를 ctx 로 넘김; 줄 순서는 전과 같이 입체 → 상단 조명 → 시트), `render.ts`(`composedOf` 의 밀어내기·두께·조명·색), `options.ts`(`partOptionFields`·요약의 구성내역 키), `PartsEditor`·`QuickSpec`·`ObjectSettingsDialog`(이름·세부 종류·올릴 곳·가로 입력).
+- 옵션 표는 `optionSchema.ts`(잎)로 분리 — 레지스트리가 표만 보고, `options.ts` 는 함수. `charCount.ts`·`priceFormat.ts`·`shapeArea.ts` 도 잎으로 빼서 순환 의존을 없앴다(`quote.ts` 가 다시 내보냄).
+- 달라진 동작 하나: 스카시 글자의 3D 색이 스카시 **도색**(`paint`)을 따른다 — 전엔 채널 키(face/body)를 봐서 도색이 비치지 않았다(2D 정면도는 이미 도색을 썼음).
+- 남긴 종류 이름 비교(허용 목록, `tests/unit/components.test.ts` 가 개수를 지킨다): 분류 판정(`catalog.ts` 시트 분류·첫 채널·첫 스카시, `parts.ts` 시트 분류·옛 데이터 변환), 채널 전용 UI(`quickSpec.ts`·`specText.ts`·`ObjectSettingsDialog` 채널 탭), 입체 보기(`letter3d.ts` = 채널 글자), 옛 형식 3D(`render.ts` letters). 이것들은 "종류 자체"를 가리키는 곳이라 레지스트리로 옮길 대상이 아니다.
+
+### 1단계 — 레이어 트리 (진행 중)
+

@@ -4,7 +4,8 @@
 // 사인물 = 간판 프레임(productId·options) + 구성 요소(parts: 채널·스카시·시트) + 내용 객체(items: 글자·그림, 간판 중앙 기준 mm).
 // 저장된 parts 가 없으면 옛 필드(채널·스카시 옵션, 문구, 시트)에서 읽을 때 만든다 — 예전 프로젝트는 그대로 동작한다.
 import type { PartItem, SignObject, SignPart } from './model';
-import { CHANNEL_OPTIONS, SCASHI_OPTIONS, isChannelProduct, productById, sheetById, takesLetters } from './catalog';
+import { CHANNEL_OPTIONS, SCASHI_OPTIONS, isChannelProduct, productById, takesLetters } from './catalog';
+import { COMPONENTS, componentOf } from './components';
 
 /**
  * 분류(종류)마다 붙일 수 있는 구성 요소 (2026-10-16 사용자: "사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘").
@@ -24,44 +25,33 @@ export function partKindsFor(o: Pick<SignObject, 'productId' | 'sheetIds' | 'par
   return KINDS_OF[id] ?? [];
 }
 
-export const PART_KIND_LABEL: Record<SignPart['kind'], string> = { channel: '채널', scashi: '스카시', sheet: '시트' };
+// 종류 이름·세부 종류는 레지스트리에서 (core/components, 2026-10-18 레이어 구조 0단계) — 아래 두 표는 호환용
+export const PART_KIND_LABEL: Record<SignPart['kind'], string> = Object.fromEntries(COMPONENTS.map((c) => [c.kind, c.label])) as Record<SignPart['kind'], string>;
 /** 구성 요소 종류마다 고를 수 있는 세부 종류 (채널 제품 · 스카시 제품 · 시트) */
-export const PART_TYPES: Record<SignPart['kind'], { id: string; label: string }[]> = {
-  channel: CHANNEL_OPTIONS,
-  scashi: SCASHI_OPTIONS,
-  // 시트 = UV 출력 / 재질 시트 (커팅은 옵션, 2026-10-16). 옛 안개 시트는 재질 "안개"
-  sheet: [{ id: 'sh-print', label: 'UV 출력' }, { id: 'sh-cut', label: '재질 시트' }],
-};
+export const PART_TYPES: Record<SignPart['kind'], { id: string; label: string }[]> = Object.fromEntries(COMPONENTS.map((c) => [c.kind, c.types])) as Record<SignPart['kind'], { id: string; label: string }[]>;
 
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
-export function newPart(kind: SignPart['kind'], type = PART_TYPES[kind][0].id): SignPart {
-  return { id: uid(), kind, type, ...(kind === 'sheet' ? { on: 'frame' } : {}), items: [] };
+export function newPart(kind: SignPart['kind'], type = componentOf(kind).types[0].id): SignPart {
+  const c = componentOf(kind);
+  const p: SignPart = { id: uid(), kind, type, items: [] };
+  return c.init ? c.init(p) : p;
 }
 /** 새 내용 객체: 간판 중앙, 글자 높이·그림 높이 300mm */
 export function newItem(kind: PartItem['kind']): PartItem {
   return { id: uid(), kind, ...(kind === 'text' ? { text: '' } : {}), x: 0, y: 0, h: 300 };
 }
 
-/** 구성 요소 이름 (채널: 채널 옵션 이름, 스카시: 제품 이름, 시트: 시트 이름) */
-export const partLabel = (p: SignPart) =>
-  p.kind === 'channel' ? CHANNEL_OPTIONS.find((c) => c.id === p.type)?.label ?? productById(p.type)?.name ?? p.type
-  : p.kind === 'scashi' ? productById(p.type)?.name ?? p.type
-  : sheetById(p.type)?.name ?? p.type;
+/** 구성 요소 이름 (세부 종류 이름 — 종류 모듈이 정한다) */
+export const partLabel = (p: SignPart) => componentOf(p.kind).typeLabel(p);
 
 const CH_KEYS = ['chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chFrame', 'chFrameColor', 'bracket'];
 const SC_KEYS: Record<string, string> = { scThick: 'thickness', scMaterial: 'material', scPaintSystem: 'paintSystem', scPaintCode: 'paintCode', scPaintGloss: 'paintGloss' };
 const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.fromEntries(keys.filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]));
 
-/** 이 사인물의 구성 요소. 저장된 것이 있으면 그것, 없으면 옛 필드에서. 간판 분류가 아니면 없음 */
-/** 옛 반컷팅(halfCut) → 컷 방식 반컷 */
-const fixSheetOpts = (p: SignPart): SignPart => {
-  const op = p.options ?? {};
-  if (p.kind !== 'sheet' || op.halfCut === undefined) return p;
-  const { halfCut, ...rest } = op;
-  return { ...p, options: { ...rest, ...(halfCut === true && rest.cutMode === undefined ? { cutMode: '반컷' } : {}) } };
-};
+/** 이 사인물의 구성 요소. 저장된 것이 있으면 그것(종류 모듈의 normalize 로 옛 옵션 정리 — 바뀐 게 없으면 같은 배열), 없으면 옛 필드에서. 간판 분류가 아니면 없음 */
+const normalizePart = (p: SignPart): SignPart => componentOf(p.kind).normalize?.(p) ?? p;
 export function partsOf(o: SignObject): SignPart[] {
-  if (o.parts) return o.parts.some((p) => p.kind === 'sheet' && p.options?.halfCut !== undefined) ? o.parts.map(fixSheetOpts) : o.parts;
+  if (o.parts) { const n = o.parts.map(normalizePart); return n.some((p, i) => p !== o.parts![i]) ? n : o.parts; }
   const kinds = partKindsFor(o);
   if (!kinds.length) return [];
   const opts = o.options ?? {};
@@ -87,7 +77,7 @@ export function partsOf(o: SignObject): SignPart[] {
   if (id === 'board-acp' && opts.finish === '시트 컷팅') sheets.push('sh-cut');
   if (id === 'frame-plain' && opts.print === '실사 출력') sheets.push('sh-print');
   if (id === 'frame-plain' && opts.print === '시트') sheets.push('sh-cut');
-  for (const s of [...new Set(sheets)]) out.push(fixSheetOpts({ id: `legacy-sheet-${s}`, kind: 'sheet', type: s, on: 'frame', options: pick(opts, ['transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode']), items: [] }));
+  for (const s of [...new Set(sheets)]) out.push(normalizePart({ id: `legacy-sheet-${s}`, kind: 'sheet', type: s, on: 'frame', options: pick(opts, ['transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode']), items: [] }));
   return out;
 }
 
@@ -120,9 +110,10 @@ export function sheetTargets(parts: SignPart[], self: SignPart): { id: string; l
   };
   const out: { id: string; label: string }[] = [{ id: 'frame', label: '프레임 면' }];
   for (const p of parts) {
-    if (p.id === self.id || p.kind === 'scashi') continue;
-    if (p.kind === 'sheet' && sitsOnSelf(p)) continue;
-    out.push({ id: p.id, label: p.kind === 'channel' ? `${partLabel(p)} 앞면` : `${partSpecOf(p)} 위` });
+    const host = componentOf(p.kind).host; // 위에 올릴 수 있는 종류만 (스카시는 없음)
+    if (p.id === self.id || !host) continue;
+    if (componentOf(p.kind).sits && sitsOnSelf(p)) continue;
+    out.push({ id: p.id, label: host(p) });
   }
   return out;
 }
@@ -130,11 +121,11 @@ export function sheetTargets(parts: SignPart[], self: SignPart): { id: string; l
 export function onLabel(parts: SignPart[], p: SignPart): string | null {
   if (!p.on || p.on === 'frame') return null;
   const base = parts.find((x) => x.id === p.on);
-  return base ? (base.kind === 'channel' ? `${partLabel(base)} 앞면` : `${partSpecOf(base)} 위`) : null;
+  return base ? componentOf(base.kind).host?.(base) ?? null : null;
 }
-/** 그리는 순서(아래부터): 시트는 깊이 순(프레임 면 → 그 위), 채널·스카시(입체)는 뒤에. 같은 층은 원래 순서 */
+/** 그리는 순서(아래부터): 면에 깔리는 종류(층 0)는 깊이 순(프레임 면 → 그 위), 입체(층 100)는 뒤에. 같은 층은 원래 순서 */
 export function layerOrder(parts: SignPart[]): SignPart[] {
-  return parts.map((p, i) => ({ p, i, key: (p.kind === 'sheet' ? 0 : 100) + depthOf(parts, p) }))
+  return parts.map((p, i) => ({ p, i, key: componentOf(p.kind).layer + depthOf(parts, p) }))
     .sort((a, b) => a.key - b.key || a.i - b.i).map((x) => x.p);
 }
 
@@ -144,7 +135,7 @@ export function partsForProduct(o: SignObject, productId: string | undefined): S
   const kinds = partKindsFor({ productId, sheetIds: o.sheetIds, parts: productId ? undefined : o.parts });
   const kept = o.parts.filter((p) => kinds.includes(p.kind));
   const ids = new Set(kept.map((p) => p.id));
-  return kept.map((p) => (p.kind === 'sheet' && p.on && p.on !== 'frame' && !ids.has(p.on) ? { ...p, on: 'frame' } : p));
+  return kept.map((p) => (p.on && p.on !== 'frame' && !ids.has(p.on) ? { ...p, on: 'frame' } : p));
 }
 
 /** 분류를 고를 때의 변경: 그 분류 기본 종류, 옵션 비움, 못 붙는 구성 요소 정리. 시트 분류는 시트가 하나도 없으면 시트 컷팅으로 시작 */
@@ -160,12 +151,7 @@ export function categoryPatch(o: SignObject, g: string, productId: string | unde
  * 시트 = 종류 + (재질) + 컷팅 + 컷 방식 + (보조시트), 채널·스카시 = 종류 이름
  */
 export function partSpecOf(p: SignPart): string {
-  if (p.kind !== 'sheet') return partLabel(p);
-  const op = fixSheetOpts(p).options ?? {};
-  const cut = (op.cut as string | undefined) ?? (p.type === 'sh-print' ? '돔보컷팅' : '커팅');
-  const on = cut !== '컷팅 없음';
-  return [partLabel(p), p.type === 'sh-cut' ? (op.sheetMat as string | undefined) ?? '단색' : '', on ? cut : '', on ? (op.cutMode as string | undefined) ?? '완컷' : '', on && op.cutMode !== '반컷' && op.transferTape === true ? '보조시트' : '']
-    .filter(Boolean).join(' ');
+  return componentOf(p.kind).spec(p);
 }
 /** 사인물 문구: 사인물 문구 > 구성 요소의 글자 객체 > 구성내역 */
 export function signTextOf(o: SignObject): string {
@@ -181,6 +167,6 @@ export function describeParts(o: SignObject): string[] {
     const texts = p.items.filter((i) => i.kind === 'text' && (i.text ?? '').trim()).map((i) => `"${(i.text ?? '').trim()}" ${Math.round(i.h)}mm`);
     const imgs = p.items.filter((i) => i.kind === 'image').length;
     const on = onLabel(partsOf(o), p);
-    return [p.kind === 'sheet' ? partSpecOf(p) : partLabel(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
+    return [partSpecOf(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
   });
 }

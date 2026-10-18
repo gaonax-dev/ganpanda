@@ -3,6 +3,7 @@
   import { app } from '../state.svelte';
   import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, thicknessFieldOf } from '../core/catalog';
   import { commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
+  import { componentOf } from '../core/components';
   import FrontEditor from './FrontEditor.svelte';
   import type { PartItem } from '../core/model';
   import PartsEditor from './PartsEditor.svelte';
@@ -208,7 +209,7 @@
       {/if}
       {:else if activePart}
         <!-- 구성 요소 탭: 그 카드 하나 -->
-        <section><h3>{activePart.kind === 'channel' ? '채널' : activePart.kind === 'scashi' ? '스카시' : '시트'} <span class="hint">글자·그림 위치는 [배치] 탭의 정면도에서도</span></h3>
+        <section><h3>{componentOf(activePart.kind).label} <span class="hint">글자·그림 위치는 [배치] 탭의 정면도에서도</span></h3>
           <PartsEditor {obj} {ro} {update} kinds={partKinds} partId={activePart.id} /></section>
       {:else if tab === 'layout'}
         <section><h3>배치 <span class="hint">글자·그림을 간판 면 위에서 끌어 놓기 — 3D·실사·전개도에 그대로</span></h3>

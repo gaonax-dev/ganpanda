@@ -47,7 +47,10 @@ ganpanda/
 | `wallPlane.ts` | 실사 합성용 벽면 좌표계 (px ↔ mm, 카메라 포즈) |
 | `render.ts` | 사인물 → 3D 간판 사양 (3D 뷰) |
 | `catalog.ts` | 간판·스카시 종류·시트 종류 (이름·단위), 분류 간판/스카시/시트 (`categoryOf`) |
-| `options.ts` | 주문 사양 옵션 스키마 (종류별 필드·조건부·요약) |
+| `optionSchema.ts` | 주문 사양 옵션 **표**(종류별 필드·조건부) — 잎 모듈 (2026-10-18 레이어 구조 0단계) |
+| `options.ts` | 옵션을 사인물에 적용하는 함수 (묶음·요약·실제 값·정리) |
+| `components/` | **구성 요소 레지스트리**(채널·스카시·시트 모듈: 이름·세부 종류·옵션·단가·구성내역·3D 규칙·층·올릴 곳). 코어·UI·3D 는 종류 이름으로 분기하지 않고 `componentOf(kind)` 만 본다 → [composition-layers.md](composition-layers.md) |
+| `charCount.ts` · `priceFormat.ts` · `shapeArea.ts` | 견적·구성 요소가 함께 쓰는 잎 모듈 (글자수·금액 문구·도형 면적) |
 | `order.ts` | 주문 정보 형식, 주문 JSON |
 | `pricing.ts` | 단가표(기본값·합치기) |
 | `quote.ts` | 오브젝트·프로젝트 견적 (단가표·설치비·추가 항목·부가세) |

@@ -1,7 +1,7 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
-import { PART_COLOR } from './partsLayout';
+import { componentOf } from './components';
 import { paintAlpha, paintHex } from './materials';
 import { layerOrder } from './parts';
 import { topLightOf } from './topLight';
@@ -98,18 +98,18 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   for (const part of layerOrder(o.parts ?? [])) { // 아래 시트부터 (시트 위에 시트)
     for (const it of part.items) {
       if (it.kind === 'text' && !hasText(it.text)) continue;
-      if (it.kind === 'text' && part.kind !== 'sheet') {
-        const scashi = part.kind === 'scashi';
+      const c = componentOf(part.kind); // 종류 모듈: 밀어내기 여부·두께·조명·도색 키 (0단계)
+      if (it.kind === 'text' && c.extrude) {
         const b = itemBox(it); // 글자 상자 (가로 없으면 글자수 × 높이 × 0.9) — 3D 글자도 이 상자에 맞춘다 (2026-10-18)
         letterItems.push({
           text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing,
-          depthMm: scashi ? parseFloat(String(part.options?.thickness ?? '')) || 10 : d.depthMm,
+          depthMm: c.depthMm(part, o),
           // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
-          lighting: scashi ? 'none' : lightingOf(part.type), faceColor: paintHex(part.options, 'face') ?? d.faceColor, sideColor: paintHex(part.options, 'body') ?? d.sideColor,
+          lighting: c.lighting(part), faceColor: paintHex(part.options, c.paint.face) ?? d.faceColor, sideColor: paintHex(part.options, c.paint.side) ?? d.sideColor,
         });
       } else {
         const b = itemBox(it);
-        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, part.kind === 'sheet' ? 'sheet' : 'paint') ?? PART_COLOR[part.kind] }); // 시트 색 (2026-10-17)
+        faceItems.push({ id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, c.paint.face) ?? c.color }); // 시트 색 (2026-10-17)
       }
     }
   }
@@ -160,7 +160,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const look = { ...look1, faceColor: bodyPaintHex(o) ?? look1.faceColor }; // 컬러 피커로 고른 몸통 색 (2026-10-17)
   // 몸통 + 채널 + 문구 = 상자 위에 입체 글자. 글자 높이는 옵션(없으면 영역 세로의 60%)
   const fromParts = (h: number) => (h && o.heightMm ? Math.min(p.h * 0.9, (h / o.heightMm) * p.h) : p.h * 0.6);
-  const letters = o.parts && lp && text ? { text, heightMm: fromParts(partH), depthMm: lp.kind === 'scashi' ? parseFloat(String(lp.options?.thickness ?? '')) || 10 : d.depthMm, lighting: lp.kind === 'scashi' ? 'none' as const : lightingOf(lp.type), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
+  const letters = o.parts && lp && text ? { text, heightMm: fromParts(partH), depthMm: componentOf(lp.kind).depthMm(lp, o), lighting: componentOf(lp.kind).lighting(lp), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
     : channelId && text ? { text, heightMm: Number(o.options?.chHeight) || (channelHeightOf(o) && o.heightMm ? Math.min(p.h * 0.6, (channelHeightOf(o)! / o.heightMm) * p.h) : p.h * 0.6), depthMm: d.depthMm, lighting: lightingOf(channelId), faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing }
     : scashiId && text ? { text, heightMm: Number(o.options?.scHeight) && o.heightMm ? Math.min(p.h * 0.9, (Number(o.options?.scHeight) / o.heightMm) * p.h) : p.h * 0.6, depthMm: scDepth, lighting: 'none' as const, faceColor: d.faceColor, sideColor: d.sideColor, letterSpacing: base.letterSpacing } : undefined;
   return {

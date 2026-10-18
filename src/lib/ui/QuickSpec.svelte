@@ -6,10 +6,10 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import type { SignObject, SignPart } from '../core/model';
-  import { CHANNEL_OPTIONS, categoryOf, productById } from '../core/catalog';
+  import { categoryOf, productById } from '../core/catalog';
   import { NAMED_COLORS, paintLabel as paintOf } from '../core/materials';
-  import { commitParts, newPart, partKindsFor, partLabel, partSpecOf, partsOf } from '../core/parts';
-  import { LED_KELVIN } from '../core/quickSpec';
+  import { commitParts, newPart, partKindsFor, partsOf } from '../core/parts';
+  import { componentOf } from '../core/components';
   import { quoteObject, won } from '../core/quote';
 
   /** 탭 이름: body | part:<id> | layout | note | price */
@@ -32,14 +32,10 @@
 
   const bodyColor = $derived(paintOf(obj.options, 'paint') ?? paintOf(obj.options, 'face') ?? paintOf(obj.options, 'framePaint'));
   const dot = (label: string | null) => (label && /^#[0-9a-f]{6}$/i.test(label) ? label : NAMED_COLORS.find((c) => c.label === label)?.hex ?? null);
-  /** 구성 요소 칩 문구 */
+  /** 구성 요소 칩 문구 — 종류 모듈이 정한다 (0단계) */
   function partChip(p: SignPart): { kind: string; text: string; color: string | null } {
-    if (p.kind === 'channel') {
-      const led = p.options?.ledColor as string | undefined;
-      return { kind: '채널', text: `${(CHANNEL_OPTIONS.find((c) => c.id === p.type)?.label ?? p.type).replace(' 채널', '')}${led ? ` ${LED_KELVIN[led] ?? led}` : ''}`, color: paintOf(p.options, 'body') };
-    }
-    if (p.kind === 'scashi') return { kind: '스카시', text: partLabel(p).replace(' 스카시', ''), color: paintOf(p.options, 'paint') };
-    return { kind: '시트', text: partSpecOf(p), color: null };
+    const c = componentOf(p.kind);
+    return { kind: c.label, ...c.chip(p) };
   }
   const addable = $derived.by(() => {
     const out: { id: string; label: string; run: () => void }[] = [];

@@ -9,7 +9,8 @@
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import type { PartItem, SignObject, SignPart } from '../core/model';
-  import { PART_KIND_LABEL, PART_TYPES, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf, sheetTargets } from '../core/parts';
+  import { PART_KIND_LABEL, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf, sheetTargets } from '../core/parts';
+  import { componentOf } from '../core/components';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
@@ -75,14 +76,15 @@
   {#if hasItems && !partId}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}
   {#each parts as p, i (p.id)}
     {#if !partId || p.id === partId}
+    {@const comp = componentOf(p.kind)}
     <div class="card" data-testid="part-card">
       <div class="head" data-kind={p.kind}>
-        <b>{PART_KIND_LABEL[p.kind]}</b>{#if p.kind === 'sheet'}<span class="spec" data-testid="part-spec">{partSpecOf(p)}</span>{/if}
+        <b>{comp.label}</b>{#if comp.hasSpec}<span class="spec" data-testid="part-spec">{partSpecOf(p)}</span>{/if}
         <select data-testid="part-type" value={p.type} disabled={ro} onchange={(e) => setPart(i, { type: e.currentTarget.value, options: {} })}>
-          {#each PART_TYPES[p.kind] as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
-          {#if !PART_TYPES[p.kind].some((t) => t.id === p.type)}<option value={p.type}>{partLabel(p)}</option>{/if}
+          {#each comp.types as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
+          {#if !comp.types.some((t) => t.id === p.type)}<option value={p.type}>{partLabel(p)}</option>{/if}
         </select>
-        {#if p.kind === 'sheet'}
+        {#if comp.sits}
           <label class="on">올릴 곳
             <!-- 프레임 면 · 채널 앞면 · 다른 시트 위 (2026-10-17 "안개커팅 위에 로고 돔보컷팅") -->
             <select data-testid="part-on" value={p.on ?? 'frame'} disabled={ro} onchange={(e) => setPart(i, { on: e.currentTarget.value })}>
@@ -128,7 +130,7 @@
               {#if it.image && 'assetId' in it.image}<span class="fname" data-testid="item-image-name">{it.image.name ?? '그림'}</span>{/if}
             {/if}
             <label>높이<input type="number" data-testid="item-h" value={it.h} disabled={ro} oninput={(e) => setItem(i, j, { h: num(e.currentTarget.value) })} /></label>
-            {#if it.kind === 'image' || p.kind === 'sheet'}<label>가로<input type="number" data-testid="item-w" value={it.w ?? ''} disabled={ro} oninput={(e) => setItem(i, j, { w: num(e.currentTarget.value) || undefined })} /></label>{/if}
+            {#if it.kind === 'image' || componentOf(p.kind).itemWidth}<label>가로<input type="number" data-testid="item-w" value={it.w ?? ''} disabled={ro} oninput={(e) => setItem(i, j, { w: num(e.currentTarget.value) || undefined })} /></label>{/if}
             <label>X<input type="number" data-testid="item-x" value={it.x} disabled={ro} oninput={(e) => setItem(i, j, { x: num(e.currentTarget.value) })} /></label>
             <label>Y<input type="number" data-testid="item-y" value={it.y} disabled={ro} oninput={(e) => setItem(i, j, { y: num(e.currentTarget.value) })} /></label>
             {#if !ro}<button class="icon del" data-testid="item-delete" title="지우기" onclick={() => delItem(i, j)}>✕</button>{/if}

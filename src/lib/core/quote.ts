@@ -1,14 +1,17 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { topLightOf } from './topLight';
-import { partKindsFor, partLabel, partSpecOf, partsOf } from './parts';
+import { partKindsFor, partsOf } from './parts';
+import { componentOf, type PartPriceCtx } from './components';
+import { shapeAreaM2 } from './shapeArea';
+import { fmt, roundTo, scaled } from './priceFormat';
+export { charCountOf } from './charCount';
+export { shapeAreaM2 } from './shapeArea';
 import { productById, sheetById, signParts } from './catalog';
 import type { ExtraItem, SignObject } from './model';
 import type { PriceTable } from './pricing';
 import { findSupplierItem, supplierTagOf } from './supplierPrices';
-import { evalArea, evalLetter, findMethod } from './calcMethods';
+import { evalArea, findMethod } from './calcMethods';
 import { markupFor } from './markup';
-import { polygonArea, quadToRect } from './perspective';
-import { applyHomography } from './homography';
 
 export const VAT_RATE = 0.1;
 
@@ -58,31 +61,6 @@ export interface QuoteOptions {
 }
 
 export const won = (n: number) => Math.round(n).toLocaleString('ko-KR') + '원';
-const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
-
-/** 글자수: 수동 입력 우선, 없으면 문구에서 공백·줄바꿈 제외 */
-export function charCountOf(o: Pick<SignObject, 'text' | 'charCount'>): number {
-  if (o.charCount) return o.charCount;
-  return [...(o.text ?? '')].filter((c) => c.trim()).length;
-}
-
-/** 실제 도형 면적(㎡). 사각=w·h, 둥근 사각=w·h−(4−π)r², 원=π/4·w·h, 다각형=정면 보정 후 면적 */
-export function shapeAreaM2(o: SignObject): number {
-  const w = o.widthMm!, h = o.heightMm!;
-  if (o.shape === 'ellipse') return ((Math.PI / 4) * w * h) / 1e6;
-  if (o.shape === 'rect' && o.corner) { const r = Math.min(0.5, o.corner) * Math.min(w, h); return (w * h - (4 - Math.PI) * r * r) / 1e6; }
-  if (o.shape === 'polygon' && o.polygon?.length) {
-    try {
-      const H = quadToRect(o.quad, w, h);
-      return polygonArea(o.polygon.map((p) => applyHomography(H, p))) / 1e6;
-    } catch { /* 찌그러진 영역 → 외곽 사각형 면적 */ }
-  }
-  return (w * h) / 1e6;
-}
-
-const roundTo = (n: number, unit: number) => Math.round(n / unit) * unit;
-/** 계산법 설명의 공급 단가(숫자원)를 배수 적용 단가로 바꿔 보인다 — 고객에게 공급가·배수를 드러내지 않는다 */
-const scaled = (detail: string, mk: number) => (mk === 1 ? detail : detail.replace(/([\d,]+)원/g, (_, n: string) => `${fmt(Number(n.replace(/,/g, '')) * mk)}원`));
 
 export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const lines: QuoteLine[] = [];
@@ -121,28 +99,12 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   }
   // 개 단위(사인미러·전광판·지주·에어간판): 치수와 무관하게 1식
   if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0, body.id);
-  // 조합형 (2026-10-16): 채널·스카시 구성 요소마다 글자 객체의 (글자수 × 높이 cm × 원/자·cm) 합. 옛 데이터는 읽을 때 구성 요소로 바뀐다
+  // 조합형 (2026-10-16): 구성 요소마다 종류 모듈이 줄을 만든다 (채널·스카시 = 글자수 × 높이, 시트 = 면적 — core/components, 0단계). 옛 데이터는 읽을 때 구성 요소로 바뀐다
   const parts = partsOf(o);
   const usesParts = partKindsFor(o).length > 0; // 조합형 분류는 시트도 구성 요소로 (2026-10-16 모든 분류 조합형)
-  for (const p of parts.filter((x) => x.kind !== 'sheet')) {
-    key = `${o.id}:part:${p.id}`;
-    const label = `${o.name} · ${partLabel(p)}`, unit = prices.products[p.type] ?? 0;
-    const texts = p.items.filter((it) => it.kind === 'text').map((it) => ({ t: (it.text ?? '').trim(), n: it.count ?? charCountOf({ text: it.text }), h: it.h || o.heightMm || 0 })).filter((x) => x.n > 0);
-    if (!texts.length) { lines.push({ key, objectId: o.id, label, detail: o.heightMm || p.items.some((it) => it.h) ? '문구 또는 글자수 필요' : '치수 필요', amount: 0 }); continue; }
-    if (texts.some((x) => !x.h)) { lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
-    const method = findMethod(prices.methods?.[p.type]);
-    if (method && method.kind === 'letters') {
-      // 공급사 계산법: 글자 크기 구간 자당 × 배수
-      const rs = texts.map((x) => { const r = evalLetter(method, x.h, x.t)!; const each = r.item.price * markupFor(prices, r.item); return { ...x, r, each }; });
-      const desc = (x: (typeof rs)[number]) => `${x.r.item.option} ${fmt(x.each)}원/자${x.r.over ? ' (최대 구간 초과)' : ''}`;
-      const detail = rs.length === 1 ? `${rs[0].n}자 × ${desc(rs[0])}` : rs.map((x) => `"${x.t}" ${x.n}자 × ${desc(x)}`).join(' + ');
-      finish(label, detail, rs.reduce((a, x) => a + x.n * x.each, 0), p.type, rs.reduce((a, x) => a + x.n * x.r.item.price, 0));
-      continue;
-    }
-    const raw = texts.reduce((a, x) => a + x.n * (x.h / 10) * unit, 0);
-    const detail = texts.length === 1 ? `${texts[0].n}자 × 높이 ${fmt(texts[0].h)}mm × ${fmt(unit)}원/자·cm` : `${texts.map((x) => `"${x.t}" ${x.n}자×${fmt(x.h)}mm`).join(' + ')} × ${fmt(unit)}원/자·cm`;
-    finish(label, detail, raw, p.type);
-  }
+  const ctx: PartPriceCtx = { o, prices, sized, finish, need: (label, detail) => lines.push({ key, objectId: o.id, label, detail, amount: 0 }) };
+  const priceOf = (p: (typeof parts)[number]) => { key = `${o.id}:part:${p.id}`; componentOf(p.kind).price(p, ctx); };
+  for (const p of parts.filter((x) => componentOf(x.kind).layer > 0)) priceOf(p); // 입체(채널·스카시) 먼저
   // 상단 조명 (2026-10-16): 투광등 = 개수 × 원/개, 트러스 = 간판 가로(m) × 원/m
   const tl = topLightOf(o);
   if (tl) {
@@ -152,24 +114,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     else if (!o.widthMm) lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 });
     else finish(label, `가로 ${(o.widthMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (o.widthMm / 1000) * unit, tl.priceId);
   }
-  // 시트 구성 요소: 객체가 크기(가로·세로)를 가지면 그 면적 합, 아니면 간판 면적
-  for (const p of parts.filter((x) => x.kind === 'sheet')) {
-    key = `${o.id}:part:${p.id}`;
-    const sh = sheetById(p.type);
-    if (!sh) continue;
-    const label = `${o.name} · ${partSpecOf(p)}`, unit = prices.sheets[p.type] ?? 0; // 구성내역 (UV 출력 돔보컷팅 완컷)
-    const sizedItems = p.items.filter((it) => it.w && it.h);
-    if (!sizedItems.length && !sized) { lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
-    const method = findMethod(prices.methods?.[p.type]);
-    if (method && method.kind !== 'letters') {
-      const rs = sizedItems.length ? sizedItems.map((it) => evalArea(method, it.w!, it.h)) : [evalArea(method, o.widthMm!, o.heightMm!, shapeAreaM2(o))];
-      const amt = rs.reduce((a, r) => a + r.raw * markupFor(prices, r.item), 0);
-      finish(label, rs.map((r) => scaled(r.detail, markupFor(prices, r.item))).join(' + '), amt, p.type, rs.reduce((a, r) => a + r.raw, 0));
-      continue;
-    }
-    const m2 = sizedItems.length ? sizedItems.reduce((a, it) => a + (it.w! * it.h) / 1e6, 0) : shapeAreaM2(o);
-    finish(label, `${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit, p.type);
-  }
+  for (const p of parts.filter((x) => componentOf(x.kind).layer === 0)) priceOf(p); // 면에 깔리는 것(시트)
   for (const id of usesParts ? [] : o.sheetIds) {
     key = `${o.id}:sheet:${id}`;
     const s = sheetById(id);
