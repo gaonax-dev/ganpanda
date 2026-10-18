@@ -18,7 +18,7 @@
   import { VoiceRecorder } from './lib/recorder';
   import { baseMime, recordingLabel, voiceFileName, voiceMemoText } from './lib/core/attachments';
 
-  // 휴대폰 녹음 (2026-10-18): 누르면 시작, 다시 누르면 마치고 그 사인물의 말풍선에 음성 메모로 보낸 뒤 말풍선을 연다
+  // 휴대폰 녹음 (2026-10-18): 누르면 시작, 다시 누르면 마치고 그 사인물의 음성 메모(kind voice)로 저장
   let recorder = $state<VoiceRecorder | null>(null);
   let recSec = $state(0);
   let recBusy = $state(false);
@@ -34,8 +34,10 @@
         if (blob.size < 200 || sec < 0.5) { app.notice = '녹음이 너무 짧습니다.'; return; }
         const assetId = await putAsset(blob);
         const type = baseMime(blob.type || 'audio/webm');
-        await app.sendMessage(id, voiceMemoText(sec), 'chat', [{ assetId, name: voiceFileName(type, new Date()), type, size: blob.size }]);
-        app.openChat(id);
+        // 말풍선(대화)과 섞지 않고 kind 'voice' 로 — 카드의 🎙n, 상세의 🎙 목록에서 듣는다 (2026-10-18 "말풍선으로 녹음이 들어있네 나중에 많아지면 복잡하다")
+        await app.sendMessage(id, voiceMemoText(sec), 'voice', [{ assetId, name: voiceFileName(type, new Date()), type, size: blob.size }]);
+        const msg = `${voiceMemoText(sec)} 저장 — 상세의 🎙 에서 들을 수 있습니다.`;
+        app.notice = msg; window.setTimeout(() => { if (app.notice === msg) app.notice = ''; }, 3000);
       } catch (e) { app.notice = `음성 메모를 보내지 못했습니다: ${e instanceof Error ? e.message : e}`; }
       finally { recBusy = false; }
       return;

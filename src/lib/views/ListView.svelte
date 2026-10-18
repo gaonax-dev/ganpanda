@@ -259,7 +259,7 @@
         <div class="dim top" style:transform="scale({inv})" style:width="{w * viewport.zoom}px">{fmt(w)}{estimated ? ' (추정)' : ''}</div>
         <div class="dim side" style:transform="scale({inv})" style:height="{h * viewport.zoom}px"><span>{fmt(h)}</span></div>
         <div class="spec" style:transform="scale({inv})">
-          <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{o.name}</b>
+          <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{o.name}</b>
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
           <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
           <span class="price">{won(amount)}</span>
@@ -426,6 +426,7 @@
   .bubbles { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 3; }
   .bubbles :global(.bubble) { pointer-events: auto; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
+  .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
   .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
   .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }

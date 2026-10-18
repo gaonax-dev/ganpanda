@@ -31,6 +31,7 @@ import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
 import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
+import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { productById, signParts } from './core/catalog';
@@ -248,6 +249,8 @@ class AppState {
     this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null, mode: this.settings.quoteMode ?? 'auto', lineAmounts: this.settings.lineAmounts ?? {} },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
+  /** 사인물(대화 id)별 음성 메모 수 — 카드·상세의 🎙 (2026-10-18) */
+  voiceCounts = $derived(voiceCounts(this.messages));
   /** 승인 대상 내용의 해시 (사인물 규격·치수·디자인·금액) */
   contentHash = $derived(contentHash(this.signs, (o) => this.sizeOf(o), this.quote));
   /** 최신 승인과 현재 내용의 관계 */
@@ -920,7 +923,7 @@ class AppState {
   }
 
   /** 대화·코멘트: viewer 는 서버 API 로, 그 외는 문서에 직접 */
-  async sendMessage(objectId: string, text: string, kind: 'chat' | 'comment', attachments: Attachment[] = []) {
+  async sendMessage(objectId: string, text: string, kind: 'chat' | 'comment' | 'voice', attachments: Attachment[] = []) {
     if (this.role === 'viewer' && this.room) {
       await postMessage(this.room, this.invite, { objectId, author: this.nickname, text, kind, attachments });
     } else {

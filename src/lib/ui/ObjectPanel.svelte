@@ -1,6 +1,8 @@
 <!-- 선택한 사인물: 이름·분류(간판/스카시/시트)·한 줄 요약 + 대화. 세부 설정은 ObjectSettingsDialog -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { voicesOf } from '../core/voices';
+  import AttachmentView from './AttachmentView.svelte';
   import { pinsOnObject } from '../core/bubbleTarget';
   import { lastStateOf } from '../core/bubbles';
   import { categoryPatch } from '../core/parts';
@@ -16,6 +18,8 @@
 
   // 패널이 열려 있는 동안 이 사인물의 새 메시지는 읽은 것으로
   const chatId = $derived(obj.sameAs ?? obj.id);
+  let voicesOpen = $state(false);
+  const voices = $derived.by(() => (app.version, voicesOf(app.messages, chatId)));
   /** 이 사인물을 가리키는 지점 말풍선들 (2026-10-18 "사인물에서도 말풍선 이동 버튼으로 간단 이동") */
   const pinsHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
   const bubblesHere = $derived(pinsHere.filter((p) => !p.resolved));
@@ -70,8 +74,20 @@
     <input class="title" data-testid="object-name" value={obj.name} disabled={ro} oninput={(e) => { const v = e.currentTarget.value.trim(); if (v) update({ name: v }); }} />
     <!-- 대화는 말풍선 창으로 (2026-10-18 "속성 패널에서 대화 섹션 빼줘") -->
     <button class="icon chat" title="말풍선 (이 사인물의 대화)" data-testid="object-chat-open" onclick={() => app.openChat(obj.id)}>💬{#if app.unread[chatId]}<i data-testid="object-chat-unread">{app.unread[chatId]}</i>{/if}</button>
+    <!-- 음성 메모 (2026-10-18 "상세에 말풍선 옆에 녹음 파일 아이콘"): 말풍선과 따로, 누르면 아래에 목록 -->
+    <button class="icon chat" class:on={voicesOpen} title="음성 메모 {app.voiceCounts[chatId] ?? 0}개" data-testid="object-voices-open" onclick={() => (voicesOpen = !voicesOpen)}>🎙{#if app.voiceCounts[chatId]}<i data-testid="object-voices-count">{app.voiceCounts[chatId]}</i>{/if}</button>
     <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
+  {#if voicesOpen}
+    <div class="voices" data-testid="object-voices">
+      {#each voices as v (v.id)}
+        <div class="voice-row"><span class="who">{v.author}</span><span class="t">{new Date(v.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>{#if v.text}<span class="t">{v.text}</span>{/if}
+          {#each v.attachments ?? [] as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}</div>
+      {:else}
+        <p class="none">음성 메모가 없습니다. 휴대폰에서 사인물을 고르고 상단의 🎙 녹음으로 남깁니다.</p>
+      {/each}
+    </div>
+  {/if}
   <!-- 대화 위의 내용(연결·분류·사이즈·사양 글·칩·요약)은 길어지면 스크롤 — 휴대폰에서 대화 입력칸이 밀려 안 보이던 문제 (2026-10-17) -->
   <div class="info">
 
@@ -154,6 +170,11 @@
   .citem small { color: var(--muted); } .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row.bubbles .hint { font-size: 11px; color: var(--muted); }
   .icon.chat { position: relative; }
+  .icon.chat.on { background: var(--hover); }
+  .voices { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); max-height: 40vh; overflow-y: auto; }
+  .voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; }
+  .voice-row .who { font-weight: 600; } .voice-row .t { color: var(--muted); }
+  .voices .none { margin: 0; font-size: 12px; color: var(--muted); }
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   .panel {
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; z-index: 5;

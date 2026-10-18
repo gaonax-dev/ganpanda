@@ -56,7 +56,7 @@ export const createInvite = (room: string, role: 'viewer' | 'editor', kind?: 'pr
 export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api/projects/${room}/invites/${inviteId}`, { method: 'DELETE' });
 
 /** viewer 의 대화: 서버가 문서에 기록 */
-export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment'; attachments?: Attachment[] }) =>
+export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[] }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 /** 제안 승인: 누구나(viewer 포함) 서버를 통해 문서에 기록 */

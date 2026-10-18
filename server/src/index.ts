@@ -105,7 +105,7 @@ function withSessionParam(req: Request, url: URL): Request {
   return new Request(req.url, { method: 'GET', headers });
 }
 
-const MESSAGE_KINDS = new Set(['chat', 'comment']);
+const MESSAGE_KINDS = new Set(['chat', 'comment', 'voice']); // voice = 음성 메모 (2026-10-18)
 const MESSAGE_MAX = 2000;
 const ATTACH_MAX = 5;
 
@@ -136,7 +136,7 @@ async function postMessage(req: Request, env: Env, room: string, _role: Role): P
   const kind = b?.kind ?? 'chat';
   const attachments = parseAttachments(b?.attachments);
   if (!attachments || (!txt && !attachments.length) || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
-  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment', attachments);
+  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment' | 'voice', attachments);
   return json({ message: msg }, 201);
 }
 

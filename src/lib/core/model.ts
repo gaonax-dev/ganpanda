@@ -169,8 +169,8 @@ export interface Message {
   objectId: string;
   author: string;
   text: string;
-  /** approval = 제안 승인 알림 (objectId 'project', 서버가 기록) */
-  kind: 'chat' | 'comment' | 'approval';
+  /** approval = 제안 승인 알림 (objectId 'project', 서버가 기록). voice = 음성 메모 (2026-10-18: 말풍선과 따로, 카드·상세의 🎙) */
+  kind: 'chat' | 'comment' | 'approval' | 'voice';
   ts: number;
   /** 사진·PDF 첨부 (에셋 ID 로 참조) */
   attachments?: Attachment[];

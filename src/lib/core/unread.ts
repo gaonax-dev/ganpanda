@@ -8,7 +8,7 @@ export type SeenMap = Record<string, number>;
 export function unreadByObject(messages: Message[], seen: SeenMap, me: string): Record<string, number> {
   const out: Record<string, number> = {};
   for (const m of messages) {
-    if (m.author === me || m.ts <= (seen[m.objectId] ?? 0)) continue;
+    if (m.kind === 'voice' || m.author === me || m.ts <= (seen[m.objectId] ?? 0)) continue; // 음성 메모는 말풍선이 아니라 카드·상세의 🎙 로 (2026-10-18)
     out[m.objectId] = (out[m.objectId] ?? 0) + 1;
   }
   return out;

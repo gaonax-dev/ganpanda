@@ -57,7 +57,7 @@
 `accounts`, `sessions`, `login_tokens`, `projects`, `invites`, `account_assets`, `identities`(공급자 계정 연결), `oauth_states` → `server/migrations/`
 
 ### Message
-`{ id, objectId, author, text, kind: 'chat' | 'comment' | 'approval', ts }` — `approval` 은 서버가 승인 때 남기는 알림(`objectId: 'project'`)
+`{ id, objectId, author, text, kind: 'chat' | 'comment' | 'approval' | 'voice', ts, attachments? }` — `approval` 은 서버가 승인 때 남기는 알림(`objectId: 'project'`), `voice` 는 음성 메모(2026-10-18, 말풍선 창에 안 나옴 → [features/communication.md](../features/communication.md))
 
 ## 규칙
 - **엔티티 하나 = 중첩 `Y.Map`**. 필드 단위로 병합되어, 두 사람이 같은 오브젝트의 다른 필드를 동시에 고쳐도 둘 다 남습니다. 엔티티를 JSON 하나로 통째로 저장하면 안 됩니다.

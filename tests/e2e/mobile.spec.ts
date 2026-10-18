@@ -279,7 +279,7 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 그 변만 꼭짓
   expect(edgeMoved(q1, q2, 1)).toBe(true);
 });
 
-test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 그 사인물 말풍선에 음성 메모가 붙고 말풍선이 열린다 (2026-10-18)', async ({ page, request }) => {
+test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성 메모가 카드의 🎙 수와 상세의 🎙 목록에 들어간다 (말풍선과 따로, 2026-10-18)', async ({ page, request }) => {
   // 마이크 대신 WebAudio 발진기 스트림 (헤드리스 크롬에 마이크가 없음)
   await page.addInitScript(() => {
     const md = navigator.mediaDevices ?? ((navigator as unknown as { mediaDevices: object }).mediaDevices = {} as MediaDevices);
@@ -302,13 +302,22 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 그 �
   await expect(page.getByTestId('mobile-record')).toContainText('■');
   await page.waitForTimeout(1200);
   await page.getByTestId('mobile-record').click();
+  await expect(page.getByTestId('mobile-record')).toContainText('녹음', { timeout: 10_000 });
   const chat = page.getByTestId('object-chat');
+  await expect(chat).toHaveCount(0); // 말풍선은 열리지 않는다 — 녹음은 대화와 따로
+  await expect(page.getByTestId('card-voice').first()).toContainText('1'); // 정면도 카드: 배지와 제목 사이 🎙1
+  await page.getByTestId('quick-panel-open').click();
+  await expect(page.getByTestId('object-voices-count')).toHaveText('1');
+  await page.getByTestId('object-voices-open').click();
+  const voices = page.getByTestId('object-voices');
+  await expect(voices).toContainText('음성 메모');
+  await expect(voices.getByTestId('chat-audio')).toHaveCount(1, { timeout: 10_000 });
+  await page.getByTestId('object-chat-open').click();
   await expect(chat).toBeVisible();
-  await expect(chat).toContainText('음성 메모');
-  await expect(chat.getByTestId('chat-audio')).toHaveCount(1, { timeout: 10_000 });
-  await expect(page.getByTestId('mobile-record')).toContainText('녹음');
+  await expect(chat.getByTestId('chat-bubble')).toHaveCount(0); // 대화에는 음성 메모가 없다
   // 말풍선 단추로 열고, 정리로 선택을 풀면 메뉴가 사라진다
   await page.getByTestId('object-chat-close').click();
+  await page.getByTestId('object-panel-close').click();
   await page.getByTestId('mobile-chat').click();
   await expect(chat).toBeVisible();
   await page.getByTestId('mobile-done').click();
