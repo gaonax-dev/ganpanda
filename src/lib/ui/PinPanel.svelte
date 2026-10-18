@@ -4,9 +4,12 @@
   import type { Pin } from '../core/model';
   import Chat from './Chat.svelte';
   import { EVERYONE, recipientLabel } from '../core/pins';
+  import { objectAtPoint } from '../core/bubbleTarget';
 
   let { pin }: { pin: Pin } = $props();
   const photo = $derived(app.photos.find((p) => p.id === pin.photoId));
+  /** 꼭지가 가리키는 사인물 (2026-10-18 "꼭지점 위치의 사인물을 최대한 추적") */
+  const target = $derived(objectAtPoint(app.objects, pin.photoId, [pin.x, pin.y]));
   /** 받는 사람 후보: 참여자 + 지금 값(목록에 없더라도) */
   const recipients = $derived(pin.to && !app.participants.includes(pin.to) ? [pin.to, ...app.participants] : app.participants);
   const setTo = (v: string) => { app.editBoundary(); app.project.updatePin(pin.id, { to: v || undefined }); app.editBoundary(); };
@@ -25,6 +28,12 @@
     </div>
     <button class="icon" title="닫기" onclick={() => app.selectPin(null)}>✕</button>
   </header>
+  {#if target}
+    <div class="actions">
+      <span class="muted">꼭지가 가리키는 사인물</span>
+      <button class="btn small" data-testid="pin-goto-object" title="그 사인물의 속성으로" onclick={() => { app.selectObject(target.id); if (app.compact) app.panelOpen = true; }}>📐 {target.name} 속성</button>
+    </div>
+  {/if}
   {#if app.canEdit}
     <label class="to">받는 사람
       <select data-testid="pin-to" value={pin.to ?? EVERYONE} onchange={(e) => setTo(e.currentTarget.value)}>
@@ -63,5 +72,6 @@
   .to small { flex-basis: 100%; font-size: 11px; }
   .btn.on { border-color: var(--ok); color: var(--ok); }
   .resolved { color: var(--ok); font-size: 12px; }
+  .muted { color: var(--muted); font-size: 11px; align-self: center; }
   .chat-sec { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 </style>

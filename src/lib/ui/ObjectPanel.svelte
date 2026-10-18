@@ -1,6 +1,7 @@
 <!-- 선택한 사인물: 이름·분류(간판/스카시/시트)·한 줄 요약 + 대화. 세부 설정은 ObjectSettingsDialog -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { pinsOnObject } from '../core/bubbleTarget';
   import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import { copiesOf } from '../core/link';
@@ -14,6 +15,8 @@
 
   // 패널이 열려 있는 동안 이 사인물의 새 메시지는 읽은 것으로
   const chatId = $derived(obj.sameAs ?? obj.id);
+  /** 이 사인물을 가리키는 지점 말풍선들 (2026-10-18 "사인물에서도 말풍선 이동 버튼으로 간단 이동") */
+  const bubblesHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
   /** 연결 대상 후보: 다른 사인물(원본)들 */
   const linkTargets = $derived(app.signs.filter((s) => s.id !== obj.id && s.id !== obj.sameAs));
   const copies = $derived(copiesOf(obj.sameAs ?? obj.id, app.objects));
@@ -109,6 +112,14 @@
       {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
       <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.objectSettingsOpen = true; }} />
     {/if}
+    {#if bubblesHere.length}
+      <div class="row bubbles" data-testid="object-bubbles">
+        <span class="hint">이 사인물의 말풍선</span>
+        {#each bubblesHere as p (p.id)}
+          <button class="btn small" data-testid="object-goto-bubble" title="{p.author} → {p.to || '모두'}" onclick={() => app.selectPin(p.id)}>💬 #{p.number}{#if app.unread[p.id]} <b>{app.unread[p.id]}</b>{/if}</button>
+        {/each}
+      </div>
+    {/if}
     <div class="row">
       <p class="summary" data-testid="object-summary">
         {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
@@ -124,6 +135,8 @@
 </aside>
 
 <style>
+  .row.bubbles { flex-wrap: wrap; gap: 6px; }
+  .row.bubbles .hint { font-size: 11px; color: var(--muted); }
   .icon.chat { position: relative; }
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   .panel {

@@ -11,6 +11,11 @@
   import { describeOptions } from '../core/options';
   import { faceBadge, faceClip } from '../core/cardFace';
   import { bodyLook } from '../core/render';
+  import { bubbleLabel, lastStateOf } from '../core/bubbles';
+  import { DEFAULT_TIP } from '../core/bubbleShape';
+  import { colorFor } from '../core/presence';
+  import BubbleShape from '../ui/BubbleShape.svelte';
+  import type { Pt } from '../core/homography';
   import { CHANNEL_OPTIONS, productById, sheetById, signParts } from '../core/catalog';
   import { quoteObject, won, type QuoteLine } from '../core/quote';
   import { findMethod } from '../core/calcMethods';
@@ -205,6 +210,10 @@
       {@const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0)}
       {@const look = bodyLook(o)}
       {@const badge = faceBadge(o)}
+      {@const lastMsg = lastStateOf(app.messages, o.sameAs ?? o.id)}
+      {@const tipC = ((o.bubble?.tip ?? DEFAULT_TIP).map((v, i) => v * (i ? h : w))) as Pt}
+      {@const bodyC = (o.bubble?.body ? o.bubble.body.map((v, i) => v * (i ? h : w)) : [tipC[0] + 56 * inv, tipC[1] - 48 * inv]) as Pt}
+      {@const saveBubble = (tp: Pt, bp: Pt) => app.project.updateObject(o.id, { bubble: { tip: [tp[0] / w, tp[1] / h].map((v) => Math.round(v * 1e4) / 1e4) as [number, number], body: [bp[0] / w, bp[1] / h].map((v) => Math.round(v * 1e4) / 1e4) as [number, number] } })}
       <div class="item" style:left="{pos.x}px" style:top="{pos.y}px" style:width="{w}px" style:height="{h}px" data-testid="list-card">
         <div
           class="face"
@@ -225,6 +234,17 @@
           {#if o.design}<div class="design-on"><DesignFace design={o.design} w={w} h={h} testid="list-design" /></div>{/if}
           <PartsOverlay {o} mmW={w} mmH={h} {w} {h} />
         </div>
+        {#if lastMsg}
+          <!-- 정면도 말풍선 (2026-10-18): 사진의 사인물 말풍선과 같은 자리(사인물 좌표) -->
+          <svg class="bubbles" width={w} height={h} viewBox="0 0 {w} {h}" overflow="visible">
+            <BubbleShape tip={tipC} body={bodyC} label={bubbleLabel({ last: lastMsg, me: app.nickname })} badge={app.unread[o.sameAs ?? o.id] ?? 0} color={colorFor(lastMsg.author)} u={inv} editable={app.canEdit} testid="card-bubble" attrs={{ 'data-id': o.id }}
+              onclick={() => app.openChat(o.id)}
+              onwhole={(dx, dy) => saveBubble([tipC[0] + dx, tipC[1] + dy], [bodyC[0] + dx, bodyC[1] + dy])}
+              onbody={(dx, dy) => saveBubble(tipC, [bodyC[0] + dx, bodyC[1] + dy])}
+              ontip={(dx, dy) => saveBubble([tipC[0] + dx, tipC[1] + dy], bodyC)}
+              ondragend={() => app.editBoundary()} />
+          </svg>
+        {/if}
         <!-- 치수선과 사양 카드는 화면 크기 고정 -->
         <div class="dim top" style:transform="scale({inv})" style:width="{w * viewport.zoom}px">{fmt(w)}{estimated ? ' (추정)' : ''}</div>
         <div class="dim side" style:transform="scale({inv})" style:height="{h * viewport.zoom}px"><span>{fmt(h)}</span></div>
@@ -388,6 +408,8 @@
   .face img.flat { width: 100%; height: 100%; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design-on { position: absolute; inset: 0; }
+  .bubbles { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 3; }
+  .bubbles :global(.bubble) { pointer-events: auto; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
   .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }

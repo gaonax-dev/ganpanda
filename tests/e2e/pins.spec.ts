@@ -63,7 +63,7 @@ test('소유자가 핀을 꽂고 코멘트를 남기면 고객이 보고 답한�
   // 소유자가 해결
   await page.getByTestId('pin-resolve').click();
   await expect(page.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
-  await expect(page.getByTestId('pin-last')).toHaveText('✓ 해결됨');
+  await expect(page.getByTestId('pin-last')).toHaveText(/✓ 해결됨/);
   await expect(guest.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
   await guest.ctx.close();
 });
@@ -86,19 +86,34 @@ test('고객(viewer)도 핀을 꽂을 수 있고 소유자에게 보인다', asy
   await guest.ctx.close();
 });
 
-test('편집 권한은 핀을 끌어 옮기고 삭제할 수 있다', async ({ page, request }) => {
+test('편집 권한은 말풍선을 끌어 옮기고(안쪽 = 전체, 변 = 몸통만, 꼭지 손잡이 = 꼭지만) 삭제할 수 있다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.keyboard.press('p');
   await clickPhoto(page, 800, 300);
-  const pin = page.getByTestId('pin');
-  const before = (await pin.boundingBox())!;
-  await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(before.x + before.width / 2 + 80, before.y + before.height / 2 + 40, { steps: 5 });
-  await page.mouse.up();
-  const after = (await pin.boundingBox())!;
-  expect(after.x - before.x).toBeGreaterThan(60);
+  const pinOf = () => page.evaluate(() => { const p = (window as unknown as { __ganpanda: { pins: { x: number; y: number; bx?: number; by?: number }[] } }).__ganpanda.pins[0]; return { x: p.x, y: p.y, bx: p.bx, by: p.by }; });
+  const drag = async (b: { x: number; y: number; width: number; height: number }, fx: number, fy: number, dx: number, dy: number) => { await page.mouse.move(b.x + b.width * fx, b.y + b.height * fy); await page.mouse.down(); await page.mouse.move(b.x + b.width * fx + dx, b.y + b.height * fy + dy, { steps: 6 }); await page.mouse.up(); };
+  // 안쪽 끌기 = 전체 이동 (꼭지도 움직인다, 몸통 오프셋은 그대로)
+  const p0 = await pinOf();
+  await drag((await page.getByTestId('pin-inner').boundingBox())!, 0.5, 0.5, 80, 40);
+  const p1 = await pinOf();
+  expect(p1.x - p0.x).toBeGreaterThan(60);
+  expect(p1.bx).toBeUndefined();
+  // 변 끌기 = 몸통만 (꼭지 그대로) — 2026-10-18 "말풍선의 변을 클릭드래그하면 풍선만 이동 꼭지점은 같은자리 유지"
+  const ib = (await page.getByTestId('pin-inner').boundingBox())!; // 안쪽 상자는 변에서 5px 안 → 윗변은 그 5px 위
+  await drag({ x: ib.x, y: ib.y - 5, width: ib.width, height: 1 }, 0.5, 0, 60, -30); // 윗변 가운데
+  const p2 = await pinOf();
+  expect(p2.x).toBe(p1.x); expect(p2.y).toBe(p1.y);
+  expect(p2.bx).toBeDefined(); expect(p2.by).toBeDefined();
+  // 꼭지 손잡이 끌기 = 꼭지만 (몸통은 그 자리)
+  const bodyBefore = (await page.getByTestId('pin-inner').boundingBox())!;
+  await drag((await page.getByTestId('pin-tip').boundingBox())!, 0.5, 0.5, -50, 30);
+  const p3 = await pinOf();
+  expect(p3.x).toBeLessThan(p2.x);
+  const bodyAfter = (await page.getByTestId('pin-inner').boundingBox())!;
+  expect(Math.abs(bodyAfter.x - bodyBefore.x)).toBeLessThan(3);
+  await page.getByTestId('pin-inner').click(); // 안쪽 클릭 = 열기
+  await expect(page.getByTestId('pin-panel')).toBeVisible();
   await page.getByTestId('pin-delete').click();
   await expect(page.getByTestId('pin')).toHaveCount(0);
   await expect(page.getByTestId('pin-panel')).toHaveCount(0);
@@ -117,6 +132,10 @@ test('사인물 말풍선: 대화가 생기면 영역 오른쪽 위에 마지막
   await page.getByTestId('object-chat').getByTestId('chat-input').press('Enter');
   await expect(page.getByTestId('object-bubble')).toHaveCount(1);
   await expect(page.getByTestId('object-bubble-last')).toHaveText(/나: 두께 150으로 갈까요/);
+  // 치수를 넣으면 정면도 카드에도 같은 말풍선 (2026-10-18 "정면도들에게도 적용")
+  await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { widthMm: 3000, heightMm: 600 }); });
+  await expect(page.getByTestId('board-card')).toHaveCount(1);
+  await expect(page.getByTestId('board-card').getByTestId('card-bubble')).toHaveCount(1);
   // 선택을 풀고 말풍선을 누르면 다시 선택되고 대화가 보인다
   await page.keyboard.press('Escape');
   await page.getByTestId('board-canvas').click({ position: { x: 20, y: 400 } });
@@ -126,4 +145,29 @@ test('사인물 말풍선: 대화가 생기면 영역 오른쪽 위에 마지막
   await expect(page.getByTestId('object-chat').getByTestId('chat-bubble')).toContainText('두께 150');
   await page.getByTestId('object-chat-close').click();
   await expect(page.getByTestId('object-panel')).toBeVisible(); // 닫으면 속성 패널
+});
+
+test('꼭지가 가리키는 사인물: 말풍선 창의 [속성] 단추로 사인물 선택, 사인물 패널의 [💬 #n] 단추로 말풍선 선택 (2026-10-18)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  const b = (await page.getByTestId('photo-img').first().boundingBox())!;
+  const k = b.width / 1600;
+  await page.mouse.move(b.x + 300 * k, b.y + 200 * k); await page.mouse.down(); await page.mouse.move(b.x + 700 * k, b.y + 320 * k, { steps: 4 }); await page.mouse.up();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('p');
+  await clickPhoto(page, 500, 260); // 사인물 안
+  await expect(page.getByTestId('pin-panel')).toBeVisible();
+  await expect(page.getByTestId('pin-goto-object')).toContainText('속성');
+  await page.getByTestId('pin-goto-object').click();
+  await expect(page.getByTestId('object-panel')).toBeVisible();
+  await expect(page.getByTestId('object-goto-bubble')).toHaveCount(1);
+  await page.getByTestId('object-goto-bubble').click();
+  await expect(page.getByTestId('pin-panel')).toBeVisible();
+  // 사인물 밖의 말풍선에는 단추가 없다
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('p');
+  await clickPhoto(page, 1000, 650); // 오른쪽 말풍선 창에 가리지 않는 자리
+  await expect(page.getByTestId('pin-panel')).toContainText('#2');
+  await expect(page.getByTestId('pin-goto-object')).toHaveCount(0);
 });
