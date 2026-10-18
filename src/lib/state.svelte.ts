@@ -2,6 +2,7 @@
 import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
 import { loadLocalRules, saveLocalRules, validRule, type SpecRule } from './core/specRules';
+import { loadLocalSets, saveLocalSets, validSetLibrary, type SignSet } from './core/setLibrary';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
@@ -29,7 +30,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -105,6 +106,8 @@ class AppState {
   colorLibrary = $state<ColorCard[]>(loadLocalColors());
   /** 사양 글 개인 사전 (2026-10-18 V1): 계정에 저장(서버) + 기기 사본. 퀵입력 파서가 기본 사전보다 먼저 본다 → core/specRules.ts */
   specRules = $state<SpecRule[]>(loadLocalRules());
+  /** 세트 라이브러리 (2026-10-19 4단계): 레이어 묶음을 계정에 저장(서버) + 기기 사본 → core/setLibrary.ts */
+  setLibrary = $state<SignSet[]>(loadLocalSets());
   pricesOpen = $state(false);
   letter3dOpen = $state(false);
   /** 선택한 사인물의 세부 설정 창 */
@@ -357,9 +360,15 @@ class AppState {
     const colors = validColorLibrary(me?.colors);
     if (colors) { this.colorLibrary = colors.colors; saveLocalColors(colors.colors); }
     else if (me && this.colorLibrary.length) void this.persistColors(); // 기기에만 있던 라이브러리를 계정에 올린다
+    const sets = validSetLibrary(me?.sets) ? me!.sets as { sets: SignSet[] } : null;
+    if (sets) { this.setLibrary = sets.sets; saveLocalSets(sets.sets); }
+    else if (me && this.setLibrary.length) void this.persistSets();
     this.requestSettings = me?.requestSettings ?? null;
     if (me) void this.loadSpecRules();
   }
+  private async persistSets() { saveLocalSets(this.setLibrary); if (this.account) { try { await saveSets({ version: 1, sets: this.setLibrary }); } catch { /* 다음에 */ } } }
+  async addSet(set: SignSet) { this.setLibrary = [...this.setLibrary.filter((s) => s.id !== set.id), set]; await this.persistSets(); }
+  async removeSet(id: string) { this.setLibrary = this.setLibrary.filter((s) => s.id !== id); await this.persistSets(); }
   async loadSpecRules() {
     try { const rules = (await getSpecRules()) as SpecRule[]; this.specRules = rules.filter(validRule); saveLocalRules(this.specRules); } catch { /* 오프라인이면 기기 사본 */ }
   }

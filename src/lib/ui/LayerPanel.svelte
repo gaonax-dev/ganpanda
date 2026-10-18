@@ -9,6 +9,8 @@
   import { commitLayers, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import { productById } from '../core/catalog';
+  import { setFrom } from '../core/setLibrary';
+  import { app } from '../state.svelte';
 
   type Sel = { part: string; item: string } | null;
   let { obj, ro, update, sel = $bindable() }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; sel: Sel } = $props();
@@ -48,6 +50,15 @@
   }
   const rename = (l: Layer, v: string) => { commit(setLayerProps(layers, l.id, { name: v.trim() || undefined })); renaming = null; };
   const stop = (e: Event) => e.stopPropagation();
+  /** 세트로 저장 (4단계): 체크한 레이어(없으면 전체)를 이름 붙여 계정 라이브러리에 */
+  function saveSet() {
+    const name = prompt('세트 이름', '');
+    if (name === null) return;
+    const set = setFrom(layers, checked, obj, name);
+    if (!set) return;
+    void app.addSet(set);
+    checked = [];
+  }
 </script>
 
 <div class="layers" data-testid="layer-panel">
@@ -55,6 +66,7 @@
     <b>레이어</b>
     <span class="hint">위가 맨 위. 눈 = 보이기, 자물쇠 = 잠금, 체크 뒤 그룹</span>
     <button class="btn small" data-testid="layer-group" disabled={ro || checked.length < 2} title="체크한 레이어를 그룹으로 (같은 부모 안에서)" onclick={group}>그룹</button>
+    <button class="btn small" data-testid="layer-save-set" disabled={ro || !layers.length} title="체크한 레이어(없으면 전체)를 세트로 저장 — 다른 사인물에 비율 맞춰 넣을 수 있습니다" onclick={saveSet}>세트로 저장</button>
   </div>
   <div class="tree">
     {@render rows(layers, 0)}

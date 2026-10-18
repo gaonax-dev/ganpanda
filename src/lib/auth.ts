@@ -6,11 +6,12 @@ export interface Account { id: string; email: string; name: string; plan: string
 export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
 /** seats = 동시 작업 인원(직원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) — 2026-10-17 */
 export interface Usage { limits: { storageBytes: number; seats: number; proposalsPerMonth: number | null }; usage: { storageBytes: number; seats: number; proposals: number } }
-export type Me = { account: Account; prices: unknown; /** 색 라이브러리 (2026-10-17) */ colors?: unknown; /** 요청판: 요청 받기·지역 (2026-10-17) */ requestSettings?: { receive: boolean; regions: string[] } } & Usage;
+export type Me = { account: Account; prices: unknown; /** 색 라이브러리 (2026-10-17) */ colors?: unknown; /** 세트 라이브러리 (2026-10-19) */ sets?: unknown; /** 요청판: 요청 받기·지역 (2026-10-17) */ requestSettings?: { receive: boolean; regions: string[] } } & Usage;
 /** 계정 기본 단가표 저장 */
 export const savePrices = (prices: unknown) => call<{ prices: unknown }>('/api/me/prices', { method: 'PUT', body: JSON.stringify({ prices }) });
 /** 계정 색 라이브러리 저장 (2026-10-17) */
 export const saveColors = (colors: unknown) => call<{ colors: unknown }>('/api/me/colors', { method: 'PUT', body: JSON.stringify({ colors }) });
+export const saveSets = (sets: unknown) => call<{ sets: unknown }>('/api/me/sets', { method: 'PUT', body: JSON.stringify({ sets }) });
 const KEY = 'ganpanda.session';
 
 export const loadSession = (): string | null => { try { return localStorage.getItem(KEY); } catch { return null; } };

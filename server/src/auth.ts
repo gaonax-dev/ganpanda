@@ -11,7 +11,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
 
 const LOCK_WINDOW = 15 * 60 * 1000;
 const VERIFY_TTL = 24 * 60 * 60 * 1000;
@@ -181,7 +181,7 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     return new Response(null, { status: 204 });
   }
   if (pathname === '/api/me' && req.method === 'GET') {
-    return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, colors: me.colors ? JSON.parse(me.colors) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
+    return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, colors: me.colors ? JSON.parse(me.colors) : null, sets: me.sets ? JSON.parse(me.sets) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
   }
   if (pathname === '/api/me/password' && req.method === 'POST') {
     // 새 비밀번호 설정: 비밀번호가 있으면 현재 비밀번호가 맞아야 한다. 재설정 링크로 들어온 직후(15분)는 예외

@@ -11,6 +11,9 @@
   import type { PartItem, SignObject, SignPart } from '../core/model';
   import { PART_KIND_LABEL, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf, sheetTargets } from '../core/parts';
   import { componentOf } from '../core/components';
+  import { insertSet } from '../core/setLibrary';
+  import { layersOf } from '../core/layers';
+  import { commitLayers } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
@@ -32,6 +35,14 @@
     ps.splice(i, 1);
     for (const p of ps) if (p.on === gone) p.on = 'frame'; // 지운 채널·시트 위의 시트는 프레임 면으로
   });
+  /** 세트 넣기 (4단계): 라이브러리의 세트를 이 사인물 크기에 비율 맞춰 — 구성 요소뿐인 세트는 프레임 아래, 객체가 섞인 세트는 이 구성 요소 아래 */
+  function putSet(partId: string, setId: string) {
+    const set = app.setLibrary.find((s) => s.id === setId);
+    if (!set) return;
+    const next = insertSet(layersOf(obj, parts), set, obj, partId);
+    if (!next) { app.notice = '이 세트는 구성 요소 안에 넣어야 합니다.'; return; }
+    update(commitLayers(obj, next));
+  }
   const addItem = (i: number, kind: PartItem['kind']) => edit((ps) => { const it = newItem(kind); if (kind === 'shape') it.fill = componentOf(ps[i].kind).color; ps[i].items.push(it); }); // 도형은 종류 색으로 채워 시작 (2단계)
   const setItem = (i: number, j: number, patch: Partial<PartItem>) => edit((ps) => Object.assign(ps[i].items[j], patch));
   const delItem = (i: number, j: number) => edit((ps) => ps[i].items.splice(j, 1));
@@ -148,6 +159,12 @@
             <button class="btn small" data-testid="add-item-text" onclick={() => addItem(i, 'text')}>+ 글자</button>
             <button class="btn small" data-testid="add-item-image" onclick={() => addItem(i, 'image')}>+ 그림</button>
             <button class="btn small" data-testid="add-item-shape" onclick={() => addItem(i, 'shape')}>+ 도형</button>
+            {#if app.setLibrary.length}
+              <select class="setpick" data-testid="add-set" value="" title="세트 넣기 — 이 사인물 크기에 비율 맞춰" onchange={(e) => { putSet(p.id, e.currentTarget.value); e.currentTarget.value = ''; }}>
+                <option value="">+ 세트…</option>
+                {#each app.setLibrary as st (st.id)}<option value={st.id}>{st.name}</option>{/each}
+              </select>
+            {/if}
           </div>
         {/if}
       </div>

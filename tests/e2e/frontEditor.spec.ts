@@ -150,3 +150,24 @@ test('레이어 패널: 숨기면 정면도·거울에서 빠지고, 잠그면 �
   await expect(panel.locator('[data-testid="layer-row"][data-kind="group"]')).toHaveCount(0);
   await expect(editor.getByTestId('front-item')).toHaveCount(2);
 });
+
+// 세트 라이브러리 (4단계, 2026-10-19): 레이어 묶음을 저장해 다른 크기의 사인물에 비율 맞춰 넣는다
+test('세트로 저장하고 다른 사인물에 넣으면 그 크기에 비율이 맞는다', async ({ page, request }) => {
+  await setup(page, request); // 6000×900 갈바 + 전광 채널 "바로바로" 600
+  page.on('dialog', (d) => d.accept('제목 세트'));
+  await page.getByTestId('layer-panel').getByTestId('layer-save-set').click(); // 체크 없음 → 전체(채널 + 글자)
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { setLibrary: { name: string; frame: { w: number } }[] } }).__ganpanda.setLibrary.map((s) => [s.name, s.frame.w]))).toEqual([['제목 세트', 6000]]);
+  await page.getByTestId('close-object-settings').click();
+  // 절반 크기의 새 사인물에 넣기
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void; objectSettingsFocus?: string } }).__ganpanda;
+    app.selectObject(app.project.addObject({ photoId: app.photos[0].id, name: '작은', shape: 'rect', quad: [[100, 400], [500, 400], [500, 500], [100, 500]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 450, parts: [] }));
+  });
+  await openObjectSettings(page);
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
+  await page.getByTestId('add-part-sheet-uv').click(); // 구성 요소 카드가 있어야 [+ 세트…] 가 보인다
+  await page.getByTestId('add-set').selectOption({ label: '제목 세트' });
+  const o = await page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { selected: { parts: { kind: string; items: { text?: string; h: number; x: number }[] }[] } } }).__ganpanda.selected)));
+  const ch = o.parts.find((p: { kind: string }) => p.kind === 'channel');
+  expect(ch.items[0]).toMatchObject({ text: '바로바로', h: 300 }); // 600 × 0.5
+});

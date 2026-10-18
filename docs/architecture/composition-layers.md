@@ -144,3 +144,8 @@ export const registry = new Map<string, Component>();
 - 배치 탭은 숨긴 객체만 있어도 남는다(`anyItemLayer`).
 - 테스트: `tests/unit/layers.test.ts`(병합·숨김·잠금·순서·그룹·풀기), E2E `frontEditor.spec.ts`(패널 ↔ 정면도 선택, 숨기기/보이기, 잠금 끌기 무시, 그룹 → 이름 → 끌어도 그룹 유지 → 풀기).
 
+### 4단계 — 세트 라이브러리 (구현됨 2026-10-19) · 나머지는 보류
+- **세트**(`core/setLibrary.ts` `SignSet{id, name, frame{w,h}, layers, thumb?, createdAt}`): 레이어 패널 [세트로 저장]이 체크한 레이어(없으면 전체)의 서브트리를 저장 시점 사인물 크기와 함께 계정 라이브러리(`/api/me/sets`, D1 `accounts.sets` JSON, 마이그레이션 0015; 기기 사본 `ganpanda.sets`)에 둔다. 구성 요소 카드의 [+ 세트…]로 넣으면 `insertSet`: 배율 = min(가로비, 세로비)(비율 유지), 모든 상자 좌표·크기에 곱하고 id 를 새로 만든다. 뿌리가 구성 요소뿐이면 프레임 아래에, 내용 객체가 섞였으면 그 카드의 구성 요소 아래에. 썸네일은 펼친 구성 요소의 작은 SVG(`thumbOf`).
+- **보류**: 새 컴포넌트(조명·LED 모듈·몰딩·지주)는 공급사 단가·제작 규칙이 정해져야 모듈을 쓸 수 있어 사용자와 사양을 정한 뒤에. 거울 `parts` 제거는 읽는 곳이 40곳이 넘어 이득보다 위험이 커 당분간 유지(트리가 있으면 트리가 진실, 거울은 파생).
+- 테스트: `tests/unit/setLibrary.test.ts`, `server/test/sets.test.ts`, E2E `frontEditor.spec.ts`(저장 → 절반 크기 사인물에 넣기 → 글자 높이 절반).
+
