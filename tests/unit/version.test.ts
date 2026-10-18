@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { bustedUrl, reloadPlan, describe, expect, it } from 'vitest';
 import { bundleOf, newVersionAvailable } from '../../src/lib/core/version';
 
 describe('새 배포 감지', () => {
@@ -22,5 +22,22 @@ describe('새 버전 자동 적용', async () => {
     expect(shouldAutoReload({ returned: false, busy: false, home: true })).toBe(true);
     expect(shouldAutoReload({ returned: true, busy: true })).toBe(false);
     expect(shouldAutoReload({ returned: false, busy: false })).toBe(false);
+  });
+});
+
+// 2026-10-18 사용자: "모바일 재로딩으로 이 페이지를 열 수 없음" — 같은 버전을 두고 되풀이 새로고침 금지
+describe('reloadPlan: 1회 새로고침 → 2회 캐시 우회 → 3회부터 배너', () => {
+  const mem = () => { let v: string | null = null; return { get: () => v, set: (x: string) => { v = x; } }; };
+  it('같은 번들이면 횟수가 쌓이고, 다른 번들이면 처음부터', () => {
+    const st = mem();
+    expect(reloadPlan('index-A.js', st)).toBe('reload');
+    expect(reloadPlan('index-A.js', st)).toBe('reload-bust');
+    expect(reloadPlan('index-A.js', st)).toBe('banner');
+    expect(reloadPlan('index-A.js', st)).toBe('banner');
+    expect(reloadPlan('index-B.js', st)).toBe('reload');
+  });
+  it('bustedUrl: 기존 검색어는 두고 v 만 더한다', () => {
+    expect(bustedUrl('https://ganpanda.co.kr/?room=abc', 'index-Ckg970__.js')).toBe('https://ganpanda.co.kr/?room=abc&v=Ckg970__');
+    expect(bustedUrl('https://ganpanda.co.kr/?v=old', 'index-N.js')).toBe('https://ganpanda.co.kr/?v=N');
   });
 });

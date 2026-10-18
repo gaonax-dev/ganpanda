@@ -28,3 +28,23 @@ export function shouldAutoReload(s: { returned: boolean; busy: boolean; home?: b
   if (s.busy) return false;
   return s.returned || !!s.home;
 }
+
+/**
+ * 새 버전을 찾아 새로고침할 때 같은 버전을 두고 **되풀이 새로고침**하지 않게 (2026-10-18 사용자: "모바일 재로딩으로 이 페이지를 열 수 없음").
+ * 휴대폰 브라우저가 no-store 를 무시하고 옛 index.html 을 계속 주면: 옛 코드 → 새 버전 감지 → 새로고침 → 또 옛 코드 … 가 끝없이 돌아 "페이지를 열 수 없음"이 떴다.
+ * 1회차 = 보통 새로고침, 2회차 = 주소에 `v=<번들>` 을 붙여 캐시를 우회, 3회차부터 = 배너만. 시도 횟수는 세션 저장소에 `<번들>:<횟수>`
+ */
+export type ReloadPlan = 'reload' | 'reload-bust' | 'banner';
+export function reloadPlan(latest: string, store: { get(): string | null; set(v: string): void }): ReloadPlan {
+  const raw = store.get() ?? '';
+  const [b, n] = raw.split(':');
+  const tries = b === latest ? Number(n) || 0 : 0;
+  store.set(`${latest}:${tries + 1}`);
+  return tries === 0 ? 'reload' : tries === 1 ? 'reload-bust' : 'banner';
+}
+/** 캐시 우회 주소: 기존 검색어는 두고 v=<번들> 만 더한다 (앱은 모르는 검색어를 무시한다) */
+export function bustedUrl(href: string, latest: string): string {
+  const u = new URL(href);
+  u.searchParams.set('v', latest.replace(/^index-|\.js$/g, ''));
+  return u.toString();
+}

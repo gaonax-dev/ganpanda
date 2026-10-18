@@ -4,7 +4,7 @@ import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } f
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
-import { newVersionAvailable, shouldAutoReload } from './core/version';
+import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
 import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
@@ -999,8 +999,14 @@ if (typeof document !== 'undefined' && !import.meta.env.DEV) {
   const check = async (returned: boolean) => {
     if (document.visibilityState !== 'visible' || Date.now() - last < 10_000) return;
     last = Date.now();
-    if (!(await newVersionAvailable(document, () => fetch('/', { cache: 'no-store' }).then((r) => r.text())))) return;
-    if (shouldAutoReload({ returned, busy: busy(), home: !app.room })) location.reload();
+    const html = await fetch('/', { cache: 'no-store' }).then((r) => r.text()).catch(() => '');
+    if (!(await newVersionAvailable(document, async () => html))) return;
+    if (!shouldAutoReload({ returned, busy: busy(), home: !app.room })) { app.updateAvailable = true; return; }
+    // 같은 버전을 두고 되풀이 새로고침 금지 (2026-10-18 "모바일 재로딩으로 이 페이지를 열 수 없음")
+    const store = { get: () => { try { return sessionStorage.getItem('ganpanda.reloadFor'); } catch { return null; } }, set: (v: string) => { try { sessionStorage.setItem('ganpanda.reloadFor', v); } catch { /* 저장 불가 */ } } };
+    const plan = reloadPlan(bundleOf(html) ?? '', store);
+    if (plan === 'reload') location.reload();
+    else if (plan === 'reload-bust') location.replace(bustedUrl(location.href, bundleOf(html) ?? ''));
     else app.updateAvailable = true;
   };
   document.addEventListener('visibilitychange', () => check(true));
