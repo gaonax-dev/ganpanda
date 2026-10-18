@@ -218,7 +218,7 @@
   function alignToPerspective(o: SignObject, on?: RefPlane | null) {
     const plane = on ?? refPlaneOf(o);
     if (!plane) return;
-    onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)))));
+    onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)), 25))); // 단추가 25° 까지 나오므로 맞추기도 25° 까지
   }
 
   const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : 'rect');
@@ -387,7 +387,11 @@
   <g class="modes" transform="translate({at[0] - 11 * gu} {at[1] + 14 * gu})">
     <g class="mode" class:on={gizmoMode === 'move'} role="button" tabindex="-1" data-testid="gizmo-mode-move" onpointerdown={(e) => { e.stopPropagation(); app.gizmoMode = gizmoMode === 'move' ? 'none' : 'move'; }}>
       <title>이동 (W)</title>
-      <circle cx={11 * gu} cy={9 * gu} r={9 * gu} /><text x={11 * gu} y={13 * gu} font-size={12 * gu} text-anchor="middle">✥</text>
+      <!-- 아이콘은 글리프(✥) 대신 선으로 그린다 — 아이폰에서 글리프가 비어 보였음 (2026-10-18 캡처) -->
+      <circle cx={11 * gu} cy={9 * gu} r={8 * gu} />
+      <g class="ico" transform="translate({11 * gu} {9 * gu}) scale({gu})" pointer-events="none">
+        <path d="M0 -5 L0 5 M-5 0 L5 0 M0 -5 L-1.6 -3.2 M0 -5 L1.6 -3.2 M0 5 L-1.6 3.2 M0 5 L1.6 3.2 M-5 0 L-3.2 -1.6 M-5 0 L-3.2 1.6 M5 0 L3.2 -1.6 M5 0 L3.2 1.6" />
+      </g>
     </g>
   </g>
 {/snippet}
@@ -617,12 +621,12 @@
               {#if gizmoMode === 'move'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const ar = g3.arrows[a]}
-                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={3 * gu} />
-                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} />
+                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={2.4 * gu} />
+                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={1.1 * gu} style:stroke={AXIS_COLOR[a]} />
                   <circle class="gh axis" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
                   <!-- 반대 방향 (2026-10-18 "이동 6방향으로 표시"): 같은 축, 끄는 방향으로 움직인다 -->
                   {@const neg = [2 * ar[0][0] - ar[1][0], 2 * ar[0][1] - ar[1][1]]}
-                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={3 * gu} />
+                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={2.4 * gu} />
                   <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} stroke-opacity="0.7" />
                   <circle class="gh axis" data-testid="gizmo-{a}-neg" cx={neg[0]} cy={neg[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>-{a.toUpperCase()} 방향으로 옮기기</title></circle>
                 {/each}
@@ -793,13 +797,13 @@
   .gizmo .gh.size { fill: #fff; stroke: #333; }
   /* 돌린 사인물: 이동 모드 = 경첩 옮기기, 회전 모드 = 각도, 크기 모드는 펴서(벽에 붙여) */
   .modes .mode { cursor: pointer; }
-  .modes .mode circle { fill: rgba(23, 26, 33, 0.9); stroke: rgba(255,255,255,0.45); }
+  .modes .mode circle { fill: rgba(23, 26, 33, 0.85); stroke: rgba(255,255,255,0.5); stroke-width: 1px; vector-effect: non-scaling-stroke; }
   .modes .mode.on circle { fill: #ffcc00; stroke: #111; }
+  .modes .mode .ico path { fill: none; stroke: #fff; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+  .modes .mode.on .ico path { stroke: #1a1500; }
   .ibtn { cursor: pointer; }
   .ibtn circle { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
   .ibtn text { fill: #111; stroke: none; font-weight: 800; pointer-events: none; }
-  .modes .mode text { fill: #fff; stroke: none; font-weight: 700; pointer-events: none; }
-  .modes .mode.on text { fill: #1a1500; }
   .gizmo .gh.uni { fill: #ffcc00; stroke: #333; }
   .gizmo .deg { fill: #fff; stroke: rgba(0,0,0,0.7); paint-order: stroke; font-weight: 700; pointer-events: none; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
