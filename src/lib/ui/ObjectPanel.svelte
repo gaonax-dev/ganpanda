@@ -2,6 +2,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { pinsOnObject } from '../core/bubbleTarget';
+  import { lastStateOf } from '../core/bubbles';
   import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import { copiesOf } from '../core/link';
@@ -16,7 +17,11 @@
   // 패널이 열려 있는 동안 이 사인물의 새 메시지는 읽은 것으로
   const chatId = $derived(obj.sameAs ?? obj.id);
   /** 이 사인물을 가리키는 지점 말풍선들 (2026-10-18 "사인물에서도 말풍선 이동 버튼으로 간단 이동") */
-  const bubblesHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
+  const pinsHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
+  const bubblesHere = $derived(pinsHere.filter((p) => !p.resolved));
+  /** 컨펌 리스트 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고"): 완료한 말풍선 */
+  const confirms = $derived(pinsHere.filter((p) => p.resolved));
+  const when = (ts: number) => new Date(ts).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
   /** 연결 대상 후보: 다른 사인물(원본)들 */
   const linkTargets = $derived(app.signs.filter((s) => s.id !== obj.id && s.id !== obj.sameAs));
   const copies = $derived(copiesOf(obj.sameAs ?? obj.id, app.objects));
@@ -120,6 +125,14 @@
         {/each}
       </div>
     {/if}
+    {#if confirms.length}
+      <div class="row confirms" data-testid="object-confirms">
+        <span class="hint">✓ 컨펌 리스트 {confirms.length}</span>
+        {#each confirms as p (p.id)}
+          <button class="citem" data-testid="object-confirm-item" title="다시 보기" onclick={() => app.selectPin(p.id)}>✓ #{p.number} <b>{p.author}</b> <small>{when(p.createdAt)}</small> <span>{lastStateOf(app.messages, p.id)?.text.slice(0, 30) ?? ''}</span></button>
+        {/each}
+      </div>
+    {/if}
     <div class="row">
       <p class="summary" data-testid="object-summary">
         {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
@@ -136,6 +149,9 @@
 
 <style>
   .row.bubbles { flex-wrap: wrap; gap: 6px; }
+  .row.confirms { flex-direction: column; align-items: stretch; gap: 2px; }
+  .citem { background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--text); font: inherit; font-size: 12px; text-align: left; padding: 5px 8px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+  .citem small { color: var(--muted); } .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row.bubbles .hint { font-size: 11px; color: var(--muted); }
   .icon.chat { position: relative; }
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
