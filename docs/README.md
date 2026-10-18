@@ -27,6 +27,7 @@
   - [data-model.md](architecture/data-model.md) — Yjs 프로젝트 문서 스키마
   - [coordinates.md](architecture/coordinates.md) — 좌표계와 단위(px, mm, world)
   - [sync.md](architecture/sync.md) — 실시간 동기화·오프라인·에셋 저장 방식
+  - [composition-layers.md](architecture/composition-layers.md) — **제안(미결정)**: 조합형 사인물의 레이어 트리·컴포넌트 레지스트리 (2026-10-18)
 - features
   - [photo-board.md](features/photo-board.md) — 사진 보드, 영역 그리기
   - [shortcuts.md](features/shortcuts.md) — 화면 조작(xlpop과 동일)과 단축키 설정
