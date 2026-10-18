@@ -65,10 +65,11 @@ export function recessBox(group: THREE.Group, depthMm: number) {
 export interface ChannelGeometry {
   geometry: THREE.ExtrudeGeometry;
   measured: Measured;
-  /** 원본 글자 윤곽(폰트 단위)과 mm 변환 정보 — 글로우 텍스처용 */
+  /** 원본 글자 윤곽(폰트 단위)과 mm 변환 정보 — 글로우 텍스처용. scaleX = 가로 배율(상자 맞춤으로 늘이고 줄인 만큼, 기본 = scale) */
   shapes: THREE.Shape[];
   center: THREE.Vector2;
   scale: number;
+  scaleX: number;
 }
 
 /** 입체 글자 형상 (DOM 불필요 → 단위 테스트 대상). 중심 = 원점, 앞면 z = depth */
@@ -79,19 +80,26 @@ export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
   const geometry = new THREE.ExtrudeGeometry(shapes, { depth: spec.depthMm, bevelEnabled: false, curveSegments: 6 });
   geometry.computeBoundingBox();
   const bb = geometry.boundingBox!.clone(); // translate/scale 이 boundingBox 를 갱신하므로 복사
-  const k = spec.heightMm / Math.max(1, bb.max.y - bb.min.y);
-  const center = new THREE.Vector2((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2);
+  const fit = spec.fitBox;
+  // 상자 맞춤(2026-10-18): 정면도·2D 와 같이 폰트 크기 = 상자 높이 90% (윤곽 단위 1000 = 폰트 크기), 세로 중심 = 글자 상자(어센더~디센더) 가운데(dominant-baseline central)
+  // 아니면 잉크 높이 = heightMm
+  const k = fit ? (fit.h * 0.9) / 1000 : spec.heightMm / Math.max(1, bb.max.y - bb.min.y);
+  const emMid = ((font.ascender + font.descender) / 2) * (1000 / font.unitsPerEm);
+  const center = new THREE.Vector2((bb.min.x + bb.max.x) / 2, fit ? emMid : (bb.min.y + bb.max.y) / 2);
+  // 상자 폭 96% 에 늘이고 줄임 (textLength spacingAndGlyphs)
+  const kx = fit ? (fit.w * 0.96) / Math.max(1e-6, (bb.max.x - bb.min.x) * k) * k : k;
   // 폰트 단위 → mm. 두께(z)는 이미 mm 이므로 x,y 만 스케일
   geometry.translate(-center.x, -center.y, 0);
-  geometry.scale(k, k, 1);
+  geometry.scale(kx, k, 1);
   geometry.computeVertexNormals();
   return {
     geometry,
     shapes,
     center,
     scale: k,
+    scaleX: kx,
     measured: {
-      widthMm: (bb.max.x - bb.min.x) * k,
+      widthMm: (bb.max.x - bb.min.x) * kx,
       heightMm: spec.heightMm,
       charCount: [...text].filter((c) => c.trim()).length,
     },
@@ -203,7 +211,7 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
   const built: BuiltSign[] = [];
   for (const L of spec.letterItems ?? []) {
     let b: BuiltSign;
-    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
+    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
     catch { continue; }
     bakeOffset(b.group, L.x, L.y, spec.bodyless ? 0 : spec.depthMm);
     box.group.add(b.group);
@@ -224,7 +232,7 @@ function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: Fa
   const L = spec.letters;
   if (!L || !L.text.trim()) return box;
   let letters: BuiltSign;
-  try { letters = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, widthMm: spec.widthMm, depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
+  try { letters = buildChannel({ ...spec, fitBox: undefined, kind: 'channel', text: L.text, heightMm: L.heightMm, widthMm: spec.widthMm, depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
   catch { return box; } // 글자를 만들 수 없으면(폰트에 없는 글자) 상자만
   const k = Math.min(1, (spec.widthMm * 0.9) / Math.max(1, letters.measured.widthMm), (spec.heightMm * 0.9) / L.heightMm);
   letters.group.scale.setScalar(k);
@@ -240,7 +248,7 @@ function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: Fa
 
 export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   const group = new THREE.Group();
-  const { geometry: geo, measured, shapes, center, scale: k } = channelGeometry(spec, font);
+  const { geometry: geo, measured, shapes, center, scale: k, scaleX: kx } = channelGeometry(spec, font);
   const widthMm = measured.widthMm;
 
   const led = new THREE.Color(spec.faceColor);
@@ -266,7 +274,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     const gw = widthMm + pad * 2, gh = spec.heightMm + pad * 2;
     const tex = glowTexture((ctx, s) => {
       const path = shapesToPath2D(shapes, (v) => [
-        ((v.x - center.x) * k + gw / 2) * s,
+        ((v.x - center.x) * kx + gw / 2) * s,
         (gh / 2 - (v.y - center.y) * k) * s,
       ]);
       ctx.fill(path, 'evenodd');
@@ -414,7 +422,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
       ctx.font = `800 ${size}px ${fontFamily}`;
       const mw = ctx.measureText(it.text).width;
       ctx.translate(left + (it.w * s) / 2, top + (it.h * s) / 2);
-      if (mw > it.w * s) ctx.scale((it.w * s) / mw, 1);
+      if (mw > 0) ctx.scale((it.w * s * 0.96) / mw, 1); // 2D 와 같이 상자 폭 96% 에 늘이고 줄임 (2026-10-18)
       ctx.fillStyle = it.color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';

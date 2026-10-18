@@ -100,8 +100,9 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
       if (it.kind === 'text' && !hasText(it.text)) continue;
       if (it.kind === 'text' && part.kind !== 'sheet') {
         const scashi = part.kind === 'scashi';
+        const b = itemBox(it); // 글자 상자 (가로 없으면 글자수 × 높이 × 0.9) — 3D 글자도 이 상자에 맞춘다 (2026-10-18)
         letterItems.push({
-          text: it.text!.trim(), heightMm: it.h * sy, x: it.x * sx, y: it.y * sy, letterSpacing,
+          text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing,
           depthMm: scashi ? parseFloat(String(part.options?.thickness ?? '')) || 10 : d.depthMm,
           // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
           lighting: scashi ? 'none' : lightingOf(part.type), faceColor: paintHex(part.options, 'face') ?? d.faceColor, sideColor: paintHex(part.options, 'body') ?? d.sideColor,

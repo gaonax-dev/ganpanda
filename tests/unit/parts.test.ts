@@ -88,6 +88,11 @@ describe('옵션·요약·3D', () => {
     expect(spec.letters).toBeUndefined();
     expect(spec.letterItems).toEqual([expect.objectContaining({ text: '카페', lighting: 'halo', x: 0, y: 0 })]);
     expect(spec.letterItems![0].heightMm).toBeCloseTo(450, 0);
+    // 글자 상자 폭도 3D 로 (2026-10-18 "2d결과물은 속성 정면도를 따르는데 3d는 따르지 않는다"): 가로를 안 넣었으면 글자수 × 높이 × 0.9
+    expect(spec.letterItems![0].widthMm).toBeCloseTo(2 * 450 * 0.9, 0);
+    ch.items = [{ ...newItem('text'), text: '카페', h: 450, w: 2000, x: 300, y: -100 }];
+    const spec2 = renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 900, parts: [ch] }), { cx: 0, cy: 0, w: 1500, h: 450 } as never)!; // 자리가 절반 크기
+    expect(spec2.letterItems![0]).toEqual(expect.objectContaining({ widthMm: 1000, heightMm: 225, x: 150, y: -50 }));
   });
 });
 

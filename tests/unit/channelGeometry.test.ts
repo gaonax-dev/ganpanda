@@ -30,6 +30,18 @@ describe('channelGeometry (채널 간판 입체 글자)', () => {
     expect(b.max.z - b.min.z).toBeCloseTo(120, 3);
   });
 
+  it('상자 맞춤(fitBox): 정면도·2D 와 같게 글자 폭 = 상자 폭 96%, 글자 크기 = 상자 높이 90% (2026-10-18 "2d결과물은 속성 정면도를 따르는데 3d는 따르지 않는다")', () => {
+    const { geometry, measured } = channelGeometry(channel({ text: '카페', heightMm: 500, fitBox: { w: 3000, h: 500 } }), font);
+    const b = bbox(geometry);
+    expect(b.max.x - b.min.x).toBeCloseTo(3000 * 0.96, 2); // 상자 폭에 늘여 맞춤 (textLength spacingAndGlyphs 와 같음)
+    expect(measured.widthMm).toBeCloseTo(3000 * 0.96, 2);
+    expect(b.max.y - b.min.y).toBeLessThan(500); // 글자 크기(폰트 크기) 450mm → 잉크 높이는 그보다 작다
+    expect(b.max.y - b.min.y).toBeGreaterThan(250);
+    expect((b.min.x + b.max.x) / 2).toBeCloseTo(0, 3); // 상자 중심 = 원점
+    const narrow = bbox(channelGeometry(channel({ text: '카페', heightMm: 500, fitBox: { w: 600, h: 500 } }), font).geometry);
+    expect(narrow.max.x - narrow.min.x).toBeCloseTo(600 * 0.96, 2); // 좁은 상자면 줄여서
+  });
+
   it('글자수는 공백을 제외하고 센다', () => {
     expect(channelGeometry(channel({ text: '간판 다 ' }), font).measured.charCount).toBe(3);
   });
