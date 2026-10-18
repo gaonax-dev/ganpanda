@@ -12,13 +12,13 @@ test('퀵입력에서 못 알아본 글은 체크해 두면 표본으로 보내�
   const sent: unknown[] = [];
   await page.route('**/api/spec-samples', async (route) => { sent.push(route.request().postDataJSON()); await route.fulfill({ status: 201, contentType: 'application/json', body: '{"id":"x"}' }); });
   const spec = page.getByTestId('spec-input').first();
-  await spec.getByTestId('spec-text').fill('갈바 흰색 로고는 왼쪽 아래');
+  await spec.getByTestId('spec-text').fill('갈바 흰색 배선은 뒤로'); // '로고 왼쪽 아래'는 배치 어휘로 알아본다 (2026-10-19)
   await spec.getByTestId('spec-parse').click();
   await expect(spec.getByTestId('spec-share')).toBeVisible();
   await spec.getByTestId('spec-apply').click();
   await expect.poll(() => sent.length).toBe(1);
-  expect(sent[0]).toMatchObject({ text: '갈바 흰색 로고는 왼쪽 아래', productId: 'board-galva' });
-  expect((sent[0] as { leftover: string }).leftover).toContain('로고는');
+  expect(sent[0]).toMatchObject({ text: '갈바 흰색 배선은 뒤로', productId: 'board-galva' });
+  expect((sent[0] as { leftover: string }).leftover).toContain('배선은');
   // 전부 알아본 글이면 보내기 체크가 없다
   await spec.getByTestId('spec-text').fill('후렉스 비조명');
   await spec.getByTestId('spec-parse').click();

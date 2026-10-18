@@ -67,7 +67,7 @@ describe('종류 이름 분기 금지 (레지스트리 밖)', () => {
     'core/letter3d.ts': 1, // 입체 보기 = 채널 글자
     'core/render.ts': 2, // 옛 형식(letters) 의 첫 채널·스카시
     'core/quickSpec.ts': 2, // 빠른 설정의 채널 칩 (채널 전용 UI)
-    'core/specText.ts': 3, // 사양 글 인식의 채널 (채널 전용)
+    'core/specText.ts': 6, // 사양 글의 채널·스카시 항목(SpecItem.kind — 구성 요소 종류 비교가 아님) + 배치 적용의 시트 레이어 찾기 (2026-10-19)
     'ui/ObjectSettingsDialog.svelte': 2, // 칩에서 열 때 채널 탭
   };
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : [p]; });

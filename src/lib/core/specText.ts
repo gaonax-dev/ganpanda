@@ -7,7 +7,12 @@ import { CHANNEL_OPTIONS, categoryOf, groupOfProduct, productById } from './cata
 import { NAMED_COLORS, shadeHex } from './materials';
 import type { ColorCard } from './colorLibrary';
 import { optionGroupsFor, partOptionFields, type OptionField } from './options';
-import { categoryPatch, newPart, partsOf } from './parts';
+import { categoryPatch, commitLayers, newPart, partsOf } from './parts';
+import { SCASHI_OPTIONS } from './catalog';
+import { layersOf } from './layers';
+import type { Layer } from './model';
+import { charCountOf } from './charCount';
+import { TEXT_CHAR_ASPECT } from './frontView';
 import { applyQuick, ledLabel, type QuickPatch } from './quickSpec';
 import { matchRules, type SpecRule } from './specRules';
 
@@ -21,8 +26,21 @@ export type SpecItem = (
   | { kind: 'thick'; mm: number; label: string }
   | { kind: 'option'; key: string; value: string; label: string }
   | { kind: 'channelOption'; key: string; value: string; label: string }
+  | { kind: 'scashi'; id: string; label: string }
+  /** 배치 (2026-10-19): 따옴표 글자·로고 자리를 어느 구성 요소에, 어디에 — 적용하면 레이어 트리에 자리가 계산되어 들어간다 (docs/features/spec-vocabulary.md V4) */
+  | { kind: 'place'; item: 'text' | 'image'; text?: string; h?: number; where?: Where; line?: number; lines?: number; into: 'channel' | 'scashi' | 'sheet'; sheetType?: string; on?: 'channel'; label: string }
   | { kind: 'note'; text: string; label: string }
 ) & { src?: SpecSource };
+export type Where = 'left' | 'center' | 'right' | 'top' | 'bottom';
+const WHERE_WORDS: Record<string, Where> = { 왼쪽: 'left', 좌측: 'left', 좌: 'left', 가운데: 'center', 중앙: 'center', 센터: 'center', 오른쪽: 'right', 우측: 'right', 우: 'right', 위: 'top', 상단: 'top', 위쪽: 'top', 아래: 'bottom', 하단: 'bottom', 아래쪽: 'bottom', 밑: 'bottom' };
+const WHERE_LABEL: Record<Where, string> = { left: '왼쪽', center: '가운데', right: '오른쪽', top: '위', bottom: '아래' };
+const IMAGE_WORDS = ['로고', '그림', '이미지', '사진'];
+const INTO_LABEL = { channel: '채널', scashi: '스카시', sheet: '시트' } as const;
+function placeLabel(p: Extract<SpecItem, { kind: 'place' }>): string {
+  const what = p.item === 'text' ? `글자 "${p.text ?? ''}"${p.lines ? ` ${(p.line ?? 0) + 1}/${p.lines}줄` : ''}` : '그림 자리';
+  const sheet = p.into === 'sheet' ? (p.sheetType === 'sh-cut' ? '재질 시트' : 'UV 출력 시트') : INTO_LABEL[p.into];
+  return [what, p.h ? `${p.h}mm` : '', p.where ? WHERE_LABEL[p.where] : '', `(${sheet}${p.on ? ', 채널 위' : ''})`].filter(Boolean).join(' ');
+}
 /** 항목의 출처 (내 사전·전국 기본값으로 알아본 것 — 확인 창에서 "다른 뜻이에요" 가능) */
 export type SpecSource = { tag: '내 사전' | '전국'; phrase: string };
 
@@ -92,13 +110,46 @@ export function parseSpecText(text: string, o?: SignObject, library: ColorCard[]
   let src = nation.rest.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
   // 사이즈 "3000x600" / "3,000 × 600" 는 공백이 있을 수 있어 먼저 뽑는다
   src = src.replace(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/g, (_m, w: string, h: string) => { items.push({ kind: 'size', w: Number(w), h: Number(h), label: `사이즈: ${Number(w).toLocaleString('ko-KR')}×${Number(h).toLocaleString('ko-KR')}mm` }); return ' '; });
+  // 따옴표 글 → 글자 객체 자리 (2026-10-19 배치 어휘): "카페" / '카페' / “카페”. 토큰 자리에 표지를 두고 순서를 지킨다
+  const quoted: string[] = [];
+  src = src.replace(/["“”]([^"“”]+)["“”]|'([^']+)'/g, (_m, a: string | undefined, b: string | undefined) => { quoted.push((a ?? b ?? '').trim()); return ` \u0001${quoted.length - 1} `; });
   const tokens = src.split(/\s+/).filter(Boolean);
   // 종류를 먼저 알아야 그 종류의 옵션 값을 맞출 수 있다
   const productId = tokens.map((t) => PRODUCT_ALIASES.find(([a]) => t.includes(a))?.[1]).find(Boolean) ?? o?.productId;
   const dict = optionDict(o, productId);
   let colors = 0, sawChannel = false, channelIdx = -1, genericIdx = -1, awaitThick = false;
+  // 배치: 가장 최근 글자·그림 자리에 높이·줄 수·위치어가 붙는다. 스카시를 말했으면 글자는 스카시에, "채널 위에" 다음의 시트는 채널 앞면에
+  let pending: Extract<SpecItem, { kind: 'place' }> | null = null;
+  let sawScashi = false, lastWasChannel = false, sheetOn: 'channel' | undefined, sheetType: string | undefined;
+  const flush = () => {
+    if (!pending) return;
+    const p = pending; pending = null;
+    if (p.item === 'text' && p.lines && p.lines > 1 && p.text) {
+      let parts = p.text.split(/\s*[/|,·]\s*/).map((t) => t.trim()).filter(Boolean);
+      if (parts.length !== p.lines) { const words = p.text.split(/\s+/).filter(Boolean); const per = Math.ceil(words.length / p.lines); parts = Array.from({ length: p.lines }, (_, i) => words.slice(i * per, (i + 1) * per).join(' ')).filter(Boolean); }
+      parts.forEach((t, i) => { const it = { ...p, text: t, line: i, lines: parts.length }; items.push({ ...it, label: placeLabel(it) }); });
+      return;
+    }
+    items.push({ ...p, label: placeLabel(p) });
+  };
   for (const tok of tokens) {
     const low = tok.toLowerCase();
+    // ---- 배치 어휘 (2026-10-19) ----
+    const q = tok.match(/^\u0001(\d+)$/);
+    if (q) { flush(); pending = { kind: 'place', item: 'text', text: quoted[Number(q[1])], into: sawScashi ? 'scashi' : 'channel', label: '' }; lastWasChannel = false; continue; }
+    if (IMAGE_WORDS.some((w) => low === w || low === `${w}는` || low === `${w}를`)) { flush(); pending = { kind: 'place', item: 'image', into: 'sheet', ...(sheetType ? { sheetType } : {}), ...(sheetOn ? { on: sheetOn } : {}), label: '' }; lastWasChannel = false; continue; }
+    if (tok === '위에' || tok === '앞면에') { if (lastWasChannel) sheetOn = 'channel'; lastWasChannel = false; continue; }
+    if (/^(uv|유브이)?시트$/i.test(low) || low === '출력시트' || low === '커팅시트' || low === '재질시트') { sheetType = low.includes('커팅') || low.includes('재질') ? 'sh-cut' : 'sh-print'; if (pending?.item === 'image') { pending.into = 'sheet'; pending.sheetType = sheetType; if (sheetOn) pending.on = sheetOn; } lastWasChannel = false; continue; }
+    if (pending) {
+      const n = low.match(/^(\d{2,4})(?:mm)?$/);
+      if (n) { pending.h = Number(n[1]); continue; }
+      const ln = low.match(/^(\d)줄$/);
+      if (ln) { pending.lines = Number(ln[1]); continue; }
+      if (WHERE_WORDS[tok]) { pending.where = WHERE_WORDS[tok]; continue; }
+    }
+    const sc = SCASHI_OPTIONS.find((c) => low.replace(/\s/g, '') === c.label.replace(/\s/g, '') || (low.includes('스카시') && low.includes(c.label.split(' ')[0])));
+    if (sc || low === '스카시') { sawScashi = true; if (!items.some((i) => i.kind === 'scashi')) items.push({ kind: 'scashi', id: sc?.id ?? 'ch-rubber', label: `스카시: ${sc?.label ?? '고무 스카시'}` }); if (pending?.item === 'text') pending.into = 'scashi'; lastWasChannel = false; continue; }
+    lastWasChannel = tok.includes('채널') || tok.includes('체널');
     // "두께 120" / "두께 120mm" / "두께120" (글의 순서를 지키려고 토큰 자리에서 처리)
     const thickHere = low.match(/^두께(\d+(?:\.\d+)?)(?:mm|t)?$/);
     if (thickHere) { items.push({ kind: 'thick', mm: Number(thickHere[1]), label: `두께: ${thickHere[1]}` }); continue; }
@@ -141,6 +192,7 @@ export function parseSpecText(text: string, o?: SignObject, library: ColorCard[]
     }
     leftovers.push(tok);
   }
+  flush();
   if (leftovers.length) items.push({ kind: 'note', text: leftovers.join(' '), label: `요청사항에 추가: ${leftovers.join(' ')}` });
   return items;
 }
@@ -180,6 +232,43 @@ export function applySpecItems(o: SignObject, items: SpecItem[]): Partial<SignOb
     if (i.kind === 'size') { patch.widthMm = i.w; patch.heightMm = i.h; }
     else if (i.kind === 'thick') patch.depthMm = i.mm;
     else if (i.kind === 'note') patch.note = o.note?.trim() ? `${o.note.trim()}\n${i.text}` : i.text;
+  }
+  // 배치 (2026-10-19): 글자·그림 자리를 레이어 트리에 — 구성 요소는 있으면 그것, 없으면 만든다. 시트는 "채널 위에"면 채널의 자식
+  const places = items.filter((i): i is Extract<SpecItem, { kind: 'place' }> => i.kind === 'place');
+  const scashi = items.find((i): i is Extract<SpecItem, { kind: 'scashi' }> => i.kind === 'scashi');
+  if (places.length || scashi) {
+    const cur = { ...base, ...patch } as SignObject;
+    const layers: Layer[] = JSON.parse(JSON.stringify(layersOf(cur, partsOf(cur))));
+    const W = cur.widthMm || 1000, H = cur.heightMm || 1000, margin = Math.round(Math.min(W, H) * 0.08);
+    const uid = () => (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
+    const findKind = (ls: Layer[], kind: string, pred: (l: Layer) => boolean = () => true): Layer | undefined => { for (const l of ls) { if (l.kind === kind && pred(l)) return l; const f = findKind(l.children, kind, pred); if (f) return f; } return undefined; };
+    const partLayer = (kind: 'channel' | 'scashi', type: string): Layer => {
+      const f = findKind(layers, kind); if (f) return f;
+      const np = newPart(kind, type); const l: Layer = { id: np.id, kind, spec: { type }, box: { x: 0, y: 0, w: 0, h: 0 }, children: [] }; layers.push(l); return l;
+    };
+    if (scashi) partLayer('scashi', scashi.id);
+    const sheetLayer = (type: string, on?: 'channel'): Layer => {
+      const host = on ? partLayer('channel', q.channelType ?? 'ch-front') : null;
+      const list = host ? host.children : layers;
+      const f = list.find((l) => l.kind === 'sheet' && l.spec.type === type); if (f) return f;
+      const np = newPart('sheet', type); const l: Layer = { id: np.id, kind: 'sheet', spec: { type }, box: { x: 0, y: 0, w: 0, h: 0 }, children: [] }; list.push(l); return l;
+    };
+    for (const p of places) {
+      const h = p.h ?? (p.item === 'text' ? Math.round(H * 0.6) : Math.round(Math.min(W, H) * 0.5));
+      const w = p.item === 'text' ? Math.max(1, charCountOf({ text: p.text })) * h * TEXT_CHAR_ASPECT : h;
+      const where = p.where ?? 'center';
+      let x = where === 'left' ? -W / 2 + margin + w / 2 : where === 'right' ? W / 2 - margin - w / 2 : 0;
+      let y = where === 'top' ? H / 2 - margin - h / 2 : where === 'bottom' ? -H / 2 + margin + h / 2 : 0;
+      if (p.lines && p.lines > 1) { // 줄 묶음: 위에서 아래로, 줄 간격 25%
+        const gap = h * 0.25, block = p.lines * h + (p.lines - 1) * gap;
+        const top = where === 'top' ? H / 2 - margin : where === 'bottom' ? -H / 2 + margin + block : block / 2;
+        y = top - (p.line ?? 0) * (h + gap) - h / 2;
+      }
+      const target = p.into === 'sheet' ? sheetLayer(p.sheetType ?? 'sh-print', p.on) : partLayer(p.into, p.into === 'scashi' ? scashi?.id ?? 'ch-rubber' : q.channelType ?? 'ch-front');
+      const spec = p.item === 'text' ? { text: p.text ?? '' } : {};
+      target.children.push({ id: uid(), kind: p.item, spec, box: { x: Math.round(x), y: Math.round(y), w: p.item === 'image' ? Math.round(w) : 0, h }, children: [] });
+    }
+    patch = { ...patch, ...commitLayers(cur, layers) };
   }
   return patch;
 }
