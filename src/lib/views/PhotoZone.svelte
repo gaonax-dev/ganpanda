@@ -460,7 +460,9 @@
         {@const innerQ = ([[fx, fy], [1 - fx, fy], [1 - fx, 1 - fy], [fx, 1 - fy]] as Pt[]).map((p) => applyHomography(Hf, p))}
         {@const c = outer.reduce((a, p) => [a[0] + p[0] / outer.length, a[1] + p[1] / outer.length], [0, 0])}
         {@const inner = o.shape === 'polygon' ? outer.map((p) => [c[0] + (p[0] - c[0]) * (1 - 2 * fx), c[1] + (p[1] - c[1]) * (1 - 2 * fy)]) : outlinePts(o.shape, innerQ, undefined, o.corner)}
-        <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {outer.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')}, {inner.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
+        <!-- 고리 = 바깥 둘레 → 시작점 → 안쪽 둘레(반대 방향) → 시작점 ("열쇠구멍"): CSS polygon() 은 구멍을 따로 못 그려 두 둘레를 그냥 이으면 쐐기 모양 틈이 생겼다 (2026-10-18 캡처) -->
+        {@const ring = [...outer, outer[0], inner[0], ...inner.slice(1).reverse(), inner[0]]}
+        <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {ring.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
