@@ -1,7 +1,7 @@
 <!-- 오브젝트별 대화창 (카톡형) + 코멘트 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import type { Attachment } from '../core/model';
+  import type { Attachment, Message } from '../core/model';
   import { ATTACH_ACCEPT, ATTACH_MAX } from '../core/attachments';
   import { formatBytes } from '../core/format';
   import { putAsset, StorageLimitError } from '../assets';
@@ -33,6 +33,8 @@
   }
 
   const messages = $derived.by(() => (app.version, app.project.messagesOf(objectId)));
+  /** 지우기 (2026-10-18 "말풍선 안의 이전 녹음을 지울 수가 없다") — 확인 뒤 */
+  function del(m: Message) { if (confirm(m.attachments?.length ? '이 메시지와 첨부를 지울까요?' : '이 메시지를 지울까요?')) void app.deleteMessage(m); }
   const shown = $derived(messages.filter((m) => m.kind === kind));
   const counts = $derived({ chat: messages.filter((m) => m.kind === 'chat').length, comment: messages.filter((m) => m.kind === 'comment').length });
 
@@ -76,10 +78,11 @@
             {#if m.text}{m.text}{/if}
           </div>
           <span class="t">{time(m.ts)}</span>
+          {#if app.canDeleteMessage(m)}<button class="del" data-testid="chat-delete" title="지우기" onclick={() => del(m)}>✕</button>{/if}
         </div>
       </div>
     {:else}
-      <div class="note" data-testid="comment-note"><b>{m.author}</b> <span class="t">{time(m.ts)}</span>
+      <div class="note" data-testid="comment-note"><b>{m.author}</b> <span class="t">{time(m.ts)}</span>{#if app.canDeleteMessage(m)}<button class="del" data-testid="chat-delete" title="지우기" onclick={() => del(m)}>✕</button>{/if}
         {#if m.attachments?.length}<div class="atts">{#each m.attachments as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}</div>{/if}
         {#if m.text}<p>{m.text}</p>{/if}</div>
     {/if}
@@ -122,6 +125,8 @@
   .row.mine .line { flex-direction: row-reverse; }
   .bubble { background: #fff; color: #191919; padding: 7px 10px; border-radius: 4px 14px 14px 14px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .bubble.mine { background: #fee500; border-radius: 14px 4px 14px 14px; }
+  .del { background: none; border: 0; color: var(--muted); font-size: 11px; cursor: pointer; padding: 2px 4px; opacity: 0.55; align-self: center; }
+  .del:hover { opacity: 1; color: var(--danger, #ff6b6b); }
   .t { font-size: 10px; color: var(--chat-who); white-space: nowrap; }
   .note { background: var(--input); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 9px; font-size: 12px; }
   .note p { margin: 3px 0 0; white-space: pre-wrap; }

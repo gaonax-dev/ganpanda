@@ -82,7 +82,8 @@
     <div class="voices" data-testid="object-voices">
       {#each voices as v (v.id)}
         <div class="voice-row"><span class="who">{v.author}</span><span class="t">{new Date(v.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>{#if v.text}<span class="t">{v.text}</span>{/if}
-          {#each v.attachments ?? [] as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}</div>
+          {#each v.attachments ?? [] as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}
+          {#if app.canDeleteMessage(v)}<button class="icon vdel" data-testid="voice-delete" title="이 음성 메모 지우기" onclick={() => { if (confirm('이 음성 메모를 지울까요?')) void app.deleteMessage(v); }}>✕</button>{/if}</div>
       {:else}
         <p class="none">음성 메모가 없습니다. 휴대폰에서 사인물을 고르고 상단의 🎙 녹음으로 남깁니다.</p>
       {/each}
@@ -175,6 +176,7 @@
   .voice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; }
   .voice-row .who { font-weight: 600; } .voice-row .t { color: var(--muted); }
   .voices .none { margin: 0; font-size: 12px; color: var(--muted); }
+  .voice-row .vdel { margin-left: auto; opacity: 0.6; } .voice-row .vdel:hover { opacity: 1; }
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   .panel {
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; z-index: 5;

@@ -192,6 +192,16 @@ export class Room extends DurableObject<Env> {
     return msg;
   }
 
+  /** 메시지 지우기 (RPC, 2026-10-18): byAuthor 가 있으면 그 작성자의 글만(viewer 는 자기 것만). 없으면 404, 남의 것이면 403 */
+  async removeMessage(id: string, byAuthor?: string): Promise<200 | 403 | 404> {
+    const arr = this.doc.getArray<Message>('messages');
+    const i = arr.toArray().findIndex((m) => m.id === id);
+    if (i < 0) return 404;
+    if (byAuthor !== undefined && arr.get(i).author !== byAuthor) return 403;
+    arr.delete(i, 1);
+    return 200;
+  }
+
   private isLive(sock: string): boolean {
     return this.ctx.getWebSockets(sock).length > 0;
   }

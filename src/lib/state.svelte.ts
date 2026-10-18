@@ -6,7 +6,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import type { Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
+import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
@@ -29,7 +29,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
-import { checkAccess, postApproval, postMessage, postPin, type Role } from './projects';
+import { checkAccess, postApproval, deleteMessage, postMessage, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
@@ -929,6 +929,14 @@ class AppState {
     } else {
       this.project.addMessage(objectId, this.nickname, text, kind, attachments);
     }
+  }
+
+  /** 메시지(대화·코멘트·음성 메모) 지우기 (2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다"): 편집 권한이면 아무 글이나 문서에서, viewer 는 자기 글만 서버로 */
+  canDeleteMessage(m: Message): boolean { return this.canEdit || m.author === this.nickname; }
+  async deleteMessage(m: Message) {
+    if (!this.canDeleteMessage(m)) return;
+    if (this.canEdit) { this.project.removeMessage(m.id); return; }
+    if (this.room) await deleteMessage(this.room, this.invite, { id: m.id, author: this.nickname });
   }
 
   /** 사진 보드 위 내 커서 (world 좌표). null = 보드 밖 */

@@ -59,6 +59,10 @@ export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api
 export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[] }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
+/** viewer 가 자기 메시지 지우기 (2026-10-18) */
+export const deleteMessage = (room: string, invite: string | null, body: { id: string; author: string }) =>
+  call<{ ok: true }>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'DELETE', body: JSON.stringify(body) });
+
 /** 제안 승인: 누구나(viewer 포함) 서버를 통해 문서에 기록 */
 export const postApproval = (room: string, invite: string | null, body: { by: string; hash: string; snapshot: unknown; proposalId?: string }) =>
   call<{ approval: { id: string } }>(`/api/rooms/${room}/approvals${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });

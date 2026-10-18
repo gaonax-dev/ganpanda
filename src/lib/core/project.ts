@@ -217,6 +217,14 @@ export class Project {
     this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}) }]);
   }
 
+  /** 메시지 하나 지우기 (2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다") — 대화·코멘트·음성 메모 모두. 없으면 false */
+  removeMessage(id: string): boolean {
+    const i = this.messages.toArray().findIndex((m) => m.id === id);
+    if (i < 0) return false;
+    this.messages.delete(i, 1);
+    return true;
+  }
+
   allMessages(): Message[] {
     return this.messages.toArray();
   }

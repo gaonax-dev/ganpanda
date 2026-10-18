@@ -9,7 +9,8 @@ export interface LastState { text: string; author: string; ts: number }
 /** 이 대화(사인물 id 또는 말풍선 id)의 마지막 메시지 (없으면 null). 승인 알림 등 시스템 메시지도 상태로 친다 */
 export function lastStateOf(messages: Message[], objectId: string): LastState | null {
   let last: Message | null = null;
-  for (const m of messages) if (m.objectId === objectId && (!last || m.ts > last.ts)) last = m;
+  // 음성 메모(voice)는 말풍선이 아니라 카드·상세의 🎙 로 — 녹음할 때마다 말풍선이 생기던 문제 (2026-10-18 사용자: "녹음하면 말풍선 계속 생긴다")
+  for (const m of messages) if (m.objectId === objectId && m.kind !== 'voice' && (!last || m.ts > last.ts)) last = m;
   if (!last) return null;
   const text = last.text?.trim() || describeAttachments(last.attachments ?? []) || '';
   return { text, author: last.author, ts: last.ts };

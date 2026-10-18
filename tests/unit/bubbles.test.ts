@@ -25,4 +25,10 @@ describe('snippet · bubbleLabel', () => {
     expect(bubbleLabel({ last: { text: '좋아요!', author: '사장', ts: 1 }, me: '사장' })).toBe('나: 좋아요!');
     expect(bubbleLabel({ last: null })).toBe('');
   });
+
+  it('음성 메모(voice)는 말풍선의 마지막 상태가 되지 않는다 (2026-10-18 "녹음하면 말풍선 계속 생긴다")', () => {
+    const base = { id: 'x', objectId: 'o', author: '김', text: '', kind: 'chat' as const, ts: 1 };
+    expect(lastStateOf([{ ...base, kind: 'voice', text: '🎤 음성 메모 3초', ts: 9 }], 'o')).toBeNull();
+    expect(lastStateOf([{ ...base, text: '확인', ts: 2 }, { ...base, id: 'y', kind: 'voice', text: '🎤 음성 메모 3초', ts: 9 }], 'o')).toMatchObject({ text: '확인', ts: 2 });
+  });
 });

@@ -54,6 +54,21 @@ describe('방 접속 권한 (WebSocket)', () => {
     o.close(); v.close();
   });
 
+  it('viewer 는 자기 메시지만 지울 수 있다 (2026-10-18 "말풍선 안의 이전 녹음을 지울 수가 없다")', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const path = `/api/rooms/${project.id}/messages?invite=${inv.token}`;
+    await json(path, { objectId: 'obj-1', author: '고객', text: '첫 글', kind: 'chat' });
+    await json(path, { objectId: 'obj-1', author: '직원', text: '남의 글', kind: 'voice' });
+    await until(() => o.doc.getArray('messages').length === 2);
+    const [mine, theirs] = o.doc.getArray('messages').toArray() as { id: string }[];
+    expect((await json(path, { id: theirs.id, author: '고객' }, undefined, 'DELETE')).status).toBe(403);
+    expect((await json(path, { id: 'nope', author: '고객' }, undefined, 'DELETE')).status).toBe(404);
+    expect((await json(path, { id: mine.id, author: '고객' }, undefined, 'DELETE')).status).toBe(200);
+    await until(() => o.doc.getArray('messages').length === 1);
+    expect((o.doc.getArray('messages').get(0) as { id: string }).id).toBe(theirs.id);
+  });
+
   it('viewer 의 대화는 메시지 API 로 보내고 모두에게 전달된다', async () => {
     const inv = await createInvite(owner, project.id, 'viewer');
     const o = await TestClient.connect(project.id, undefined, { session: owner });

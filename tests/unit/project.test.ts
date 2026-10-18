@@ -152,4 +152,15 @@ describe('디자인 소스', () => {
     expect(p.allSources()).toEqual([]);
     expect(p.object(oid)!.design).toBeUndefined();
   });
+
+  it('메시지 지우기 (2026-10-18 "말풍선 안의 이전 녹음을 지울 수가 없다")', () => {
+    const p = new Project();
+    const oid = p.addObject({ photoId: 'p', name: 'a', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [] });
+    p.addMessage(oid, '김', '하나', 'chat');
+    p.addMessage(oid, '김', '', 'voice', [{ assetId: 'a'.repeat(32), name: 'v.webm', type: 'audio/webm', size: 9 }]);
+    const [m1, v] = p.messagesOf(oid);
+    expect(p.removeMessage(v.id)).toBe(true);
+    expect(p.messagesOf(oid).map((m) => m.id)).toEqual([m1.id]);
+    expect(p.removeMessage('없음')).toBe(false);
+  });
 });

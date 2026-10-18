@@ -126,8 +126,16 @@ function parseAttachments(v: unknown): { assetId: string; name: string; type: st
   return out;
 }
 
-/** viewer 는 문서를 편집할 수 없으므로 대화는 서버가 대신 기록한다 (다른 역할도 사용 가능) */
-async function postMessage(req: Request, env: Env, room: string, _role: Role): Promise<Response> {
+/** viewer 는 문서를 편집할 수 없으므로 대화는 서버가 대신 기록한다 (다른 역할도 사용 가능). DELETE = 지우기 (viewer 는 자기 글만, 2026-10-18) */
+async function postMessage(req: Request, env: Env, room: string, role: Role): Promise<Response> {
+  if (req.method === 'DELETE') {
+    const b = await readJson<{ id?: string; author?: string }>(req);
+    const id = typeof b?.id === 'string' ? b.id : '';
+    const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
+    if (!id || (role === 'viewer' && !author)) return text('bad request', 400);
+    const st = await env.ROOM.getByName(room).removeMessage(id, role === 'viewer' ? author : undefined);
+    return st === 200 ? json({ ok: true }) : text(st === 403 ? 'not yours' : 'not found', st);
+  }
   if (req.method !== 'POST') return text('method not allowed', 405);
   const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string; attachments?: unknown }>(req);
   const txt = typeof b?.text === 'string' ? b.text.trim().slice(0, MESSAGE_MAX) : '';

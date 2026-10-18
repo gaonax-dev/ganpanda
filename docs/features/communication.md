@@ -39,6 +39,7 @@
 - **녹음**: 누르면 마이크 허가 후 녹음 시작(단추가 빨갛게 `■ 0:05` 경과 시간), 다시 누르면 마침 → 에셋으로 올리고(`putAsset`) **음성 메모**로 저장(3초 안내). 0.5초 미만이면 버림. 선택이 풀리면 녹음 중이던 것은 버린다. `src/lib/recorder.ts` `VoiceRecorder`(getUserMedia + MediaRecorder; 형식은 브라우저가 지원하는 첫 것 — 크롬·파이어폭스 `audio/webm`, 사파리·아이폰 `audio/mp4`; `core/attachments.ts` `pickAudioMime`·`baseMime`·`voiceFileName`·`voiceMemoText`·`recordingLabel`). 첨부 형식은 매개변수 없는 MIME(`audio/webm`)으로 서버 허용 목록(`ASSET_TYPES`: webm·mp4·ogg·wav·mpeg·aac·x-m4a)에 맞춘다.
 - **저장 = 메시지 `kind: 'voice'`**(`core/voices.ts` `voicesOf`·`voiceCounts`, `app.voiceCounts`): 대화와 같은 동기화·첨부 경로(viewer 도 서버 `postMessage` 로)를 쓰지만 **말풍선 창에는 나오지 않고** 안 읽은 수에도 들지 않는다(`unreadByObject`). 대화 id 는 말풍선과 같이 `sameAs ?? id`.
 - **보는 곳**: 정면도 카드(보드 `BoardCard`·리스트)의 **배지(원본/설정/디자인)와 제목 사이 `🎙n`**(`card-voice`). 상세(`ObjectPanel`) 머리의 💬 옆 **🎙**(`object-voices-open`, 개수 `object-voices-count`) → 아래에 목록(`object-voices`: 작성자·시각·재생기, 최신 먼저). 재생기는 `AttachmentView` `<audio controls>`(`chat-audio`). 📎 첨부로 음성 파일을 대화에 올리는 것도 된다("음성 n개", `describeAttachments`).
+- **지우기**(2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다"): 말풍선 창의 대화·코멘트 옆 ✕(`chat-delete`), 상세 음성 목록의 ✕(`voice-delete`) — 확인 뒤 지움(`app.deleteMessage`, `Project.removeMessage`). 편집 권한(소유자·편집자)은 아무 글이나, viewer 는 자기 글만(서버 `DELETE /api/rooms/:room/messages` `{id, author}` → `Room.removeMessage`, 남의 글 403). 첨부 에셋 자체는 남는다(같은 파일을 다른 곳이 쓸 수 있음).
 - 테스트: `tests/unit/voices.test.ts`, `tests/unit/attachments.test.ts`, `server/test/assets.test.ts`(audio 업로드), `tests/e2e/mobile.spec.ts`(발진기 스트림으로 녹음 → 카드 🎙1 · 상세 목록, 말풍선엔 없음).
 
 ## 사진·파일 첨부 (1-3c)
