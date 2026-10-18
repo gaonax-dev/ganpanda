@@ -114,7 +114,7 @@ export class Project {
     return id;
   }
 
-  updatePin(id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'resolved' | 'to'>>) {
+  updatePin(id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'resolved' | 'to' | 'bx' | 'by'>>) {
     this.patch(this.pins.get(id), patch);
   }
 

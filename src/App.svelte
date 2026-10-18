@@ -168,7 +168,10 @@
       <div class="view" hidden={app.view !== 'board' && !app.isCustomer}><BoardView /></div>
       {#if app.view === 'list' && !app.isCustomer}<div class="view"><ListView /></div>{/if}
       {#if app.view === 'uv' && !app.isCustomer}<div class="view"><UvView /></div>{/if}
-      {#if app.selected && (app.view === 'board' || app.isCustomer)}
+      {#if app.selected && app.chatObjectId === app.selected.id && app.view === 'list'}
+        <!-- 리스트 뷰의 정면도 말풍선에서 연 대화 (2026-10-18) -->
+        {#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
+      {:else if app.selected && (app.view === 'board' || app.isCustomer)}
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
         <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
         {#if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}

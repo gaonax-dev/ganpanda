@@ -12,7 +12,7 @@
 |---|---|---|
 | `photos` | `Y.Map<id, Y.Map>` | 사진(구역) |
 | `objects` | `Y.Map<id, Y.Map>` | 사인물 오브젝트 |
-| `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(말풍선, 옛 핀). `to` = 받는 사람 이름(없으면 모두, 2026-10-17) |
+| `pins` | `Y.Map<id, Y.Map>` | 사진 위 위치 코멘트(말풍선, 옛 핀). `to` = 받는 사람 이름(없으면 모두, 2026-10-17), `bx`·`by` = 풍선 몸통 오프셋(사진 px, 2026-10-18) |
 | `sources` | `Y.Map<id, Y.Map>` | 디자인 소스(파일 + 페이지 이미지) → [uv-view.md](../features/uv-view.md) |
 | `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`), 주문 정보(`order`), 제안(`proposal`: 실사 에셋·해시·한마디), 승인 기록(`approvals[]`: 이름·시각·해시·스냅샷, 서버가 추가) — [sign-list-quote.md](../features/sign-list-quote.md), [order.md](../features/order.md), [proposal.md](../features/proposal.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id) |

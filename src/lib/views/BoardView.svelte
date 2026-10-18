@@ -324,7 +324,8 @@
         selectedPinId={app.selectedPinId}
         oncreatepin={(x, y) => app.createPin(p.id, x, y)}
         onselectpin={(id) => app.selectPin(id)}
-        onmovepin={(id, x, y) => app.project.updatePin(id, { x, y })}
+        onpinpatch={(id, p) => app.project.updatePin(id, p)}
+        onbubble={(id, bubble) => app.project.updateObject(id, { bubble })}
         onpinmoveend={() => app.editBoundary()}
         segmentState={app.embeddedPhotos[p.id]}
         hoverPolygon={app.hoverSegment?.photoId === p.id ? app.hoverSegment.polygon : null}

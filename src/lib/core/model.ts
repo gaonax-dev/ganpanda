@@ -86,6 +86,8 @@ export interface SignObject {
   letter3d?: Letter3D;
   /** 입힌 디자인 (소스 페이지의 영역) */
   design?: DesignRef;
+  /** 사인물 말풍선 자리 (사인물 좌표: 0~1 = 외곽선 안, 꼭짓점 0,0 = 왼쪽 위). tip = 꼭지, body = 풍선 몸통 중심. 없으면 꼭지 오른쪽 위 꼭짓점 + 화면 기준 오프셋. 사진·정면도 카드에서 같은 값 (2026-10-18) */
+  bubble?: { tip: [number, number]; body: [number, number] };
   /** 디자인 변경 이력 (최신이 앞) */
   designHistory?: DesignHistoryEntry[];
   /** 평면도 위치 (mm) — 리스트 뷰와 보드의 평면 구역이 같은 배치를 쓴다. 없으면 자동 배치 */
@@ -130,6 +132,9 @@ export interface Pin {
   number: number;
   /** 받는 사람 이름 (2026-10-17 말풍선). 없거나 빈 문자열 = 모두. 있으면 보낸 사람·받는 사람·소유자만 본다 → core/pins.ts */
   to?: string;
+  /** 풍선 몸통의 자리 = 꼭지(x,y)에서의 오프셋 (사진 px). 없으면 화면 기준 오른쪽 위 (2026-10-18 "꼭지를 따로 지정") */
+  bx?: number;
+  by?: number;
 }
 
 export interface Attachment { assetId: string; name: string; type: string; size: number }

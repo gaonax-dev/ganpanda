@@ -12,17 +12,19 @@
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
-  import { applyHomography, projectPoint } from '../core/homography';
+  import { applyHomography, projectPoint, solveHomography } from '../core/homography';
   import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import { thicknessOf } from '../core/render';
   import type { Calibration } from '../core/calibration';
   import { bubbleLabel, lastStateOf } from '../core/bubbles';
+  import { DEFAULT_TIP, UNIT_RECT } from '../core/bubbleShape';
+  import BubbleShape from '../ui/BubbleShape.svelte';
   import { app, type Tool } from '../state.svelte';
 
   let {
     photo, url, zoom, objects, measures, selectedId, sameIds = [], multiIds = [], tool, editable = true, unread = {},
     ontap,
-    pins = [], selectedPinId = null, oncreatepin, onselectpin, onmovepin, onpinmoveend,
+    pins = [], selectedPinId = null, oncreatepin, onselectpin, onpinpatch, onbubble, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
@@ -33,7 +35,10 @@
     /** 핀 도구로 사진을 눌렀을 때 (viewer 도 가능) */
     oncreatepin?: (x: number, y: number) => void;
     onselectpin?: (id: string | null) => void;
-    onmovepin?: (id: string, x: number, y: number) => void;
+    /** 말풍선 자리 바꾸기 (전체·몸통·꼭지) */
+    onpinpatch?: (id: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'bx' | 'by'>>) => void;
+    /** 사인물 말풍선 자리 (사인물 좌표) */
+    onbubble?: (id: string, bubble: NonNullable<SignObject['bubble']>) => void;
     onpinmoveend?: () => void;
     /** 자동 분리: 사진 분석 상태·호버 윤곽·이벤트 */
     segmentState?: 'embedding' | 'ready' | 'error';
@@ -223,22 +228,6 @@
   const clamp = ([x, y]: Pt): Pt => [Math.max(0, Math.min(photo.w, x)), Math.max(0, Math.min(photo.h, y))];
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
-  let pinDrag: { id: string; moved: boolean } | null = null;
-  function pinDown(e: PointerEvent, pin: Pin) {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    onselectpin?.(pin.id);
-    if (!editable) return;
-    pinDrag = { id: pin.id, moved: false };
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
-  }
-  function pinMove(e: PointerEvent) {
-    if (!pinDrag) return;
-    const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
-    pinDrag.moved = true;
-    onmovepin?.(pinDrag.id, Math.round(x), Math.round(y));
-  }
-  function pinUp() { if (pinDrag?.moved) onpinmoveend?.(); pinDrag = null; }
 
   // ---- 작업 존 (여러 개) ----
   const zones = $derived(zonesOf(photo));
@@ -568,23 +557,26 @@
           stroke-width={2 * u}
           role="button"
           tabindex="-1"
-          pointer-events={tool === 'magic' ? 'none' : 'auto'}
+          pointer-events={tool === 'magic' || tool === 'pin' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
-        <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"): 대화가 있는 사인물의 오른쪽 위 꼭짓점에 마지막 상태. 누르면 대화 열기 -->
+        <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
-          {@const br = 9 * u}
-          {@const label = bubbleLabel({ last: lastMsg, me: app.nickname })}
-          <g class="pin obj" data-testid="object-bubble" data-id={o.id} role="button" tabindex="-1" transform="translate({q[1][0]} {q[1][1]})"
-            onpointerdown={(e) => { if (e.button !== 0) return; e.stopPropagation(); (onchat ?? onselect)(o.id); }}>
-            <title>{label}</title>
-            <path d="M0 0 L{-br * 0.5} {-br * 1.1} H{-br * 1.5} Q{-br * 2.1} {-br * 1.1} {-br * 2.1} {-br * 1.7} V{-br * 3.1} Q{-br * 2.1} {-br * 3.7} {-br * 1.5} {-br * 3.7} H{br * 1.5} Q{br * 2.1} {-br * 3.7} {br * 2.1} {-br * 3.1} V{-br * 1.7} Q{br * 2.1} {-br * 1.1} {br * 1.5} {-br * 1.1} H{br * 0.5} Z" fill={colorFor(lastMsg.author)} stroke="#fff" stroke-width={1.5 * u} />
-            <text y={-br * 1.95} font-size={br * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{unread[chatId] ? unread[chatId] : '…'}</text>
-          </g>
-          {#if zoom * u >= 0.6}<text class="last" data-testid="object-bubble-last" x={q[1][0] + br * 2.5} y={q[1][1] - br * 2.0} font-size={br * 0.95} fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width={3 * u} paint-order="stroke" font-weight="600">{label}</text>{/if}
+          {@const H = solveHomography(UNIT_RECT, q)}
+          {@const Hi = solveHomography(q, UNIT_RECT)}
+          {@const tipL = o.bubble?.tip ?? DEFAULT_TIP}
+          {@const tipP = applyHomography(H, tipL)}
+          {@const bodyP = (o.bubble?.body ? applyHomography(H, o.bubble.body) : [tipP[0] + 56 * u, tipP[1] - 48 * u]) as Pt}
+          {@const saveBubble = (tp: Pt, bp: Pt) => onbubble?.(o.id, { tip: applyHomography(Hi, tp).map((v) => Math.round(v * 1e4) / 1e4) as [number, number], body: applyHomography(Hi, bp).map((v) => Math.round(v * 1e4) / 1e4) as [number, number] })}
+          <BubbleShape tip={tipP} body={bodyP} label={bubbleLabel({ last: lastMsg, me: app.nickname })} badge={unread[chatId] ?? 0} color={colorFor(lastMsg.author)} {u} {editable} testid="object-bubble" attrs={{ 'data-id': o.id }}
+            onclick={() => (onchat ?? onselect)(o.id)}
+            onwhole={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], [bodyP[0] + dx, bodyP[1] + dy])}
+            onbody={(dx, dy) => saveBubble(tipP, [bodyP[0] + dx, bodyP[1] + dy])}
+            ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
+            ondragend={() => onpinmoveend?.()} />
         {/if}
         <!-- 이동 모드 변 막대: 매니퓰레이터가 있든 없든(다각형·면 없음) 선택한 외곽선마다 (2026-10-17 사용자: "이동 매니퓰레이터 막대 다 넣기로 했는데"). 꼭짓점 손잡이보다 아래 층 -->
         {#if sel && editable && tool === 'select' && !turned && gizmoMode === 'move'}
@@ -694,26 +686,17 @@
       </g>
     {/each}
     {#each pins as pin (pin.id)}
-      {@const r = 11 * u}
       {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
-      <!-- 말풍선 모양 (2026-10-17 "핀을 말 풍선으로"): 둥근 상자 + 아래 꼬리가 지점을 가리킨다. 받는 사람이 있으면 data-to -->
-      <g class="pin" class:sel={pin.id === selectedPinId} class:resolved={pin.resolved} data-testid="pin" data-resolved={pin.resolved} data-to={pin.to || undefined}
-        role="button" tabindex="-1" transform="translate({pin.x} {pin.y})"
-        onpointerdown={(e) => pinDown(e, pin)} onpointermove={pinMove} onpointerup={pinUp}>
-        <title>{pin.author} → {pin.to || '모두'}</title>
-        <path d="M0 0 L{-r * 0.5} {-r * 1.1} H{-r * 1.5} Q{-r * 2.1} {-r * 1.1} {-r * 2.1} {-r * 1.7} V{-r * 3.1} Q{-r * 2.1} {-r * 3.7} {-r * 1.5} {-r * 3.7} H{r * 1.5} Q{r * 2.1} {-r * 3.7} {r * 2.1} {-r * 3.1} V{-r * 1.7} Q{r * 2.1} {-r * 1.1} {r * 1.5} {-r * 1.1} H{r * 0.5} Z" fill={colorFor(pin.author)} stroke="#fff" stroke-width={1.5 * u} />
-        <text y={-r * 1.95} font-size={r * 1.1} text-anchor="middle" fill="#fff" font-weight="700">{pin.number}{#if pin.to}<tspan font-size={r * 0.8}> →</tspan>{/if}</text>
-        {#if unread[pin.id]}
-          <g transform="translate({r * 1.6} {-r * 3.2})">
-            <circle r={r * 0.8} fill="var(--accent)" />
-            <text data-testid="pin-unread" font-size={r * 0.9} text-anchor="middle" dy={r * 0.32} fill="#1a1500" font-weight="800">{unread[pin.id]}</text>
-          </g>
-        {/if}
-      </g>
-      <!-- 마지막 상태 (2026-10-17 "말풍선에는 마지막 상태만"): 해결됨 또는 마지막 메시지 요약 — 누르는 말풍선(g) 바깥에 두어 말풍선 중심을 눌러도 글이 가리지 않게 -->
-      {#if last && zoom * u >= 0.6}
-        <text class="last" data-testid="pin-last" x={pin.x + r * 2.5} y={pin.y - r * 2.0} font-size={r * 0.95} fill="#fff" stroke="rgba(0,0,0,0.7)" stroke-width={3 * u} paint-order="stroke" font-weight="600">{last}</text>
-      {/if}
+      {@const tip = [pin.x, pin.y] as Pt}
+      {@const bodyAt = (pin.bx !== undefined && pin.by !== undefined ? [pin.x + pin.bx, pin.y + pin.by] : [pin.x + 56 * u, pin.y - 48 * u]) as Pt}
+      <!-- 지점 말풍선 (2026-10-18 모양): 몸통 안에 번호·받는 사람·마지막 상태, 꼭지는 사진 지점. 안쪽 끌기 = 전체, 변 끌기 = 몸통만, 꼭지 손잡이 = 꼭지만 -->
+      <BubbleShape {tip} body={bodyAt} label={last} number={`#${pin.number}${pin.to ? ' →' : ''}`} badge={unread[pin.id] ?? 0} color={colorFor(pin.author)} {u}
+        selected={pin.id === selectedPinId} resolved={pin.resolved} {editable} testid="pin" attrs={{ 'data-resolved': String(pin.resolved), 'data-to': pin.to || undefined }} title="{pin.author} → {pin.to || '모두'}"
+        onclick={() => onselectpin?.(pin.id)}
+        onwhole={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy) })}
+        onbody={(dx, dy) => onpinpatch?.(pin.id, { bx: Math.round(bodyAt[0] + dx - pin.x), by: Math.round(bodyAt[1] + dy - pin.y) })}
+        ontip={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy), bx: Math.round(bodyAt[0] - pin.x - dx), by: Math.round(bodyAt[1] - pin.y - dy) })}
+        ondragend={() => onpinmoveend?.()} />
     {/each}
     {#if tool === 'magic' && hoverPolygon}
       <polygon class="magic" data-testid="magic-preview" points={hoverPolygon.map((p) => p.join(',')).join(' ')} stroke-width={2 * u} />
@@ -743,8 +726,6 @@
   .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
-  .pin.sel path { stroke: var(--accent); }
-  .pin text, text.last { pointer-events: none; }
   .header {
     position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; height: 30px;
     display: flex; align-items: center; gap: 8px; padding: 0 2px; cursor: move; color: var(--muted); font-size: 13px;
