@@ -8,6 +8,8 @@
 
   let { pin }: { pin: Pin } = $props();
   const photo = $derived(app.photos.find((p) => p.id === pin.photoId));
+  /** 말풍선의 소유주 = 작성자 (프로젝트 소유자도 가능): 완료·삭제는 소유주만 (2026-10-18 "말풍선은 작성자가 소유주이다") */
+  const owns = $derived(app.canEdit && (pin.author === app.nickname || app.role === 'owner'));
   /** 꼭지가 가리키는 사인물 (2026-10-18 "꼭지점 위치의 사인물을 최대한 추적") */
   const target = $derived(objectAtPoint(app.objects, pin.photoId, [pin.x, pin.y]));
   /** 받는 사람 후보: 참여자 + 지금 값(목록에 없더라도) */
@@ -42,14 +44,21 @@
       </select>
       <small>{pin.to ? '보낸 사람·받는 사람·소유자만 봅니다' : '프로젝트의 모두가 봅니다'}</small>
     </label>
+    {#if owns}
     <div class="actions">
-      <button class="btn small" class:on={pin.resolved} data-testid="pin-resolve" onclick={() => { app.editBoundary(); app.project.updatePin(pin.id, { resolved: !pin.resolved }); app.editBoundary(); }}>
-        {pin.resolved ? '✓ 해결됨 · 다시 열기' : '해결로 표시'}
+      <!-- 완료: 화면에서 말풍선이 사라지고 사인물 속성의 컨펌 리스트(사인물을 안 가리키면 사진 머리의 ✓ 완료)에 남는다 -->
+      <button class="btn small" class:on={pin.resolved} data-testid="pin-resolve" title={pin.resolved ? '다시 열면 화면에 말풍선이 돌아옵니다' : '완료하면 화면에서 사라지고 컨펌 리스트에 남습니다'} onclick={() => { app.editBoundary(); app.project.updatePin(pin.id, { resolved: !pin.resolved }); app.editBoundary(); }}>
+        {pin.resolved ? '✓ 완료됨 · 다시 열기' : '완료'}
       </button>
       <button class="btn small danger" data-testid="pin-delete" onclick={() => { app.editBoundary(); app.project.removePin(pin.id); app.editBoundary(); app.selectPin(null); }}>삭제</button>
     </div>
+    {:else if pin.resolved}
+    <div class="actions"><span class="resolved">✓ 완료됨</span><span class="muted">완료·삭제는 작성자({pin.author})나 소유자만</span></div>
+    {:else}
+    <div class="actions"><span class="muted">완료·삭제는 작성자({pin.author})나 소유자만</span></div>
+    {/if}
   {:else if pin.resolved}
-    <div class="actions"><span class="resolved">✓ 해결됨</span></div>
+    <div class="actions"><span class="resolved">✓ 완료됨</span></div>
   {/if}
   <section class="chat-sec">
     <Chat objectId={pin.id} />

@@ -16,6 +16,8 @@ export function lastStateOf(messages: Message[], objectId: string): LastState | 
 }
 
 export const SNIPPET_MAX = 18;
+/** 말풍선 몸통에 보이는 글자 수 상한 (여러 줄, 넘치면 … — 2026-10-18) */
+export const BUBBLE_CHARS = 60;
 /** 한 줄 요약: 첫 줄만, 길면 …  */
 export function snippet(text: string, max = SNIPPET_MAX): string {
   const line = text.trim().split('\n')[0].trim();
@@ -27,5 +29,5 @@ export function bubbleLabel(opts: { resolved?: boolean; last: LastState | null; 
   if (opts.resolved) return '✓ 해결됨';
   if (!opts.last) return '';
   const who = opts.me && opts.last.author === opts.me ? '나' : opts.last.author;
-  return `${who}: ${snippet(opts.last.text)}`;
+  return `${who}: ${snippet(opts.last.text, BUBBLE_CHARS)}`;
 }

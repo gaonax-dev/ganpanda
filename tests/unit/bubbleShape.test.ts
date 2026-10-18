@@ -1,7 +1,7 @@
 // 말풍선 모양·꼭지 추적 (2026-10-18 사용자: "말풍선에 대략의 내용을 표시하고 꼭지를 따로 지정", "꼭지 위치는 자연스럽게 풍선과 연결", "꼭지점 위치의 사인물을 최대한 추적")
 import { describe, expect, it } from 'vitest';
 import type { Pin, SignObject } from '../../src/lib/core/model';
-import { bodySize, edgePoint, roundedRectPath, tailTriangle, textWidth } from '../../src/lib/core/bubbleShape';
+import { BUBBLE_RATIO, bodySize, bubbleLayout, bubblePath, edgePoint, roundedRectPath, tailTriangle, textWidth, wrapLines } from '../../src/lib/core/bubbleShape';
 import { objectAtPoint, pinsOnObject } from '../../src/lib/core/bubbleTarget';
 
 const body = { cx: 100, cy: 100, w: 80, h: 30 };
@@ -51,5 +51,35 @@ describe('꼭지 → 사인물 추적', () => {
     const pin = (id: string, x: number, y: number): Pin => ({ id, photoId: 'p', x, y, author: 'a', createdAt: 0, resolved: false, number: 1 });
     expect(pinsOnObject([pin('a', 20, 20), pin('b', 80, 40), pin('c', 500, 500)], [big, small], big).map((p) => p.id)).toEqual(['b']);
     expect(pinsOnObject([pin('a', 20, 20)], [big, small], small).map((p) => p.id)).toEqual(['a']);
+  });
+});
+
+// 2026-10-18 사용자: "가로3 세로2 비율 유지, 여러 줄, 표시 글자 수 리밋과 말줄임표. 풍선과 꼭지 아웃라인을 이어주고"
+describe('3:2 몸통 · 여러 줄 · 말줄임표', () => {
+  it('wrapLines: 공백에서 나누고, 긴 한글은 글자 단위, 줄 수를 넘기면 마지막 줄에 …', () => {
+    expect(wrapLines('두께 150으로 갈까요', 10, 80)).toEqual(['두께 150으로', '갈까요']);
+    expect(wrapLines('가나다라마바사아자차', 10, 50)).toEqual(['가나다라마', '바사아자차']);
+    const cut = wrapLines('가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허', 10, 50, 3);
+    expect(cut).toHaveLength(3);
+    expect(cut[2].endsWith('…')).toBe(true);
+    expect(textWidth(cut[2], 10)).toBeLessThanOrEqual(50);
+  });
+  it('bubbleLayout: 항상 가로:세로 = 3:2, 짧은 글은 1줄, 길면 줄을 늘리고 최대 3줄', () => {
+    for (const t of ['', '#1', '나: 두께 150으로 갈까요', '나: 아주 긴 글이 여기에 들어가면 세 줄까지 늘어나고 그래도 넘치면 말줄임표가 붙습니다 정말로']) {
+      const l = bubbleLayout(t, 10);
+      expect(l.w / l.h).toBeCloseTo(BUBBLE_RATIO, 5);
+      expect(l.lines.length).toBeLessThanOrEqual(3);
+    }
+    expect(bubbleLayout('#1', 10).lines).toEqual(['#1']);
+    expect(bubbleLayout('나: 두께 150으로 갈까요 어떨까요', 10).lines.length).toBeGreaterThan(1);
+  });
+  it('bubblePath: 한 획, 꼭지 좌표를 지나고, 꼭지가 안이면 꼬리 없음', () => {
+    const b = { cx: 100, cy: 100, w: 90, h: 60 };
+    const d = bubblePath(b, [100, 200], 7, 7);
+    expect(d.startsWith('M')).toBe(true);
+    expect((d.match(/M/g) ?? []).length).toBe(1);
+    expect(d).toContain('L100 200');
+    expect(bubblePath(b, [100, 100], 7, 7)).not.toContain('L100 100');
+    expect(bubblePath(b, [300, 100], 7, 7)).toContain('L300 100'); // 오른쪽 변
   });
 });

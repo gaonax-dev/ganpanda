@@ -359,6 +359,7 @@
   }
 
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
+  let confirmsOpen = $state(false);
   let headerDrag: { x: number; y: number } | null = null;
   let headerMoved = false;
   function headerDown(e: PointerEvent) {
@@ -427,8 +428,19 @@
       <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
     {/if}
     {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
+    {#if pins.some((p) => p.resolved) && !tiny}
+      <!-- 완료한 말풍선 목록 (2026-10-18): 사인물을 가리키지 않는 것도 여기서 다시 연다 -->
+      <button class="x" class:set={confirmsOpen} data-testid="photo-confirms" title="완료한 말풍선" onpointerdown={(e) => e.stopPropagation()} onclick={() => (confirmsOpen = !confirmsOpen)}>✓ 완료 {pins.filter((p) => p.resolved).length}</button>
+    {/if}
     {#if editable && !tiny}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
   </div>
+  {#if confirmsOpen && pins.some((p) => p.resolved)}
+    <div class="confirms" data-testid="confirm-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
+      {#each pins.filter((p) => p.resolved) as p (p.id)}
+        <button class="citem" data-testid="confirm-item" onclick={() => { confirmsOpen = false; onselectpin?.(p.id); }}>✓ #{p.number} <b>{p.author}</b>{#if p.to} → {p.to}{/if} <span>{lastStateOf(app.messages, p.id)?.text.slice(0, 24) ?? ''}</span></button>
+      {/each}
+    </div>
+  {/if}
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
@@ -697,7 +709,8 @@
         {/if}
       </g>
     {/each}
-    {#each pins as pin (pin.id)}
+    <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
+    {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
       {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
       {@const tip = [pin.x, pin.y] as Pt}
       {@const bodyAt = (pin.bx !== undefined && pin.by !== undefined ? [pin.x + pin.bx, pin.y + pin.by] : [pin.x + 56 * u, pin.y - 48 * u]) as Pt}
@@ -738,6 +751,10 @@
   .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
+  .confirms { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 360px; }
+  .citem { background: none; border: 0; color: var(--text); font: inherit; font-size: 12px; text-align: left; padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+  .citem:hover { background: rgba(255,255,255,0.06); }
+  .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header {
     position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; height: 30px;
     display: flex; align-items: center; gap: 8px; padding: 0 2px; cursor: move; color: var(--muted); font-size: 13px;

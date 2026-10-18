@@ -6,7 +6,7 @@
 <svelte:options namespace="svg" />
 <script lang="ts">
   import type { Pt } from '../core/homography';
-  import { bodySize, roundedRectPath, tailTriangle } from '../core/bubbleShape';
+  import { bubbleLayout, bubblePath } from '../core/bubbleShape';
 
   let { tip, body, label, number = '', badge = 0, color, u = 1, selected = false, resolved = false, editable = true, testid = 'bubble', attrs = {}, title = '',
     onwhole, onbody, ontip, ondragend, onclick }: {
@@ -17,9 +17,12 @@
 
   const fs = $derived(11 * u);
   const text = $derived([number, label].filter(Boolean).join(' '));
-  const size = $derived(bodySize(text, fs));
-  const geom = $derived({ cx: body[0], cy: body[1], w: size.w, h: size.h });
-  const tail = $derived(tailTriangle(geom, tip, 7 * u, 4 * u));
+  // 3:2 몸통, 최대 3줄, 넘치면 … (2026-10-18)
+  const lay = $derived(bubbleLayout(text, fs));
+  const geom = $derived({ cx: body[0], cy: body[1], w: lay.w, h: lay.h });
+  const lineH = $derived(fs * 1.25);
+  /** 몸통 + 꼬리 한 획 (아웃라인이 이어진다) */
+  const d = $derived(bubblePath(geom, tip, 7 * u, 7 * u));
   const stroke = $derived(1.5 * u);
 
   let drag: { kind: 'whole' | 'body' | 'tip'; last: Pt; moved: boolean; start: [number, number] } | null = null;
@@ -53,32 +56,32 @@
 
 <g class="bubble" class:sel={selected} class:resolved data-testid={testid} {...attrs} role="button" tabindex="-1" style:--c={color}>
   {#if title}<title>{title}</title>{/if}
-  {#if tail}
-    <polygon class="tail" points={tail.map((p) => p.join(',')).join(' ')} fill={color} stroke="#fff" stroke-width={stroke} stroke-linejoin="round" />
-  {/if}
-  <!-- 몸통: 채움 + 테두리. 변을 끌면 몸통만 -->
-  <path class="body" d={roundedRectPath(geom, 7 * u)} fill={color} stroke="#fff" stroke-width={stroke} />
-  <path class="edge" role="button" tabindex="-1" data-testid="{testid}-edge" d={roundedRectPath(geom, 7 * u)} fill="none" stroke="transparent" stroke-width={10 * u} pointer-events="stroke"
+  <!-- 몸통 + 꼬리를 한 획으로 그려 아웃라인이 이어진다 (2026-10-18). 변을 끌면 몸통만 -->
+  <path class="body" {d} fill={color} stroke="#fff" stroke-width={stroke} stroke-linejoin="round" />
+  <path class="edge" role="button" tabindex="-1" data-testid="{testid}-edge" {d} fill="none" stroke="transparent" stroke-width={10 * u} pointer-events="stroke"
     onpointerdown={(e) => down(e, 'body')} onpointermove={move} onpointerup={up} onpointercancel={up}><title>테두리를 끌면 풍선만 옮기기 (꼭지는 그대로)</title></path>
   <!-- 안쪽: 끌면 전체 이동, 누르면 열기 -->
   <rect class="inner" role="button" tabindex="-1" data-testid="{testid}-inner" x={geom.cx - geom.w / 2 + 5 * u} y={geom.cy - geom.h / 2 + 5 * u} width={Math.max(1, geom.w - 10 * u)} height={Math.max(1, geom.h - 10 * u)} fill="transparent"
     onpointerdown={(e) => down(e, 'whole')} onpointermove={move} onpointerup={up} onpointercancel={up} />
-  <text class="label" data-testid="{testid}-last" x={geom.cx} y={geom.cy} font-size={fs} text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="700" pointer-events="none">{text}</text>
+  <!-- 글: 여러 줄, 가운데 정렬 -->
+  <text class="label" data-testid="{testid}-last" x={geom.cx} y={geom.cy - ((lay.lines.length - 1) * lineH) / 2} font-size={fs} text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="700" pointer-events="none">{#each lay.lines as line, i (i)}<tspan x={geom.cx} dy={i ? lineH : 0}>{line}{i < lay.lines.length - 1 ? ' ' : ''}</tspan>{/each}</text>
   {#if badge}
     <g transform="translate({geom.cx + geom.w / 2 - 2 * u} {geom.cy - geom.h / 2 + 2 * u})" pointer-events="none">
       <circle r={7 * u} fill="var(--accent)" />
       <text data-testid="{testid}-unread" font-size={9 * u} text-anchor="middle" dy={3 * u} fill="#1a1500" font-weight="800">{badge}</text>
     </g>
   {/if}
-  <!-- 꼭지 손잡이: 끌면 꼭지만 -->
-  <circle class="tiph" role="button" tabindex="-1" data-testid="{testid}-tip" cx={tip[0]} cy={tip[1]} r={editable ? 6 * u : 3 * u} fill={color} stroke="#fff" stroke-width={stroke}
-    onpointerdown={(e) => down(e, 'tip')} onpointermove={move} onpointerup={up} onpointercancel={up}><title>꼭지 옮기기</title></circle>
+  <!-- 꼭지 손잡이: 보이지 않는 터치 영역만 (점은 없앰, 2026-10-18). 끌면 꼭지만 -->
+  {#if editable}
+    <circle class="tiph" role="button" tabindex="-1" data-testid="{testid}-tip" cx={tip[0]} cy={tip[1]} r={9 * u} fill="transparent"
+      onpointerdown={(e) => down(e, 'tip')} onpointermove={move} onpointerup={up} onpointercancel={up}><title>꼭지 옮기기</title></circle>
+  {/if}
 </g>
 
 <style>
   .bubble { cursor: pointer; }
   .bubble.resolved { opacity: 0.45; }
-  .bubble.sel .body, .bubble.sel .tail { stroke: var(--accent); }
+  .bubble.sel .body { stroke: var(--accent); }
   .edge { cursor: move; }
   .tiph { cursor: crosshair; }
   .label { user-select: none; }

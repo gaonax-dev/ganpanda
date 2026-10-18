@@ -60,11 +60,16 @@ test('소유자가 핀을 꽂고 코멘트를 남기면 고객이 보고 답한�
   // 고객은 해결·삭제 불가
   await expect(guest.getByTestId('pin-resolve')).toHaveCount(0);
   await expect(page.getByTestId('pin-last')).toHaveText(/고객: 좋아요!/); // 마지막 상태가 바뀜
-  // 소유자가 해결
+  // 소유자(작성자)가 완료 → 화면에서 사라지고 사진 머리의 ✓ 완료 목록에서 다시 연다 (2026-10-18)
   await page.getByTestId('pin-resolve').click();
-  await expect(page.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
-  await expect(page.getByTestId('pin-last')).toHaveText(/✓ 해결됨/);
-  await expect(guest.getByTestId('pin')).toHaveAttribute('data-resolved', 'true');
+  await expect(page.getByTestId('pin')).toHaveCount(0);
+  await expect(guest.getByTestId('pin')).toHaveCount(0);
+  await expect(page.getByTestId('photo-confirms')).toContainText('1');
+  await page.getByTestId('photo-confirms').dispatchEvent('click'); // 사진 머리는 CSS 로 축소돼 있어 좌표 클릭 대신
+  await page.getByTestId('confirm-item').dispatchEvent('click');
+  await expect(page.getByTestId('pin-panel')).toContainText('완료됨');
+  await page.getByTestId('pin-resolve').click(); // 다시 열기 → 화면에 돌아온다
+  await expect(page.getByTestId('pin')).toHaveCount(1);
   await guest.ctx.close();
 });
 
@@ -164,6 +169,15 @@ test('꼭지가 가리키는 사인물: 말풍선 창의 [속성] 단추로 사�
   await expect(page.getByTestId('object-goto-bubble')).toHaveCount(1);
   await page.getByTestId('object-goto-bubble').click();
   await expect(page.getByTestId('pin-panel')).toBeVisible();
+  // 완료 → 사인물 속성의 컨펌 리스트에 남고 화면에서는 사라진다 (2026-10-18)
+  await page.getByTestId('pin-resolve').click();
+  await expect(page.getByTestId('pin')).toHaveCount(0);
+  await page.getByTestId('pin-goto-object').click();
+  await expect(page.getByTestId('object-goto-bubble')).toHaveCount(0);
+  await expect(page.getByTestId('object-confirm-item')).toHaveCount(1);
+  await page.getByTestId('object-confirm-item').click();
+  await expect(page.getByTestId('pin-panel')).toContainText('완료됨');
+  await page.keyboard.press('Escape');
   // 사인물 밖의 말풍선에는 단추가 없다
   await page.keyboard.press('Escape');
   await page.keyboard.press('p');
