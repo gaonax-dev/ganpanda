@@ -617,6 +617,11 @@
                   <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={3 * gu} />
                   <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} />
                   <circle class="gh" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
+                  <!-- 반대 방향 (2026-10-18 "이동 6방향으로 표시"): 같은 축, 끄는 방향으로 움직인다 -->
+                  {@const neg = [2 * ar[0][0] - ar[1][0], 2 * ar[0][1] - ar[1][1]]}
+                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={3 * gu} />
+                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} stroke-opacity="0.7" />
+                  <circle class="gh" data-testid="gizmo-{a}-neg" cx={neg[0]} cy={neg[1]} r={5 * gu} style:fill={AXIS_COLOR[a]} fill-opacity="0.75" role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>-{a.toUpperCase()} 방향으로 옮기기</title></circle>
                 {/each}
                 <rect class="gh center" data-testid="gizmo-move" x={g3.c[0] - 6 * gu} y={g3.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree', 0, 0, face3)}><title>사인물 면 위에서 옮기기</title></rect>
               {:else if gizmoMode === 'rotate'}
@@ -667,6 +672,13 @@
                 <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.z} />
                 <circle class="gh" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={6 * gu} style:fill={AXIS_COLOR.x} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
                 <circle class="gh" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={6 * gu} style:fill={AXIS_COLOR.z} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
+                <!-- 반대 방향 (2026-10-18 "이동 6방향"): 원근 없는 사진은 X·Z 양쪽 = 4방향 -->
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.x[0]} y2={2 * g.c[1] - g.x[1]} stroke-width={3 * gu} />
+                <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.x[0]} y2={2 * g.c[1] - g.x[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.x} stroke-opacity="0.7" />
+                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.z[0]} y2={2 * g.c[1] - g.z[1]} stroke-width={3 * gu} />
+                <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.z[0]} y2={2 * g.c[1] - g.z[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.z} stroke-opacity="0.7" />
+                <circle class="gh" data-testid="gizmo-x-neg" cx={2 * g.c[0] - g.x[0]} cy={2 * g.c[1] - g.x[1]} r={5 * gu} style:fill={AXIS_COLOR.x} fill-opacity="0.75" role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
+                <circle class="gh" data-testid="gizmo-z-neg" cx={2 * g.c[0] - g.z[0]} cy={2 * g.c[1] - g.z[1]} r={5 * gu} style:fill={AXIS_COLOR.z} fill-opacity="0.75" role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
                 <rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 6 * gu} y={g.c[1] - 6 * gu} width={12 * gu} height={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
               {:else if gizmoMode === 'rotate'}
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />

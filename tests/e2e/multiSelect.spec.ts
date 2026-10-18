@@ -47,8 +47,11 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   await expect(page.getByTestId('multi-bar')).toHaveCount(0);
   await cards.nth(1).click({ modifiers: ['Shift'] });
   await expect(page.getByTestId('multi-count')).toHaveText('2개 선택');
-  await expect(page.locator('[data-testid="board-card"][data-multi]')).toHaveCount(1);
-  await expect(page.locator('.sign[data-multi]')).toHaveCount(0);
+  // 카드로 고른 선택은 모두 같은(흐린) 표시, 주 선택 강조·매니퓰레이터 없음 (2026-10-18 "모두 두번째 스타일로, 매니퓰레이터는 사인물에서 선택할 때만")
+  await expect(page.locator('[data-testid="board-card"][data-multi]')).toHaveCount(2);
+  await expect(page.locator('.sign[data-multi]')).toHaveCount(2);
+  await expect(page.locator('[data-testid="sign-shape"][data-selected]')).toHaveCount(0);
+  await expect(page.getByTestId('gizmo')).toHaveCount(0);
   // 선택한 카드들을 함께 끌면 둘 다 같은 만큼 이동 (2026-10-17 "정면도들을 다중선택하고 이동하게")
   // 자리는 자동 배치(flatPlaced)로 읽는다 — listX 가 없던 카드는 끌 때 비로소 값이 생기므로
   const posOf = async () => page.evaluate((ids) => { const m = (window as unknown as { __ganpanda: { flatPlaced: Map<string, { x: number; y: number }> } }).__ganpanda.flatPlaced; return ids.map((id: string) => ({ id, ...m.get(id)! })); }, ids as string[]);
@@ -69,9 +72,9 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   await page.getByTestId('view-list').click();
   const lcards = page.getByTestId('list-card');
   await expect(lcards).toHaveCount(3);
-  await expect(page.locator('[data-testid="list-card"] .face[data-multi]')).toHaveCount(1);
-  await lcards.nth(2).locator('.face').click({ modifiers: ['Shift'] });
   await expect(page.locator('[data-testid="list-card"] .face[data-multi]')).toHaveCount(2);
+  await lcards.nth(2).locator('.face').click({ modifiers: ['Shift'] });
+  await expect(page.locator('[data-testid="list-card"] .face[data-multi]')).toHaveCount(3);
   const q0 = await posOf();
   const lb = (await lcards.nth(0).locator('.face').boundingBox())!;
   await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
