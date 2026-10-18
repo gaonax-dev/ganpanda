@@ -1,5 +1,5 @@
-import { bustedUrl, reloadPlan, describe, expect, it } from 'vitest';
-import { bundleOf, newVersionAvailable } from '../../src/lib/core/version';
+import { describe, expect, it } from 'vitest';
+import { bundleOf, newVersionAvailable, bustedUrl, reloadPlan } from '../../src/lib/core/version';
 
 describe('새 배포 감지', () => {
   it('index.html 에서 번들 이름을 뽑는다 (개발 서버 html 은 null)', () => {
