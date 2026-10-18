@@ -178,8 +178,8 @@
     const w = window.open('', '_blank');
     if (!w) { app.notice = '팝업이 막혀 PDF 창을 열 수 없습니다. 팝업을 허용해 주세요.'; return; }
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>
-  .svgwrap { position: relative; }
-  .svgopts { position: absolute; right: 0; top: 100%; margin-top: 6px; z-index: 5; width: 280px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+  .svgwrap { position: static; }
+  .svgopts { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 2px; z-index: 5; width: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   .svgopts label { display: flex; align-items: center; gap: 6px; }
   .svgopts small { color: var(--muted); }
   .svgopts .btn { align-self: flex-end; margin-top: 4px; }@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
@@ -428,8 +428,9 @@
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; background: var(--panel); border: 1px solid var(--line);
     border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.45);
   }
-  .quote header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 6px; }
-  .actions { display: flex; align-items: center; gap: 4px; }
+  /* 머리의 단추가 330px 안에 다 안 들어가 잘리고 SVG 옵션 창이 패널 밖으로 밀리던 문제 (2026-10-18 사용자: "사인물 리스트 내보내기 속성 패널의 메뉴가 가려진다. svg 의 경우엔 클릭하면 완전 가려짐") → 줄바꿈 + 옵션 창은 머리 기준 패널 안에 */
+  .quote header { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 6px; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
   .line.extra { gap: 4px; align-items: center; }
   .line.extra input:first-child { flex: 1; min-width: 0; }
   .amt { width: 120px; text-align: right; }
