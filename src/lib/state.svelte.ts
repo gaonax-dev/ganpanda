@@ -752,6 +752,8 @@ class AppState {
 
   /** 컬러 카드 추가 → 기기 사본 + 계정(로그인 시) */
   async addColorCard(card: ColorCard) { this.colorLibrary = [...this.colorLibrary.filter((c) => c.id !== card.id), card]; await this.persistColors(); }
+  /** 컬러 카드 수정 (자리 유지) */
+  async updateColorCard(card: ColorCard) { this.colorLibrary = this.colorLibrary.map((c) => (c.id === card.id ? card : c)); await this.persistColors(); }
   async removeColorCard(id: string) { this.colorLibrary = this.colorLibrary.filter((c) => c.id !== id); await this.persistColors(); }
   private async persistColors() {
     saveLocalColors(this.colorLibrary);
