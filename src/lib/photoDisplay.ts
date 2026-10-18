@@ -12,19 +12,42 @@ export const displayMax = () => (isPhone() ? 1600 : 2400);
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
 const toBlobUrl = (c: HTMLCanvasElement) => new Promise<string>((res, rej) => c.toBlob((b) => (b ? res(URL.createObjectURL(b)) : rej(new Error('toBlob'))), 'image/jpeg', 0.85));
 
+/** 줄인 크기로 디코딩 (2026-10-18 아이폰 크롬 "이 페이지를 열 수 없음" = 웹 프로세스 크래시 대응): 원본 크기를 알면 createImageBitmap 의 resize 옵션으로 작은 비트맵만 만든다 — 12MP 사진 한 장 통째 디코딩이 48MB.
+ * 'original' = 이미 작음, null = 지원 안 함(옛 경로로) */
+async function decodeSmall(url: string, size: { w: number; h: number }, max: number): Promise<string | 'original' | null> {
+  if (typeof createImageBitmap !== 'function') return null;
+  const s = displaySize(size.w, size.h, max);
+  if (s.w >= size.w) return 'original';
+  try {
+    const blob = await (await fetch(url)).blob();
+    const bmp = await createImageBitmap(blob, { resizeWidth: s.w, resizeHeight: s.h, resizeQuality: 'high' });
+    if (bmp.width !== s.w) { bmp.close(); return null; } // resize 옵션을 무시하는 브라우저
+    const c = document.createElement('canvas');
+    c.width = s.w; c.height = s.h;
+    c.getContext('2d')!.drawImage(bmp, 0, 0);
+    bmp.close();
+    const out = await toBlobUrl(c);
+    c.width = c.height = 0;
+    return out;
+  } catch { return null; }
+}
+
 const displayCache = new Map<string, Promise<string | undefined>>();
 /**
  * 줄인 사진 URL. 사진 줄이기와 카드 그림은 **대기열을 따로** 쓴다 — 같은 대기열이면 카드 작업이 사진 작업을 기다리며 서로 막혀
  * 사진이 영영 안 뜨던 문제(2026-10-15 운영: "핀볼 사진이 모두 사라졌다"). 실패하면 원본 URL 로, 실패는 기억하지 않는다
  */
 let displayQueue: Promise<unknown> = Promise.resolve();
-export function displayUrl(assetId: string): Promise<string | undefined> {
+export function displayUrl(assetId: string, size?: { w: number; h: number }): Promise<string | undefined> {
   const cached = displayCache.get(assetId);
   if (cached) return cached;
   const job = displayQueue.then(async () => {
     const url = await assetUrl(assetId);
     if (!url) return undefined;
     try {
+      const small = size ? await decodeSmall(url, size, displayMax()) : null; // 크기를 알면 줄인 크기로만 디코딩
+      if (small === 'original') return url;
+      if (small) return small;
       const img = await loadImage(url);
       const s = displaySize(img.naturalWidth, img.naturalHeight, displayMax());
       if (s.w === img.naturalWidth) return url;

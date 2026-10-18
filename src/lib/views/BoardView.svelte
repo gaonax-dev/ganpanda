@@ -29,7 +29,7 @@
     void app.assetEpoch;
     for (const p of app.photos) {
       if (urls[p.assetId]) continue;
-      displayUrl(p.assetId).then((u) => { if (u) urls[p.assetId] = u; }); // 줄인 사진 (휴대폰 메모리)
+      displayUrl(p.assetId, { w: p.w, h: p.h }).then((u) => { if (u) urls[p.assetId] = u; }); // 줄인 사진 (휴대폰 메모리) — 크기를 알려 주면 줄인 크기로만 디코딩
     }
   });
 
@@ -314,7 +314,7 @@
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
-        twoD={app.stage === '2d'}
+        twoD={app.stage === '2d' && !app.safeMode}
         onduplicate={(id) => { app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}

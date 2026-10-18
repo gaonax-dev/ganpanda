@@ -45,7 +45,7 @@
   const saveBubble = (tp: Pt, bp: Pt) => app.project.updateObject(o.id, { bubble: { tip: [tp[0] / w, tp[1] / h].map((v) => Math.round(v * 1e4) / 1e4) as [number, number], body: [bp[0] / w, bp[1] / h].map((v) => Math.round(v * 1e4) / 1e4) as [number, number] } });
   $effect(() => {
     const mm = { w: o.widthMm ?? w, h: o.heightMm ?? h };
-    if (photo && o.quad.length === 4) faceUrl(photo.assetId, photo.w, o.quad, mm.w, mm.h).then((u) => (face = u));
+    if (photo && o.quad.length === 4 && !app.safeMode) faceUrl(photo.assetId, photo.w, o.quad, mm.w, mm.h).then((u) => (face = u));
     else face = undefined;
   });
 </script>

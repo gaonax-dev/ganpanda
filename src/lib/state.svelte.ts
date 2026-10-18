@@ -120,6 +120,8 @@ class AppState {
   /** 보드 단계: 원본(실측·편집) / 3D(모든 사진 위에 합성 결과를 겹침, 편집 없음). 2026-10-15 사용자: "3D 는 화면에 바로 올리고" */
   /** 보드 단계 (2026-10-17 사용자: "원본 2d 3d 이렇게 해줘. 2d가 현재 보여주는 형식이고 원본은 실측만 나오게"): original = 외곽선·치수만, 2d = 바탕색·디자인·글자 겹침(기본), 3d = 합성 */
   stage = $state<'original' | '2d' | '3d'>('2d');
+  /** ?safe=1 — 휴대폰 크래시 원인 가르기용 (2026-10-18): 2D 겹침·카드 얼굴을 그리지 않는다 */
+  safeMode = $state(false);
   /** 3D 단계의 사진별 합성 결과 (내용 키 + 데이터 URL) */
   stageRenders = $state<Record<string, { key: string; url: string }>>({});
   /** 지금 합성 중인 사진 수 */
@@ -275,6 +277,7 @@ class AppState {
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
+    this.safeMode = url.searchParams.get('safe') === '1'; // 진단용: 무거운 겹침(2D 바탕·디자인·카드 얼굴)을 끈다 (2026-10-18 휴대폰 크래시 원인 가르기)
     const v = url.searchParams.get('view'); // 홈 그룹의 프로젝트 링크 → 바로 리스트 뷰(견적 세부)
     if (v === 'list' || v === 'uv' || v === 'board') this.view = v;
     if (this.room && inviteParam) {
