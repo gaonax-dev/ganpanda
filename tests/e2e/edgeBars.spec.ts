@@ -5,7 +5,7 @@ import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 type Pt = [number, number];
 const quads = (page: Page) => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { id: string; quad: Pt[] }[] } }).__ganpanda.objects.map((o) => ({ id: o.id, quad: o.quad })));
 
-test('다각형(매니퓰레이터 없음)에도 네 변 막대가 있고 끌면 옮겨진다 (2026-10-17 "이동 매니퓰레이터 막대 다 넣기로 했는데")', async ({ page, request }) => {
+test('다각형(매니퓰레이터 없음)에도 변 손잡이가 있고 끌면 그 변만 옮겨진다 (2026-10-18 "선만 움직여야지")', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   const id = await page.evaluate(() => {
@@ -23,12 +23,14 @@ test('다각형(매니퓰레이터 없음)에도 네 변 막대가 있고 끌면
   await page.mouse.move(bar.x + bar.width / 2 + 60, bar.y + bar.height / 2 + 30, { steps: 5 });
   await page.mouse.up();
   const after = (await quads(page)).find((o) => o.id === id)!;
-  expect(after.quad[0][0]).toBeGreaterThan(before.quad[0][0] + 20);
-  expect(after.quad[0][1]).toBeGreaterThan(before.quad[0][1] + 10);
-  expect(after.quad[2][0] - after.quad[0][0]).toBeCloseTo(before.quad[2][0] - before.quad[0][0], 0);
+  // 변 2 = 꼭짓점 2→3 만 움직인다
+  expect(after.quad[2][0]).toBeGreaterThan(before.quad[2][0] + 20);
+  expect(after.quad[3][0]).toBeGreaterThan(before.quad[3][0] + 20);
+  expect(after.quad[0]).toEqual(before.quad[0]);
+  expect(after.quad[1]).toEqual(before.quad[1]);
 });
 
-test('이동 모드: 외곽선 네 변에 막대가 보이고, 변을 끌면 사인물이 옮겨진다. Alt 를 누르고 변을 끌면 복사본이 옮겨진다', async ({ page, request }) => {
+test('변 손잡이: 네 변에 꼭짓점과 같은 손잡이, 끌면 그 변만 옮겨진다; Alt 는 안쪽 끌기(전체 이동)에서 복사본', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.keyboard.press('t');
@@ -42,11 +44,13 @@ test('이동 모드: 외곽선 네 변에 막대가 보이고, 변을 끌면 사
   await page.mouse.move(bar.x + bar.width / 2 + 50, bar.y + bar.height / 2 + 40, { steps: 5 });
   await page.mouse.up();
   const [after] = await quads(page);
+  // 윗변(꼭짓점 0→1)만: 두 점은 움직이고 아랫변 두 점은 그대로
   expect(after.quad[0][0]).toBeGreaterThan(before.quad[0][0] + 20);
-  expect(after.quad[0][1]).toBeGreaterThan(before.quad[0][1] + 15);
-  expect(after.quad[2][0] - after.quad[0][0]).toBeCloseTo(before.quad[2][0] - before.quad[0][0], 0); // 크기는 그대로
-  // Alt + 변 끌기 = 복사본이 옮겨짐
-  const bar2 = (await page.getByTestId('edge-handle-2').boundingBox())!; // 아래쪽 변
+  expect(after.quad[1][1]).toBeGreaterThan(before.quad[1][1] + 15);
+  expect(after.quad[2]).toEqual(before.quad[2]);
+  expect(after.quad[3]).toEqual(before.quad[3]);
+  // Alt + 안쪽 끌기 = 복사본이 옮겨짐 (변 손잡이는 변만 움직이므로 전체 이동은 안쪽에서)
+  const bar2 = (await page.getByTestId('sign-shape').boundingBox())!;
   await page.keyboard.down('Alt');
   await page.mouse.move(bar2.x + bar2.width / 2, bar2.y + bar2.height / 2);
   await page.mouse.down();
