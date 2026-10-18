@@ -12,6 +12,7 @@ import { handleSocial } from './social';
 import { handlePrices } from './prices';
 import { handleColors } from './colors';
 import { handleSpecSamples } from './specSamples';
+import { handleSpecRules } from './specRules';
 import { json, readJson, text } from './http';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -233,6 +234,7 @@ export default {
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname === '/api/me/colors') return withCors(await handleColors(req, env));
     if (pathname === '/api/spec-samples') return withCors(await handleSpecSamples(req, env)); // 퀵입력이 못 알아본 글 표본 (2026-10-18)
+    if (pathname === '/api/me/spec-rules' || pathname === '/api/spec-rules/suggest') return withCors(await handleSpecRules(req, env, pathname, url)); // 사양 글 개인 사전 + 추천 (2026-10-18 V1)
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));

@@ -59,6 +59,13 @@ export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api
 export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[] }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
+/** 사양 글 개인 사전 (2026-10-18 V1) */
+export const getSpecRules = () => call<{ rules: { phrase: string; meaning: unknown[] }[] }>('/api/me/spec-rules').then((r) => r.rules);
+export const putSpecRule = (rule: { phrase: string; meaning: unknown[] }) => call<{ rule: unknown }>('/api/me/spec-rules', { method: 'PUT', body: JSON.stringify(rule) });
+export const deleteSpecRule = (phrase: string) => call<{ ok: true }>('/api/me/spec-rules', { method: 'DELETE', body: JSON.stringify({ phrase }) });
+/** 같은 말에 다른 계정들이 정한 뜻 — 계정 수 순 (추천은 대세) */
+export const suggestSpecRule = (phrase: string) => call<{ suggestions: { meaning: unknown[]; count: number }[] }>(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`).then((r) => r.suggestions);
+
 /** 퀵입력이 못 알아본 글 표본 보내기 (2026-10-18 "메모로 전환하는 글만 모아서") — 실패해도 조용히 */
 export const postSpecSample = (body: { text: string; leftover: string; recognized: string[]; productId?: string }) =>
   call<{ id: string }>('/api/spec-samples', { method: 'POST', body: JSON.stringify(body) });

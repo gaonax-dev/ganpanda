@@ -56,7 +56,7 @@
 `{ id, photoId, x, y(사진 px), author, createdAt, resolved, number(사진 안 순번) }`
 
 ### 계정 쪽 (D1, 문서 아님)
-`accounts`, `sessions`, `login_tokens`, `projects`, `invites`, `account_assets`, `identities`(공급자 계정 연결), `oauth_states` → `server/migrations/`
+`accounts`, `sessions`, `login_tokens`, `projects`, `invites`, `account_assets`, `identities`(공급자 계정 연결), `oauth_states`, `spec_samples`(퀵입력이 못 알아본 글 표본, 2026-10-18), `spec_rules`(사양 글 개인 사전, 2026-10-18) → `server/migrations/`, [../features/spec-vocabulary.md](../features/spec-vocabulary.md)
 
 ### Message
 `{ id, objectId, author, text, kind: 'chat' | 'comment' | 'approval' | 'voice', ts, attachments? }` — `approval` 은 서버가 승인 때 남기는 알림(`objectId: 'project'`), `voice` 는 음성 메모(2026-10-18, 말풍선 창에 안 나옴 → [features/communication.md](../features/communication.md))

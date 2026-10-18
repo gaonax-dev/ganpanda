@@ -1,6 +1,7 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
 import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
+import { loadLocalRules, saveLocalRules, validRule, type SpecRule } from './core/specRules';
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
@@ -29,7 +30,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors } from './auth';
-import { checkAccess, postApproval, deleteMessage, postMessage, postPin, type Role } from './projects';
+import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
@@ -102,6 +103,8 @@ class AppState {
   assetEpoch = $state(0);
   /** 색 라이브러리 (2026-10-17 "색상관리가 중요하다"): 계정에 저장(서버) + 기기 사본(localStorage). 로그인 전에도 기기 사본으로 쓴다 → core/colorLibrary.ts */
   colorLibrary = $state<ColorCard[]>(loadLocalColors());
+  /** 사양 글 개인 사전 (2026-10-18 V1): 계정에 저장(서버) + 기기 사본. 퀵입력 파서가 기본 사전보다 먼저 본다 → core/specRules.ts */
+  specRules = $state<SpecRule[]>(loadLocalRules());
   pricesOpen = $state(false);
   letter3dOpen = $state(false);
   /** 선택한 사인물의 세부 설정 창 */
@@ -355,6 +358,22 @@ class AppState {
     if (colors) { this.colorLibrary = colors.colors; saveLocalColors(colors.colors); }
     else if (me && this.colorLibrary.length) void this.persistColors(); // 기기에만 있던 라이브러리를 계정에 올린다
     this.requestSettings = me?.requestSettings ?? null;
+    if (me) void this.loadSpecRules();
+  }
+  async loadSpecRules() {
+    try { const rules = (await getSpecRules()) as SpecRule[]; this.specRules = rules.filter(validRule); saveLocalRules(this.specRules); } catch { /* 오프라인이면 기기 사본 */ }
+  }
+  /** 못 알아본 말에 답한 뜻을 규칙으로 (같은 말은 갱신). 로그인 전엔 기기에만 */
+  async saveSpecRule(rule: SpecRule) {
+    if (!validRule(rule)) return;
+    this.specRules = [...this.specRules.filter((r) => r.phrase !== rule.phrase), rule];
+    saveLocalRules(this.specRules);
+    if (this.account) { try { await putSpecRule(rule); } catch { /* 다음 로그인 때 다시 */ } }
+  }
+  async removeSpecRule(phrase: string) {
+    this.specRules = this.specRules.filter((r) => r.phrase !== phrase);
+    saveLocalRules(this.specRules);
+    if (this.account) { try { await deleteSpecRule(phrase); } catch { /* 무시 */ } }
   }
 
   // ---------- 카메라 설정 (사진별, 사인물과 무관) ----------

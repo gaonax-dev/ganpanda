@@ -9,6 +9,7 @@ import type { ColorCard } from './colorLibrary';
 import { optionGroupsFor, partOptionFields, type OptionField } from './options';
 import { categoryPatch, newPart, partsOf } from './parts';
 import { applyQuick, ledLabel, type QuickPatch } from './quickSpec';
+import { matchRules, type SpecRule } from './specRules';
 
 export type SpecItem =
   | { kind: 'product'; id: string; label: string }
@@ -79,10 +80,12 @@ const norm = (s: string) => s.replace(/[\s()·/]/g, '').toLowerCase();
 /** 옵션 값 줄임말 → 선택지 값 (갈바 레이저 타공·내부 조명 등, 2026-10-17) */
 const OPTION_WORDS: Record<string, string> = { 타공: '글자 타공', 레이저타공: '글자 타공', 글자타공: '글자 타공', 패턴타공: '패턴 타공', 내부조명: 'LED', 조명: 'LED', led: 'LED' };
 
-export function parseSpecText(text: string, o?: SignObject, library: ColorCard[] = []): SpecItem[] {
-  const items: SpecItem[] = [];
+export function parseSpecText(text: string, o?: SignObject, library: ColorCard[] = [], rules: SpecRule[] = []): SpecItem[] {
+  // 내 사전(개인 규칙)이 기본 사전보다 먼저 — 못 알아보던 말에 사용자가 답한 뜻 (2026-10-18 V1, docs/features/spec-vocabulary.md)
+  const matched = matchRules(text, rules);
+  const items: SpecItem[] = [...matched.items];
   const leftovers: string[] = [];
-  let src = text.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
+  let src = matched.rest.replace(/,/g, (_m, off: number) => (/\d/.test(text[off - 1] ?? '') && /\d/.test(text[off + 1] ?? '') ? '' : ' '));
   // 사이즈 "3000x600" / "3,000 × 600" 는 공백이 있을 수 있어 먼저 뽑는다
   src = src.replace(/(\d{2,5})\s*[x×X*]\s*(\d{2,5})/g, (_m, w: string, h: string) => { items.push({ kind: 'size', w: Number(w), h: Number(h), label: `사이즈: ${Number(w).toLocaleString('ko-KR')}×${Number(h).toLocaleString('ko-KR')}mm` }); return ' '; });
   const tokens = src.split(/\s+/).filter(Boolean);

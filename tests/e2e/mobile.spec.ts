@@ -306,7 +306,7 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성
   const chat = page.getByTestId('object-chat');
   await expect(chat).toHaveCount(0); // 말풍선은 열리지 않는다 — 녹음은 대화와 따로
   await expect(page.locator('[data-testid="object-bubble"], [data-testid="card-bubble"]')).toHaveCount(0); // 사인물에 말풍선도 생기지 않는다 ("녹음하면 말풍선 계속 생긴다")
-  await expect(page.getByTestId('card-voice').first()).toContainText('1'); // 정면도 카드: 배지와 제목 사이 🎙1
+  await expect(page.getByTestId('card-voice').first()).toContainText('1', { timeout: 15_000 }); // 정면도 카드: 배지와 제목 사이 🎙1 (올리기 + 동기화 — 전체 실행 땐 느리다)
   await page.getByTestId('quick-panel-open').click();
   await expect(page.getByTestId('object-voices-count')).toHaveText('1');
   await page.getByTestId('object-voices-open').click();

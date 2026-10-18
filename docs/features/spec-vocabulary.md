@@ -2,7 +2,7 @@
 
 사용자(2026-10-18): "메모로 전환하는 글만 모아서 ai로 전환하는 방식으로" → "사용자가 입력한 내용 중에 메모로 전환된 걸 우선 확인하고 답변을 받는다. 다른 사용자가 해당 결정에 문제를 제기하면 이전 설정 사용자에게만 적용한다. 그리고 문제를 제기한 사용자의 설정을 다시 적용하지만 우선순위에 대한 구조를 구성해 전국·지역 그리고 개인의 영역으로".
 
-상태: **설계 결정, 구현은 단계별**(아래 6절). 바탕이 되는 표본 수집은 구현됨([order.md](order.md) 사양 글).
+상태: S0 표본 수집·V1 개인 사전+추천 **구현됨**(2026-10-18), V2 이후 계획 (아래 6절).
 
 ## 1. 흐름
 1. 퀵입력(사양 글) 확인 창은 알아본 항목을 체크 목록으로 보여 준다(지금과 같음).
@@ -39,7 +39,7 @@ SpecRule { id, phrase, meaning: SpecItem[] | LayerFragment, scope: 'personal' | 
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | S0 | 못 알아본 글 표본 수집(보내기 체크, `/api/spec-samples`, `npm run samples`) | 구현됨 (2026-10-18) |
-| V1 | **개인 사전**: 확인 창에서 뜻 묻기 → 규칙 저장(`/api/me/spec-rules`) → 파서에 주입 | 다음 |
+| V1 | **개인 사전 + 추천**(2026-10-18 사용자: "추천은 병행으로"): 확인 창에서 뜻 묻기(`spec-ask`) → 추천(`spec-suggest`: 같은 말에 다른 계정들이 정한 뜻, 계정 수 순) → 설정으로 고르기(`spec-meaning`, 레지스트리의 종류·채널·LED·색·몸통 옵션·채널 옵션 `meaningChoices`) → 적용하면 규칙 저장(`app.saveSpecRule` → `PUT /api/me/spec-rules`, 기기 사본) → 파서가 기본 사전보다 먼저 맞춤(`matchRules`, 항목 라벨에 "(내 사전: 말)"). 뜻을 고르지 않으면 지금처럼 메모 + 표본 | 구현됨 (2026-10-18) |
 | V2 | **전국 기본값 = 다수 뜻**(계정 수 집계, 운영자 확인) + **이의**(개인 규칙 + 그 뜻에 한 표; 다수가 바뀌면 기본값도 — 문턱 3곳·30일) | 계획 |
 | V3 | **지역 힌트**(계정 지역 필드, 뜻 고를 때 같은 지역 제안 먼저) | 계획 |
 | V4 | 뜻을 레이어 조각(배치·중첩)으로 — 레이어 구조 2단계와 함께 | 계획 |
@@ -56,4 +56,10 @@ SpecRule { id, phrase, meaning: SpecItem[] | LayerFragment, scope: 'personal' | 
 - **사용자는 자기 말로, 문서는 표준으로.** 입력은 사용자 표현 그대로 받고, 요약·견적서·주문서·공급사 전달·3D 는 표준 용어로 쓴다. 확인 창에서 "'오싸이' → 공급사 용어 '오사이'"처럼 매번 되돌려 보여 주면 쓰면서 표준에 익숙해진다.
 - **통계는 공급사 용어가 없는 곳에서.** 연결된 공급사 이름이 없는 값은 같은 뜻의 동의어 중 가장 많이 쓰이는 말을 표준 후보로 올린다(운영자 결정). 지역 힌트가 있으면 지역별 쓰임도 보인다.
 - **용어집 내보내기.** 표준 용어와 동의어를 표로 뽑아 공급사·신입 교육·요금제 안내에 쓴다.
+
+## 9. 구현 메모 (V1)
+- 서버: D1 `spec_rules`(id, account_id, phrase, meaning JSON, meaning_key(라벨 뺀 정규형), created_at, UNIQUE(account_id, phrase)) — 마이그레이션 0014. `server/src/specRules.ts`: `GET/PUT/DELETE /api/me/spec-rules`(계정당 500개, 말 60자, 뜻 10항목·4000자, 메모(note) 뜻은 거부), `GET /api/spec-rules/suggest?phrase=`(뜻별 **독립 계정 수** 상위 3 — 같은 계정이 여러 번 저장해도 한 표).
+- 클라이언트: `core/specRules.ts`(`SpecRule`, `matchRules` 긴 말부터·한 규칙 한 번, `meaningChoices`, `meaningKey`, `validRule`, 기기 사본 `ganpanda.specRules`), `parseSpecText(text, obj, library, rules)`, `app.specRules`(로그인 때 `GET` 으로 갱신, `saveSpecRule`·`removeSpecRule`), `SpecInput.svelte`(묻기 블록·추천 단추·셀렉트·칩).
+- 테스트: `tests/unit/specRules.test.ts`, `server/test/specRules.test.ts`(CRUD·추천 집계), `tests/e2e/specRules.spec.ts`(묻기 → 뜻 고르기 → 적용 → 다음 입력에서 바로 인식 → 서버 저장 확인).
+- 규칙 관리 화면(목록·삭제)은 V2 와 함께. 지금은 같은 말에 다시 답하면 갱신된다.
 

@@ -8,7 +8,8 @@
   import { applySpecItems, parseSpecText, type SpecItem } from '../core/specText';
   import { app } from '../state.svelte';
   import { sampleOf } from '../core/specSamples';
-  import { postSpecSample } from '../projects';
+  import { postSpecSample, suggestSpecRule } from '../projects';
+  import { meaningChoices, meaningKey, normPhrase, type Meaning } from '../core/specRules';
 
   let { obj, ro, update }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void } = $props();
   let text = $state('');
@@ -17,18 +18,31 @@
   function parse() {
     const t = text.trim();
     if (!t) return;
-    items = parseSpecText(t, obj, app.colorLibrary); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름도 맞춘다
+    items = parseSpecText(t, obj, app.colorLibrary, app.specRules); // 그 종류의 옵션 값(비조명·양면…)·내 컬러 카드 이름·내 사전도 맞춘다
     checked = items.map(() => true);
+    meanings = []; suggestions = [];
+    const left = items.find((i) => i.kind === 'note')?.text;
+    if (left && app.account) suggestSpecRule(normPhrase(left)).then((s) => { if (items?.some((i) => i.kind === 'note' && i.text === left)) suggestions = s as { meaning: Meaning[]; count: number }[]; }).catch(() => {});
   }
   /** 못 알아본 글 보내기 (2026-10-18 사용자: "메모로 전환하는 글만 모아서 ai로 전환하는 방식으로") — 요청사항으로 넘어간 부분이 있을 때만 보이고, 기기에 기억 */
   let share = $state(localStorage.getItem('ganpanda.specShare') !== '0');
   const sample = $derived(items ? sampleOf(text, items, obj.productId) : null);
+  /** 뜻 묻기 (2026-10-18 V1, docs/features/spec-vocabulary.md): 못 알아본 말에 사용자가 고른 뜻 — 적용하면 개인 규칙으로 저장되고 다음부터 바로 알아본다. 추천 = 다른 계정들이 많이 정한 뜻(대세) */
+  let meanings = $state<Meaning[]>([]);
+  let suggestions = $state<{ meaning: Meaning[]; count: number }[]>([]);
+  const choices = $derived(meaningChoices(obj, app.colorLibrary));
+  const groups = $derived([...new Set(choices.map((c) => c.group))]);
+  const addMeaning = (id: string) => { const c = choices.find((x) => x.id === id); if (c && !meanings.some((m) => meaningKey([m]) === meaningKey([c.item]))) meanings = [...meanings, c.item]; };
   function apply() {
     if (!items || ro) return;
-    const picked = items.filter((_, i) => checked[i]);
+    const note = items.find((i) => i.kind === 'note');
+    const learned = note && meanings.length ? { phrase: normPhrase(note.text), meaning: meanings } : null;
+    // 뜻을 골랐으면 그 항목을 적용하고 메모는 넣지 않는다 (규칙으로 배움). 아니면 지금처럼 메모 + 표본
+    const picked = [...items.filter((it, i) => checked[i] && !(learned && it.kind === 'note')), ...(learned ? learned.meaning : [])];
     if (picked.length) update(applySpecItems(obj, picked));
-    if (sample && share) postSpecSample(sample).catch(() => {}); // 로그인 안 했거나 오프라인이면 그냥 넘어간다
-    items = null; text = '';
+    if (learned) void app.saveSpecRule(learned);
+    else if (sample && share) postSpecSample(sample).catch(() => {}); // 로그인 안 했거나 오프라인이면 그냥 넘어간다
+    items = null; text = ''; meanings = []; suggestions = [];
   }
   const setShare = (v: boolean) => { share = v; try { localStorage.setItem('ganpanda.specShare', v ? '1' : '0'); } catch { /* 저장 못 해도 동작 */ } };
   const cancel = () => (items = null);
@@ -47,6 +61,23 @@
           <label class="item" data-testid="spec-item" data-kind={it.kind}><input type="checkbox" bind:checked={checked[i]} /> {it.label}</label>
         {/each}
         {#if sample}
+          <div class="ask" data-testid="spec-ask">
+            <p><b>'{sample.leftover}'</b>는 무엇인가요? 뜻을 고르면 다음부터 바로 알아봅니다.</p>
+            {#if suggestions.length}
+              <div class="suggest">{#each suggestions as s, i (i)}<button class="btn small" data-testid="spec-suggest" title="다른 사용자 {s.count}곳이 이 뜻으로 씁니다" onclick={() => (meanings = s.meaning)}>추천: {s.meaning.map((m) => m.label).join(' · ')} <small>({s.count}곳)</small></button>{/each}</div>
+            {/if}
+            <select data-testid="spec-meaning" value="" disabled={ro} onchange={(e) => { addMeaning(e.currentTarget.value); e.currentTarget.value = ''; }}>
+              <option value="">설정으로 고르기…</option>
+              {#each groups as g (g)}<optgroup label={g}>{#each choices.filter((c) => c.group === g) as c (c.id)}<option value={c.id}>{c.label}</option>{/each}</optgroup>{/each}
+            </select>
+            {#if meanings.length}
+              <div class="chips">{#each meanings as m, i (meaningKey([m]))}<span class="chip" data-testid="spec-meaning-chip">{m.label}<button class="icon" title="빼기" onclick={() => (meanings = meanings.filter((_, j) => j !== i))}>✕</button></span>{/each}</div>
+            {:else}
+              <small>고르지 않으면 요청사항(메모)으로 들어갑니다.</small>
+            {/if}
+          </div>
+        {/if}
+        {#if sample && !meanings.length}
           <label class="item share" data-testid="spec-share" title="못 알아본 글만 보냅니다 (프로젝트·사진·고객 정보 없음). 퀵입력이 더 많은 표현을 알아보게 하는 데 씁니다"><input type="checkbox" checked={share} onchange={(e) => setShare(e.currentTarget.checked)} /> 못 알아본 글을 보내 퀵입력 개선에 쓰기</label>
         {/if}
         <div class="acts">
@@ -71,4 +102,11 @@
   label.item input { width: auto; margin: 0; }
   .acts { display: flex; gap: 6px; margin-top: 4px; }
   label.item.share { color: var(--muted); margin-top: 4px; }
+  .ask { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255, 204, 0, 0.4); }
+  .ask p { margin: 0; color: var(--text); }
+  .ask small { color: var(--muted); }
+  .suggest { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 8px; border-radius: 10px; background: rgba(90, 168, 255, 0.18); font-size: 12px; }
+  .chip .icon { width: 18px; height: 18px; font-size: 10px; }
 </style>
