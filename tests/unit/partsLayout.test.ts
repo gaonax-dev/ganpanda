@@ -37,7 +37,7 @@ describe('객체 배치 (사인물 mm → 그릴 곳, 왼쪽 위 기준·y 아�
     const svg = partsSvg(layoutParts(sign, 6000, 900, 600, 90), (l) => (l.id === 'i1' ? 'data:image/png;base64,AA' : undefined));
     expect(svg).toContain('>바로바로</text>');
     expect(svg).toMatch(/textLength="[\d.]+"/);
-    expect(svg).toContain('href="data:image/png;base64,AA"');
+    expect(svg).toContain('xlink:href="data:image/png;base64,AA" href="data:image/png;base64,AA"'); // 일러스트레이터는 xlink:href 만 읽는다 (2026-10-18)
     expect(svg).toContain(`fill="${PART_COLOR.channel}"`);
   });
 });

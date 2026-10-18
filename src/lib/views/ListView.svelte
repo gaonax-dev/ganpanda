@@ -24,6 +24,7 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { layoutParts } from '../core/partsLayout';
+  import { imageDataUrl } from '../core/imageData';
   import { itemAssetId } from '../render/itemImages';
   import { fitRect, type Viewport } from '../core/viewport';
 
@@ -144,7 +145,9 @@
     finally { svgBusy = false; }
   }
   export async function buildSvg(opts: Partial<SvgSheet> = {}): Promise<string> {
-    const toDataUrl = async (u: string) => { try { const b = await (await fetch(u)).blob(); return await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); } catch { return u; } };
+    // 그림은 그림 MIME 의 data URL 로만 묻는다. 못 만들면(받기 실패·그림 아님) 빼고 알린다 — 외부 주소를 남기면 일러스트레이터가 "연결 파일 누락"이라 한다 (2026-10-18)
+    let skipped = 0;
+    const toDataUrl = async (u: string): Promise<string | undefined> => { try { const d = await imageDataUrl(await (await fetch(u)).blob()); if (!d) skipped++; return d; } catch { skipped++; return undefined; } };
     const cards: SvgCard[] = [];
     for (const { o, w, h, estimated } of sized) {
       const p = placed.get(o.id)!;
@@ -156,7 +159,8 @@
       if (o.design) {
         const page = app.sources.find((s) => s.id === o.design!.sourceId)?.pages[o.design.page];
         const u = page && (await assetUrl(page.assetId));
-        if (page && u) image = { href: await toDataUrl(u), pageW: page.w, pageH: page.h, crop: o.design.crop };
+        const href = page && u ? await toDataUrl(u) : undefined;
+        if (page && href) image = { href, pageW: page.w, pageH: page.h, crop: o.design.crop };
       }
       // 조합형 객체 (4단계): 정면도 배치 그대로, 그림은 data URL 로 묻는다
       const items = layoutParts(o, w, h, w, h);
@@ -164,10 +168,12 @@
       for (const l of items) {
         const id = l.image ? itemAssetId(l.image, app.sources) : undefined;
         const u = id && (await assetUrl(id));
-        if (u) itemHrefs[l.id] = await toDataUrl(u);
+        const href = u ? await toDataUrl(u) : undefined;
+        if (href) itemHrefs[l.id] = href;
       }
       cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner, items, itemHrefs });
     }
+    if (skipped) app.notice = `그림 ${skipped}개를 SVG 에 묻지 못해 뺐습니다 (받지 못했거나 그림 파일이 아님).`;
     const title = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 사인물 전개도`;
     return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards, ...opts });
   }

@@ -92,7 +92,8 @@ export function listSvg(sheet: SvgSheet): string {
     if (c.image) {
       // 잘라낸 영역이 카드에 꽉 차게: 페이지 전체를 카드 축척으로 늘리고 영역만 보이게
       const sx = w / c.image.crop.w, sy = h / c.image.crop.h;
-      parts.push(`<image clip-path="url(#clip-${esc(c.id)})" href="${esc(c.image.href)}" x="${(ox + c.x * k - c.image.crop.x * sx).toFixed(2)}" y="${(oy + c.y * k - c.image.crop.y * sy).toFixed(2)}" width="${(c.image.pageW * sx).toFixed(2)}" height="${(c.image.pageH * sy).toFixed(2)}" preserveAspectRatio="none"/>`);
+      // xlink:href 도 함께 — 일러스트레이터는 SVG 2 의 href 를 읽지 못해 "연결 파일 누락"이라 한다 (2026-10-18)
+      parts.push(`<image clip-path="url(#clip-${esc(c.id)})" xlink:href="${esc(c.image.href)}" href="${esc(c.image.href)}" x="${(ox + c.x * k - c.image.crop.x * sx).toFixed(2)}" y="${(oy + c.y * k - c.image.crop.y * sy).toFixed(2)}" width="${(c.image.pageW * sx).toFixed(2)}" height="${(c.image.pageH * sy).toFixed(2)}" preserveAspectRatio="none"/>`);
     }
     // 조합형 객체: 카드 좌표(mm)에서 그려 translate·scale 로 — 글자 렌더러에는 용지 좌표로 바꿔 넘긴다 (윤곽선 path 가 변환에 영향받지 않게)
     if (c.items?.length) parts.push(`<g data-items="${esc(c.id)}">${partsSvg(c.items.map((l) => ({ ...l, x: ox + (c.x + l.x) * k, y: oy + (c.y + l.y) * k, w: l.w * k, h: l.h * k })), (l) => c.itemHrefs?.[l.id], 0, 0, T)}</g>`);

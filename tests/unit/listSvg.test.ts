@@ -17,6 +17,7 @@ describe('전개도 SVG (최종 출력 → PDF)', () => {
     expect(svg).toContain('갈바 간판 + 전광 채널');
     expect(svg).toContain('1,200,000원');
     expect(svg).toContain('<image'); // 디자인 이미지
+    expect(svg).toContain('xlink:href="data:image/png;base64,AAAA" href="data:image/png;base64,AAAA"'); // 일러스트레이터는 xlink:href 만 읽는다 (2026-10-18)
     expect(svg).toContain('clip-path="url(#clip-b)"');
     expect(svg).toContain('&lt;'.length ? 'xlink' : '');
     // 전체 폭 4800mm 가 용지 안(297-여백)에 들어간다: 축척 < 1

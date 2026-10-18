@@ -88,6 +88,6 @@ test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다'
   const svg = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
   expect(svg).toContain('data-items=');
   expect(svg).toContain('>간판</text>');
-  expect(svg).toMatch(/<image href="data:image\/png;base64,[^"]+" x=/);
+  expect(svg).toMatch(/<image xlink:href="data:image\/png;base64,[^"]+" href="data:image\/png;base64,[^"]+" x=/); // 일러스트레이터용 xlink:href (2026-10-18)
   await w.close();
 });

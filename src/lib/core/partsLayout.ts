@@ -49,7 +49,7 @@ export function partsSvg(items: LaidItem[], hrefOf: (l: LaidItem) => string | un
     }
     const href = hrefOf(l);
     return href
-      ? `<image href="${esc(href)}" x="${f(x)}" y="${f(y)}" width="${f(l.w)}" height="${f(l.h)}" preserveAspectRatio="none"/>`
+      ? `<image xlink:href="${esc(href)}" href="${esc(href)}" x="${f(x)}" y="${f(y)}" width="${f(l.w)}" height="${f(l.h)}" preserveAspectRatio="none"/>`
       : `<rect x="${f(x)}" y="${f(y)}" width="${f(l.w)}" height="${f(l.h)}" fill="none" stroke="${l.color}" stroke-width="${f(Math.max(l.w, l.h) * 0.01)}" stroke-dasharray="${f(Math.max(l.w, l.h) * 0.04)}"/>`;
   }).join('');
 }
