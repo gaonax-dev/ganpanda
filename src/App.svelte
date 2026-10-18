@@ -133,7 +133,7 @@
         </div>
       {:else}
       <div class="views stage" data-testid="stage">
-        <button data-testid="stage-original" class:on={app.stage === 'original'} title="사진 그대로 — 외곽선·치수만" onclick={() => (app.stage = 'original')}>원본</button>
+        <button data-testid="stage-original" class:on={app.stage === 'original'} title="실측 — 사진 그대로, 외곽선·치수만" onclick={() => (app.stage = 'original')}>실측</button> <!-- 2026-10-18 사용자: "원본 2D 3D를 실측, 2D, 3D 로" -->
         <button data-testid="stage-2d" class:on={app.stage === '2d'} title="바탕색·디자인·글자를 사진 위에 평면으로" onclick={() => (app.stage = '2d')}>2D</button>
         <button data-testid="stage-3d" class:on={app.stage === '3d'} onclick={() => (app.stage = '3d')}>3D</button>
       </div>
