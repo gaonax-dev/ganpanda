@@ -13,7 +13,8 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await expect(cat).toBeVisible();
   await expect(cat).toHaveValue('');
   await expect(page.getByTestId('width-mm')).toHaveCount(0); // 세부 항목은 패널에 없음
-  await expect(page.getByTestId('chat-input')).toBeVisible(); // 대화는 패널에
+  await expect(page.getByTestId('chat-input')).toHaveCount(0); // 대화는 패널이 아니라 말풍선 창에 (2026-10-18)
+  await expect(page.getByTestId('object-chat-open')).toBeVisible();
 
   // 스카시 → 기본 제품이 스카시, 요약에 표시
   await cat.selectOption('scashi');

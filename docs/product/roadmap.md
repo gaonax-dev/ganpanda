@@ -31,7 +31,7 @@
 |---|---|
 | 1-1 실시간 연결 | **구현됨** — 앱 ↔ 동기화 서버 연결(실시간 공동 편집, 연결 상태 표시), 에셋 서버 업로드, 접속자 표시(누가 보고 있는지, 커서) → [architecture/sync.md](../architecture/sync.md) |
 | 1-2 계정·권한·요금제 | 1-2a **이메일 매직링크 로그인 — 구현됨** → [features/accounts.md](../features/accounts.md) / 1-2b **프로젝트 소유·초대 링크 권한 — 구현됨** → [features/projects-invites.md](../features/projects-invites.md) / 1-2c **요금제 한도(제안 건수·직원 좌석·용량, 2026-10-17 개편) — 구현됨** → [pricing.md](pricing.md) / 1-2d **카카오·Google·Apple 로그인 — 구현됨**(운영 자격 등록 대기) → [features/accounts.md](../features/accounts.md) |
-| 1-3 소통 | 1-3a **안 읽은 메시지·알림 — 구현됨** → [features/communication.md](../features/communication.md) / 1-3b **말풍선(위치·사인물 지정 소통 창구, 받는 사람, 마지막 상태 표시) — 구현됨**, 속성 패널 대화 섹션 제거는 말풍선 안착 후 / 1-3c **대화에 사진·파일 첨부 — 구현됨** |
+| 1-3 소통 | 1-3a **안 읽은 메시지·알림 — 구현됨** → [features/communication.md](../features/communication.md) / 1-3b **말풍선(위치·사인물 지정 소통 창구, 받는 사람, 마지막 상태 표시) — 구현됨**, 속성 패널 대화 섹션은 2026-10-18 제거(대화는 말풍선 창) / 1-3c **대화에 사진·파일 첨부 — 구현됨** |
 | 1-4 편의 | 1-4a **실행 취소·다시 실행 — 구현됨** → [features/photo-board.md](../features/photo-board.md) / 1-4b **카카오톡 공유**(초대 링크, 미리보기 이미지·제목) — JavaScript 키·도메인 필요 |
 | 1-5 AI 영역 분리 | **구현됨** — SlimSAM 호버 분리, 모델은 우리 R2 에서 제공 → [features/auto-segment.md](../features/auto-segment.md) |
 

@@ -112,8 +112,9 @@ test('사인물 말풍선: 대화가 생기면 영역 오른쪽 위에 마지막
   const k = b.width / 1600;
   await page.mouse.move(b.x + 300 * k, b.y + 200 * k); await page.mouse.down(); await page.mouse.move(b.x + 700 * k, b.y + 320 * k, { steps: 4 }); await page.mouse.up();
   await expect(page.getByTestId('object-bubble')).toHaveCount(0); // 대화 전에는 없음
-  await page.getByTestId('object-panel').getByTestId('chat-input').fill('두께 150으로 갈까요');
-  await page.getByTestId('object-panel').getByTestId('chat-input').press('Enter');
+  await page.getByTestId('object-chat-open').click(); // 속성 패널의 💬 → 말풍선 창 (2026-10-18)
+  await page.getByTestId('object-chat').getByTestId('chat-input').fill('두께 150으로 갈까요');
+  await page.getByTestId('object-chat').getByTestId('chat-input').press('Enter');
   await expect(page.getByTestId('object-bubble')).toHaveCount(1);
   await expect(page.getByTestId('object-bubble-last')).toHaveText(/나: 두께 150으로 갈까요/);
   // 선택을 풀고 말풍선을 누르면 다시 선택되고 대화가 보인다
@@ -121,6 +122,8 @@ test('사인물 말풍선: 대화가 생기면 영역 오른쪽 위에 마지막
   await page.getByTestId('board-canvas').click({ position: { x: 20, y: 400 } });
   await expect(page.getByTestId('object-panel')).toHaveCount(0);
   await page.getByTestId('object-bubble').click();
-  await expect(page.getByTestId('object-panel')).toBeVisible();
-  await expect(page.getByTestId('object-panel').getByTestId('chat-bubble')).toContainText('두께 150');
+  await expect(page.getByTestId('object-chat')).toBeVisible();
+  await expect(page.getByTestId('object-chat').getByTestId('chat-bubble')).toContainText('두께 150');
+  await page.getByTestId('object-chat-close').click();
+  await expect(page.getByTestId('object-panel')).toBeVisible(); // 닫으면 속성 패널
 });

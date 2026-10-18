@@ -87,11 +87,12 @@ test('두 사진의 같은 사인물: 연결하면 같은 규격·같은 속성�
   await page.getByTestId('view-board').click();
 
   // 원본 쪽 대화와 같은 대화를 본다
-  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), masterId);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { openChat(id: string): void } }).__ganpanda.openChat(id), masterId); // 말풍선 창 (2026-10-18)
   await page.getByTestId('chat-input').fill('연결 테스트');
   await page.getByTestId('chat-send').click();
-  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), copyId);
-  await expect(page.getByTestId('object-panel')).toContainText('연결 테스트');
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { openChat(id: string): void } }).__ganpanda.openChat(id), copyId);
+  await expect(page.getByTestId('object-chat')).toContainText('연결 테스트');
+  await page.getByTestId('object-chat-close').click(); // 속성 패널로 돌아가 해제
 
   // 해제 → 독립 사인물 2개, 규격은 복사됨
   await page.getByTestId('unlink').click();
