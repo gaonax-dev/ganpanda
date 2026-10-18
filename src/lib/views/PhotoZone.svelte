@@ -446,11 +446,12 @@
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
     <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
     {#if twoD && !overlay}
-    <div class="designs" style:width="{photo.w}px" style:height="{photo.h}px" style:transform="scale({scale})">
+    <!-- 겹침 층은 사진 원본 px 가 아니라 **표시 px** 크기로 (2026-10-18 아이폰 크롬 크래시: 4000×3000 CSS px 층을 transform 으로 줄이면 층마다 원본 크기 메모리를 잡아 사진 여러 장이면 수백 MB). 좌표는 모두 scale 을 곱해 넣는다 -->
+    <div class="designs" style:width="{photo.w * scale}px" style:height="{photo.h * scale}px">
       <!-- 2D 단계 (2026-10-17 "사인물 바탕색 원본에 보이게 … 투명도"): 바탕(종류 기본 겉모습 또는 고른 색·투명도) → 입힌 디자인 → 글자·그림 순으로 겹친다 -->
       {#each objects.filter((o) => bodyLook(o)) as o (o.id)}
         {@const look = bodyLook(o)!}
-        <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
+        <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
       {/each}
       <!-- 프레임 테 (2026-10-17 "3d에서 프레임과 판을 구별하나?"): 바탕 위에 테 폭(mm)만큼 안으로 들어간 고리. 원근은 중심 기준 축소로 근사 -->
       {#each objects.filter((o) => frameLook(o)?.mm && o.widthMm && o.heightMm) as o (o.id)}
@@ -460,12 +461,12 @@
         {@const kx = Math.max(0.2, 1 - (2 * fl.mm) / o.widthMm!)}
         {@const ky = Math.max(0.2, 1 - (2 * fl.mm) / o.heightMm!)}
         {@const inner = outer.map((p) => [c[0] + (p[0] - c[0]) * kx, c[1] + (p[1] - c[1]) * ky])}
-        <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {outer.map((p) => `${p[0]}px ${p[1]}px`).join(',')}, {inner.map((p) => `${p[0]}px ${p[1]}px`).join(',')})" style:background={fl.color}></div>
+        <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {outer.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')}, {inner.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
-        {@const q = quadOf(o)}
+        {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
         {@const c = o.design!.crop}
-        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
+        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()}>
             <DesignFace design={o.design!} w={c.w} h={c.h} />
           </div>
@@ -473,10 +474,10 @@
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
       {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
-        {@const q = quadOf(o)}
+        {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
         {@const pw = o.widthMm! * 0.5}
         {@const ph = o.heightMm! * 0.5}
-        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon, o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
+        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
             <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>
           </div>
@@ -740,7 +741,7 @@
   img, .loading { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .loading { display: grid; place-items: center; color: #999; }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-  .designs { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+  .designs { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
   .pbox { position: relative; }
   .design { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
   .design.fill { pointer-events: none; }
