@@ -58,7 +58,7 @@ export const DEFAULT_TIP: Pt = [1, 0];
 
 // ---- 2026-10-18 사용자: "말풍선은 가로3 세로2 비율 유지, 여러 줄, 표시 글자 수 리밋과 말줄임표. 풍선과 꼭지 아웃라인을 이어주고 꼭지의 점은 제거" ----
 export const BUBBLE_RATIO = 1.5; // 가로 : 세로 = 3 : 2
-export const BUBBLE_MAX_LINES = 3;
+export const BUBBLE_MAX_LINES = 4; // 3:2 라 폭이 줄 수에 묶여 3줄이면 20자 남짓 → 4줄까지
 export const BUBBLE_MAX_CHARS = 60;
 
 /** 글을 폭에 맞춰 줄로 나눈다 (공백 우선, 없으면 글자 단위). 줄 수를 넘기면 마지막 줄 끝을 … 로 */

@@ -73,7 +73,7 @@
   {/if}
   <!-- 꼭지 손잡이: 보이지 않는 터치 영역만 (점은 없앰, 2026-10-18). 끌면 꼭지만 -->
   {#if editable}
-    <circle class="tiph" role="button" tabindex="-1" data-testid="{testid}-tip" cx={tip[0]} cy={tip[1]} r={9 * u} fill="transparent"
+    <circle class="tiph" role="button" tabindex="-1" data-testid="{testid}-tip" cx={tip[0]} cy={tip[1]} r={9 * u} fill="transparent" stroke="none"
       onpointerdown={(e) => down(e, 'tip')} onpointermove={move} onpointerup={up} onpointercancel={up}><title>꼭지 옮기기</title></circle>
   {/if}
 </g>

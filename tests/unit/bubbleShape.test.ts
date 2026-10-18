@@ -64,11 +64,11 @@ describe('3:2 몸통 · 여러 줄 · 말줄임표', () => {
     expect(cut[2].endsWith('…')).toBe(true);
     expect(textWidth(cut[2], 10)).toBeLessThanOrEqual(50);
   });
-  it('bubbleLayout: 항상 가로:세로 = 3:2, 짧은 글은 1줄, 길면 줄을 늘리고 최대 3줄', () => {
+  it('bubbleLayout: 항상 가로:세로 = 3:2, 짧은 글은 1줄, 길면 줄을 늘리고 최대 4줄', () => {
     for (const t of ['', '#1', '나: 두께 150으로 갈까요', '나: 아주 긴 글이 여기에 들어가면 세 줄까지 늘어나고 그래도 넘치면 말줄임표가 붙습니다 정말로']) {
       const l = bubbleLayout(t, 10);
       expect(l.w / l.h).toBeCloseTo(BUBBLE_RATIO, 5);
-      expect(l.lines.length).toBeLessThanOrEqual(3);
+      expect(l.lines.length).toBeLessThanOrEqual(4);
     }
     expect(bubbleLayout('#1', 10).lines).toEqual(['#1']);
     expect(bubbleLayout('나: 두께 150으로 갈까요 어떨까요', 10).lines.length).toBeGreaterThan(1);
