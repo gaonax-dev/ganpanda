@@ -243,7 +243,7 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
   await page.getByTestId('close-object-settings').click();
 });
 
-test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 사인물이 꼭짓점처럼 평행 이동한다 (2026-10-18)', async ({ page, request }) => {
+test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 그 변만 꼭짓점처럼 옮겨진다 (2026-10-18)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.evaluate(() => {
@@ -260,7 +260,8 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 사인물이 꼭�
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await page.waitForTimeout(150);
   };
-  const translated = (a: number[][], b: number[][]) => { const dx = b[0][0] - a[0][0], dy = b[0][1] - a[0][1]; return Math.abs(dx) > 1 && b.every((p, i) => Math.abs(p[0] - a[i][0] - dx) < 0.5 && Math.abs(p[1] - a[i][1] - dy) < 0.5); };
+  /** 변 i(꼭짓점 i, i+1)만 같은 만큼 움직이고 나머지 두 점은 그대로 */
+  const edgeMoved = (a: number[][], b: number[][], i: number) => { const j = (i + 1) % 4; const dx = b[i][0] - a[i][0], dy = b[i][1] - a[i][1]; return Math.hypot(dx, dy) > 1 && Math.abs(b[j][0] - a[j][0] - dx) < 0.5 && Math.abs(b[j][1] - a[j][1] - dy) < 0.5 && [0, 1, 2, 3].filter((k) => k !== i && k !== j).every((k) => b[k][0] === a[k][0] && b[k][1] === a[k][1]); };
   await expect(page.getByTestId('sign-touch-outline')).toHaveCount(1);
   expect(await page.getByTestId('sign-touch-outline').evaluate((e) => [getComputedStyle(e).stroke, getComputedStyle(e).fill])).toEqual(['rgba(0, 0, 0, 0)', 'none']); // 보이지 않는 띠 (2026-10-18 캡처: 노란 띠로 보이던 문제)
   // 변 손잡이
@@ -268,10 +269,12 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 사인물이 꼭�
   const h = (await page.getByTestId('edge-handle-0').boundingBox())!;
   await dragTouch(h.x + h.width / 2, h.y + h.height / 2, 50, 30);
   const q1 = await quad();
-  expect(translated(q0, q1)).toBe(true);
-  // 외곽선 띠 (오른쪽 변 위, 안쪽 아님)
-  const s = (await page.getByTestId('sign-shape').boundingBox())!;
-  await dragTouch(s.x + s.width - 1, s.y + s.height * 0.3, -40, 20);
+  expect(edgeMoved(q0, q1, 0)).toBe(true); // 윗변만
+  // 외곽선 띠 (오른쪽 변 위, 손잡이 사이 25% 지점) → 가장 가까운 변 = 오른쪽(1)
+  const c1 = (await page.getByTestId('sign-handle').nth(1).boundingBox())!, c2 = (await page.getByTestId('sign-handle').nth(2).boundingBox())!;
+  const px = c1.x + c1.width / 2 + (c2.x - c1.x) * 0.25, py = c1.y + c1.height / 2 + (c2.y - c1.y) * 0.25;
+  expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), [px, py])).toBe('sign-touch-outline');
+  await dragTouch(px, py, -40, 20);
   const q2 = await quad();
-  expect(translated(q1, q2)).toBe(true);
+  expect(edgeMoved(q1, q2, 1)).toBe(true);
 });

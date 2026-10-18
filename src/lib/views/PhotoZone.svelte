@@ -114,7 +114,7 @@
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
-  let editing: { id: string; quad: Pt[]; mode: number | 'move' | GizmoMode; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3 } | null = $state(null);
+  let editing: { id: string; quad: Pt[]; mode: number | 'move' | 'edge' | GizmoMode; /** mode = 'edge' 일 때 변 번호 (i, i+1 꼭짓점) */ edge?: number; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3 } | null = $state(null);
 
   // ---------- 입체 매니퓰레이터 (2026-10-15) ----------
   /** gx·gz·gfree = 면 위 이동, grot = 면 안 회전(원근 없는 사진), gsize = 크기 손잡이, bmove = 원근 축 이동, brot = 박스 회전 */
@@ -153,15 +153,29 @@
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   /** 변 막대 잡기: Shift = 다중 선택, 매니퓰레이터를 붙일 수 있고 면이 있으면 면 위에서(gfree, 원근 사진은 사인물 자신의 면), 아니면(다각형·면 없음) 화면에서 그대로 옮긴다 */
-  /** 변 막대·변 손잡이·굵은 외곽선 터치: 원근이 맞춰진 사진이면 사인물 면 위에서, 아니면 꼭짓점처럼 사진 위 평행 이동 (2026-10-18 "꼭지점처럼 작동하게" — 전에는 원근 없는 사진에서도 면 추정으로 옮겨 외곽선이 비뚤어졌다) */
-  function edgeDown(e: PointerEvent, o: SignObject, q: Pt[]) {
+  /** 변 손잡이·휴대폰 외곽선 띠: 그 변(양 끝 꼭짓점)만 옮긴다 — 꼭짓점 손잡이와 같은 종류의 외곽선 다듬기 (2026-10-18 사용자: "선만 움직여야지"). 띠를 눌렀을 때는 가장 가까운 변 */
+  function edgeDown(e: PointerEvent, o: SignObject, q: Pt[], edge?: number) {
     if (e.button !== 0) return;
-    if (e.shiftKey) { e.stopPropagation(); onselect(o.id, true); return; }
-    if (has3d && calib?.pose && calWall && gizmoable(o)) {
-      const on = anchor3(o, q)?.plane;
-      if (on) { gizmoDown(e, o, 'gfree', 0, 0, on); return; }
+    e.stopPropagation();
+    if (e.shiftKey) { onselect(o.id, true); return; }
+    onselect(o.id);
+    if (!editable) return;
+    const from = toPhoto(e.clientX, e.clientY);
+    const idx = edge ?? nearestEdge(q, from);
+    editing = { id: o.id, quad: o.quad, mode: 'edge', edge: idx, from, orig: o.quad };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
+  /** 점에서 가장 가까운 변 번호 (i = 꼭짓점 i→i+1) */
+  function nearestEdge(q: Pt[], p: Pt): number {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < 4; i++) {
+      const a = q[i], b = q[(i + 1) % 4];
+      const vx = b[0] - a[0], vy = b[1] - a[1], L = vx * vx + vy * vy || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L));
+      const d = Math.hypot(a[0] + vx * t - p[0], a[1] + vy * t - p[1]);
+      if (d < bd) { bd = d; best = i; }
     }
-    shapeDown(e, o, 'move');
+    return best;
   }
   // ---------- 박스 매니퓰레이터 (원근 설정이 있는 사진, 2026-10-15 사용자: "메니폴레이터는 원근의 값을 기준으로 작동해야한다",
   //            "사인물사각툴은 3d가 아니다… 따라다니는 박스만 3d이다", "박스만 회전하고 크기는 외곽선만") ----------
@@ -322,9 +336,10 @@
       return;
     }
     const dx = x - editing.from[0], dy = y - editing.from[1];
+    const ed = editing.mode === 'edge' ? editing.edge! : -1;
     editing.quad = editing.mode === 'move'
       ? editing.orig.map(([a, b]) => [a + dx, b + dy] as Pt)
-      : editing.orig.map((p, i) => (i === editing!.mode ? clamp([p[0] + dx, p[1] + dy]) : p));
+      : editing.orig.map((p, i) => (i === editing!.mode || (ed >= 0 && (i === ed || i === (ed + 1) % 4)) ? clamp([p[0] + dx, p[1] + dy]) : p)); // 변 = 양 끝 꼭짓점이 함께 (2026-10-18 "선만 움직여야지")
   }
 
   function up() {
@@ -556,7 +571,7 @@
             ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
         {/if}
-        <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 사인물 전체 이동(원근 사진은 면 위, 아니면 평행). 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 -->
+        <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘", "선만 움직여야지"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 그 변(양 끝 꼭짓점)만 옮긴다. 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 — 누른 자리에서 가장 가까운 변 -->
         {#if sel && editable && tool === 'select' && !turned}
           {#if app.compact}
             <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, o.polygon, o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
@@ -564,8 +579,8 @@
           {#each [0, 1, 2, 3] as i (i)}
             {@const a = q[i]}
             {@const b = q[(i + 1) % 4]}
-            <circle class="hit" data-testid="edge-hit-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
-            <circle class="handle edge" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)}><title>변을 잡아 옮기기 (Alt = 복사해서 옮기기)</title></circle>
+            <circle class="hit" data-testid="edge-hit-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q, i)} />
+            <circle class="handle edge" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q, i)}><title>변 옮기기 (양 끝 꼭짓점이 함께)</title></circle>
           {/each}
         {/if}
         <!-- 꼭짓점 손잡이는 매니퓰레이터보다 아래 층 (메뉴·손잡이를 가리지 않게) -->
