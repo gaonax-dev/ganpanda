@@ -214,8 +214,9 @@
    */
 
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
-  function alignToPerspective(o: SignObject) {
-    const plane = refPlaneOf(o);
+  /** 외곽선을 면(기본: 사인물이 놓인 면, 없으면 벽)의 직사각형으로 펴고 축에 맞춘다 */
+  function alignToPerspective(o: SignObject, on?: RefPlane | null) {
+    const plane = on ?? refPlaneOf(o);
     if (!plane) return;
     onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)))));
   }
@@ -603,11 +604,12 @@
           {#if face3 && g3}
             {@const dirNow = editing?.id === o.id && editing.box ? editing.box : boxDirOf({ ...o, quad: q }, calWall)}
             {@const cur = dirNow ? (axisOfDir(pose, dirNow) ?? 'none') : 'none'}
-            {@const skew = skewOf(calWall, q)}
-            {@const tilt = tiltOf(frameOf(calWall, q))}
-            {#if !editing && face3 === calWall && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 10))}
+            <!-- 원근에 맞추기: 사인물이 놓인 면(face3) 기준 — 벽이 아닌 면으로 판정돼도, 많이 기울어도(25° 까지) 단추가 나온다 (2026-10-18 사용자: "원근 안 맞을 때 자동 배치 버튼 안 나와") -->
+            {@const skew = skewOf(face3, q)}
+            {@const tilt = tiltOf(frameOf(face3, q))}
+            {#if !editing && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
-                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o), '#ff4dd2')}
+                {@render iconBtn([q[2][0] + 14 * gu, q[2][1] + 14 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, face3), '#ff4dd2')}
               </g>
             {/if}
             {@const mAt = menuAt(q, g3.c)}

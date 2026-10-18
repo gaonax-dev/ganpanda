@@ -360,3 +360,18 @@ test('매니퓰레이터 아래 메뉴(모드·X/Y/Z 단추)는 항상 맨 위�
   const chip = (await page.getByTestId('gizmo-mode-move').boundingBox())!;
   expect(chip.y).toBeGreaterThan(outline.y + outline.height - 1);
 });
+
+test('원근에 맞추기 단추: 15° 기울어진 외곽선에도 나오고(전에는 10° 까지만), 누르면 축에 맞아 단추가 사라진다 (2026-10-18 "원근 안 맞을 때 자동 배치 버튼 안 나와")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const q = await rectOnWall(page, 1000, 3800, 3000, 800);
+  // 사진 px 에서 중심을 두고 15° 돌린다
+  const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
+  const a = (15 * Math.PI) / 180;
+  const rot = q.map(([x, y]) => [cx + (x - cx) * Math.cos(a) - (y - cy) * Math.sin(a), cy + (x - cx) * Math.sin(a) + (y - cy) * Math.cos(a)] as Pt);
+  await addSign(page, rot);
+  await expect(page.getByTestId('persp-align')).toHaveCount(1);
+  await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
+  await expect(page.getByTestId('persp-align')).toHaveCount(0);
+});
