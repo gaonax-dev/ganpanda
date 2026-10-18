@@ -146,21 +146,21 @@
       {/if}
     </div>
   </nav>
-  <!-- 알림 영역: 비어 있어도 항상 있어 그리드 행이 유지된다 -->
-  <div class="banners">
-    {#if app.seatLimit && app.sync !== 'online'}
-      <div class="banner warn" data-testid="seat-limit">
-        동시 작업 인원 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 작업 중 — 자리가 나면 자동으로 연결됩니다. 직원이 함께 작업하려면 요금제를 올려 주세요. (고객 열람은 인원에 들지 않습니다)
-      </div>
-    {/if}
-    {#if app.updateAvailable}
-      <div class="banner warn" data-testid="update-available">새 버전이 배포되었습니다. 새로고침하면 최신 기능이 적용됩니다. <button class="btn small primary" onclick={() => location.reload()}>새로고침</button><button class="icon" onclick={() => (app.updateAvailable = false)}>✕</button></div>
-    {/if}
-    {#if app.notice}
-      <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
-    {/if}
-  </div>
   <main>
+    <!-- 알림 영역: 본문 위에 떠 있는 겹층 — 나타나고 사라져도 다른 요소가 밀리지 않는다 (2026-10-18 사용자: "동시접속 안내 … 화면이 재정렬되고 사라지면 다시 제위치로 간다. 이건 문제다") -->
+    <div class="banners">
+      {#if app.seatLimit && app.sync !== 'online'}
+        <div class="banner warn" data-testid="seat-limit">
+          동시 작업 인원 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 작업 중 — 자리가 나면 자동으로 연결됩니다. 직원이 함께 작업하려면 요금제를 올려 주세요. (고객 열람은 인원에 들지 않습니다)
+        </div>
+      {/if}
+      {#if app.updateAvailable}
+        <div class="banner warn" data-testid="update-available">새 버전이 배포되었습니다. 새로고침하면 최신 기능이 적용됩니다. <button class="btn small primary" onclick={() => location.reload()}>새로고침</button><button class="icon" onclick={() => (app.updateAvailable = false)}>✕</button></div>
+      {/if}
+      {#if app.notice}
+        <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
+      {/if}
+    </div>
     {#if app.page === 'request'}
       <div class="proposal">{#if app.requestsEnabled}<RequestForm />{:else}<p class="soon" data-testid="request-soon">간판 견적 요청은 준비 중입니다. <a href="/">간판다 홈으로</a></p>{/if}</div>
     {:else if app.page === 'request-view'}
@@ -219,12 +219,14 @@
   .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
   .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
   .approval[data-status='changed'] { color: var(--warn); }
-  .shell { display: grid; grid-template-rows: auto auto 1fr; height: 100%; overflow-x: hidden; }
+  .shell { display: grid; grid-template-rows: auto 1fr; height: 100%; overflow-x: hidden; }
   /* 상단 바를 숨겨도 행 배치가 밀리지 않게 행을 고정 */
-  .top { grid-row: 1; } .banners { grid-row: 2; } main { grid-row: 3; }
+  .top { grid-row: 1; } main { grid-row: 2; }
   .top.hidden { display: none; }
-  .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; }
-  .banner.warn { background: rgba(255, 170, 0, 0.14); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); }
+  /* 알림은 본문 위 겹층: 흐름 밖(absolute)이라 나타나고 사라져도 아래 요소가 밀리지 않는다 (2026-10-18) */
+  .banners { position: absolute; left: 0; right: 0; top: 0; z-index: 40; display: flex; flex-direction: column; pointer-events: none; }
+  .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; pointer-events: auto; }
+  .banner.warn { background: rgba(60, 46, 10, 0.96); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
   .project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
