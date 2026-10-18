@@ -10,12 +10,13 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { bodyLook, frameLook } from '../core/render';
-  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint, solveHomography } from '../core/homography';
-  import { boxDirOf, faceOf, wallPlaneOf } from '../core/wallPlane';
+  import { boxDirOf, boxLocalDirOf, faceOf, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import type { Calibration } from '../core/calibration';
   import { bubbleLabel, lastStateOf } from '../core/bubbles';
+  import { depthMmOf, thicknessOf } from '../core/render';
   import { DEFAULT_TIP, UNIT_RECT } from '../core/bubbleShape';
   import BubbleShape from '../ui/BubbleShape.svelte';
   import { app, type Tool } from '../state.svelte';
@@ -214,6 +215,23 @@
    */
 
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
+  /**
+   * 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제"):
+   * 두께 있는 사인물만. 흰 상자 = 3D 가 그릴 면(signPlaneOf)에서 외곽선을 카메라 쪽으로 밀어낸 상자(보기 쉽게 깊이 = 짧은 변).
+   * (자홍 점선 제안 상자는 없앰 — 2026-10-15 사용자: "너무 복잡해". 면 방향은 signPlaneOf 가 구도로 알아본다)
+   */
+  function boxFor(o: SignObject, q: Pt[]) {
+    if (!thicknessOf(o)) return null;
+    const cal = calib?.metric ? wallPlaneOf([], calib) : null;
+    // 박스 방향 (고리로 돌리는 중이면 그 방향) — 외곽선은 그대로, 상자만 그 방향으로
+    const live = editing?.id === o.id && editing.box ? { ...o, quad: q, boxDir: editing.box, faceAxis: undefined } : { ...o, quad: q };
+    const pl = signPlaneOf(live, cal);
+    if (!pl) return null;
+    const depth = depthMmOf(o); // 입력한 두께(없으면 종류 기본) — 2026-10-18 "두께가 연동되지 않네"
+    const dir = boxLocalDirOf(live, pl, cal, photo.w, photo.h) ?? undefined;
+    const box = boxGuideOf(projectionFromPlane(pl, photo.w, photo.h), q.map((p) => applyHomography(pl.Hinv, p)), depth, dir);
+    return box ? { box } : null;
+  }
   /** 외곽선을 면(기본: 사인물이 놓인 면, 없으면 벽)의 직사각형으로 펴고 축에 맞춘다 */
   function alignToPerspective(o: SignObject, on?: RefPlane | null) {
     const plane = on ?? refPlaneOf(o);
@@ -549,6 +567,18 @@
       {@const chatId = o.sameAs ?? o.id}
       {@const lastMsg = lastStateOf(app.messages, chatId)}
       {@const turned = !!o.turn}
+      <!-- 상자 가이드 (두께 있는 사인물): 원본·2D 에서 3D 가 그릴 입체 상자를 미리 보여 준다. 2026-10-18 "아웃라인 제거" 는 포커스 링 얘기였음 → 복원 -->
+      {#if sel && editable && tool === 'select' && gizmoable(o)}
+        {@const bg = boxFor(o, q)}
+        {#if bg}
+          {@const edges = (b: { back: Pt[]; front: Pt[] }) => [0, 1, 2, 3].flatMap((i) => [[b.back[i], b.back[(i + 1) % 4]], [b.front[i], b.front[(i + 1) % 4]], [b.back[i], b.front[i]]]) as [Pt, Pt][]}
+          <g class="boxg" data-testid="box-guide" pointer-events="none">
+            <polygon class="face" points={bg.box.front.map((p) => p.join(',')).join(' ')} />
+            {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={2.4 * u} />{/each}
+            {#each edges(bg.box) as [a, b], i (i)}<line class="edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1 * u} />{/each}
+          </g>
+        {/if}
+      {/if}
       <g class="sign" class:sel={sel || multiSel} class:same class:warn data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
@@ -788,6 +818,10 @@
   .overlay { z-index: 1; }
   /* 입체 매니퓰레이터 */
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
+  /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자 */
+  .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
+  .boxg .edge { stroke: #fff; stroke-linecap: round; }
+  .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ring-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; } /* 얇은 고리를 잡기 쉽게 넓은 투명 영역 */

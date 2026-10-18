@@ -34,6 +34,12 @@ const BOARD_LOOK: Record<string, { faceColor: string; depthMm: number }> = {
   'body-none': { faceColor: '#9aa0a6', depthMm: 20 },
 };
 const SHEET_LOOK = { faceColor: '#ffffff', depthMm: 2 };
+/** 사인물 두께(mm): 입력값 > 종류 기본 (상자 가이드·3D 공용 — 2026-10-18 "두께가 연동되지 않네": 가이드가 가로·세로의 작은 쪽을 두께로 쓰고 있었다) */
+export function depthMmOf(o: SignObject): number {
+  if (o.depthMm) return o.depthMm;
+  const id = signParts(o).bodyId ?? '';
+  return BOARD_LOOK[id]?.depthMm ?? (categoryOf(o) === 'sheet' ? SHEET_LOOK.depthMm : 100);
+}
 /** 분류 전: 자리만 보이는 회색 판 */
 const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 

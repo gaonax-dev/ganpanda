@@ -234,19 +234,21 @@ test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async 
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });
 
-test('상자 가이드는 없음(2026-10-18 "매니퓰레이터 아웃라인 제거"); 손으로 비튼 외곽선에 원근 맞추기 제안; 버튼은 아이콘', async ({ page, request }) => {
+test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보인다(자홍 점선 제안 상자는 없음). 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
   const q = await rectOnWall(page, 1000, 3800, 3000, 800);
   const id = await addSign(page, q);
   await moveMode(page);
-  await expect(page.getByTestId('box-guide')).toHaveCount(0); // 상자 가이드 제거 (2026-10-18)
+  const box = page.getByTestId('box-guide');
+  await expect(box).toHaveCount(1); // 복원 (2026-10-18: "두께 넣으면 나오던 사각 박스가 안 보인다")
+  expect(await box.locator('line.edge').count()).toBe(12);
   // 손으로 비튼 외곽선이어도 제안 상자는 없다 (2026-10-15 사용자: "너무 복잡해")
   const hand: Pt[] = [[q[0][0], q[0][1] - 30], q[1], [q[2][0] + 25, q[2][1]], q[3]];
   await page.evaluate(({ id, hand }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { quad: hand }), { id, hand });
   await expect(page.getByTestId('persp-align')).toHaveCount(1);
-  // 시트(두께 없음)
+  // 시트(두께 없음)는 상자 없음
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { productId: undefined, sheetIds: ['sh-cut'] }), id);
   await expect(page.getByTestId('box-guide')).toHaveCount(0);
   // 아이콘 버튼에는 설명(title)

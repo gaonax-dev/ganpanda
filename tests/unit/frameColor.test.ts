@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor, partOptionFields } from '../../src/lib/core/options';
-import { bodyLook, frameHex, frameLook, frameMmOf, renderSpecOf } from '../../src/lib/core/render';
+import { bodyLook, depthMmOf, frameHex, frameLook, frameMmOf, renderSpecOf } from '../../src/lib/core/render';
 import { newPart } from '../../src/lib/core/parts';
 import { layoutParts } from '../../src/lib/core/partsLayout';
 
@@ -110,5 +110,15 @@ describe('프레임 테: 판을 테가 둘러싸는 종류는 앞면 가장자�
     expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(10);
     expect(renderSpecOf(obj({ productId: 'board-flex', widthMm: 3000, heightMm: 600 }), place)!.sideColor).toBe('#c8cbcf');
     expect(renderSpecOf(obj({ productId: 'board-galva', widthMm: 3000, heightMm: 600 }), place)!.frameMm).toBe(0);
+  });
+});
+
+// 2026-10-18 사용자: "두께가 연동되지 않네" — 상자 가이드 두께 = 입력값 > 종류 기본
+describe('depthMmOf', () => {
+  it('입력한 두께가 우선, 없으면 종류 기본(후렉스 150, 갈바 100), 시트 2', () => {
+    expect(depthMmOf(obj({ productId: 'board-flex', depthMm: 80 }))).toBe(80);
+    expect(depthMmOf(obj({ productId: 'board-flex' }))).toBe(150);
+    expect(depthMmOf(obj({ productId: 'board-galva' }))).toBe(100);
+    expect(depthMmOf(obj({ sheetIds: ['sh-cut'] }))).toBe(2);
   });
 });
