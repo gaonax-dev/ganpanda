@@ -23,6 +23,7 @@
 사용자: "리스트가 일러스트로 내보내기 되는가?" → "비율, 윤곽선은 옵션으로". 견적 패널 **[SVG]**(`export-svg`) → 옵션 패널(`svg-options`) → [내려받기](`svg-download`)로 `.svg` 파일. 같은 `listSvg()` 라 PDF 와 내용이 같고, 일러스트레이터에서 열면 치수가 mm 그대로(viewBox = 용지 mm).
 - **비율**: 실물 **1:1**(`svg-scale-1`, 기본 — 제작 도면, 카드가 실제 mm, 용지는 내용 + 여백·라벨 크기) / **1:10**(`svg-scale-10`, 큰 간판 — 일러 아트보드 한계 약 5.8m) / **A4 맞춤**(`svg-scale-a4`, PDF 와 같은 모양). `SvgSheet.scale`.
 - **글자 윤곽선**(`svg-outline`, 기본 켬): 모든 글자(제목·치수·라벨·구성 요소 글자)를 Pretendard Bold 로 `<path>` 로 바꿈 — 폰트가 없는 컴퓨터에서도 같은 모양, 대신 글자 편집 불가. 끄면 `<text>`(글꼴 대체될 수 있음). `core/svgText.ts` `outlineRenderer(font)`(opentype.js `getPath`, 정렬·기준선·폭 맞춤을 `<text>` 와 같게), `SvgSheet.text`.
+- **대지 레이어**(2026-10-18 사용자: "현재 사인물을 대지별로 담아서 일러스트로 저장하면 해당 일러스트에서 대지별로 내보내기 할 수 있다 … 현재 구성한 레이아웃이 유지되어야 한다"): 내려받는 SVG 에 `<g id="대지">` 레이어로 사인물마다 **같은 자리의 보이지 않는 사각형**(`data-artboard`, fill·stroke 없음)이 들어 있다(`listSvg({artboards:true})`). 일러스트레이터에서 레이어 **대지**를 선택 → **오브젝트 › 대지 › 선택 오브젝트를 대지로 변환** 하면 지금 배치 그대로 사인물마다 대지가 되어 대지별 내보내기를 쓸 수 있다(옵션 패널 `svg-artboards-tip`). 페이지를 나누는 PDF 방식은 배치가 깨져 쓰지 않는다.
 - 파일 이름 `<프로젝트> 전개도 1-1.svg` 등. `app.lastSvg` 에 마지막 SVG. 테스트: `tests/unit/listSvg.test.ts`(비율·윤곽선), `tests/e2e/boardCards.spec.ts`.
 
 ## 사진 보드에 올리기 (2026-10-15)
