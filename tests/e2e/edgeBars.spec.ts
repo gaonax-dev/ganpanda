@@ -15,8 +15,7 @@ test('다각형(매니퓰레이터 없음)에도 네 변 막대가 있고 끌면
     return id;
   });
   await expect(page.getByTestId('gizmo')).toHaveCount(0); // 다각형에는 매니퓰레이터가 없다
-  await page.keyboard.press('w'); // 이동 모드 켜기 (기본 숨김, 2026-10-18)
-  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4);
+  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤
   const before = (await quads(page)).find((o) => o.id === id)!;
   const bar = (await page.getByTestId('gizmo-edge-2').boundingBox())!;
   await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
@@ -34,11 +33,8 @@ test('이동 모드: 외곽선 네 변에 막대가 보이고, 변을 끌면 사
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [300, 200], [700, 300]);
-  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'none'); // 기본은 숨김 (2026-10-18)
-  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(0);
-  await page.getByTestId('gizmo-mode-move').dispatchEvent('pointerdown', { button: 0 }); // [이동 ✥] 켜기
-  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'move');
-  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4); // 가로 변은 높이 0 이라 toBeVisible 대신 개수로
+  await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'none'); // 매니퓰레이터는 기본 숨김 (2026-10-18)
+  await expect(page.locator('[data-testid^="gizmo-edge-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤 — 늘 있다 (가로 변은 높이 0 이라 toBeVisible 대신 개수로)
   // 막대는 변 가운데만 — 양 끝 꼭짓점 자리는 비어 있어 꼭짓점을 잡을 수 있다 (2026-10-17 "꼭짓점 선택이 힘들다")
   const top = (await page.getByTestId('gizmo-edge-0').boundingBox())!;
   const corners = await page.getByTestId('sign-handle').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }));
