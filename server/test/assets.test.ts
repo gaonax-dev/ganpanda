@@ -17,6 +17,16 @@ const put = (id: string, body: BodyInit, type = 'image/png') =>
   exports.default.fetch(`http://sync/api/assets/${id}${q}`, { method: 'PUT', body, headers: { 'content-type': type } });
 
 describe('에셋 (R2)', () => {
+  it('음성 메모(audio/webm·mp4)도 올리고 같은 형식으로 내려받는다 (2026-10-18 휴대폰 녹음)', async () => {
+    const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 9, 9, 9]);
+    const id = await idOf(webm);
+    expect((await put(id, webm, 'audio/webm;codecs=opus')).status).toBe(201); // 매개변수는 떼고 본다
+    const r = await exports.default.fetch(`http://sync/api/assets/${id}${q}`);
+    expect(r.headers.get('content-type')).toBe('audio/webm');
+    const m4a = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 1]);
+    expect((await put(await idOf(m4a), m4a, 'audio/mp4')).status).toBe(201);
+    expect((await put(await idOf(new Uint8Array([1, 2])), new Uint8Array([1, 2]), 'audio/x-unknown')).status).toBe(415);
+  });
   it('업로드 후 같은 내용과 형식으로 내려받는다', async () => {
     const id = await idOf(png);
     expect((await put(id, png)).status).toBe(201);

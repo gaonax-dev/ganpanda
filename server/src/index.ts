@@ -18,6 +18,8 @@ const ASSET_RE = /^[0-9a-f]{32}$/;
 const MAX_ASSET = 25 * 1024 * 1024;
 const ASSET_TYPES = new Set([
   'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml', 'image/heic', 'application/pdf',
+  // 음성 메모 (2026-10-18 휴대폰 녹음 → 말풍선 첨부): 크롬 webm, 사파리 mp4, 그 밖
+  'audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/mpeg', 'audio/aac', 'audio/x-m4a',
 ]);
 
 const CORS: Record<string, string> = {

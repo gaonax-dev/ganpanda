@@ -59,7 +59,7 @@
     </select>
     <button class="btn small val" class:on={editing === 'name'} data-testid="quick-name" title="이름" onclick={openName}>{obj.name}</button>
     <button class="btn small val" class:on={editing === 'size'} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
-    <button class="btn small" data-testid="quick-chat-open" title="말풍선 (대화)" onclick={() => app.openChat(obj.id)}>💬{app.unread[obj.sameAs ?? obj.id] ? ` ${app.unread[obj.sameAs ?? obj.id]}` : ''}</button>
+    <!-- 말풍선 단추는 상단 메뉴(mobile-chat)로 옮김 (2026-10-18 "말풍선도 여기로 이동") -->
     <button class="btn small primary" data-testid="quick-panel-open" onclick={() => (app.panelOpen = true)}>상세정보</button>
   </div>
   {#if pending}

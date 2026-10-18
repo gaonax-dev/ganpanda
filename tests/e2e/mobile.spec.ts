@@ -278,3 +278,40 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 그 변만 꼭짓
   const q2 = await quad();
   expect(edgeMoved(q1, q2, 1)).toBe(true);
 });
+
+test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 그 사인물 말풍선에 음성 메모가 붙고 말풍선이 열린다 (2026-10-18)', async ({ page, request }) => {
+  // 마이크 대신 WebAudio 발진기 스트림 (헤드리스 크롬에 마이크가 없음)
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices ?? ((navigator as unknown as { mediaDevices: object }).mediaDevices = {} as MediaDevices);
+    md.getUserMedia = async () => { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const dst = ctx.createMediaStreamDestination(); osc.connect(dst); osc.start(); return dst.stream; };
+  });
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const id = app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600 });
+    app.selectObject(id);
+  });
+  const menu = page.getByTestId('mobile-edit');
+  await expect(menu).toBeVisible();
+  // 순서: 복사·붙여넣기·복제·말풍선·정리·녹음(맨 오른쪽). 빠른 막대의 말풍선 단추는 없어졌다
+  await expect(menu.locator('button')).toHaveCount(6);
+  await expect(menu.locator('button').last()).toHaveAttribute('data-testid', 'mobile-record');
+  await expect(page.getByTestId('quick-chat-open')).toHaveCount(0);
+  await page.getByTestId('mobile-record').click();
+  await expect(page.getByTestId('mobile-record')).toContainText('■');
+  await page.waitForTimeout(1200);
+  await page.getByTestId('mobile-record').click();
+  const chat = page.getByTestId('object-chat');
+  await expect(chat).toBeVisible();
+  await expect(chat).toContainText('음성 메모');
+  await expect(chat.getByTestId('chat-audio')).toHaveCount(1, { timeout: 10_000 });
+  await expect(page.getByTestId('mobile-record')).toContainText('녹음');
+  // 말풍선 단추로 열고, 정리로 선택을 풀면 메뉴가 사라진다
+  await page.getByTestId('object-chat-close').click();
+  await page.getByTestId('mobile-chat').click();
+  await expect(chat).toBeVisible();
+  await page.getByTestId('mobile-done').click();
+  await expect(menu).toHaveCount(0);
+  await expect(chat).toHaveCount(0);
+});

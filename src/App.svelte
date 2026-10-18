@@ -14,6 +14,41 @@
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
   import QuickBar from './lib/ui/QuickBar.svelte';
+  import { putAsset } from './lib/assets';
+  import { VoiceRecorder } from './lib/recorder';
+  import { baseMime, recordingLabel, voiceFileName, voiceMemoText } from './lib/core/attachments';
+
+  // 휴대폰 녹음 (2026-10-18): 누르면 시작, 다시 누르면 마치고 그 사인물의 말풍선에 음성 메모로 보낸 뒤 말풍선을 연다
+  let recorder = $state<VoiceRecorder | null>(null);
+  let recSec = $state(0);
+  let recBusy = $state(false);
+  let recTimer = 0;
+  async function toggleRecord() {
+    const o = app.selected;
+    if (!o) return;
+    if (recorder) {
+      const r = recorder, id = o.id, sec = r.seconds;
+      recorder = null; clearInterval(recTimer); recBusy = true;
+      try {
+        const blob = await r.stop();
+        if (blob.size < 200 || sec < 0.5) { app.notice = '녹음이 너무 짧습니다.'; return; }
+        const assetId = await putAsset(blob);
+        const type = baseMime(blob.type || 'audio/webm');
+        await app.sendMessage(id, voiceMemoText(sec), 'chat', [{ assetId, name: voiceFileName(type, new Date()), type, size: blob.size }]);
+        app.openChat(id);
+      } catch (e) { app.notice = `음성 메모를 보내지 못했습니다: ${e instanceof Error ? e.message : e}`; }
+      finally { recBusy = false; }
+      return;
+    }
+    if (!VoiceRecorder.supported()) { app.notice = '이 브라우저에서는 녹음을 쓸 수 없습니다.'; return; }
+    const r = new VoiceRecorder();
+    recBusy = true;
+    try { await r.start(); recorder = r; recSec = 0; recTimer = window.setInterval(() => { recSec = r.seconds; }, 250); }
+    catch { app.notice = '마이크를 쓸 수 없습니다. 브라우저의 마이크 허용을 확인해 주세요.'; }
+    finally { recBusy = false; }
+  }
+  // 선택이 바뀌거나 풀리면 녹음 중이던 것은 버린다
+  $effect(() => { const id = app.selectedId; if (!id && recorder) { recorder.cancel(); recorder = null; clearInterval(recTimer); } });
   import PricesDialog from './lib/ui/PricesDialog.svelte';
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
@@ -85,11 +120,14 @@
     {#if app.room && app.access.status === 'ok' && !app.proposalMode && app.view === 'board'}
       <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
       {#if app.compact && app.selected && app.canEdit}
-        <!-- 휴대폰: 사인물을 고르면 단계 자리에 복사·붙여넣기·복제 (2026-10-18 사용자) -->
+        <!-- 휴대폰: 사인물을 고르면 단계 자리에 복사·붙여넣기·복제 (2026-10-18 사용자) + 말풍선·정리·녹음 (같은 날: "상단 메뉴에 녹음 버튼 … 말풍선도 여기로 … 녹음이 맨 오른쪽 같은자리에 정리버튼") -->
         <div class="views stage" data-testid="mobile-edit">
           <button data-testid="mobile-copy" title="복사" onclick={() => app.copySelected()}>복사</button>
           <button data-testid="mobile-paste" title="붙여넣기" disabled={!app.clipboard} onclick={() => app.pasteClipboard()}>붙여넣기</button>
           <button data-testid="mobile-duplicate" title="복제" onclick={() => app.duplicateSelected()}>복제</button>
+          <button data-testid="mobile-chat" title="말풍선 (이 사인물의 대화)" onclick={() => app.openChat(app.selected!.id)}>💬{#if app.unread[app.selected.sameAs ?? app.selected.id]}<span class="n">{app.unread[app.selected.sameAs ?? app.selected.id]}</span>{/if}</button>
+          <button data-testid="mobile-done" title="정리 — 선택을 풀고 편집을 마칩니다" onclick={() => { app.closeChat(); app.panelOpen = false; app.selectObject(null); }}>정리</button>
+          <button class="rec" class:on={!!recorder} data-testid="mobile-record" title={recorder ? '녹음 마침 — 말풍선에 보냅니다' : '녹음 — 이 사인물에 음성 메모'} disabled={recBusy} onclick={toggleRecord}>{recorder ? recordingLabel(recSec) : '🎙 녹음'}</button>
         </div>
       {:else}
       <div class="views stage" data-testid="stage">
@@ -233,6 +271,8 @@
   .project { font-weight: 600; font-size: 14px; }
   .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; }
   .views.hidden { visibility: hidden; }
+  .views button.rec.on { background: rgba(255, 70, 70, 0.22); color: #ff8080; font-variant-numeric: tabular-nums; }
+  .views button .n { font-size: 11px; background: var(--accent); color: #fff; border-radius: 8px; padding: 0 5px; }
   .views { display: flex; gap: 2px; background: var(--input); padding: 3px; border-radius: 9px; }
   .views button { background: none; border: 0; color: var(--muted); padding: 6px 14px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .views button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }

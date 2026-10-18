@@ -21,7 +21,7 @@
     attachError = '';
     for (const f of [...files]) {
       if (pending.length + uploading >= ATTACH_MAX) { attachError = `첨부는 ${ATTACH_MAX}개까지입니다.`; break; }
-      if (!(f.type.startsWith('image/') || f.type === 'application/pdf')) { attachError = '사진이나 PDF 만 첨부할 수 있습니다.'; continue; }
+      if (!(f.type.startsWith('image/') || f.type === 'application/pdf' || f.type.startsWith('audio/'))) { attachError = '사진·PDF·음성만 첨부할 수 있습니다.'; continue; }
       uploading++;
       try {
         const assetId = await putAsset(f);
