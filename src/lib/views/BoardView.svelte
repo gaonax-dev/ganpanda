@@ -126,7 +126,8 @@
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
-    if (action === 'gizmoMove' || action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoMove' ? 'move' : action === 'gizmoRotate' ? 'rotate' : 'scale'; return; }
+    if (action === 'gizmoMove') { app.tool = 'select'; app.gizmoMode = app.gizmoMode === 'move' ? 'none' : 'move'; return; } // W = 이동 켜기/끄기 (2026-10-18)
+    if (action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoRotate' ? 'rotate' : 'scale'; return; } // 단추는 숨겼지만 단축키로는
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
     else if (action === 'toolEllipse') app.tool = 'ellipse';

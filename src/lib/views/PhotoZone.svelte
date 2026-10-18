@@ -10,11 +10,10 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { bodyLook, frameLook } from '../core/render';
-  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
+  import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint, solveHomography } from '../core/homography';
-  import { boxDirOf, boxLocalDirOf, faceOf, placeOnWall, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
-  import { thicknessOf } from '../core/render';
+  import { boxDirOf, faceOf, wallPlaneOf } from '../core/wallPlane';
   import type { Calibration } from '../core/calibration';
   import { bubbleLabel, lastStateOf } from '../core/bubbles';
   import { DEFAULT_TIP, UNIT_RECT } from '../core/bubbleShape';
@@ -198,19 +197,6 @@
    * 두께 있는 사인물만. 흰 상자 = 3D 가 그릴 면(signPlaneOf)에서 외곽선을 카메라 쪽으로 밀어낸 상자(보기 쉽게 깊이 = 짧은 변).
    * (자홍 점선 제안 상자는 없앰 — 2026-10-15 사용자: "너무 복잡해". 면 방향은 signPlaneOf 가 구도로 알아본다)
    */
-  function boxFor(o: SignObject, q: Pt[]) {
-    if (!thicknessOf(o)) return null;
-    const cal = calib?.metric ? wallPlaneOf([], calib) : null;
-    // 박스 방향 (고리로 돌리는 중이면 그 방향) — 외곽선은 그대로, 상자만 그 방향으로
-    const live = editing?.id === o.id && editing.box ? { ...o, quad: q, boxDir: editing.box, faceAxis: undefined } : { ...o, quad: q };
-    const pl = signPlaneOf(live, cal);
-    if (!pl) return null;
-    const at = placeOnWall(pl, { quad: q });
-    const depth = Math.min(at.w, at.h);
-    const dir = boxLocalDirOf(live, pl, cal, photo.w, photo.h) ?? undefined;
-    const box = boxGuideOf(projectionFromPlane(pl, photo.w, photo.h), q.map((p) => applyHomography(pl.Hinv, p)), depth, dir);
-    return box ? { box } : null;
-  }
 
   /** 원근 매니퓰레이터: 외곽선을 기준 면의 직사각형으로 펴고, 면 축에서 조금 기운 방향은 축에 맞춘다 */
   function alignToPerspective(o: SignObject) {
@@ -389,14 +375,12 @@
   {/each}
 {/snippet}
 {#snippet modeChips(at: Pt)}
-  <!-- 매니퓰레이터 모드: 이동 ✥ / 회전 ⟳ / 크기 ⤡ (글자 대신 아이콘, 2026-10-15 사용자: "글자로 표시된 건 혼란스럽다") -->
-  <g class="modes" transform="translate({at[0] - 33 * gu} {at[1] + 14 * gu})">
-    {#each [['move', '✥', '이동 (W)'], ['rotate', '⟳', '회전 (E)'], ['scale', '⤡', '크기 (R)']] as [m, icon, label], i (m)}
-      <g class="mode" class:on={gizmoMode === m} role="button" tabindex="-1" data-testid="gizmo-mode-{m}" onpointerdown={(e) => { e.stopPropagation(); app.gizmoMode = m as typeof app.gizmoMode; }}>
-        <title>{label}</title>
-        <circle cx={i * 22 * gu + 11 * gu} cy={9 * gu} r={9 * gu} /><text x={i * 22 * gu + 11 * gu} y={13 * gu} font-size={12 * gu} text-anchor="middle">{icon}</text>
-      </g>
-    {/each}
+  <!-- 매니퓰레이터 모드 단추 (2026-10-18 사용자: "회전 스케일 우선 숨겨줘, 이동도 이동 선택하면 나오게 기본은 안나오게"): [이동 ✥] 하나, 누르면 켜고 끈다. 회전·크기는 단축키 E·R 로만 -->
+  <g class="modes" transform="translate({at[0] - 11 * gu} {at[1] + 14 * gu})">
+    <g class="mode" class:on={gizmoMode === 'move'} role="button" tabindex="-1" data-testid="gizmo-mode-move" onpointerdown={(e) => { e.stopPropagation(); app.gizmoMode = gizmoMode === 'move' ? 'none' : 'move'; }}>
+      <title>이동 (W)</title>
+      <circle cx={11 * gu} cy={9 * gu} r={9 * gu} /><text x={11 * gu} y={13 * gu} font-size={12 * gu} text-anchor="middle">✥</text>
+    </g>
   </g>
 {/snippet}
 
@@ -548,17 +532,6 @@
       {@const chatId = o.sameAs ?? o.id}
       {@const lastMsg = lastStateOf(app.messages, chatId)}
       {@const turned = !!o.turn}
-      {#if sel && editable && tool === 'select' && gizmoable(o)}
-        {@const bg = boxFor(o, q)}
-        {#if bg}
-          {@const edges = (b: { back: Pt[]; front: Pt[] }) => [0, 1, 2, 3].flatMap((i) => [[b.back[i], b.back[(i + 1) % 4]], [b.front[i], b.front[(i + 1) % 4]], [b.back[i], b.front[i]]]) as [Pt, Pt][]}
-          <g class="boxg" data-testid="box-guide" pointer-events="none">
-            <polygon class="face" points={bg.box.front.map((p) => p.join(',')).join(' ')} />
-            {#each edges(bg.box) as [a, b], i (i)}<line class="halo" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={2.4 * u} />{/each}
-            {#each edges(bg.box) as [a, b], i (i)}<line class="edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke-width={1 * u} />{/each}
-          </g>
-        {/if}
-      {/if}
       <g class="sign" class:sel={sel || multiSel} class:same class:warn data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
@@ -590,6 +563,14 @@
             onbody={(dx, dy) => saveBubble(tipP, [bodyP[0] + dx, bodyP[1] + dy])}
             ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
+        {/if}
+        <!-- 휴대폰: 변 가운데 손잡이 (2026-10-18 사용자: "모바일에서는 아웃라인 변이 선택되지 않는데 변 가운데 컨트롤로 나오게 모바일에서만") — 누르면 변 막대와 같이 옮긴다 -->
+        {#if sel && editable && tool === 'select' && !turned && app.compact}
+          {#each [0, 1, 2, 3] as i (i)}
+            {@const a = q[i]}
+            {@const b = q[(i + 1) % 4]}
+            <circle class="edge-handle" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={11 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+          {/each}
         {/if}
         <!-- 이동 모드 변 막대: 매니퓰레이터가 있든 없든(다각형·면 없음) 선택한 외곽선마다 (2026-10-17 사용자: "이동 매니퓰레이터 막대 다 넣기로 했는데"). 꼭짓점 손잡이보다 아래 층 -->
         {#if sel && editable && tool === 'select' && !turned && gizmoMode === 'move'}
@@ -750,6 +731,7 @@
   svg.pinning { cursor: copy; }
   .pin { cursor: pointer; }
   .edge-bar { stroke: var(--accent); stroke-opacity: 0.35; stroke-linecap: round; cursor: move; }
+  .edge-handle { fill: rgba(255, 204, 0, 0.35); stroke: var(--accent); cursor: move; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
   .confirms { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 360px; }
@@ -784,11 +766,6 @@
   .overlay { z-index: 1; }
   /* 입체 매니퓰레이터 */
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
-  /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자, 자홍 점선 = 원근 설정대로의 상자 */
-  .boxg .face { fill: rgba(255, 255, 255, 0.12); stroke: none; }
-
-  .boxg .edge { stroke: #fff; stroke-linecap: round; }
-  .boxg .halo { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
   .gizmo .halo { fill: none; stroke: rgba(0, 0, 0, 0.75); pointer-events: none; stroke-linecap: round; }
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ring-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; } /* 얇은 고리를 잡기 쉽게 넓은 투명 영역 */

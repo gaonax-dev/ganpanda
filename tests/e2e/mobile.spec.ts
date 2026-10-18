@@ -201,6 +201,11 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
     const id = app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600, note: '급함', depthMm: 100, options: { paintSystem: '기본색', paintCode: '흰색' }, parts: [{ id: 'c', kind: 'channel', type: 'ch-halo', options: { bodySystem: '기본색', bodyCode: '갈색', ledColor: '주백색' }, items: [] }] });
     app.selectObject(id);
   });
+  // 휴대폰 (2026-10-18): 사인물을 고르면 단계 자리에 복사·붙여넣기·복제, 빠른 막대에 퀵입력, 외곽선 변 가운데 손잡이
+  await expect(page.getByTestId('mobile-duplicate')).toBeVisible();
+  await expect(page.getByTestId('stage')).toHaveCount(0);
+  await expect(page.getByTestId('quick-bar').getByTestId('spec-text')).toBeVisible();
+  await expect(page.locator('[data-testid^="edge-handle-"]')).toHaveCount(4);
   await page.getByTestId('quick-panel-open').click();
   const panel = page.getByTestId('object-panel');
   await expect(panel).toBeVisible();
