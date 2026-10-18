@@ -39,7 +39,7 @@
   header { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
   h2 { flex: 1; margin: 0; font-size: 16px; }
   .body { overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
-  label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; } /* 라벨 왼쪽·입력 오른쪽 (2026-10-18) */
+  label { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; } /* 라벨 왼쪽·입력 오른쪽 (2026-10-18) */
   label > input, label > select, label > textarea { flex: 1; min-width: 0; white-space: normal; }
   label:has(textarea) { align-items: flex-start; }
   .hint { color: var(--muted); font-size: 11px; margin: 0; }

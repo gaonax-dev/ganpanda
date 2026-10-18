@@ -196,7 +196,7 @@
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-  .opt { display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+  .opt { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
   .opt > input { flex: 1; min-width: 0; }
   .gz { margin-top: 8px; }
   .gz input { flex: 1; }

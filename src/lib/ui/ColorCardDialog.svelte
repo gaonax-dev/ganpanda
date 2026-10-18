@@ -191,7 +191,7 @@
   .menu button:hover { background: rgba(255,255,255,0.06); }
   .menu button.danger { color: #ff8a80; }
   .form { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
-  .form label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; } /* 라벨 왼쪽·입력 오른쪽 (2026-10-18) */
+  .form label { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; } /* 라벨 왼쪽·입력 오른쪽 (2026-10-18) */
   .form label > input:not([type='color']), .form label > select, .form label > .hexrow, .form label > .tagbox { flex: 1; min-width: 0; }
   .form input, .form select { font: inherit; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }

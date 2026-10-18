@@ -260,17 +260,17 @@
   h3 .hint { font-weight: 400; color: var(--muted); }
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   /* 옵션은 가로 한 줄: 라벨 왼쪽, 컨트롤 오른쪽 (2026-10-18 "세로 배치가 자리를 많이 차지하고 헷갈려") */
-  .opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .opt { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); min-width: 0; }
   .opt > select, .opt > input { flex: 1 1 50%; min-width: 0; max-width: 62%; margin-top: 0; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 6px; grid-column: 1 / -1; }
   textarea { width: 100%; box-sizing: border-box; }
-  .slider { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .slider { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
   .slider input { flex: 1; min-width: 0; }
   .badge { background: var(--blue); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
   select { margin-top: 8px; }
   .chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .thickrow { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-  .thickrow label { display: flex; align-items: center; gap: 6px; }
+  .thickrow label { display: flex; flex-direction: row; align-items: center; gap: 6px; }
   .thickrow input { width: 100px; }
   .chips button {
     background: var(--input); border: 1px solid var(--line); color: var(--muted); border-radius: 14px;

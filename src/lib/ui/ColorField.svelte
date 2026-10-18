@@ -84,7 +84,7 @@
   .box.empty { background: var(--input); border-style: dashed; }
   .box:disabled { cursor: default; opacity: 0.6; }
   .ext { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px dashed var(--line); }
-  .ext label { display: flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; } /* 가로 한 줄 (2026-10-18) */
+  .ext label { display: flex; flex-direction: row; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; } /* 가로 한 줄 (2026-10-18) */
   .ext input { width: 120px; }
   .ext .alpha input { width: 110px; }
 </style>
