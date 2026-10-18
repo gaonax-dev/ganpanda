@@ -3,10 +3,10 @@
 // 체널도 추가 할수 있는 시트를 올려 커팅시트, uv출력 시트… 글자와 객체 여러개", 답 "뭐든 붙일 수 있다", "그림: 디자인 파일·직접 올린 그림 둘다").
 // 사인물 = 간판 프레임(productId·options) + 구성 요소(parts: 채널·스카시·시트) + 내용 객체(items: 글자·그림, 간판 중앙 기준 mm).
 // 저장된 parts 가 없으면 옛 필드(채널·스카시 옵션, 문구, 시트)에서 읽을 때 만든다 — 예전 프로젝트는 그대로 동작한다.
-import type { PartItem, SignObject, SignPart } from './model';
+import type { Layer, PartItem, SignObject, SignPart } from './model';
 import { CHANNEL_OPTIONS, SCASHI_OPTIONS, isChannelProduct, productById, takesLetters } from './catalog';
 import { COMPONENTS, componentOf } from './components';
-import { fromParts, toParts } from './layers';
+import { fromParts, mergeParts, orderLike, sameParts, toParts } from './layers';
 
 /**
  * 분류(종류)마다 붙일 수 있는 구성 요소 (2026-10-16 사용자: "사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘").
@@ -87,9 +87,17 @@ export function partsOf(o: SignObject): SignPart[] {
 export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
   'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
 /** 구성 요소 저장 패치: parts 로 저장하고 옛 옵션·sheetIds 를 정리 (설정 창 카드와 빠른 설정이 같이 씀) */
-export function commitParts(o: Pick<SignObject, 'options'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
+export function commitParts(o: Pick<SignObject, 'options' | 'layers' | 'parts'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
   const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));
-  return { parts, layers: fromParts(parts), options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf). layers = 트리(1단계), parts 는 그 거울
+  // 트리가 있고 거울과 맞으면 편집을 트리에 **병합**(그룹·이름·보이기·잠금 유지, 3단계), 아니면 새로 만든다
+  const keep = o.layers && (!o.parts || sameParts(toParts(o.layers), o.parts));
+  const layers = keep ? mergeParts(o.layers!, parts) : fromParts(parts);
+  return { parts: orderLike(toParts(layers), parts), layers, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf). layers = 트리, parts 는 그 거울(숨긴 것 제외, 편집 전 순서 유지)
+}
+/** 레이어 패널 편집 저장: 트리를 쓰고 거울(parts)을 다시 만든다 */
+export function commitLayers(o: Pick<SignObject, 'options'>, layers: Layer[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
+  const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));
+  return { parts: toParts(layers), layers, options, sheetIds: [] };
 }
 
 /** p 가 올라간 것(on)을 따라 깊이: 프레임 면 0, 채널·시트 위 = 그것의 깊이 + 1 (순환·없는 id 는 0) */

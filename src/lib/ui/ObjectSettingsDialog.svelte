@@ -5,6 +5,8 @@
   import { commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import FrontEditor from './FrontEditor.svelte';
+  import LayerPanel from './LayerPanel.svelte';
+  import { flatten, isItemLayer, layersOf, lockedItemIds } from '../core/layers';
   import type { PartItem } from '../core/model';
   import PartsEditor from './PartsEditor.svelte';
   import QuickSpec from './QuickSpec.svelte';
@@ -42,7 +44,7 @@
   let tab = $state<string>(initial === 'channel' || initial === 'led' ? (parts.find((p) => p.kind === 'channel') ? `part:${parts.find((p) => p.kind === 'channel')!.id}` : 'body') : initial === 'thick' ? 'body' : initial ?? defaultTab());
   const activePart = $derived(tab.startsWith('part:') ? parts.find((p) => p.id === tab.slice(5)) : undefined);
   // 탭의 구성 요소가 사라지면(지움) 몸통으로
-  $effect(() => { if (tab.startsWith('part:') && !activePart) tab = defaultTab(); if (tab === 'layout' && !parts.some((p) => p.items.length)) tab = defaultTab(); });
+  $effect(() => { if (tab.startsWith('part:') && !activePart) tab = defaultTab(); if (tab === 'layout' && !anyItemLayer) tab = defaultTab(); });
   /** 배치 탭(정면도)에서 객체를 고칠 때 */
   const setItemById = (partId: string, itemId: string, patch: Partial<PartItem>) => {
     const ps = JSON.parse(JSON.stringify(parts)) as typeof parts;
@@ -50,6 +52,10 @@
     if (it) { Object.assign(it, patch); update(commitParts(obj, ps)); }
   };
   let layoutSel = $state<{ part: string; item: string } | null>(null);
+  /** 레이어 트리 (3단계): 잠긴 객체는 정면도에서 못 끌고, 숨긴 객체가 있어도 배치 탭은 남는다 */
+  const layerTree = $derived(layersOf(obj, parts));
+  const lockedIds = $derived(lockedItemIds(layerTree));
+  const anyItemLayer = $derived(flatten(layerTree).some((f) => isItemLayer(f.layer)));
 
   /** 조합형 (2026-10-16): 분류마다 붙일 수 있는 구성 요소(채널·스카시·시트)를 카드로 — 간판뿐 아니라 시트·스카시·포맥스·라이트패널·액자·어닝·사인미러도
       ("사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘") */
@@ -212,8 +218,9 @@
         <section><h3>{componentOf(activePart.kind).label} <span class="hint">글자·그림 위치는 [배치] 탭의 정면도에서도</span></h3>
           <PartsEditor {obj} {ro} {update} kinds={partKinds} partId={activePart.id} /></section>
       {:else if tab === 'layout'}
-        <section><h3>배치 <span class="hint">글자·그림을 간판 면 위에서 끌어 놓기 — 3D·실사·전개도에 그대로</span></h3>
-          <FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} /></section>
+        <section><h3>배치 <span class="hint">글자·그림·도형을 간판 면 위에서 끌어 놓기 — 3D·실사·전개도에 그대로. 레이어 패널에서 순서·보이기·잠금·그룹 (2026-10-18)</span></h3>
+          <FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} locked={lockedIds} />
+          <LayerPanel {obj} {ro} {update} bind:sel={layoutSel} /></section>
       {/if}
 
       {#if tab === 'note' || (tab !== 'price' && !category)}

@@ -111,3 +111,79 @@ describe('2단계: 그룹은 투명, 도형 왕복, 깊이 누적', async () => 
   });
 });
 
+
+// 3단계 (2026-10-18): 편집 병합·패널 동작
+describe('3단계: 병합·숨김·잠금·순서·그룹', async () => {
+  const L = await import('../../src/lib/core/layers');
+  const mk = () => {
+    const ch = newPart('channel', 'ch-front'); ch.items = [{ ...newItem('text'), id: 't1', text: 'A', h: 300, x: -500, y: 0 }, { ...newItem('shape'), id: 's1', h: 100, w: 100, x: 500, y: 0 }];
+    const sh = newPart('sheet', 'sh-print'); sh.items = [{ ...newItem('image'), id: 'i1', h: 200, w: 200, x: 0, y: 100 }];
+    return { ch, sh, layers: fromParts([ch, sh]) };
+  };
+  it('그룹으로 묶은 뒤 정면도에서 객체를 옮겨도(펼친 parts 편집) 그룹이 남고 좌표는 로컬로', () => {
+    const { ch, sh, layers } = mk();
+    const grouped = L.groupLayers(layers, ['t1', 's1'], '제목');
+    expect(grouped[0].children.map((c) => c.kind)).toEqual(['group']);
+    // 펼친 거울에서 t1 을 x=-200 으로 끈 결과를 병합
+    const parts = toParts(grouped);
+    parts[0].items[0].x = -200;
+    const merged = L.mergeParts(grouped, parts);
+    const g = merged[0].children[0];
+    expect(g.kind).toBe('group'); expect(g.name).toBe('제목');
+    expect(g.children.find((c) => c.id === 't1')!.box.x).toBe(-200);
+    expect(sameParts(toParts(merged), parts)).toBe(true);
+    // commitParts 도 같은 길: 트리가 있으면 병합
+    const o = obj({ productId: 'board-galva', layers: grouped, parts: toParts(grouped) });
+    expect(commitParts(o, parts).layers![0].children[0].kind).toBe('group');
+    void ch; void sh;
+  });
+  it('병합: 새 객체·새 구성 요소는 붙고, 사라진 것은 지워지며, on 이 바뀌면 옮겨진다', () => {
+    const { layers } = mk();
+    const parts = toParts(layers);
+    parts[0].items.push({ ...newItem('text'), id: 't2', text: 'B', h: 200 }); // 새 글자
+    parts[0].items.splice(1, 1); // s1 삭제
+    parts[1].on = parts[0].id; // 시트를 채널 앞면으로
+    parts.push({ ...newPart('scashi', 'sc-titan'), id: 'sc' });
+    const m = L.mergeParts(layers, parts);
+    expect(m.map((l) => l.id)).toEqual([parts[0].id, 'sc']);
+    expect(m[0].children.map((c) => c.id)).toHaveLength(3);
+    expect(m[0].children.map((c) => c.id)).toEqual(expect.arrayContaining(['t1', 't2', parts[1].id])); // 새 글자와 옮겨 온 시트가 채널 아래에
+    expect(sameParts(toParts(m), parts)).toBe(true);
+  });
+  it('숨긴 레이어는 거울·3D 에서 빠지고, 병합 때 지워지지 않는다; 잠긴 것은 끌 수 없는 목록에', () => {
+    const { layers } = mk();
+    const hidden = L.setLayerProps(layers, 's1', { visible: false });
+    expect(toParts(hidden)[0].items.map((i) => i.id)).toEqual(['t1']);
+    expect(L.placedItems(hidden, () => 0).map((p) => p.item.id)).toEqual(['t1', 'i1']);
+    const merged = L.mergeParts(hidden, toParts(hidden));
+    expect(merged[0].children.map((c) => c.id)).toEqual(['t1', 's1']); // s1 남음
+    expect(L.setLayerProps(hidden, 's1', { visible: true })[0].children[1].visible).toBeUndefined();
+    const locked = L.setLayerProps(layers, layers[0].id, { locked: true });
+    expect([...L.lockedItemIds(locked)]).toEqual(['t1', 's1']); // 채널이 잠기면 그 글자·도형도
+    expect(L.nearestPartId(L.groupLayers(layers, ['t1', 's1']), 't1')).toBe(layers[0].id);
+  });
+  it('순서: 같은 부모 안에서 한 칸씩, 끝에서는 그대로; 그룹 풀기는 오프셋을 자식에 더한다', () => {
+    const { layers } = mk();
+    expect(L.moveLayer(layers, layers[1].id, -1).map((l) => l.kind)).toEqual(['sheet', 'channel']);
+    expect(L.moveLayer(layers, layers[0].id, -1).map((l) => l.kind)).toEqual(['channel', 'sheet']);
+    const g = L.groupLayers(layers, ['t1', 's1']);
+    const gid = g[0].children[0].id;
+    const moved = L.setLayerProps(g, gid, { name: '묶음' }); moved[0].children[0].box = { x: 100, y: 50, w: 0, h: 0 };
+    const un = L.ungroupLayer(moved, gid);
+    expect(un[0].children.map((c) => [c.id, c.box.x, c.box.y])).toEqual([['t1', -400, 50], ['s1', 600, 50]]);
+    expect(L.removeLayer(layers, 'i1')[1].children).toEqual([]);
+    expect(L.groupLayers(layers, ['t1', 'i1'])).toEqual(layers); // 부모가 다르면 안 묶임
+  });
+
+  it('시트를 다른 시트 위에 올려도 거울의 구성 요소 순서는 편집 전 그대로 (칩 순서 유지), 비교는 순서 무시', () => {
+    const ch = newPart('channel', 'ch-front'), uv = newPart('sheet', 'sh-print'), frost = newPart('sheet', 'sh-cut');
+    const o = obj({ productId: 'board-galva', ...commitParts({}, [ch, uv, frost]) });
+    const edited = JSON.parse(JSON.stringify(o.parts)) as typeof o.parts;
+    edited!.find((p) => p.id === uv.id)!.on = frost.id;
+    const c = commitParts(o, edited!);
+    expect(c.parts!.map((p) => p.id)).toEqual([ch.id, uv.id, frost.id]); // uv 가 frost 아래로 갔지만 순서 유지
+    expect(c.layers!.map((l) => l.id)).toEqual([ch.id, frost.id]); // 트리에서는 frost 의 자식
+    expect(sameParts(toParts(c.layers!), c.parts!)).toBe(true);
+  });
+});
+

@@ -129,11 +129,18 @@ export const registry = new Map<string, Component>();
 - `core/layers.ts`: `fromParts`(펼친 구성 요소 → 트리: `on` 으로 올린 시트는 그 아래, 글자·그림은 구성 요소의 자식, 없는 id 위는 프레임 면), `toParts`(트리 → 펼침: `on` = 부모 id/`frame`, 부모 오프셋을 더해 간판 중심 기준 좌표로), `sameParts`(정규형 비교), `layersOf(o, parts)`, `frameOf(o, children)`(프레임 레이어 = 사인물 자체: 종류·옵션·두께·치수가 spec), `flatten`(그리는 순서로 펼친 목록 + 절대 상자), `findLayer`.
 - **저장 규칙(병행 기간)**: `commitParts`·`categoryPatch` 가 `layers`(트리)와 `parts`(펼친 거울)를 **함께** 쓴다. 읽는 쪽은 둘이 같을 때만 트리를 믿고, 다르면(옛 클라이언트가 parts 만 고침) parts 에서 트리를 다시 만든다. 트리만 있는 사인물도 `partsOf` 가 읽는다(`toParts`). 연결(`sameAs`)의 규격 필드(`link.ts SPEC_FIELDS`)·다중 선택 "구성 맞추기"에 `layers` 포함. 거울을 없애고 트리만 저장하는 시점은 2단계(3D·정면도가 트리를 직접 읽을 때) 이후.
 - 프레임 레이어는 저장하지 않는다 — `SignObject` 가 곧 프레임(1:1: 치수·`sameAs`·디자인·말풍선이 사인물에 붙어 있음). 2단계에서 3D·견적이 `frameOf(o, layersOf(o))` 트리를 순회하면 프레임도 같은 인터페이스(`Component`)로 다룬다.
-- 아직 안 한 것(3단계 이후): 레이어 패널 UI(보이기·잠금·순서·그룹 만들기), 정면도 편집기의 트리 선택, 세트 라이브러리.
+- 아직 안 한 것(4단계): 세트 라이브러리, 새 컴포넌트(조명·LED 모듈·몰딩·지주), 거울 `parts` 없애고 트리만 저장.
 
 ### 2단계 — 트리 순회 3D · 도형 · 그룹 (구현됨 2026-10-18)
 - **3D 깊이 누적**: `renderSpecOf`→`composedOf` 가 펼친 parts 가 아니라 **레이어 트리**(`layersOf`)를 걷는다(`core/layers.ts` `placedItems(layers, depthOf)`): 내용 객체마다 (절대 좌표, 거둔 구성 요소, **z** = 자기 구성 요소를 뺀 조상 구성 요소 두께의 합). 채널 앞면 위 시트의 글자·그림·도형은 z = 채널 두께, 시트 위 시트는 0, 채널 글자는 0 에서 두께만큼 솟는다. `SignSpec.faceItems[].z`·`letterItems[].z`. `sim/signs.ts`: z ≤ 0.5mm 는 앞면 텍스처에 그대로 그리고, 올라선 것은 **그 높이의 얇은 판**(`facePlane`, 캔버스 텍스처 PlaneGeometry, 자리는 정점에 굽어 `warpToQuad`·`recessBox` 와 함께 움직임)으로. 그리기 공용 `drawFaceItem`(그림·글자·도형).
 - **도형**(`PartItem.kind: 'shape'`, `shape: rect|ellipse|line`, `fill?`·`stroke?` #hex): 정면도 편집기·카드·전개도 SVG(`shapeSvg`)·3D 앞면 모두. 설정 창 구성 요소 카드의 [+ 도형](`add-item-shape`), 모양(`item-shape`)·채움(`item-fill`)·선(`item-stroke`)·가로. 채움·선이 둘 다 없으면 종류 색 점선 상자. 시트 면적 계산에는 크기가 있는 객체로 들어간다(그림과 같음). 요약에 "도형 n".
 - **그룹**(`Layer.kind: 'group'`, `GROUP_KIND`): 자식을 묶어 함께 옮기는 레이어. 자기 spec·단가·3D 없음. `toParts`/`placedItems` 에서 **투명**(오프셋만 누적, 자식 내용 객체는 가장 가까운 구성 요소 조상이 거둠) — 펼친 거울 `parts` 에는 남지 않으므로 그룹은 **트리가 있는 사인물에서만** 산다(옛 클라이언트가 parts 만 고치면 풀린다). 만드는 UI 는 3단계 레이어 패널. 자식 규칙 `canHold(parentKind, childKind, ancestors)`: 프레임 = 구성 요소·그룹, 구성 요소 = 내용 객체·그룹·(올릴 수 있으면) 시트, 그룹 = 부모와 같음.
 - 테스트: `tests/unit/layers.test.ts`(그룹 투명·도형 왕복·깊이 누적·canHold), `tests/unit/parts.test.ts`(3D z·도형 faceItems), `tests/unit/partsLayout.test.ts`(shapeSvg), E2E `partsLayout.spec.ts`(카드·전개도의 도형, 채널 위 시트가 있는 3D 합성), `frontEditor.spec.ts`([+ 도형]).
+
+### 3단계 — 레이어 패널 (구현됨 2026-10-18)
+- **편집 병합**(`core/layers.ts` `mergeParts(layers, parts)`): 정면도 끌기·카드 입력처럼 **펼친 parts 를 고치는 기존 편집**이 트리를 새로 만들지 않고 **기존 트리에 병합**된다 — 같은 id 는 자리에서 갱신(좌표는 부모 오프셋을 빼 로컬로), `on` 이 바뀌면 옮기고, 새것은 끝에, parts 에 없는 **보이는** 것만 지운다. 그래서 그룹·이름·보이기·잠금이 편집에도 남는다. `commitParts` 가 트리가 거울과 맞을 때 이 길을 탄다; 패널 편집은 `commitLayers`(트리 저장 + 거울 재생성).
+- **숨김**(`visible: false`): `toParts`·`placedItems` 가 그 레이어(와 아래)를 건너뛴다 → 거울·정면도·카드·전개도·견적·3D 모두에서 빠진다(= 만들지 않는 것). 숨긴 레이어는 트리에만 남고 병합 때 지워지지 않는다. **잠금**(`locked`): 자기 또는 조상이 잠긴 내용 객체(`lockedItemIds`)는 정면도에서 고를 수는 있지만 끌기·방향키·정렬이 안 된다(`FrontEditor` `locked`).
+- **패널**(`ui/LayerPanel.svelte`, `layer-panel`, 설정 창 [배치] 탭의 정면도 아래): 트리 행(`layer-row`, `data-kind`·`data-id`·`data-selected`·`data-hidden`) — 부모 행 아래 자식, 같은 형제는 **위가 맨 위 레이어**(일러스트레이터 손버릇), 맨 아래 프레임 행(`layer-frame`). 행을 누르면 정면도 선택과 같이(`sel` 양방향), 접기(▾/▸), 체크(`layer-check`) → [그룹](`layer-group`, 같은 부모 안에서만, `groupLayers`), 눈(`layer-eye`, `setLayerProps visible`), 자물쇠(`layer-lock`), 이름 더블클릭(`layer-name`→`layer-name-input`), ▲▼(`layer-up/down`, `moveLayer` — 같은 부모 안 한 칸), 그룹 [풀기](`layer-ungroup`, `ungroupLayer`: 오프셋을 자식에 더함), 내용 객체·그룹 ✕(`layer-remove`; 구성 요소는 카드에서 지운다). 행 이름: 구성 요소 = "채널 · 전광 채널", 글자 = 글 내용, 그림, "도형 · 원", 그룹 = 이름 또는 "그룹".
+- 배치 탭은 숨긴 객체만 있어도 남는다(`anyItemLayer`).
+- 테스트: `tests/unit/layers.test.ts`(병합·숨김·잠금·순서·그룹·풀기), E2E `frontEditor.spec.ts`(패널 ↔ 정면도 선택, 숨기기/보이기, 잠금 끌기 무시, 그룹 → 이름 → 끌어도 그룹 유지 → 풀기).
 

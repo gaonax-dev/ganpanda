@@ -13,9 +13,11 @@
   import { SNAP_PX, alignBox, frameBox, itemBox, resizeItem, snapMove, viewOf, type Align, type Box } from '../core/frontView';
 
   type Sel = { part: string; item: string } | null;
-  let { obj, parts, ro, sel = $bindable(), setItem }: {
+  let { obj, parts, ro, sel = $bindable(), setItem, locked = new Set<string>() }: {
     obj: SignObject; parts: SignPart[]; ro: boolean; sel: Sel;
     setItem: (partId: string, itemId: string, patch: Partial<PartItem>) => void;
+    /** 레이어 패널에서 잠근 객체 (3단계): 고를 수는 있지만 끌거나 옮기지 못한다 */
+    locked?: Set<string>;
   } = $props();
 
   /** 정면도 높이(px): 사인물 비율에 맞추되 이 범위 안 — 가로로 긴 간판에서 창을 덜 차지하게 */
@@ -55,7 +57,7 @@
   function down(e: PointerEvent, p: SignPart, it: PartItem, mode: 'move' | 'resize') {
     sel = { part: p.id, item: it.id };
     svg?.focus();
-    if (ro) return;
+    if (ro || locked.has(it.id)) return;
     e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     drag = { mode, part: p.id, item: it.id, start: mmAt(e), box: itemBox(it), it, cur: {}, guides: [] };
@@ -85,11 +87,11 @@
 
   const selected = $derived(all.find((a) => sel && a.p.id === sel.part && a.it.id === sel.item));
   function align(how: Align) {
-    if (!selected) return;
+    if (!selected || locked.has(selected.it.id)) return;
     setItem(selected.p.id, selected.it.id, alignBox(selected.box, frame, how));
   }
   function key(e: KeyboardEvent) {
-    if (!selected || ro) return;
+    if (!selected || ro || locked.has(selected.it.id)) return;
     const step = e.shiftKey ? NUDGE_BIG_MM : NUDGE_MM;
     const d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] } as Record<string, [number, number]>)[e.key];
     if (!d) return;

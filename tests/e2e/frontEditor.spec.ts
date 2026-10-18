@@ -93,3 +93,60 @@ test('도형 (2단계): + 도형 으로 넣고 모양·채움을 바꾸면 정�
   expect(parts.layers).toHaveLength(1); // 레이어 트리도 함께 저장 (1단계)
 });
 
+
+// 레이어 패널 (3단계, 2026-10-18): 순서·보이기·잠금·그룹·이름 — 정면도 선택과 같이
+test('레이어 패널: 숨기면 정면도·거울에서 빠지고, 잠그면 끌 수 없고, 체크해 그룹으로 묶으면 끌어도 그룹이 남는다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="channel"]').click();
+  await page.getByTestId('add-item-shape').click();
+  await page.getByTestId('object-settings').getByTestId('quick-layout').click();
+  const panel = page.getByTestId('layer-panel');
+  await expect(panel).toBeVisible();
+  const rows = panel.getByTestId('layer-row');
+  await expect(rows).toHaveCount(3); // 채널(부모 행) 아래에 그 자식: 위가 맨 위 레이어 → 도형, 글자
+  await expect(rows.nth(0)).toHaveAttribute('data-kind', 'channel');
+  await expect(rows.nth(1)).toHaveAttribute('data-kind', 'shape');
+  await expect(rows.nth(2)).toHaveAttribute('data-kind', 'text');
+  const editor = page.getByTestId('front-editor');
+  // 패널에서 누르면 정면도도 그 객체를 고른다
+  await rows.nth(2).click();
+  await expect(editor.getByTestId('front-item').filter({ hasText: '바로바로' })).toHaveAttribute('data-selected', 'true');
+  // 숨기기 → 정면도에서 빠지고 거울 parts 에도 없음, 레이어는 남음 → 다시 보이기
+  await rows.nth(1).getByTestId('layer-eye').click(); // 도형 숨기기
+  await expect(editor.getByTestId('front-item')).toHaveCount(1);
+  let o = await page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: { parts: { items: unknown[] }[]; layers: { children: { visible?: boolean }[] }[] }[] } }).__ganpanda.objects[0])));
+  expect(o.parts[0].items).toHaveLength(1);
+  expect(o.layers[0].children.filter((c: { visible?: boolean }) => c.visible === false)).toHaveLength(1);
+  await panel.getByTestId('layer-row').nth(1).getByTestId('layer-eye').click();
+  await expect(editor.getByTestId('front-item')).toHaveCount(2);
+  // 잠그면 끌어도 움직이지 않는다
+  const textRow = panel.getByTestId('layer-row').filter({ hasText: '바로바로' });
+  await textRow.getByTestId('layer-lock').click();
+  const item = editor.getByTestId('front-item').filter({ hasText: '바로바로' });
+  const before = await itemOf(page);
+  const b = (await item.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2, { steps: 4 }); await page.mouse.up();
+  expect((await itemOf(page)).x).toBe(before.x);
+  await textRow.getByTestId('layer-lock').click();
+  // 그룹: 글자·도형을 체크 → [그룹] → 그룹 행이 생기고, 이름을 바꾸고, 정면도에서 끌어도 그룹이 남는다
+  await panel.getByTestId('layer-row').filter({ hasText: '바로바로' }).getByTestId('layer-check').check();
+  await panel.getByTestId('layer-row').filter({ hasText: '도형' }).getByTestId('layer-check').check();
+  await panel.getByTestId('layer-group').click();
+  const groupRow = panel.getByTestId('layer-row').filter({ has: page.locator('[data-kind="group"]') }).or(panel.locator('[data-testid="layer-row"][data-kind="group"]'));
+  await expect(panel.locator('[data-testid="layer-row"][data-kind="group"]')).toHaveCount(1);
+  await panel.locator('[data-testid="layer-row"][data-kind="group"]').getByTestId('layer-name').dblclick();
+  await panel.getByTestId('layer-name-input').fill('제목 묶음');
+  await panel.getByTestId('layer-name-input').press('Enter');
+  await expect(panel.locator('[data-testid="layer-row"][data-kind="group"]').getByTestId('layer-name')).toHaveText('제목 묶음');
+  const b2 = (await item.boundingBox())!;
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2); await page.mouse.down(); await page.mouse.move(b2.x + b2.width / 2 + 60, b2.y + b2.height / 2, { steps: 4 }); await page.mouse.up();
+  expect((await itemOf(page)).x).toBeGreaterThan(before.x);
+  o = await page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: { layers: { children: { kind: string; name?: string; children: unknown[] }[] }[] }[] } }).__ganpanda.objects[0])));
+  expect(o.layers[0].children[0]).toMatchObject({ kind: 'group', name: '제목 묶음' });
+  expect(o.layers[0].children[0].children).toHaveLength(2);
+  void groupRow;
+  // 풀기 → 그룹 사라짐, 객체 둘 그대로
+  await panel.locator('[data-testid="layer-row"][data-kind="group"]').getByTestId('layer-ungroup').click();
+  await expect(panel.locator('[data-testid="layer-row"][data-kind="group"]')).toHaveCount(0);
+  await expect(editor.getByTestId('front-item')).toHaveCount(2);
+});
