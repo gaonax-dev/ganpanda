@@ -28,6 +28,8 @@ export interface SvgSheet {
   scale?: number;
   /** 글자 렌더러: 기본 <text>, 윤곽선이면 outlineRenderer(font) */
   text?: TextRenderer;
+  /** 대지 레이어 (2026-10-18 "사인물을 대지별로 담아서 일러스트로", "현재 구성한 레이아웃이 유지되어야"): 사인물마다 같은 자리에 보이지 않는 사각형을 `id="대지"` 레이어로 — 일러스트레이터에서 그 레이어를 선택해 [오브젝트 › 대지 › 선택 오브젝트를 대지로 변환] 하면 배치 그대로 대지가 된다 */
+  artboards?: boolean;
 }
 
 /** 글자 폭 추정 (용지 mm): 한글·한자 1em, 그 외 0.6em */
@@ -105,6 +107,11 @@ export function listSvg(sheet: SvgSheet): string {
     parts.push(T(c.name, { x: ox + c.x * k, y: ly, size: 3.2, weight: 700, fill: '#111' }));
     c.lines.forEach((l, i) => parts.push(T(l, { x: ox + c.x * k, y: ly + 3.6 * (i + 1), size: 2.6, fill: '#444' })));
     if (c.amount) parts.push(T(c.amount, { x: ox + c.x * k, y: ly + 3.6 * (c.lines.length + 1), size: 2.8, weight: 700, fill: '#b58900' }));
+    parts.push('</g>');
+  }
+  if (sheet.artboards) {
+    parts.push('<g id="대지" data-layer="artboards">');
+    for (const c of sheet.cards) parts.push(`<rect data-artboard="${esc(c.id)}" data-name="${esc(c.name)}" x="${X(c.x)}" y="${Y(c.y)}" width="${(c.w * k).toFixed(2)}" height="${(c.h * k).toFixed(2)}" fill="none" stroke="none"/>`);
     parts.push('</g>');
   }
   parts.push('</svg>');

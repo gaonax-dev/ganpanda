@@ -79,3 +79,21 @@ describe('SVG 내보내기 옵션: 비율·글자 윤곽선', () => {
     expect(svg).toContain('fill="#ff6b5e"');
   });
 });
+
+// 2026-10-18 사용자: "사인물을 대지별로 담아서 일러스트로 저장하면 대지별로 내보내기 할 수 있다", "현재 구성한 레이아웃이 유지되어야 한다"
+describe('listSvg artboards: 대지 레이어', () => {
+  it('사인물마다 같은 자리에 보이지 않는 사각형이 id="대지" 레이어로, 배치는 그대로', () => {
+    const cards = [
+      { id: 'a', name: '정면', x: 0, y: 0, w: 3000, h: 600, lines: [] },
+      { id: 'b', name: '측면', x: 3200, y: 0, w: 1000, h: 1000, lines: [] },
+    ];
+    const svg = listSvg({ title: 't', cards, scale: 1, artboards: true });
+    expect(svg).toContain('<g id="대지" data-layer="artboards">');
+    expect((svg.match(/data-artboard=/g) ?? []).length).toBe(2);
+    expect(svg).toMatch(/data-artboard="b" data-name="측면" x="[\d.]+" y="[\d.]+" width="1000.00" height="1000.00" fill="none" stroke="none"/);
+    // 두 사각형의 x 차이 = 배치 차이(3200mm × 축척 1)
+    const xs = [...svg.matchAll(/data-artboard="[ab]" data-name="[^"]+" x="([\d.]+)"/g)].map((m) => Number(m[1]));
+    expect(xs[1] - xs[0]).toBeCloseTo(3200, 1);
+    expect(listSvg({ title: 't', cards, scale: 1 })).not.toContain('id="대지"');
+  });
+});

@@ -155,6 +155,7 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   await w.waitForLoadState();
   expect(await w.locator('svg').count()).toBe(1);
   const svg = await page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg);
+  expect(svg).not.toContain('id="대지"'); // 인쇄용에는 대지 레이어 없음
   expect(svg).toContain('정면 간판');
   expect(svg).toContain('>3,000<');
   expect(svg).toContain('후렉스');
@@ -170,4 +171,6 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(svg11).toContain('width="3000.00"'); // 카드가 실물 mm
   expect(svg11).not.toContain('<text'); // 글자는 전부 path
   expect(svg11).toContain('<path ');
+  expect(svg11).toContain('<g id="대지" data-layer="artboards">'); // 대지 레이어 (2026-10-18): 사인물 자리마다 보이지 않는 사각형
+  expect((svg11.match(/data-artboard=/g) ?? []).length).toBe(1);
 });

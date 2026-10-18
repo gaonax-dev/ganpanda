@@ -129,7 +129,7 @@
     if (svgBusy) return;
     svgBusy = true;
     try {
-      const opts: Partial<SvgSheet> = {};
+      const opts: Partial<SvgSheet> = { artboards: true }; // 대지 레이어 (일러스트레이터에서 대지로 변환, 2026-10-18)
       if (svgScale !== 'a4') opts.scale = Number(svgScale);
       if (svgOutline) opts.text = outlineRenderer(await loadFont(fontUrl));
       const svg = await buildSvg(opts);
@@ -182,6 +182,8 @@
   .svgopts { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 2px; z-index: 5; width: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   .svgopts label { display: flex; align-items: center; gap: 6px; }
   .svgopts small { color: var(--muted); }
+  .svgopts .tip { display: block; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); }
+  .svgopts .tip b { color: var(--text); }
   .svgopts .btn { align-self: flex-end; margin-top: 4px; }@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
     w.document.close();
   }
@@ -308,6 +310,7 @@
               <label><input type="radio" name="svgscale" value="0.1" bind:group={svgScale} data-testid="svg-scale-10" /> 1:10 <small>(큰 간판 · 아트보드 한계 5.8m)</small></label>
               <label><input type="radio" name="svgscale" value="a4" bind:group={svgScale} data-testid="svg-scale-a4" /> A4 맞춤 <small>(PDF 와 같은 모양)</small></label>
               <label><input type="checkbox" bind:checked={svgOutline} data-testid="svg-outline" /> 글자를 윤곽선으로 <small>(폰트 없어도 같은 모양, 글자 편집 불가)</small></label>
+              <small class="tip" data-testid="svg-artboards-tip">대지: 사인물마다 같은 자리에 "대지" 레이어의 사각형이 들어 있습니다. 일러스트레이터에서 레이어 <b>대지</b>를 선택 → <b>오브젝트 › 대지 › 선택 오브젝트를 대지로 변환</b> 하면 지금 배치 그대로 사인물마다 대지가 되어 대지별 내보내기를 쓸 수 있습니다.</small>
               <button class="btn small primary" data-testid="svg-download" disabled={svgBusy} onclick={exportSvg}>{svgBusy ? '만드는 중…' : '내려받기'}</button>
             </div>
           {/if}
