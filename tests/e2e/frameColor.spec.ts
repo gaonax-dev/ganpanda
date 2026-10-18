@@ -15,7 +15,9 @@ test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레�
   await dlg.getByTestId('product-select').selectOption('board-flex');
   await expect(dlg.getByTestId('option-face-color')).toContainText('출력면 색 (인쇄물 임시)');
   await expect(dlg.getByTestId('option-framePaint-color')).toContainText('프레임 색');
+  await dlg.getByTestId('option-face-box').click();
   await dlg.getByTestId('option-face-swatch-노랑').click();
+  await dlg.getByTestId('option-framePaint-box').click();
   await dlg.getByTestId('option-framePaint-swatch-검정').click();
   expect((await objOf(page)).options).toMatchObject({ faceSystem: '기본색', faceCode: '노랑', framePaintSystem: '기본색', framePaintCode: '검정' });
   // 칩은 출력면 색(몸통 색), 2D 바탕도 출력면 색

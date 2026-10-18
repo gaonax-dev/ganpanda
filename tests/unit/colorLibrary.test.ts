@@ -1,7 +1,7 @@
 // 색 라이브러리 (2026-10-17 사용자: "색상관리가 중요하다 … 컬러 카드 … 라이브러리에 저장해서 꺼내쓴다")
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
-import { cardRef, findCardByName, newColorCard, paintPatch, validColorLibrary, type ColorCard } from '../../src/lib/core/colorLibrary';
+import { allTags, cardRef, findCardByName, newColorCard, normalizeTags, paintPatch, searchCards, tagSuggestions, validColorLibrary, type ColorCard } from '../../src/lib/core/colorLibrary';
 import { paintHex, paintLabel, paintRef } from '../../src/lib/core/materials';
 import { applySpecItems, parseSpecText } from '../../src/lib/core/specText';
 import { bodyLook } from '../../src/lib/core/render';
@@ -51,5 +51,36 @@ describe('사양 글이 내 컬러 카드 이름을 알아본다', () => {
     const items = parseSpecText('갈바 버건디', obj({ productId: 'board-galva' }));
     expect(items.find((i) => i.kind === 'bodyColor')).toMatchObject({ value: '버건디' });
     expect(items.find((i) => i.kind === 'bodyColor')).not.toHaveProperty('card.id');
+  });
+});
+
+// 2026-10-18 사용자: "색이름 위에 tag — 입력창이자 검색창, 기존 태그를 하단에 셀렉터로, 글자가 입력되는 대로 리스트"
+describe('태그·검색', () => {
+  const a: ColorCard = { ...card, id: 'a', name: '딥레드', tags: ['카페', '메탈'] };
+  const b: ColorCard = { ...card, id: 'b', name: '아이보리', supplier: '오라칼', tags: ['카페'] };
+  const c: ColorCard = { ...card, id: 'c', name: '네이비', kind: '페인트' };
+  it('normalizeTags: 공백·중복·빈 것 정리, 20자·10개 제한, 없으면 undefined', () => {
+    expect(normalizeTags([' 카페 ', '카페', '', '메탈'])).toEqual(['카페', '메탈']);
+    expect(normalizeTags([])).toBeUndefined();
+    expect(normalizeTags(Array.from({ length: 12 }, (_, i) => `t${i}`))!.length).toBe(10);
+    expect(newColorCard({ kind: '시트', name: 'x', hex: '#000000', tags: ['a', 'a'] }).tags).toEqual(['a']);
+  });
+  it('allTags: 많이 쓴 순, tagSuggestions: 글자 포함·이미 고른 것 제외', () => {
+    expect(allTags([a, b, c])).toEqual(['카페', '메탈']);
+    expect(tagSuggestions([a, b, c], '')).toEqual(['카페', '메탈']);
+    expect(tagSuggestions([a, b, c], '메')).toEqual(['메탈']);
+    expect(tagSuggestions([a, b, c], '', ['카페'])).toEqual(['메탈']);
+  });
+  it('searchCards: 이름·태그·공급사·코드·종류', () => {
+    expect(searchCards([a, b, c], '카페').map((x) => x.id)).toEqual(['a', 'b']);
+    expect(searchCards([a, b, c], '오라').map((x) => x.id)).toEqual(['b']);
+    expect(searchCards([a, b, c], '페인트').map((x) => x.id)).toEqual(['c']);
+    expect(searchCards([a, b, c], '1080').map((x) => x.id)).toEqual(['a', 'b', 'c']);
+    expect(searchCards([a, b, c], '').length).toBe(3);
+  });
+  it('validColorLibrary: 태그 형식', () => {
+    expect(validColorLibrary({ version: 1, colors: [{ ...card, tags: ['x'] }] })!.colors[0].tags).toEqual(['x']);
+    expect(validColorLibrary({ version: 1, colors: [{ ...card, tags: 'x' }] })).toBeNull();
+    expect(validColorLibrary({ version: 1, colors: [{ ...card, tags: ['가'.repeat(21)] }] })).toBeNull();
   });
 });

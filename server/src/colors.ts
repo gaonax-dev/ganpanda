@@ -19,6 +19,7 @@ export function validColors(v: unknown): boolean {
     if (typeof c.name !== 'string' || !c.name.trim() || c.name.length > 40) return false;
     if (typeof c.hex !== 'string' || !HEX.test(c.hex)) return false;
     for (const k of ['supplier', 'code']) if (c[k] !== undefined && (typeof c[k] !== 'string' || (c[k] as string).length > 60)) return false;
+    if (c.tags !== undefined && (!Array.isArray(c.tags) || c.tags.length > 10 || !c.tags.every((t) => typeof t === 'string' && t.length <= 20))) return false; // 태그 (2026-10-18)
     if (typeof c.createdAt !== 'number') return false;
   }
   return JSON.stringify(v).length <= MAX_BYTES;

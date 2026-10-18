@@ -16,7 +16,8 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   const field = dlg.getByTestId('option-face-color');
   await expect(field).toBeVisible();
   await expect(dlg.getByTestId('option-face-now')).toContainText('도색 없음');
-  // 간단: 견본
+  // 색 상자 ■ → 색 고르기 창 → 견본 (2026-10-18 "컬러선택을 색상 ㅁ 상자로")
+  await dlg.getByTestId('option-face-box').click();
   await dlg.getByTestId('option-face-swatch-노랑').click();
   await expect(dlg.getByTestId('option-face-now')).toContainText('노랑');
   expect((await objOf(page)).options).toMatchObject({ faceSystem: '기본색', faceCode: '노랑' });
@@ -24,7 +25,9 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   // 확장: 브라우저 컬러 피커 → 직접 + hex
   await dlg.getByTestId('option-face-expand').click();
   await expect(dlg.getByTestId('option-faceSystem')).toHaveValue('기본색');
+  await dlg.getByTestId('option-face-box').click();
   await dlg.getByTestId('option-face-picker').fill('#1a2b3c');
+  await dlg.getByTestId('color-close').click();
   await expect(dlg.getByTestId('option-faceSystem')).toHaveValue('직접');
   await expect(dlg.getByTestId('option-faceCode')).toHaveValue('#1a2b3c');
   await expect(dlg.getByTestId('quick-body')).toContainText('#1a2b3c');
@@ -35,6 +38,7 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   expect((await objOf(page)).options).toMatchObject({ faceSystem: 'RAL', faceCode: '1003', faceGloss: '무광' });
   await expect(dlg.getByTestId('quick-body')).toContainText('RAL 1003');
   // 투명도: 확장 모드 슬라이더 → 2D 바탕이 반투명
+  await dlg.getByTestId('option-face-box').click();
   await dlg.getByTestId('option-face-swatch-노랑').click();
   await dlg.getByTestId('option-faceAlpha').fill('40');
   expect((await objOf(page)).options.faceAlpha).toBe('40');
@@ -44,19 +48,23 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   await openObjectSettings(page);
   await dlg.getByTestId('option-face-expand').click();
   // ✕ 도색 없음
+  await dlg.getByTestId('option-face-box').click();
   await dlg.getByTestId('option-face-none').click();
   await expect(dlg.getByTestId('option-face-now')).toContainText('도색 없음');
   // 갈바 도색도 같은 피커, 채널 측면도
   await dlg.getByTestId('product-select').selectOption('board-galva');
   await expect(dlg.getByTestId('option-paint-color')).toBeVisible();
+  await dlg.getByTestId('option-paint-box').click();
   await dlg.getByTestId('option-paint-swatch-검정').click();
   await dlg.getByTestId('quick-add').click();
   await dlg.getByTestId('add-part-channel').click();
   await expect(dlg.getByTestId('part-option-body-color')).toBeVisible();
+  await dlg.getByTestId('part-option-body-box').click();
   await dlg.getByTestId('part-option-body-swatch-금색').click();
   await expect(dlg.getByTestId('quick-part')).toContainText('금색');
   // 채널 앞면 색(시트): 전광 채널에 있고, 고르면 사진 위 2D 글자 색이 된다
   await expect(dlg.getByTestId('part-option-face-color')).toBeVisible();
+  await dlg.getByTestId('part-option-face-box').click();
   await dlg.getByTestId('part-option-face-swatch-노랑').click();
   await dlg.getByTestId('add-item-text').click();
   await dlg.getByTestId('item-text').fill('간판');

@@ -17,8 +17,12 @@ export interface ColorCard {
   supplier?: string;
   /** 공급사의 색 코드 (1080-G13, KCC 7520…) */
   code?: string;
+  /** 태그 (2026-10-18 "색이름 위에 tag"): 매장·브랜드·계열 등 자유 분류. 검색·추천에 쓴다 */
+  tags?: string[];
   createdAt: number;
 }
+export const TAG_MAX = 10;
+export const TAG_LEN = 20;
 export interface ColorLibrary { version: 1; colors: ColorCard[] }
 
 export const LIBRARY_SYSTEM = PAINT_SYSTEMS[6]; // '라이브러리'
@@ -26,7 +30,31 @@ export const COLOR_LIBRARY_MAX = 300;
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 
 export function newColorCard(c: Omit<ColorCard, 'id' | 'createdAt'>): ColorCard {
-  return { ...c, name: c.name.trim(), hex: c.hex.toLowerCase(), supplier: c.supplier?.trim() || undefined, code: c.code?.trim() || undefined, id: crypto.randomUUID().slice(0, 8), createdAt: Date.now() };
+  return { ...c, name: c.name.trim(), hex: c.hex.toLowerCase(), supplier: c.supplier?.trim() || undefined, code: c.code?.trim() || undefined, tags: normalizeTags(c.tags), id: crypto.randomUUID().slice(0, 8), createdAt: Date.now() };
+}
+/** 태그 정리: 앞뒤 공백 제거, 빈 것·중복 제거, 길이·개수 제한. 없으면 undefined */
+export function normalizeTags(tags?: string[]): string[] | undefined {
+  if (!tags) return undefined;
+  const out: string[] = [];
+  for (const t of tags) { const v = t.trim().slice(0, TAG_LEN); if (v && !out.includes(v)) out.push(v); if (out.length >= TAG_MAX) break; }
+  return out.length ? out : undefined;
+}
+/** 라이브러리의 모든 태그 (많이 쓴 순, 같으면 가나다) */
+export function allTags(lib: ColorCard[]): string[] {
+  const n = new Map<string, number>();
+  for (const c of lib) for (const t of c.tags ?? []) n.set(t, (n.get(t) ?? 0) + 1);
+  return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).map(([t]) => t);
+}
+/** 태그 입력창의 추천: 글자가 들어가는 기존 태그 (이미 고른 것 제외), 비어 있으면 전부 */
+export function tagSuggestions(lib: ColorCard[], text: string, chosen: string[] = []): string[] {
+  const q = text.trim().toLowerCase();
+  return allTags(lib).filter((t) => !chosen.includes(t) && (!q || t.toLowerCase().includes(q)));
+}
+/** 검색: 이름·태그·공급사·코드·종류에 글자가 들어가면 (대소문자 무시) */
+export function searchCards(lib: ColorCard[], query: string): ColorCard[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return lib;
+  return lib.filter((c) => [c.name, c.kind, c.supplier ?? '', c.code ?? '', ...(c.tags ?? [])].some((v) => v.toLowerCase().includes(q)));
 }
 /** 출처 한 줄: "시트 · 3M · 1080-G13" (없는 칸은 뺀다) */
 export const cardRef = (c: Pick<ColorCard, 'kind' | 'supplier' | 'code'>) => [c.kind, c.supplier, c.code].filter(Boolean).join(' · ');
@@ -51,8 +79,9 @@ export function validColorLibrary(v: unknown): ColorLibrary | null {
     if (typeof c.name !== 'string' || !c.name.trim() || c.name.length > 40) return null;
     if (typeof c.hex !== 'string' || !HEX_RE.test(c.hex)) return null;
     for (const k of ['supplier', 'code']) if (c[k] !== undefined && (typeof c[k] !== 'string' || (c[k] as string).length > 60)) return null;
+    if (c.tags !== undefined && (!Array.isArray(c.tags) || c.tags.length > TAG_MAX || !c.tags.every((t) => typeof t === 'string' && t.length <= TAG_LEN))) return null;
     if (typeof c.createdAt !== 'number') return null;
-    colors.push({ id: c.id, kind: c.kind as ColorKind, name: c.name, hex: (c.hex as string).toLowerCase(), supplier: c.supplier as string | undefined, code: c.code as string | undefined, createdAt: c.createdAt });
+    colors.push({ id: c.id, kind: c.kind as ColorKind, name: c.name, hex: (c.hex as string).toLowerCase(), supplier: c.supplier as string | undefined, code: c.code as string | undefined, tags: normalizeTags(c.tags as string[] | undefined), createdAt: c.createdAt });
   }
   return { version: 1, colors };
 }
