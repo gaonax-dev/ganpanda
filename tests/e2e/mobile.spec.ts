@@ -262,6 +262,7 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 사인물이 꼭�
   };
   const translated = (a: number[][], b: number[][]) => { const dx = b[0][0] - a[0][0], dy = b[0][1] - a[0][1]; return Math.abs(dx) > 1 && b.every((p, i) => Math.abs(p[0] - a[i][0] - dx) < 0.5 && Math.abs(p[1] - a[i][1] - dy) < 0.5); };
   await expect(page.getByTestId('sign-touch-outline')).toHaveCount(1);
+  expect(await page.getByTestId('sign-touch-outline').evaluate((e) => [getComputedStyle(e).stroke, getComputedStyle(e).fill])).toEqual(['rgba(0, 0, 0, 0)', 'none']); // 보이지 않는 띠 (2026-10-18 캡처: 노란 띠로 보이던 문제)
   // 변 손잡이
   const q0 = await quad();
   const h = (await page.getByTestId('edge-handle-0').boundingBox())!;

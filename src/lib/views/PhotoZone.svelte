@@ -723,7 +723,6 @@
   svg.pinning { cursor: copy; }
   .pin { cursor: pointer; }
   .handle.edge { cursor: move; }
-  .touch-outline { fill: none; stroke: transparent; pointer-events: stroke; }
   .edge-bar:hover { stroke-opacity: 0.75; }
   .pin.resolved { opacity: 0.4; }
   .confirms { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 360px; }
@@ -745,6 +744,8 @@
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: rgba(255, 204, 0, 0.16); stroke: var(--accent); }
   .sign.same polygon { fill: rgba(255, 204, 0, 0.1); stroke: var(--accent); stroke-dasharray: 6 4; }
+  /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
+  .sign polygon.touch-outline, .sign.sel polygon.touch-outline, .sign.warn polygon.touch-outline, .sign.same polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }
