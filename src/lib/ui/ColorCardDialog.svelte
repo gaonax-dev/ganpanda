@@ -191,10 +191,12 @@
   .menu button:hover { background: rgba(255,255,255,0.06); }
   .menu button.danger { color: #ff8a80; }
   .form { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
-  .form label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .form label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; } /* 라벨 왼쪽·입력 오른쪽 (2026-10-18) */
+  .form label > input:not([type='color']), .form label > select, .form label > .hexrow, .form label > .tagbox { flex: 1; min-width: 0; }
   .form input, .form select { font: inherit; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-  .tags { position: relative; }
+  .tags { position: relative; flex-wrap: wrap; }
+  .tags .suggest { flex-basis: 100%; }
   .tagbox { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--input, rgba(255,255,255,0.04)); }
   .tagbox input { flex: 1 1 80px; min-width: 60px; background: none; border: 0; outline: none; color: var(--text); }
   .tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 999px; background: rgba(255,204,0,0.15); color: var(--accent); font-size: 11px; }

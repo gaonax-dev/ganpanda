@@ -126,6 +126,7 @@
   .warn { color: var(--warn); font-size: 12px; margin: 0; }
   .url { display: flex; gap: 6px; }
   .url input { flex: 1; }
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  label { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  label > textarea { flex: 1; min-width: 0; white-space: normal; }
   textarea { width: 100%; box-sizing: border-box; }
 </style>

@@ -3,6 +3,7 @@
 ## 코드
 - 순수 로직은 `src/lib/core/`에 둡니다. DOM·Svelte를 import하지 않습니다.
 - 화면 문구와 주석은 한국어로 씁니다.
+- **입력 필드는 가로 한 줄**(2026-10-18 사용자: "체크박스와 라벨 입력필드가 세로배치된것이 많은데 자리도 많이 차지하고 헷갈려"): 라벨 왼쪽·컨트롤 오른쪽(`display:flex; align-items:center`), 라디오·체크박스 묶음은 한 줄에 나란히(긴 설명은 `title`로). 세로로 쌓는 것은 textarea 처럼 높이가 큰 컨트롤뿐.
 - 단위를 변수 이름에 드러냅니다 (`widthMm`, `imgW`). 단위 규칙 → [../architecture/coordinates.md](../architecture/coordinates.md)
 - 호모그래피를 계산하는 곳은 찌그러진 사각형 예외를 처리합니다.
 - Yjs 문서를 바꿀 때는 `Project` 메서드를 거칩니다. 엔티티는 중첩 `Y.Map`으로 저장합니다 → [../architecture/data-model.md](../architecture/data-model.md)

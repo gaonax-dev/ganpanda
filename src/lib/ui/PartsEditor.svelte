@@ -155,7 +155,8 @@
   .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .head .del { margin-left: auto; }
   .opts { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0; }
-  .opt { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+  .opt { display: flex; align-items: center; font-size: 12px; gap: 6px; } /* 가로 한 줄 (2026-10-18) */
+  .opt > select, .opt > input { min-width: 0; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 4px; }
   .item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border-top: 1px dashed var(--border, #2a2f37); }
   .item.sel { background: rgba(90, 168, 255, 0.08); }

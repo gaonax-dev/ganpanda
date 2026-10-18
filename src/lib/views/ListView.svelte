@@ -180,7 +180,9 @@
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>
   .svgwrap { position: static; }
   .svgopts { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 2px; z-index: 5; width: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
-  .svgopts label { display: flex; align-items: center; gap: 6px; }
+  .svgopts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .svgopts .choices { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+  .svgopts .choices .lbl { color: var(--muted); }
   .svgopts small { color: var(--muted); }
   .svgopts .tip { display: block; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); }
   .svgopts .tip b { color: var(--text); }
@@ -306,10 +308,14 @@
           {#if svgPanel}
             <div class="svgopts" data-testid="svg-options">
               <b>SVG 내려받기 <small>(일러스트레이터)</small></b>
-              <label><input type="radio" name="svgscale" value="1" bind:group={svgScale} data-testid="svg-scale-1" /> 실물 1:1 <small>(제작 도면, mm 그대로)</small></label>
-              <label><input type="radio" name="svgscale" value="0.1" bind:group={svgScale} data-testid="svg-scale-10" /> 1:10 <small>(큰 간판 · 아트보드 한계 5.8m)</small></label>
-              <label><input type="radio" name="svgscale" value="a4" bind:group={svgScale} data-testid="svg-scale-a4" /> A4 맞춤 <small>(PDF 와 같은 모양)</small></label>
-              <label><input type="checkbox" bind:checked={svgOutline} data-testid="svg-outline" /> 글자를 윤곽선으로 <small>(폰트 없어도 같은 모양, 글자 편집 불가)</small></label>
+              <!-- 선택지는 한 줄로 (2026-10-18 사용자: "체크박스와 라벨 입력필드가 세로배치된것이 많은데 자리도 많이 차지하고 헷갈려") -->
+              <div class="choices" role="radiogroup" aria-label="비율">
+                <span class="lbl">비율</span>
+                <label title="제작 도면, mm 그대로"><input type="radio" name="svgscale" value="1" bind:group={svgScale} data-testid="svg-scale-1" /> 실물 1:1</label>
+                <label title="큰 간판 · 아트보드 한계 5.8m"><input type="radio" name="svgscale" value="0.1" bind:group={svgScale} data-testid="svg-scale-10" /> 1:10</label>
+                <label title="PDF 와 같은 모양"><input type="radio" name="svgscale" value="a4" bind:group={svgScale} data-testid="svg-scale-a4" /> A4 맞춤</label>
+                <label title="폰트 없어도 같은 모양, 글자 편집 불가"><input type="checkbox" bind:checked={svgOutline} data-testid="svg-outline" /> 글자 윤곽선</label>
+              </div>
               <small class="tip" data-testid="svg-artboards-tip">대지: 사인물마다 같은 자리에 "대지" 레이어의 사각형이 들어 있습니다. 일러스트레이터에서 레이어 <b>대지</b>를 선택 → <b>오브젝트 › 대지 › 선택 오브젝트를 대지로 변환</b> 하면 지금 배치 그대로 사인물마다 대지가 되어 대지별 내보내기를 쓸 수 있습니다.</small>
               <button class="btn small primary" data-testid="svg-download" disabled={svgBusy} onclick={exportSvg}>{svgBusy ? '만드는 중…' : '내려받기'}</button>
             </div>
