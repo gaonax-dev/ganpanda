@@ -47,7 +47,8 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   // 도구 막대는 아이콘만 (라벨 숨김)
   await expect(page.getByTestId('tool-rect').locator('.lbl')).toBeHidden();
   // 사진 머리글 버튼은 아이콘만
-  await expect(page.getByTestId('camera-open')).toHaveText('📐');
+  await expect(page.getByTestId('camera-auto')).toHaveText('📐'); // 원근 자동 매칭 (2026-10-19), 옆의 옵션은 아이콘
+  await expect(page.getByTestId('camera-open').locator('svg rect')).toHaveCount(2);
   await expect(page.getByTestId('render-open')).toHaveText('🎨');
   // 접속자 칩·역할은 숨기고 프로젝트 이름은 보인다
   await expect(page.getByTestId('role-badge')).toBeHidden();

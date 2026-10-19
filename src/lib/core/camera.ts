@@ -258,6 +258,23 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
 }
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */
+/**
+ * 사인물로 원근 자동 매칭 (2026-10-19 사용자: "크기를 지정하고 원근에 맞게 그려진 사인물의 코너에 중심점을 주고 사인물 길이를 사용해 표준 길이도 지정 자동으로 매칭"):
+ * 원근에 맞게 그린 사각 사인물(quad = 왼쪽 위·오른쪽 위·오른쪽 아래·왼쪽 아래)과 그 가로 mm 로 설정을 만든다 —
+ * 위·아래 변 = 가로(X) 축 선, 좌·우 변 = 높이(Z) 축 선, 원점 = 왼쪽 아래 코너, 기준 길이 = 왼쪽 아래 → 오른쪽 아래 (가로 mm)
+ */
+export function signCameraSetup(quad: Pt[], widthMm: number): CameraSetup {
+  const [tl, tr, br, bl] = quad;
+  return {
+    x: [{ a: tl, b: tr }, { a: bl, b: br }],
+    y: [{ a: bl, b: tl }, { a: br, b: tr }],
+    axes: { first: '+x', second: '+z' },
+    origin: bl,
+    ref: { axis: 'x', from: bl, to: br, mm: widthMm },
+    principal: 'center',
+  };
+}
+
 export function calibrationOf(s: CameraSolution): Calibration {
   return { H: s.Hinv, sx: 1, sy: 1, metric: true, pose: s.pose, perRef: [], warnings: s.warnings };
 }

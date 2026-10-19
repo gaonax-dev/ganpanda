@@ -259,3 +259,24 @@ describe('X·Y 로 잡아도 사인물 기준 평면은 X·Z 수직 벽', () => 
   });
 });
 
+
+// 2026-10-19 사용자: "크기를 지정하고 원근에 맞게 그려진 사인물의 코너에 중심점을 주고 사인물 길이를 사용해 표준 길이도 지정 자동으로 매칭"
+describe('사인물로 원근 자동 매칭 (signCameraSetup)', async () => {
+  const { signCameraSetup } = await import('../../src/lib/core/camera');
+  // 벽 위 사인물 2000×600mm, 왼쪽 아래 코너 = 벽 (1500, 2200)
+  const quad = ([[1500, 2800], [3500, 2800], [3500, 2200], [1500, 2200]] as [number, number][]).map(([x, h]) => proj([x, h, 0]));
+  it('위·아래 변 = 가로 축 선, 좌·우 변 = 높이 축 선, 원점 = 왼쪽 아래 코너, 기준 길이 = 가로 mm', () => {
+    const s = signCameraSetup(quad, 2000);
+    expect(s.axes).toEqual({ first: '+x', second: '+z' });
+    expect(s.origin).toEqual(quad[3]);
+    expect(s.ref).toEqual({ axis: 'x', from: quad[3], to: quad[2], mm: 2000 });
+  });
+  it('풀면 사인물 좌표(왼쪽 아래 = 0,0, mm)의 벽이 사진에 제자리로 투영된다', () => {
+    const sol = solveCamera(signCameraSetup(quad, 2000), imgW, imgH)!;
+    expect(sol).not.toBeNull();
+    for (const [x, h] of [[0, 0], [2000, 600], [1000, 300], [-1500, -2200]] as [number, number][]) {
+      const [u, v] = applyHomography(sol.H, [x, h]), [tu, tv] = proj([x + 1500, h + 2200, 0]);
+      expect(Math.hypot(u - tu, v - tv)).toBeLessThan(3);
+    }
+  });
+});

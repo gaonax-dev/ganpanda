@@ -351,6 +351,8 @@
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}
         oncamera={() => app.openCamera(p.id)}
+        oncameraauto={app.canEdit ? async () => { if (!(await app.autoMatchCamera(p.id))) { app.notice = '크기를 넣은 사인물이 없고 사진에서 뚜렷한 직선도 찾지 못했습니다. 사인물에 가로·세로를 넣거나 옵션에서 축 선을 직접 놓으세요.'; app.openCamera(p.id); } } : undefined}
+        cameraBusy={app.cameraBusy}
         cameraSet={app.cameras.has(p.id)}
         threeD={app.threeDOk(p.id) ? 'ok' : 'none'}
         showWarnings={app.warnMeasure}

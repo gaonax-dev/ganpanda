@@ -204,3 +204,30 @@ test('돋보기는 Shift 를 누른 동안만 보인다', async ({ page, request
   await expect(dlg.locator('canvas.loupe')).toHaveCount(0);
   await page.mouse.up();
 });
+
+// 2026-10-19 사용자: "원근 -> 원근자동매칭 옆에 옵션버튼(네모두개겹친 아이콘)으로" → "크기를 지정하고 원근에 맞게 그려진 사인물의 코너에 중심점을 주고 사인물 길이를 사용해 표준 길이도 지정 자동으로 매칭"
+test('사진 머리글 [원근 자동 매칭]: 크기를 넣은 사인물로 원근을 맞추고(코너 = 원점, 가로 = 기준 길이), 옆의 옵션(네모 두 개)이 창을 연다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await expect(page.getByTestId('camera-open').locator('svg rect')).toHaveCount(2); // 네모 두 개 겹친 아이콘
+  // 문(벽 4000~5000 × 0~2900mm)에 맞게 그린 사인물 1000×2900, 그리고 크기 없는 띠(벽 0~9000 × 3700~4700)
+  const [dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL] = await wallToPx(page, [[4000, 2900], [5000, 2900], [5000, 0], [4000, 0], [0, 4700], [9000, 4700], [9000, 3700], [0, 3700]]);
+  await page.evaluate(({ dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL }) => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const pid = app.photos[0].id;
+    app.project.addObject({ photoId: pid, name: '문', shape: 'rect', quad: [dTL, dTR, dBR, dBL], sheetIds: [], widthMm: 1000, heightMm: 2900 });
+    app.project.addObject({ photoId: pid, name: '띠', shape: 'rect', quad: [bTL, bTR, bBR, bBL], sheetIds: [] });
+  }, { dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL });
+  await page.getByTestId('camera-auto').click();
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  await expect(page.getByTestId('camera-dialog')).toHaveCount(0); // 창은 열리지 않는다
+  const cam = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { camera?: { origin: number[]; ref: { mm: number; from: number[] }; axes: unknown } }[] } }).__ganpanda.photos[0].camera!);
+  expect(cam.axes).toEqual({ first: '+x', second: '+z' });
+  expect(cam.ref.mm).toBe(1000);
+  expect(Math.hypot(cam.origin[0] - dBL[0], cam.origin[1] - dBL[1])).toBeLessThan(1); // 원점 = 사인물 왼쪽 아래 코너
+  // 그 원근으로 크기 없는 띠의 가로가 실제(9000mm)에 가깝게 추정된다
+  await expect.poll(() => page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { name: string }[]; sizeOf(o: unknown): { w: number } | null } }).__ganpanda; return a.sizeOf(a.objects.find((o) => o.name === '띠')!)?.w ?? 0; })).toBeGreaterThan(8100);
+  expect(await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { name: string }[]; sizeOf(o: unknown): { w: number } | null } }).__ganpanda; return a.sizeOf(a.objects.find((o) => o.name === '띠')!)!.w; })).toBeLessThan(9900);
+  await page.getByTestId('camera-open').click();
+  await expect(page.getByTestId('camera-dialog')).toBeVisible();
+});

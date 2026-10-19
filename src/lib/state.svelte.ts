@@ -14,7 +14,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { calibrationOf, proposeAxisLines, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { calibrationOf, proposeAxisLines, signCameraSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { clampFlatScale } from './core/boardCards';
@@ -416,6 +416,45 @@ class AppState {
       // 첫 쌍(가로에 가까운 선)·둘째 쌍(세로에 가까운 선)의 축은 창의 축 선 설정을 따른다(2026-10-18 사용자: "설정에 x, y 설정하고 자동으로 측정하면 x, z로 변경되어 결과가 나온다. 설정의 자동에서 따르게").
       // 설정이 '자동'이면 X 가로·Z 높이 (X·Y 수평, Z 수직 — "실내 실외 구분표시 제거, x와 y는 수평 z가 수직")
       this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: this.cameraDraft.axes ?? { first: '+x', second: '+z' } });
+      return true;
+    } finally { this.cameraBusy = false; }
+  }
+
+  /** 원근 자동 매칭에 쓸 사인물: 크기를 넣고(추정 아님) 원근에 맞게 그린 사각·원형 사인물. 고른 것 > 그 사진의 첫 것 */
+  matchSignOf(photoId: string): { o: SignObject; w: number } | null {
+    const ok = (o: SignObject) => o.photoId === photoId && o.shape !== 'polygon' && o.quad.length === 4 && !!this.sizeOf(o) && !this.sizeOf(o)!.estimated;
+    const pick = [this.selected, ...this.objects].find((o): o is SignObject => !!o && ok(o));
+    return pick ? { o: pick, w: this.sizeOf(pick)!.w } : null;
+  }
+  /**
+   * 원근 자동 매칭 (2026-10-19 사용자: "원근 -> 원근자동매칭 옆에 옵션버튼(네모두개겹친 아이콘)으로" → "크기를 지정하고 원근에 맞게 그려진 사인물의 코너에 중심점을 주고
+   * 사인물 길이를 사용해 표준 길이도 지정 자동으로 매칭"): 창을 열지 않고 사진 머리글에서 바로.
+   * 크기 있는 사인물이 있으면 그 외곽선으로(위·아래 변 = 가로 축, 좌·우 변 = 높이 축, 원점 = 왼쪽 아래 코너, 기준 길이 = 가로 mm — core/camera.ts signCameraSetup).
+   * 없으면 AI 가 축 선을 찾는다(원점·기준 길이·축 지정은 저장된 것/기본 배치). 둘 다 안 되면 false (호출자가 창을 연다)
+   */
+  async autoMatchCamera(photoId: string): Promise<boolean> {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p || !this.canEdit) return false;
+    const sign = this.matchSignOf(photoId);
+    if (sign) {
+      const setup = signCameraSetup(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w);
+      if (solveCamera(setup, p.w, p.h)) {
+        this.editBoundary();
+        this.project.updatePhoto(p.id, { camera: setup });
+        this.editBoundary();
+        return true;
+      }
+    }
+    this.cameraBusy = true;
+    try {
+      const gray = await this.grayOf(p.assetId, p.w, p.h);
+      const found = gray && proposeAxisLines(gray);
+      if (!gray || !found) return false;
+      const base = p.camera ? (JSON.parse(JSON.stringify(p.camera)) as CameraSetup) : defaultCameraSetup(p.w, p.h);
+      const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: base.axes ?? { first: '+x', second: '+z' } });
+      this.editBoundary();
+      this.project.updatePhoto(p.id, { camera: next });
+      this.editBoundary();
       return true;
     } finally { this.cameraBusy = false; }
   }

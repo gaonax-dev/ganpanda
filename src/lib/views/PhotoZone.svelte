@@ -28,7 +28,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onrender, oncamera, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -93,6 +93,9 @@
     onduplicate?: (id: string) => string | null;
     /** 사진 원근 맞추기(카메라 설정) 창 열기. cameraSet = 이 사진에 설정이 있음 */
     oncamera?: () => void;
+    /** 원근 자동 매칭 (머리글, 2026-10-19) */
+    oncameraauto?: () => void;
+    cameraBusy?: boolean;
     cameraSet?: boolean;
     /** 이 사진에 3D 벽면이 있는가 (원근 설정 또는 치수 입력 사인물) */
     threeD?: 'ok' | 'none';
@@ -439,7 +442,9 @@
     <span class="name" title={photo.name}>{photo.name}</span>
     {#if !narrow}<span class="count">사인물 {objects.length}</span>{/if}
     {#if oncamera && !tiny}
-      <button class="x cam" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} title={cameraSet ? '이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '이 사진에서 치수를 재고 실사를 합성하려면 벽의 직선과 실측 길이로 원근을 맞추세요'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}>{narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 맞춤 ✓' : '📐 원근 맞추기'}</button>
+      <!-- 원근 자동 매칭 + 옵션(네모 두 개 겹친 아이콘 → 원근 맞추기 창) (2026-10-19 사용자: "원근 -> 원근자동매칭 옆에 옵션버튼(네모두개겹친 아이콘)으로") -->
+      {#if oncameraauto}<button class="x cam" class:set={cameraSet} data-testid="camera-auto" disabled={cameraBusy} title="크기를 넣은 사인물로 원근을 맞춥니다 — 외곽선 = 축 선, 왼쪽 아래 코너 = 원점, 가로 = 기준 길이 (고른 사인물 우선, 없으면 AI 가 사진의 직선으로). 고치려면 옆의 옵션" onpointerdown={(e) => e.stopPropagation()} onclick={oncameraauto}>{cameraBusy ? '📐 분석 중…' : narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 자동 매칭 ✓' : '📐 원근 자동 매칭'}</button>{/if}
+      <button class="x cam opt" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} aria-label="원근 옵션" title={cameraSet ? '원근 옵션 — 이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '원근 옵션 — 벽의 직선과 실측 길이로 원근을 직접 맞추기'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}><svg class="opt-ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5" /><rect x="5.5" y="1.5" width="9" height="9" rx="1.5" /></svg></button>
     {/if}
     {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
     {#if pins.some((p) => p.resolved) && !tiny}
@@ -867,4 +872,7 @@
   .zone-mid { fill: #7ef0a0; stroke: #fff; cursor: copy; }
   .status { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   svg.magicking { cursor: cell; }
+  /* 옵션 아이콘 (네모 두 개, 2026-10-19): 매니퓰레이터 칩의 .ico 와 이름이 겹쳐 머리글을 덮었다 → 따로 */
+  .cam.opt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px; }
+  .header svg.opt-ico { position: static; display: block; width: 14px; height: 14px; inset: auto; fill: none; stroke: currentColor; stroke-width: 1.4; pointer-events: none; } /* 사진 위 겹층용 svg 규칙(absolute)을 끊는다 */
 </style>
