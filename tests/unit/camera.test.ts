@@ -336,3 +336,36 @@ describe('원근 완성도 (cameraLevel, 2026-10-19 "완성도 표시만해줘")
     expect(cameraLevel(setupOf(proj), [], imgW, imgH).level).toBe(3);
   });
 });
+
+describe('자동 원근에서 3점 (threePointSetup, 2026-10-19 "자동원근에서 … 진행해줘")', async () => {
+  const { threePointSetup, cameraLevel } = await import('../../src/lib/core/camera');
+  // AI 가 축 선만 잡은 원근 (기준 길이 없음)
+  const ai: CameraSetup = { ...setupOf(proj), origin: proj([2500, 1500, 0]), ref: undefined, auto: true };
+  const o = proj([1000, 500, 0]), xEnd = proj([4000, 500, 0]), zEnd = proj([1000, 2900, 0]); // 가로 3000, 높이 2400
+  const band = ([[0, 3000], [6000, 3000], [6000, 2000], [0, 2000]] as [number, number][]).map(([x, h]) => proj([x, h, 0]));
+  it('모서리·가로 끝·위 끝 + 길이 두 개: 원점 = 모서리, 기준 길이 = 가로, 두 번째 길이(높이)로 확인 — 다른 영역 크기가 맞고 완성도 3', () => {
+    const s = threePointSetup(ai, imgW, imgH, o, [xEnd[0] + 3, xEnd[1] - 8], [zEnd[0] - 6, zEnd[1]], 3000, 2400)!; // 손 떨림: 축 선 위로 붙는다
+    expect(s.origin).toEqual(o);
+    expect(s.ref).toMatchObject({ axis: 'x', from: o, mm: 3000 });
+    expect(s.ref2).toMatchObject({ axis: 'z', from: o, mm: 2400 });
+    expect(s.auto).toBeUndefined(); // 사람이 찍은 원근 — 자동 길이 반영이 덮지 않는다
+    const sol = solveCamera(s, imgW, imgH)!;
+    expect(sol.ref2Ok).toBe(true);
+    const m = measureQuad(calibrationOf(sol), band);
+    near(m.widthMm, 6000, 0.03); near(m.heightMm, 1000, 0.03);
+    expect(cameraLevel(s, [], imgW, imgH)).toEqual({ axes: true, length: true, check: true, level: 3 });
+  });
+  it('높이가 10% 다르게 재지면(화각 오차) 세로 축척만 보정하고 확인은 유지, 15% 넘게 다르면 확인 없음(경고도 없음)', () => {
+    const s = threePointSetup(ai, imgW, imgH, o, xEnd, zEnd, 3000, 2400 * 1.1)!;
+    const sol = solveCamera(s, imgW, imgH)!;
+    expect(sol.ref2Ok).toBe(true);
+    near(measureQuad(calibrationOf(sol), band).heightMm, 1100, 0.03);
+    near(measureQuad(calibrationOf(sol), band).widthMm, 6000, 0.03);
+    const bad = threePointSetup(ai, imgW, imgH, o, xEnd, zEnd, 3000, 4000)!;
+    expect(solveCamera(bad, imgW, imgH)!.ref2Ok).toBe(false);
+    expect(cameraLevel(bad, [], imgW, imgH).level).toBe(2);
+  });
+  it('점이 겹치거나 원근이 없으면 null', () => {
+    expect(threePointSetup(ai, imgW, imgH, o, o, zEnd, 3000, 2400)).toBeNull();
+  });
+});

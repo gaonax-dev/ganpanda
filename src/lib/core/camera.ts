@@ -28,6 +28,8 @@ export interface CameraSetup {
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
    *  두 쌍이 이루는 평면이 벽면이 된다 (예: 세로 Y + 높이 Z = 옆면 벽). 없으면 자동(첫 쌍 = +X 가로, 둘째 쌍 = +Z 높이) */
   axes?: { first: AxisDir; second: AxisDir };
+  /** 두 번째 기준 길이 (3점, 2026-10-19): 원점에서 다른 축(보통 높이 Z)으로 잰 실측 — 축척 확인(완성도)과 그 축의 축척 보정에 쓴다 */
+  ref2?: { axis: 'x' | 'y' | 'z'; from: Pt; to: Pt; mm: number };
   /** 자동으로 잡은 설정 (사진 등록 때 AI, 사인물 치수로 길이 반영 — 2026-10-19). 원근 창에서 사람이 적용하면 지워지고, 그때부터는 자동이 손대지 않는다 */
   auto?: boolean;
 }
@@ -101,6 +103,9 @@ export interface CameraSolution {
   fov: { h: number; v: number };
   /** 기준 길이로 축척(mm)을 정했나 — 없으면 단위 미정 (자동 원근 직후) */
   scaled: boolean;
+  /** 두 번째 기준 길이(ref2)가 있으면: 입력 / 원근으로 잰 길이 (그 축의 축척 보정), 15% 안이면 확인 */
+  ref2Scale?: number;
+  ref2Ok?: boolean;
   warnings: string[];
 }
 
@@ -251,6 +256,11 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
       if (L1 > 1e-9) { s = setup.ref.mm / L1; scaled = true; } else warnings.push('기준 길이 선이 너무 짧습니다.');
     } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 원점에서 뻗는 축 하나를 고르고 실측 거리를 넣으세요.');
   }
+  let ref2Scale: number | undefined, ref2Ok: boolean | undefined;
+  if (setup.ref2 && scaled && setup.ref2.mm > 0) {
+    const r2 = setup.ref2, L = Math.abs(lambdaOf(r2.axis, r2.to) - lambdaOf(r2.axis, r2.from)) * s;
+    if (L > 1e-6) { ref2Scale = r2.mm / L; ref2Ok = Math.abs(ref2Scale - 1) <= LENGTH_RATIO_TOL; }
+  }
   const pose = poseAt(s);
   const H = Hof(pose);
   const Hinv = invert3(H);
@@ -259,7 +269,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const T = pose.t;
   const cameraPos: V3 = [-(R[0] * T[0] + R[3] * T[1] + R[6] * T[2]), -(R[1] * T[0] + R[4] * T[1] + R[7] * T[2]), -(R[2] * T[0] + R[5] * T[1] + R[8] * T[2])];
   const fov = { h: (2 * Math.atan(imgW / 2 / f) * 180) / Math.PI, v: (2 * Math.atan(imgH / 2 / f) * 180) / Math.PI };
-  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, originPx, axisImageDir, scaled, warnings };
+  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, originPx, axisImageDir, scaled, ref2Scale, ref2Ok, warnings };
 }
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */
@@ -315,12 +325,37 @@ export function cameraLevel(setup: CameraSetup | undefined, sized: { quad: Pt[];
   const sol = setup ? solveCamera(setup, imgW, imgH) : null;
   if (!setup || !sol) return { axes: false, length: false, check: false, level: 0 };
   const length = sol.scaled;
-  const check = length && (!setup.auto || sized.filter((s) => signMatches(sol, s.quad, s.w, s.h)).length >= 2);
+  // 확인: 3점의 두 길이가 맞음 / 사람이 맞춘 원근(3점이 아닌) / 치수 넣은 사인물 두 개가 맞음
+  const check = length && (sol.ref2Ok === true || (!setup.auto && !setup.ref2) || sized.filter((s) => signMatches(sol, s.quad, s.w, s.h)).length >= 2);
   return { axes: true, length, check, level: (1 + (length ? 1 : 0) + (check ? 1 : 0)) as 1 | 2 | 3 };
 }
 
+/**
+ * 자동 원근에서 3점 (2026-10-19 사용자: "그냥 3점으로 원근을 잡을 수 있어?" → "자동원근에서" → "진행해줘"):
+ * 축 선(기울기·회전·화각)은 그대로 두고 **모서리 = 원점**, **가로 끝**(X 축 선 위로 붙임) + 가로 mm = 기준 길이, **위 끝**(Z 축 선 위로 붙임) + 높이 mm = 두 번째 길이(확인·세로 보정).
+ * 사람이 찍은 원근이라 auto 를 지운다. 원근을 풀 수 없거나 점이 겹치면 null
+ */
+export function threePointSetup(setup: CameraSetup, imgW: number, imgH: number, corner: Pt, xEnd: Pt, zEnd: Pt, xMm: number, zMm?: number): CameraSetup | null {
+  const { auto: _a, ref: _r, ref2: _r2, ...rest } = setup;
+  const base: CameraSetup = { ...rest, origin: corner };
+  const sol = solveCamera(base, imgW, imgH);
+  if (!sol || !(xMm > 0)) return null;
+  const x = snapToAxis(sol, 'x', xEnd), z = snapToAxis(sol, 'z', zEnd);
+  if (Math.hypot(x[0] - corner[0], x[1] - corner[1]) < 2) return null;
+  const out: CameraSetup = { ...base, ref: { axis: 'x', from: corner, to: x, mm: xMm } };
+  if (zMm && zMm > 0 && Math.hypot(z[0] - corner[0], z[1] - corner[1]) >= 2) out.ref2 = { axis: 'z', from: corner, to: z, mm: zMm };
+  return solveCamera(out, imgW, imgH) ? out : null;
+}
+/** 3점 찍는 중: 사진 점을 그 모서리에서 뻗는 축 선 위로 (화면에 붙은 자리를 보여 주기용) */
+export function snapFromCorner(setup: CameraSetup, imgW: number, imgH: number, corner: Pt, axis: 'x' | 'z', p: Pt): Pt {
+  const sol = solveCamera({ ...setup, origin: corner }, imgW, imgH);
+  return sol ? snapToAxis(sol, axis, p) : p;
+}
+
 export function calibrationOf(s: CameraSolution): Calibration {
-  return { H: s.Hinv, sx: 1, sy: 1, metric: true, pose: s.pose, perRef: [], warnings: s.warnings, ...(s.scaled ? {} : { unscaled: true }) };
+  // 3점의 두 번째 길이(높이)로 세로 축척 보정 — 화각 오차는 축마다 다르게 나타난다 (0.5~2배 안만)
+  const sy = s.ref2Scale && s.ref2Scale > 0.5 && s.ref2Scale < 2 ? s.ref2Scale : 1;
+  return { H: s.Hinv, sx: 1, sy, metric: true, pose: s.pose, perRef: [], warnings: s.warnings, ...(s.scaled ? {} : { unscaled: true }) };
 }
 
 // ---------- 자동 제안 (AI): 선분 검출 + RANSAC 소실점 (lines.ts) ----------

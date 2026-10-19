@@ -292,3 +292,34 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   await page.waitForTimeout(1200);
   expect(await camOf()).toBeNull();
 });
+
+test('자동 원근에서 3점: [3점] → 모서리·가로 끝·위 끝을 누르고 가로·높이를 넣으면 원점·축척이 잡히고 높이로 확인(완성도 3) (2026-10-19)', async ({ page, request }) => {
+  type Cam = { origin: number[]; ref?: { mm: number }; ref2?: { mm: number }; auto?: boolean };
+  const camOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { camera?: Cam }[] } }).__ganpanda.photos[0].camera ?? null);
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '1', { timeout: 15_000 }); // 자동 원근(축만)
+  // 문 왼쪽 아래 모서리(벽 4000,0) → 가로 끝(5000,0) 1000mm → 위 끝(4000,2900) 2900mm
+  const [corner, xEnd, zEnd] = await wallToPx(page, [[4000, 0], [5000, 0], [4000, 2900]]);
+  const toScreen = (p: Pt) => page.evaluate((p) => { const svg = document.querySelector('[data-testid="photo-zone"] svg:not(.opt-ico)') as SVGSVGElement; const m = svg.getScreenCTM()!; return [m.a * p[0] + m.e, m.d * p[1] + m.f] as Pt; }, p);
+  await page.getByTestId('camera-3pt').click();
+  await expect(page.getByTestId('three-point-step')).toContainText('모서리');
+  for (const p of [corner, [xEnd[0] + 2, xEnd[1] + 4] as Pt, [zEnd[0] - 3, zEnd[1]] as Pt]) { const s = await toScreen(p); await page.mouse.click(s[0], s[1]); }
+  await expect(page.getByTestId('three-point-pt')).toHaveCount(3);
+  await page.getByTestId('three-x').fill('1000');
+  await page.getByTestId('three-z').fill('2900');
+  await page.getByTestId('three-apply').click();
+  await expect(page.getByTestId('three-point')).toHaveCount(0);
+  const cam = (await camOf())!;
+  expect(cam.ref!.mm).toBe(1000);
+  expect(cam.ref2!.mm).toBe(2900);
+  expect(cam.auto).toBeUndefined(); // 사람이 찍음 — 자동 길이 반영이 덮지 않는다
+  expect(Math.hypot(cam.origin[0] - corner[0], cam.origin[1] - corner[1])).toBeLessThan(3);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
+  // 크기 없는 띠(벽 0~9000 × 3700~4700)가 그 원근으로 실제 가까이
+  const [bTL, bTR, bBR, bBL] = await wallToPx(page, [[0, 4700], [9000, 4700], [9000, 3700], [0, 3700]]);
+  await page.evaluate((q) => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; a.project.addObject({ photoId: a.photos[0].id, name: '띠', shape: 'rect', quad: q, sheetIds: [] }); }, [bTL, bTR, bBR, bBL]);
+  const band = await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { name: string }[]; sizeOf(o: unknown): { w: number; h: number } | null } }).__ganpanda; return a.sizeOf(a.objects.find((o) => o.name === '띠')!); });
+  expect(Math.abs(band!.w - 9000) / 9000).toBeLessThan(0.12);
+  expect(Math.abs(band!.h - 1000) / 1000).toBeLessThan(0.15);
+});

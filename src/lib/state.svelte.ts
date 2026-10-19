@@ -14,7 +14,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, signLengthSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, signLengthSetup, threePointSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { clampFlatScale } from './core/boardCards';
@@ -565,6 +565,34 @@ class AppState {
       this.project.updatePhoto(p.id, { camera: next }); // 조용히 — 효과·안내 없이 완성도만 오른다
       this.editBoundary();
     }
+  }
+
+  /**
+   * 3점 원근 (2026-10-19 사용자: "그냥 3점으로 원근을 잡을 수 있어?" → "자동원근에서" → "진행해줘"): 원근(축 선)이 있는 사진에서
+   * 모서리 → 가로 끝 → 위 끝을 차례로 누르고 가로·높이 mm 를 넣으면 원점·기준 길이·두 번째 길이(확인)를 정한다 (core/camera.ts threePointSetup)
+   */
+  threePoint = $state<{ photoId: string; pts: [number, number][] } | null>(null);
+  startThreePoint(photoId: string) {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p?.camera || !this.canEdit) return;
+    this.selectObject(null); this.tool = 'select';
+    this.threePoint = { photoId, pts: [] };
+  }
+  addThreePoint(p: [number, number]) {
+    if (!this.threePoint || this.threePoint.pts.length >= 3) return;
+    this.threePoint = { ...this.threePoint, pts: [...this.threePoint.pts, p] };
+  }
+  cancelThreePoint() { this.threePoint = null; }
+  applyThreePoint(xMm: number, zMm?: number): boolean {
+    const t = this.threePoint, p = t && this.photos.find((x) => x.id === t.photoId);
+    if (!t || !p?.camera || t.pts.length < 3 || !this.canEdit) return false;
+    const next = threePointSetup(p.camera, p.w, p.h, t.pts[0], t.pts[1], t.pts[2], xMm, zMm);
+    if (!next) return false;
+    this.editBoundary();
+    this.project.updatePhoto(p.id, { camera: next, autoCamera: undefined });
+    this.editBoundary();
+    this.threePoint = null;
+    return true;
   }
 
   /** 현재 선들의 끝점을 사진 모서리에 붙인다 */

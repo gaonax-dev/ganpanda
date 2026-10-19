@@ -4,7 +4,7 @@
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
-  import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
+  import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, snapFromCorner, solveCamera } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
   import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
@@ -118,6 +118,31 @@
   const fx = $derived(app.cameraFx[photo.id]);
   const fxCaption = $derived(!fx ? '' : fx.kind === 'scan' ? '✨ 원근을 읽는 중…' : '✨ 원근을 잡았습니다');
   const level = $derived(app.cameraLevels.get(photo.id));
+  // 3점 원근 (2026-10-19): 이 사진에서 찍는 중이면 점(축 선 위로 붙인 자리)·축 안내 선·길이 입력
+  const tp = $derived(app.threePoint?.photoId === photo.id ? app.threePoint : null);
+  const TP_AXIS = ['x', 'z'] as const;
+  const tpGuide = $derived.by(() => {
+    if (!tp || !photo.camera || !tp.pts.length) return null;
+    const c = tp.pts[0], sol = solveCamera({ ...photo.camera, origin: c }, photo.w, photo.h);
+    if (!sol) return null;
+    const far = Math.max(photo.w, photo.h) * 2;
+    const ln = (k: 'x' | 'z') => { const d = sol.axisImageDir[k]; return { a: [c[0] - d[0] * far, c[1] - d[1] * far] as Pt, b: [c[0] + d[0] * far, c[1] + d[1] * far] as Pt }; };
+    return { x: ln('x'), z: ln('z') };
+  });
+  const TP_STEP = ['① 벽 모서리(원점)를 누르세요', '② 모서리에서 가로로 간 끝을 누르세요 (빨간 선 위로 붙습니다)', '③ 모서리에서 위로 간 끝을 누르세요 (파란 선 위로 붙습니다)'];
+  let tpX = $state(''), tpZ = $state('');
+  function tpDown(e: PointerEvent) {
+    if (e.button !== 0 || !tp || !photo.camera) return;
+    e.stopPropagation();
+    const p = clamp(toPhoto(e.clientX, e.clientY));
+    const n = tp.pts.length;
+    app.addThreePoint(n === 0 ? p : snapFromCorner(photo.camera, photo.w, photo.h, tp.pts[0], TP_AXIS[n - 1], p));
+  }
+  function tpApply() {
+    const x = Number(tpX), z = Number(tpZ);
+    if (!(x > 0)) return;
+    if (app.applyThreePoint(x, z > 0 ? z : undefined)) { tpX = ''; tpZ = ''; }
+  }
   const levelTitle = $derived(level ? `원근 완성도 ${level.level}/3 — 축 ${level.axes ? '✓' : '–'} · 길이 ${level.length ? '✓' : '– (사인물에 치수를 넣으면 채워집니다)'} · 확인 ${level.check ? '✓' : '– (치수 넣은 사인물 두 개가 맞거나 옵션 창에서 맞추면)'}` : '');
   /** 반짝이 자리 (고정 — 매번 같은 무늬) */
   const SPARKS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37 + 11) % 97, y: (i * 53 + 23) % 89, d: ((i * 7) % 10) / 10 * 1.4, s: 0.6 + ((i * 13) % 7) / 10 }));
@@ -473,6 +498,7 @@
       {#if oncameraauto}<button class="x cam" class:set={cameraSet} data-testid="camera-auto" disabled={cameraBusy} title="크기를 넣은 사인물로 원근을 맞춥니다 — 외곽선 = 축 선, 왼쪽 아래 코너 = 원점, 가로 = 기준 길이 (고른 사인물 우선, 없으면 AI 가 사진의 직선으로). 고치려면 옆의 옵션" onpointerdown={(e) => e.stopPropagation()} onclick={oncameraauto}>{cameraBusy ? '📐 분석 중…' : narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 자동 매칭 ✓' : '📐 원근 자동 매칭'}</button>{/if}
       <!-- 원근 완성도 (2026-10-19 "정확도를 경고하지 마라 … 완성도 표시만해줘"): 축 → 길이 → 확인, 세 칸 -->
       {#if level?.level}<span class="lvl" data-testid="camera-level" data-level={level.level} title={levelTitle} aria-label={levelTitle}>{#each [1, 2, 3] as k (k)}<i class:on={level.level >= k}></i>{/each}</span>{/if}
+      {#if cameraSet && editable}<button class="x cam" class:on={!!tp} data-testid="camera-3pt" title="3점 원근 — 모서리·가로 끝·위 끝을 누르고 가로·높이 길이를 넣으면 원점·축척을 잡고 높이로 확인합니다 (축 선은 그대로)" onpointerdown={(e) => e.stopPropagation()} onclick={() => (tp ? app.cancelThreePoint() : app.startThreePoint(photo.id))}>{narrow ? '3점' : '📍 3점'}</button>{/if}
       <button class="x cam opt" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} aria-label="원근 옵션" title={cameraSet ? '원근 옵션 — 이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '원근 옵션 — 벽의 직선과 실측 길이로 원근을 직접 맞추기'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}><svg class="opt-ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5" /><rect x="5.5" y="1.5" width="9" height="9" rx="1.5" /></svg></button>
     {/if}
     {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
@@ -782,7 +808,40 @@
     {#if draft}
       <polygon class="draft" points={outline('rect', quadFromDrag(draft.start, draft.end), undefined, drawShape === 'ellipse' ? 0.5 : 0)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
+    {#if tp}
+      <!-- 3점 찍기: 사진 전체를 덮는 투명 판이 누르기를 받는다 (사인물·말풍선 대신) -->
+      <g class="tp" data-testid="three-point-layer">
+        <rect class="tp-hit" x="0" y="0" width={photo.w} height={photo.h} role="button" tabindex="-1" onpointerdown={tpDown} />
+        {#if tpGuide}
+          <line class="tp-guide" x1={tpGuide.x.a[0]} y1={tpGuide.x.a[1]} x2={tpGuide.x.b[0]} y2={tpGuide.x.b[1]} style:stroke={AXIS_COLOR.x} stroke-width={1.5 * u} />
+          <line class="tp-guide" x1={tpGuide.z.a[0]} y1={tpGuide.z.a[1]} x2={tpGuide.z.b[0]} y2={tpGuide.z.b[1]} style:stroke={AXIS_COLOR.z} stroke-width={1.5 * u} />
+        {/if}
+        {#each tp.pts as p, i (i)}
+          {#if i > 0}<line class="tp-seg" x1={tp.pts[0][0]} y1={tp.pts[0][1]} x2={p[0]} y2={p[1]} style:stroke={i === 1 ? AXIS_COLOR.x : AXIS_COLOR.z} stroke-width={4 * u} />{/if}
+          <circle class="tp-pt" data-testid="three-point-pt" cx={p[0]} cy={p[1]} r={7 * u} stroke-width={2 * u} style:fill={i === 0 ? '#ffffff' : i === 1 ? AXIS_COLOR.x : AXIS_COLOR.z} />
+        {/each}
+      </g>
+    {/if}
   </svg>
+  {#if tp}
+    <!-- 3점 안내·길이 입력: 줌과 무관하게 같은 크기 -->
+    <div class="tp-panel" data-testid="three-point" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()} role="presentation">
+      <b>📍 3점 원근</b>
+      {#if tp.pts.length < 3}
+        <span data-testid="three-point-step">{TP_STEP[tp.pts.length]}</span>
+      {:else}
+        <form onsubmit={(e) => { e.preventDefault(); tpApply(); }}>
+          <label>가로<input data-testid="three-x" type="number" inputmode="decimal" min="0" step="10" placeholder="mm" bind:value={tpX} /></label>
+          <label>높이<input data-testid="three-z" type="number" inputmode="decimal" min="0" step="10" placeholder="mm (확인용)" bind:value={tpZ} /></label>
+          <button class="btn small primary" data-testid="three-apply" type="submit" disabled={!(Number(tpX) > 0)}>적용</button>
+        </form>
+      {/if}
+      <div class="tp-row">
+        {#if tp.pts.length}<button class="btn small" data-testid="three-undo" onclick={() => app.threePoint && (app.threePoint = { ...app.threePoint, pts: app.threePoint.pts.slice(0, -1) })}>한 점 취소</button>{/if}
+        <button class="btn small" data-testid="three-cancel" onclick={() => app.cancelThreePoint()}>닫기</button>
+      </div>
+    </div>
+  {/if}
   {#if fx}
     {#key fx.seq}
       <div class="fx {fx.kind}" data-testid="camera-fx" data-kind={fx.kind} aria-live="polite">
@@ -836,6 +895,16 @@
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }
   .camera { opacity: 0.55; }
+  /* 3점 원근 */
+  .tp-hit { fill: transparent; cursor: crosshair; }
+  .tp-guide { stroke-dasharray: 10 6; opacity: 0.8; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .tp-seg { stroke-linecap: round; pointer-events: none; }
+  .tp-pt { stroke: #111; pointer-events: none; }
+  .tp-panel { position: absolute; left: 8px; top: 8px; z-index: 6; transform-origin: 0 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--accent); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); font-size: 12px; color: var(--text); max-width: 300px; }
+  .tp-panel form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tp-panel label { display: flex; align-items: center; gap: 4px; }
+  .tp-panel input { width: 88px; padding: 4px 6px; text-align: right; }
+  .tp-row { display: flex; gap: 6px; justify-content: flex-end; }
   /* 자동 원근 효과 */
   .fx { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
   .fx.found { animation: fx-glow 2.6s ease-out both; }
