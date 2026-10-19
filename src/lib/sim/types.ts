@@ -42,6 +42,8 @@ export interface SignSpec {
   bodyless?: boolean;
   /** 간판 상단 조명 (2026-10-16): 돌출 투광등 / 트러스 바 간접 / 트러스 타공 */
   topLight?: import('../core/topLight').TopLightSpec;
+  /** 부속 3D (몰딩·지주, 2026-10-19) — 사인물 좌표 mm (그린 자리 축척) */
+  accessories?: import('../core/components').Accessory[];
   /** 벽 좌표 중심 (mm) */
   x: number;
   y: number;

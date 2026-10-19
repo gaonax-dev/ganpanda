@@ -48,7 +48,7 @@ export const fitScale = (measuredW: number, placementW: number) => (measuredW > 
 
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
 /** 내부 조명이 켜진 몸통: 후렉스류는 '비조명'이 아니면, 갈바는 내부 조명 LED(레이저 타공, 2026-10-17)일 때 */
-const isLitBody = (bodyId: string | undefined, o: SignObject) =>
+const isLitBody = (bodyId: string | undefined, o: SignObject) => partsOf(o).some((p) => componentOf(p.kind).litsBody) || // LED 모듈이 있으면 (2026-10-19)
   (['board-flex', 'board-reface', 'board-protrude', 'board-lightpanel', 'board-fabric'].includes(bodyId ?? '') && o.options?.light !== '비조명') || (bodyId === 'board-galva' && o.options?.light === 'LED');
 /** 몸통 색: 도색(갈바 등) > 바탕색(후렉스 등) > 프레임 도색 — 기본색·직접 지정일 때만 hex */
 /** 몸통 앞면 색: 도색(갈바·복합판) > 출력면·바탕색. 프레임 색은 앞면에 쓰지 않는다 (2026-10-17 "프레임과 구분") */
@@ -137,7 +137,10 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const text = o.parts ? lpTexts.map((i) => (i.text ?? '').trim()).join(' ') : (o.text ?? '').trim();
   // 상단 조명 (2026-10-16): 개수는 입력 가로(없으면 3D 배치 가로)로
   const tl = lightOf(o, p.w, p.h); // 상단 조명 구성 요소 (2026-10-19)
-  const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color, side: tl.side, aim: tl.aim, ...(tl.fixture ? { fixture: tl.fixture } : {}) } } : {}) };
+  // 부속 3D (몰딩·지주, 2026-10-19): 종류 모듈의 scene — mm 는 그린 자리 축척으로
+  const k = p.h / (o.heightMm || p.h);
+  const accessories = partsOf(o).flatMap((part) => { const a = componentOf(part.kind).scene?.(part, frameHex(o) ?? frameDefaultColor(o)); if (!a) return []; return [a.kind === 'molding' ? { ...a, widthMm: a.widthMm * k } : { ...a, heightMm: a.heightMm * k, sizeMm: a.sizeMm * k }]; });
+  const base = { ...(accessories.length ? { accessories } : {}), id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color, side: tl.side, aim: tl.aim, ...(tl.fixture ? { fixture: tl.fixture } : {}) } } : {}) };
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
   if (o.parts && (o.widthMm || o.heightMm)) {
     const comp = composedOf(o, p, d, base.letterSpacing);

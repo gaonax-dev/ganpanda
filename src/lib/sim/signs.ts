@@ -200,6 +200,32 @@ export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, W: n
   };
 }
 /** 만든 간판에 상단 조명을 더한다 (사양에 있을 때) */
+/** 부속 3D (2026-10-19): 몰딩 = 앞 테두리 띠(폭 widthMm, 앞으로 살짝 나옴), 지주 = 간판 아래 지면까지 + 간판 뒤로 올라간 기둥. 정점에 굽는다(warpToQuad·recessBox 와 함께 움직임) */
+export function accessoryMeshes(list: NonNullable<SignSpec['accessories']>, w: number, h: number, d: number): { meshes: THREE.Mesh[]; dispose(): void } {
+  const meshes: THREE.Mesh[] = [];
+  const mats: THREE.Material[] = [];
+  const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, mat: THREE.Material, part: string) => { const g = new THREE.BoxGeometry(sx, sy, sz); g.translate(x, y, z); const m = new THREE.Mesh(g, mat); m.userData.part = part; m.castShadow = true; meshes.push(m); };
+  for (const a of list) {
+    const mat = new THREE.MeshStandardMaterial({ color: a.color, metalness: 0.7, roughness: 0.35 });
+    mats.push(mat);
+    if (a.kind === 'molding') {
+      const t = a.widthMm, z = d + 4, dz = Math.max(16, d * 0.25); // 앞면 가장자리를 감싸는 띠
+      if (a.edges !== 'lr') { box(w + t, t, dz, 0, h / 2, z - dz / 2 + 4, mat, 'molding'); box(w + t, t, dz, 0, -h / 2, z - dz / 2 + 4, mat, 'molding'); }
+      if (a.edges !== 'tb') { box(t, h + (a.edges === 'all' ? -t : t), dz, -w / 2, 0, z - dz / 2 + 4, mat, 'molding'); box(t, h + (a.edges === 'all' ? -t : t), dz, w / 2, 0, z - dz / 2 + 4, mat, 'molding'); }
+    } else {
+      const s = a.sizeMm, len = a.heightMm + h, cy = h / 2 - len / 2;
+      const xs = a.count <= 1 ? [0] : Array.from({ length: a.count }, (_, i) => -w / 2 + s * 1.5 + (i * (w - s * 3)) / (a.count - 1));
+      for (const x of xs) box(s, len, s, x, cy, d / 2, mat, 'pole');
+    }
+  }
+  return { meshes, dispose() { for (const m of meshes) m.geometry.dispose(); for (const m of mats) m.dispose(); } };
+}
+function withAccessories(b: BuiltSign, spec: SignSpec): BuiltSign {
+  if (!spec.accessories?.length) return b;
+  const t = accessoryMeshes(spec.accessories, spec.widthMm, spec.heightMm, spec.depthMm);
+  for (const m of t.meshes) b.group.add(m);
+  return { ...b, dispose() { b.dispose(); t.dispose(); } };
+}
 function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
   if (!spec.topLight) return b;
   const t = topLightMeshes(spec.topLight, spec.widthMm, spec.heightMm, spec.depthMm, spec.sideColor); // 기구 색 '간판과 같은 색' = 프레임 색
@@ -209,7 +235,7 @@ function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
 
 /** images = 앞면 그림 객체(faceItems)의 그림, 객체 id → 이미지 */
 export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
-  return withTopLights(buildSignBody(spec, font, fontFamily, face, images), spec);
+  return withAccessories(withTopLights(buildSignBody(spec, font, fontFamily, face, images), spec), spec);
 }
 
 /** 그룹 안 모든 메쉬의 형상을 옮긴다 — warpToQuad 가 정점만 보므로 위치를 그룹 변환이 아니라 정점에 굽는다 */

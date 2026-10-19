@@ -50,7 +50,7 @@ export interface PartItem {
 export interface SignPart {
   id: string;
   /** light = 상단 조명 (2026-10-19, 몸통 옵션에서 구성 요소로) */
-  kind: 'channel' | 'scashi' | 'sheet' | 'light';
+  kind: 'channel' | 'scashi' | 'sheet' | 'light' | 'molding' | 'pole' | 'led';
   type: string;
   options?: Record<string, string | boolean>;
   on?: string;

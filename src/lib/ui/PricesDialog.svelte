@@ -113,7 +113,7 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="단가 설정">
     <header><h2>단가 설정</h2><button class="icon" data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
     <div class="body">
-      {#each ['board', 'channel', 'light'] as const as cat (cat)}
+      {#each ['board', 'channel', 'light', 'part'] as const as cat (cat)}
         <section>
           <h3>{CATEGORY_LABEL[cat]}</h3>
           {#each CATALOG.filter((x) => x.category === cat && x.unit !== 'none') as item (item.id)}

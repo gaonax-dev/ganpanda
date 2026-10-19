@@ -118,6 +118,28 @@ export const TOP_LIGHT_FIELDS: OptionField[] = [
   sel('fixtureMode', '기구 색', [...FIXTURE_MODES], hasTop),
   ...paint('fixture', '기구 도색', (opts) => hasTop(opts) && opts.fixtureMode === FIXTURE_MODES[1]),
 ];
+/** 몰딩 (2026-10-19 컴포넌트): 두르는 곳·폭·색 (재질 색 / 간판과 같은 색 / 색 지정) */
+export const MOLD_COLOR_MODES = ['재질 색', '간판과 같은 색', '색 지정'] as const;
+export const MOLDING_FIELDS: OptionField[] = [
+  sel('moldEdges', '두르는 곳', ['테두리 전체', '상하', '좌우']),
+  txt('moldWidth', '몰딩 폭 (mm)', '기본 30'),
+  sel('moldColorMode', '몰딩 색', [...MOLD_COLOR_MODES]),
+  ...paint('mold', '몰딩 도색', (opts) => opts.moldColorMode === MOLD_COLOR_MODES[2]),
+];
+/** 지주 (2026-10-19 컴포넌트): 수·높이(지면 ~ 간판 아래)·굵기·색 */
+export const POLE_COLOR_MODES = ['간판과 같은 색', '색 지정'] as const;
+export const POLE_FIELDS: OptionField[] = [
+  sel('poleCount', '지주 수', ['2', '1']),
+  txt('poleHeight', '지주 높이 (mm, 지면 ~ 간판 아래)', '기본 2500'),
+  txt('poleSize', '지주 굵기 (mm)', '기본 100'),
+  sel('poleColorMode', '지주 색', [...POLE_COLOR_MODES]),
+  ...paint('pole', '지주 도장', (opts) => opts.poleColorMode === POLE_COLOR_MODES[1]),
+];
+/** LED 모듈 (2026-10-19 컴포넌트): 수량(비우면 면적 ㎡ 당 70개)·LED 색 */
+export const LED_MODULE_FIELDS: OptionField[] = [
+  txt('moduleCount', '모듈 수량', '비우면 면적 ㎡ 당 70개'),
+  LED_COLOR(undefined, 'moduleColor', 'LED 색'),
+];
 /** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
 const FRAME_MAT = material('frameMat', '프레임 재질', ['stain', 'iron', 'alu', 'tension'], 'framePaint', '프레임 도색');
 /** 옛 간접조명 선택 — 상단 조명(트러스 바 간접조명 등)과 겹쳐 없앰(2026-10-16). 옛 값은 요약에만 */

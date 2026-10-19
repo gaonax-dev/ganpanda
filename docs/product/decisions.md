@@ -169,3 +169,4 @@
 | 2026-10-19 | 용어 통일 V5 1차: 연결 공급사의 용어를 확인 창 힌트·주문 JSON(supplier_label)에, 용어집 CSV 내보내기. 공급사 용어 표는 코드(`SUPPLIER_TERMS`)에 두고 단가표에서 옮겨 적음 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V5 |
 | 2026-10-19 | 상단 조명을 몸통 옵션에서 **구성 요소**(`light`)로: 간판 분류만, 객체 없음, 옛 옵션은 읽을 때 변환·저장 때 정리, 견적 줄 키 유지 | 사용자: "상단 조명부터 컴포넌트로 옮겨줘" → [../features/order.md](../features/order.md), [../architecture/composition-layers.md](../architecture/composition-layers.md) |
 | 2026-10-19 | 상단 조명 옵션: 위치(상단·하단·좌·우, 좌·우는 세로 길이), 조명 수량(투광등·타공), 타공 빛 방향(정면/간판 쪽 간접), 기구 색(간판과 같은 색/색 지정) | 사용자: "조명 수량 / 트러스트 타공 방향이 정면, 간판간접등 / 하단, 좌, 우 도 있다 / 도색: 간판과 같은 색, 컬러선택" → [../features/order.md](../features/order.md) |
+| 2026-10-19 | 몰딩·지주·LED 모듈 구성 요소 추가. 사양(세부 종류·옵션·단가 방식)은 알리다 단가표 품목 근거의 기본값으로 잡고, 공급사 사양이 정해지면 고친다 | 사용자: "컴포넌트 추가한다고 했는데" → [../features/order.md](../features/order.md) |

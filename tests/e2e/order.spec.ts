@@ -144,3 +144,29 @@ test('간판 상단 조명: 구성 요소로 더하면 개수·팔 길이·빛 �
   await page.getByTestId('view-list').click();
   await expect(page.locator('.line').filter({ hasText: '돌출 투광등' })).toContainText('4개');
 });
+
+// 2026-10-19 "컴포넌트 추가": 몰딩·지주·LED 모듈 — 구성 요소로 더하면 옵션이 나오고 견적 줄이 생긴다
+test('몰딩·지주·LED 모듈 구성 요소', async ({ page, request }) => {
+  await openOwnedProject(page, request, '부속');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  await page.getByTestId('width-mm').fill('3000');
+  await page.getByTestId('height-mm').fill('1000');
+  const card = page.getByTestId('part-card');
+  for (const [kind, opt] of [['molding', 'moldEdges'], ['pole', 'poleHeight'], ['led', 'moduleCount']] as const) {
+    await page.getByTestId('object-settings').getByTestId('quick-add').click();
+    await page.getByTestId(`add-part-${kind}`).click();
+    await expect(card.getByTestId(`part-option-${opt}`)).toBeVisible();
+    await expect(card.getByTestId('add-item-text')).toHaveCount(0);
+  }
+  await card.getByTestId('part-option-moduleCount').fill('120');
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('view-list').click();
+  await expect(page.locator('.line').filter({ hasText: '스텐 몰딩' })).toContainText('8.00m');
+  await expect(page.locator('.line').filter({ hasText: '갈바 통 지주' })).toContainText('2개');
+  await expect(page.locator('.line').filter({ hasText: 'LED 모듈' })).toContainText('120개');
+});
+

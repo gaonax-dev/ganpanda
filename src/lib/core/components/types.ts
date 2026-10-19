@@ -64,8 +64,18 @@ export interface Component {
   quoteKey?(o: SignObject, part: SignPart): string;
   /** 예전엔 몸통 옵션이던 종류 (상단 조명): 구성 요소를 저장하지 않은 옛 사인물에서도 요약에 구성 요소로 보인다 */
   fromBody?: boolean;
+  /** 3D 부속 (몰딩·지주): 사인물 좌표 mm. signColor = 간판 프레임 색 ("간판과 같은 색") */
+  scene?(part: SignPart, signColor: string): Accessory | null;
+  /** 있으면 간판 상자가 안에서 빛난다 (LED 모듈) */
+  litsBody?: boolean;
   /** 용어 표 키 앞부분 (core/terms.ts): 시트 = 'sheet', 채널·스카시 = 'product' (단가표의 시트·제품) */
   termKey: 'product' | 'sheet';
   /** 견적 줄 (ctx.finish / ctx.need) */
   price(part: SignPart, ctx: PartPriceCtx): void;
 }
+
+/** 3D 부속 사양 (사인물 좌표 mm, 2026-10-19): 몰딩 = 앞 테두리 띠, 지주 = 간판 아래로 내려가는 기둥 */
+export type Accessory =
+  | { kind: 'molding'; edges: 'all' | 'tb' | 'lr'; widthMm: number; color: string }
+  | { kind: 'pole'; count: number; heightMm: number; sizeMm: number; color: string };
+

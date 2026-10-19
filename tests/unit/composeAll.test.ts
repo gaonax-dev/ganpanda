@@ -13,7 +13,7 @@ const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((
 
 describe('분류마다 붙일 수 있는 구성 요소', () => {
   it.each([
-    ['board-flex', ['channel', 'scashi', 'sheet', 'light']],
+    ['board-flex', ['channel', 'scashi', 'sheet', 'light', 'molding', 'pole', 'led']],
     ['ch-rubber', ['scashi']],
     ['board-foamex', ['sheet', 'scashi']],
     ['banner', []],

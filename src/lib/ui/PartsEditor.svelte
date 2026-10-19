@@ -82,7 +82,8 @@
         <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력</button>
         <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 재질 시트</button>
       {/if}
-      {#if kinds.includes('light')}<button class="btn small" data-testid="add-part-light" onclick={() => addPart('light')}>+ 상단 조명</button>{/if}
+      <!-- 객체 없는 구성 요소(상단 조명·몰딩·지주·LED 모듈, 2026-10-19): 종류 모듈 이름으로 -->
+      {#each kinds.filter((k) => !componentOf(k).takesItems) as k (k)}<button class="btn small" data-testid="add-part-{k}" onclick={() => addPart(k)}>+ {componentOf(k).label}</button>{/each}
     </div>
   {/if}
   {#if hasItems && !partId}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}

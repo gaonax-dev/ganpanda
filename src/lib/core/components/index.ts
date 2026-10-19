@@ -5,10 +5,11 @@ import { channel } from './channel';
 import { scashi } from './scashi';
 import { sheet } from './sheet';
 import { light } from './light';
+import { ledModule, molding, pole } from './accessories';
 
-export type { Component, PartPriceCtx } from './types';
+export type { Accessory, Component, PartPriceCtx } from './types';
 
-export const COMPONENTS: readonly Component[] = [channel, scashi, sheet, light];
+export const COMPONENTS: readonly Component[] = [channel, scashi, sheet, light, molding, pole, ledModule];
 const BY_KIND = new Map(COMPONENTS.map((c) => [c.kind, c]));
 
 /** 종류 모듈. 모르는 종류(옛 데이터·앞으로의 종류)는 시트처럼 평면·면적 없는 기본 동작 대신 오류로 — 데이터는 모델 유니온이 지킨다 */

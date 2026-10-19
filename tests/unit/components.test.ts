@@ -14,7 +14,7 @@ const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', na
 
 describe('레지스트리', () => {
   it('채널·스카시·시트 세 종류, 이름·색·세부 종류·옵션 스키마를 모듈이 가진다', () => {
-    expect(componentKinds()).toEqual(['channel', 'scashi', 'sheet', 'light']); // 상단 조명 (2026-10-19)
+    expect(componentKinds()).toEqual(['channel', 'scashi', 'sheet', 'light', 'molding', 'pole', 'led']); // 상단 조명·몰딩·지주·LED 모듈 (2026-10-19)
     for (const c of COMPONENTS) {
       expect(c.label).toBeTruthy(); expect(c.color).toMatch(/^#/); expect(c.types.length).toBeGreaterThan(0);
       expect(componentOf(c.kind)).toBe(c);
@@ -23,7 +23,7 @@ describe('레지스트리', () => {
     expect(() => componentOf('neon')).toThrow();
   });
   it('호환 표(PART_KIND_LABEL·PART_TYPES·PART_COLOR)는 레지스트리에서 나온다', () => {
-    expect(PART_KIND_LABEL).toEqual({ channel: '채널', scashi: '스카시', sheet: '시트', light: '상단 조명' });
+    expect(PART_KIND_LABEL).toEqual({ channel: '채널', scashi: '스카시', sheet: '시트', light: '상단 조명', molding: '몰딩', pole: '지주', led: 'LED 모듈' });
     expect(PART_TYPES.sheet.map((t) => t.id)).toEqual(['sh-print', 'sh-cut']);
     expect(PART_COLOR.channel).toBe(componentOf('channel').color);
   });

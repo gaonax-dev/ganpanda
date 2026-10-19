@@ -49,7 +49,7 @@
     if (kinds.includes('channel')) out.push({ id: 'add-part-channel', label: '+ 채널', run: addPart('channel') });
     if (kinds.includes('scashi')) out.push({ id: 'add-part-scashi', label: '+ 스카시', run: addPart('scashi') });
     if (kinds.includes('sheet')) { out.push({ id: 'add-part-sheet-uv', label: '+ UV 출력', run: addPart('sheet', 'sh-print') }); out.push({ id: 'add-part-sheet-cut', label: '+ 재질 시트', run: addPart('sheet', 'sh-cut') }); }
-    if (kinds.includes('light')) out.push({ id: 'add-part-light', label: '+ 상단 조명', run: addPart('light') }); // 2026-10-19 구성 요소로
+    for (const k of kinds.filter((x) => !componentOf(x).takesItems)) out.push({ id: `add-part-${k}`, label: `+ ${componentOf(k).label}`, run: addPart(k) }); // 상단 조명·몰딩·지주·LED 모듈 (2026-10-19)
     if (!obj.note?.trim()) out.push({ id: 'quick-add-note', label: '+ 요청사항', run: () => onPick('note') });
     return out;
   });

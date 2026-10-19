@@ -23,7 +23,7 @@ export function partKindsFor(o: Pick<SignObject, 'productId' | 'sheetIds' | 'par
   const id = o.productId;
   if (!id || !productById(id)) return o.sheetIds?.length || o.parts?.some((p) => p.kind === 'sheet') ? ['sheet'] : [];
   if (SCASHI_SET.has(id)) return ['scashi'];
-  if (takesLetters(id)) return ['channel', 'scashi', 'sheet', 'light']; // 상단 조명 (2026-10-19 구성 요소로)
+  if (takesLetters(id)) return ['channel', 'scashi', 'sheet', 'light', 'molding', 'pole', 'led']; // 상단 조명·몰딩·지주·LED 모듈 (2026-10-19 구성 요소)
   if (isChannelProduct(id)) return ['channel', 'scashi', 'sheet'];
   return KINDS_OF[id] ?? [];
 }
