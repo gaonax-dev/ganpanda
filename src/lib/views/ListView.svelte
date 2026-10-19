@@ -101,6 +101,7 @@
     const base: Record<string, { x: number; y: number }> = {};
     for (const gid of group) { const g = placed.get(gid); if (g) base[gid] = { x: g.x, y: g.y }; } // 자리가 없는 카드는 빼고 (2026-10-19 "정면도들이 이동시 블로킹")
     drag = { id, dx: w.x - p.x, dy: w.y - p.y, base, ddx: 0, ddy: 0 };
+    app.editBoundary(); app.freezeFlatLayout(); // 다른 카드가 따라 밀리지 않게 (2026-10-19)
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   function move(e: PointerEvent) {

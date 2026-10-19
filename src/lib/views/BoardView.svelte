@@ -263,6 +263,7 @@
     const base = (group.length === 1 ? [id] : group).flatMap((gid) => { const g = app.flatPlaced.get(gid); return g ? [{ id: gid, x: g.x, y: g.y }] : []; });
     cardDrag = { id, dx: w.x - at.x, dy: w.y - at.y };
     app.editBoundary();
+    app.freezeFlatLayout(); // 다른 카드가 따라 밀리지 않게 지금 자리에 고정 (같은 ⌘Z 묶음)
     const pointerId = e.pointerId;
     let last: { x: number; y: number } | null = null, frame = 0;
     const apply = () => {

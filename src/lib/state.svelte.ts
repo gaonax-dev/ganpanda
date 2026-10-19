@@ -777,6 +777,16 @@ class AppState {
   /** 보드 평면 구역 이동 (보드 px) — 프로젝트 설정 */
   flatOffset = $derived(this.settings.flatOffset && Number.isFinite(this.settings.flatOffset.x) && Number.isFinite(this.settings.flatOffset.y) ? this.settings.flatOffset : { x: 0, y: 0 });
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
+  /**
+   * 자동 배치된(옮긴 적 없는) 카드를 지금 자리에 고정한다 — 카드를 끌기 시작할 때 (2026-10-19 사용자: "최상단의 카드는 내려가지 못하고 중간 카드는 하단으로 이동시 하단카드가 같이 이동한다").
+   * 자동 배치는 "옮긴 카드들 중 가장 아래"의 밑에 줄 서므로, 고정하지 않으면 한 장을 내릴 때 나머지가 함께 밀려 내려갔다. 호출자의 편집 묶음(⌘Z 한 번) 안에서
+   */
+  freezeFlatLayout() {
+    if (!this.canEdit) return;
+    const loose = this.flatCards.filter(({ o }) => o.listX === undefined || o.listY === undefined);
+    if (!loose.length) return;
+    this.project.batch(() => { for (const { o } of loose) { const p = this.flatPlaced.get(o.id); if (p) this.project.updateObject(o.id, { listX: Math.round(p.x), listY: Math.round(p.y) }); } });
+  }
 
   // ---------- 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다") ----------
   /** 사인물 클립보드 (이 탭 안에서 유지 — 다른 프로젝트로 옮겨 붙일 수 있다) */

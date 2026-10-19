@@ -240,3 +240,48 @@ test('속성 패널은 내용 높이만큼만 — 패널 아래 빈 자리의 �
   const below = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-testid="object-panel"]') ? 'panel' : 'board', [pb.x + pb.width / 2, vh - 60]);
   expect(below).toBe('board');
 });
+
+// 2026-10-19 사용자: "이동을 하는데 최상단의 카드는 내려가지 못하고 중간 카드는 하단으로 이동시 하단카드가 같이 이동한다"
+// — 옮긴 적 없는 카드는 '옮긴 카드들 중 가장 아래'의 밑에 자동으로 줄 서서, 한 장을 내리면 나머지가 같이 밀려 내려갔다
+test('카드 한 장을 내려도 다른 카드는 제자리 — 맨 위 카드를 다른 카드들 아래로 옮길 수 있다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const photoId = app.photos[0].id;
+    const mk = (n: string, x: number) => app.project.addObject({ photoId, name: n, shape: 'rect', quad: [[x, 100], [x + 200, 100], [x + 200, 300], [x, 300]], sheetIds: [], productId: 'board-flex', widthMm: 6000, heightMm: 1500 });
+    return [mk('위', 100), mk('가운데', 400), mk('아래', 700)]; // 가로 6000 → 줄(12000) 하나에 하나씩 세로로 쌓인다
+  });
+  // 카드 묶음에서 확대 (카드 순서 = 만든 순서: 위·가운데·아래)
+  const cards = page.getByTestId('board-card');
+  await expect(cards).toHaveCount(3);
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 400, clientY: 150, bubbles: true, cancelable: true })); });
+  const placed = () => page.evaluate((ids) => { const a = (window as unknown as { __ganpanda: { flatPlaced: Map<string, { x: number; y: number }> } }).__ganpanda; return ids.map((id) => { const p = a.flatPlaced.get(id)!; return [Math.round(p.x), Math.round(p.y)]; }); }, ids);
+  // 실제 자리로 위·가운데·아래를 정한다 (자동 배치 순서는 만든 순서와 다를 수 있다)
+  const order = (await placed()).map((p, k) => ({ k, y: p[1] })).sort((a, b) => a.y - b.y).map((x) => x.k);
+  ids.splice(0, 3, ...order.map((k) => ids[k]));
+  const before = await placed();
+  expect(before[1][1]).toBeGreaterThan(before[0][1]); expect(before[2][1]).toBeGreaterThan(before[1][1]); // 위·가운데·아래 순
+  const card = (name: string) => page.locator(`[data-testid="board-card"][data-id="${ids[['위', '가운데', '아래'].indexOf(name)]}"]`);
+  // 가운데 카드를 아래로 → 아래 카드는 제자리
+  const b = (await card('가운데').boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + 40, { steps: 5 }); await page.mouse.up();
+  let now = await placed();
+  expect(now[1][1]).toBeGreaterThan(before[1][1]);
+  expect(now[2]).toEqual(before[2]);
+  expect(now[0]).toEqual(before[0]);
+  // ⌘Z 한 번이면 옮긴 것과 고정이 함께 풀려 처음 그대로 (모두 다시 자동 배치)
+  await page.keyboard.press('Meta+z');
+  await expect.poll(placed).toEqual(before);
+  expect(await page.evaluate((ids) => ids.map((id) => (window as unknown as { __ganpanda: { objects: { id: string; listX?: number }[] } }).__ganpanda.objects.find((o) => o.id === id)!.listX), ids)).toEqual([undefined, undefined, undefined]);
+  await page.keyboard.press('Meta+Shift+z'); // 다시 하기
+  await expect.poll(async () => (await placed())[1][1]).toBeGreaterThan(before[1][1]);
+  // 맨 위 카드를 다른 카드들 아래로
+  const t = (await card('위').boundingBox())!, low = (await card('아래').boundingBox())!;
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2); await page.mouse.down();
+  await page.mouse.move(t.x + t.width / 2, low.y + low.height + t.height, { steps: 8 }); await page.mouse.up();
+  now = await placed();
+  expect(now[0][1]).toBeGreaterThan(now[2][1]); // 이제 맨 아래
+  expect(now[2]).toEqual(before[2]);
+});

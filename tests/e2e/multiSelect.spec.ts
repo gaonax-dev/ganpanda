@@ -66,7 +66,8 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   expect(d0.x).toBeGreaterThan(0);
   expect(p1[1].x - p0[1].x).toBeCloseTo(d0.x, 0);
   expect(p1[1].y - p0[1].y).toBeCloseTo(d0.y, 0);
-  expect((await objs(page)).find((o: { id: string }) => o.id === ids[2]).listX).toBeUndefined(); // 선택 안 된 셋째는 자리를 받지 않는다 (자동 배치 그대로)
+  expect(p1[2].x).toBeCloseTo(p0[2].x, 0); // 선택 안 된 셋째는 제자리 (끌기 시작 때 자리를 고정 — 따라 밀리지 않는다)
+  expect(p1[2].y).toBeCloseTo(p0[2].y, 0);
   await expect(page.getByTestId('multi-count')).toHaveText('2개 선택'); // 끌어도 선택 유지
   // 리스트 뷰에서도 Shift 로 카드 다중 선택·함께 이동
   await page.getByTestId('view-list').click();
