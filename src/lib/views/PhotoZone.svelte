@@ -11,7 +11,7 @@
   import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
-  import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
+  import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
   import { applyHomography, projectPoint, solveHomography } from '../core/homography';
   import { boxDirOf, boxLocalDirOf, faceOf, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import type { Calibration } from '../core/calibration';
@@ -125,11 +125,13 @@
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
-  let editing: { id: string; quad: Pt[]; mode: number | 'move' | 'edge' | GizmoMode; /** mode = 'edge' 일 때 변 번호 (i, i+1 꼭짓점) */ edge?: number; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3 } | null = $state(null);
+  let editing: { id: string; quad: Pt[]; mode: number | 'move' | 'edge' | GizmoMode; /** mode = 'edge' 일 때 변 번호 (i, i+1 꼭짓점) */ edge?: number; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3;
+    /** 면 막대 끌기(bdepth): 3D 방향, 막대 길이(mm·사진 px), 막대의 사진 방향, 짧게 누르면 바꿀 축(동그라미), 움직였나 */
+    depth?: { dir: V3; L: number; px: number; u: Pt; tap?: 'x' | 'y' | 'z'; moved: boolean } } | null = $state(null);
 
   // ---------- 입체 매니퓰레이터 (2026-10-15) ----------
   /** gx·gz·gfree = 면 위 이동, grot = 면 안 회전(원근 없는 사진), gsize = 크기 손잡이, bmove = 원근 축 이동, brot = 박스 회전 */
-  type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gsize' | 'bmove' | 'brot';
+  type GizmoMode = 'gx' | 'gz' | 'gfree' | 'grot' | 'gsize' | 'bmove' | 'brot' | 'bdepth';
   /** 매니퓰레이터 모드: 이동 / 회전 / 크기 (2026-10-15 사용자: "매니퓰레이터 작게, 회전과 이동 스케일이 필요하다") */
   // 모드는 앱 상태 (W·E·R 단축키로도 바뀐다)
   const gizmoMode = $derived(app.gizmoMode);
@@ -221,6 +223,19 @@
     if (n < 1e-6) d = [0, -1]; else d = [d[0] / n, d[1] / n];
     const len = Math.max(n, min);
     return { a, b: [a[0] + d[0] * len, a[1] + d[1] * len] };
+  }
+  /** 면 막대·동그라미 누르기 (2026-10-19 "막대 끌면 깊이 이동되게"): 끌면 막대 방향(박스 방향)으로 깊이 이동 — 막대 길이만큼 끌면 L mm.
+   *  동그라미는 짧게 누르고 떼면(4px 안) 다음 축 */
+  function barDown(e: PointerEvent, o: SignObject, fb: { a: Pt; b: Pt }, dir: V3, L: number, tap?: 'x' | 'y' | 'z') {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    if (!editable || !calWall) { if (tap && onbox) onbox(o.id, { faceAxis: tap, boxDir: undefined }); return; }
+    const a = anchor3(o, o.quad);
+    if (!a) return;
+    const px = Math.hypot(fb.b[0] - fb.a[0], fb.b[1] - fb.a[1]) || 1;
+    editing = { id: o.id, quad: o.quad, mode: 'bdepth', from: toPhoto(e.clientX, e.clientY), orig: o.quad, face3: a.plane, c3: a.c3,
+      depth: { dir, L, px, u: [(fb.b[0] - fb.a[0]) / px, (fb.b[1] - fb.a[1]) / px], tap, moved: false } };
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* 합성 이벤트 등 — 캡처 없이 */ }
   }
   const NEXT_AXIS = { x: 'y', y: 'z', z: 'x', none: 'y' } as const;
   const FACE_TITLE = { x: 'X: 박스가 벽 가로로 (돌출 간판)', y: 'Y: 박스가 벽 밖으로 (벽면 간판)', z: 'Z: 박스가 위·아래로 (어닝 등)', none: '축 사이로 돌린 박스' } as const;
@@ -356,6 +371,14 @@
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
+    if (editing.mode === 'bdepth' && editing.depth && editing.face3 && calib?.pose) {
+      const d = editing.depth, dx = x - editing.from[0], dy = y - editing.from[1];
+      if (!d.moved && Math.hypot(dx, dy) < 4 * u) return; // 짧은 누르기는 축 바꾸기로 남겨 둔다
+      d.moved = true;
+      const nq = shiftOutline(calib.pose, editing.face3, editing.orig, d.dir, ((dx * d.u[0] + dy * d.u[1]) * d.L) / d.px);
+      if (nq) editing.quad = nq;
+      return;
+    }
     if ((editing.mode === 'bmove' || editing.mode === 'brot') && editing.face3 && editing.c3 && editing.axis && calib?.pose) {
       const pose = calib.pose, A = worldAxes(pose);
       if (editing.mode === 'bmove') { const nq = moveOutline(pose, editing.face3, editing.orig, A[editing.axis], editing.from, [x, y]); if (nq) editing.quad = nq; }
@@ -392,6 +415,7 @@
     }
     if (editing) {
       if (editing.mode === 'brot') { if (editing.box && onbox) onbox(editing.id, { boxDir: editing.box, faceAxis: undefined }); }
+      else if (editing.mode === 'bdepth' && !editing.depth?.moved) { if (editing.depth?.tap && onbox) onbox(editing.id, { faceAxis: editing.depth.tap, boxDir: undefined }); }
       else if (editing.quad !== editing.orig) onquad(editing.id, editing.quad);
       editing = null;
     }
@@ -681,15 +705,18 @@
             <g class="gizmo box3" data-testid="gizmo" data-mode={gizmoMode} data-box={cur}>
               {#if gizmoMode === 'none' && onbox && dirNow && c3}
                 <!-- 면 직각 막대 + 끝 동그라미: 누르면 다음 축 (X → Y → Z → X) -->
-                {@const fb = faceBarOf(pose, c3, dirNow, len3(c3))}
+                {@const L3 = len3(c3)}
+                {@const fb = faceBarOf(pose, c3, dirNow, L3)}
                 {@const col = cur === 'none' ? '#ffffff' : AXIS_COLOR[cur]}
                 {@const next = NEXT_AXIS[cur]}
                 <g class="facebar" data-testid="face-bar" data-axis={cur}>
+                  <!-- 막대를 끌면 깊이 이동 (넓은 투명 터치 영역) -->
+                  <line class="bar-hit" data-testid="face-bar-hit" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3)}><title>끌면 이 방향으로 깊이 이동</title></line>
                   <line class="halo" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={3 * gu} />
                   <line class="ax" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={1.4 * gu} style:stroke={col} />
                   <circle class="dot" data-testid="face-bar-origin" cx={fb.a[0]} cy={fb.a[1]} r={2.5 * gu} pointer-events="none" />
                   <circle class="gh fcyc" data-testid="face-cycle" data-axis={cur} cx={fb.b[0]} cy={fb.b[1]} r={7 * gu} stroke-width={2 * gu} style:fill={col} role="button" tabindex="-1"
-                    onpointerdown={(e) => { e.stopPropagation(); onbox(o.id, { faceAxis: next, boxDir: undefined }); }}><title>{FACE_TITLE[cur]} — 누르면 {next.toUpperCase()} 축으로</title></circle>
+                    onpointerdown={(e) => barDown(e, o, fb, dirNow, L3, next)}><title>{FACE_TITLE[cur]} — 누르면 {next.toUpperCase()} 축으로, 끌면 깊이 이동</title></circle>
                 </g>
               {:else if gizmoMode === 'rotate'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
@@ -853,6 +880,7 @@
   .gizmo .gh.rot { fill: #ffcc00; }
   /* 면 직각 막대 끝 동그라미 (2026-10-19): 축 색, 어두운 테두리 — 누르면 다음 축 */
   .gizmo .gh.fcyc { stroke: #111; cursor: pointer; }
+  .gizmo .bar-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; stroke-linecap: round; }
   .gizmo .gh.size { fill: #fff; stroke: #333; }
   .ibtn { cursor: pointer; }
   .ibtn circle { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }

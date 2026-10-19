@@ -26,6 +26,8 @@ async function addSign(page: Page, quad: Pt[]) {
   }, quad);
 }
 /** 면 직각 막대 길이(화면 px): 가운데 점 → 끝 동그라미 (2026-10-19 이동 매니퓰레이터 대신) */
+/** 면 동그라미 짧게 누르기 (누르고 떼야 축이 바뀐다 — 끌면 깊이 이동) */
+async function tapDot(page: Page) { const b = (await page.getByTestId('face-cycle').boundingBox())!; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); }
 async function barLen(page: Page) {
   const o = (await page.getByTestId('face-bar-origin').boundingBox())!, c = (await page.getByTestId('face-cycle').boundingBox())!;
   return Math.hypot(c.x + c.width / 2 - (o.x + o.width / 2), c.y + c.height / 2 - (o.y + o.height / 2));
@@ -62,7 +64,7 @@ test('이동 매니퓰레이터는 없다: 사인물을 고르면 면에 직각�
   const len = await barLen(page);
   expect(len).toBeGreaterThan(30); expect(len).toBeLessThan(110);
   for (const next of ['z', 'x', 'y']) {
-    await dot.dispatchEvent('pointerdown', { button: 0 });
+    await tapDot(page);
     await expect(dot).toHaveAttribute('data-axis', next);
     await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe(next);
   }
@@ -77,6 +79,44 @@ test('이동 매니퓰레이터는 없다: 사인물을 고르면 면에 직각�
   await expect(page.getByTestId('gizmo')).toHaveAttribute('data-mode', 'none');
   await expect(bar).toBeVisible();
   await expect(page.getByTestId('persp-guide')).toHaveCount(0); // 원근 직사각형이면 원근 매니퓰레이터는 안 뜸
+});
+
+test('면 막대를 끌면 그 방향으로 깊이 이동: 바깥으로 끌면 카메라 쪽으로 나와 외곽선이 커진다. 동그라미도 끌면 이동(축은 안 바뀜), 짧게 누르면 축 (2026-10-19)', async ({ page, request }) => {
+  // 2026-10-19 사용자: "방향 막대로 깊이 이동되는거야?" → "막대 끌면 깊이 이동되게 해줘"
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const q0 = await rectOnWall(page, 1000, 3800, 3000, 800);
+  const id = await addSign(page, q0);
+  await page.evaluate(() => (window as unknown as { __ganpanda: { editBoundary(): void } }).__ganpanda.editBoundary()); // 만들기와 끌기를 다른 되돌리기 단계로
+  const w = (q: Pt[]) => Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
+  const o = (await page.getByTestId('face-bar-origin').boundingBox())!, c = (await page.getByTestId('face-cycle').boundingBox())!;
+  const ox = o.x + o.width / 2, oy = o.y + o.height / 2, cx = c.x + c.width / 2, cy = c.y + c.height / 2;
+  const ux = (cx - ox) / Math.hypot(cx - ox, cy - oy), uy = (cy - oy) / Math.hypot(cx - ox, cy - oy);
+  // 막대 가운데를 잡고 바깥(동그라미 쪽)으로 40px
+  const mx = (ox + cx) / 2, my = (oy + cy) / 2;
+  await page.mouse.move(mx, my); await page.mouse.down();
+  await page.mouse.move(mx + ux * 20, my + uy * 20); await page.mouse.move(mx + ux * 40, my + uy * 40); await page.mouse.up();
+  const q1 = await quadOf(page, id);
+  expect(w(q1)).toBeGreaterThan(w(q0) * 1.03);
+  await expect(page.getByTestId('face-cycle')).toHaveAttribute('data-axis', 'y'); // 축은 그대로
+  // 되돌리기 한 번에 원래 자리
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async () => w(await quadOf(page, id))).toBeCloseTo(w(q0), 0);
+  // 동그라미를 안쪽으로 끌면 벽 안쪽으로 — 작아지고, 축은 안 바뀐다
+  const c2 = (await page.getByTestId('face-cycle').boundingBox())!;
+  const x2 = c2.x + c2.width / 2, y2 = c2.y + c2.height / 2;
+  await page.mouse.move(x2, y2); await page.mouse.down();
+  await page.mouse.move(x2 - ux * 15, y2 - uy * 15); await page.mouse.move(x2 - ux * 30, y2 - uy * 30); await page.mouse.up();
+  expect(w(await quadOf(page, id))).toBeLessThan(w(q0) * 0.98);
+  await expect(page.getByTestId('face-cycle')).toHaveAttribute('data-axis', 'y');
+  expect(await fieldOf(page, id, 'faceAxis')).toBeNull();
+  // 짧게 누르면 축만 바뀐다
+  const q2 = await quadOf(page, id);
+  const c3 = (await page.getByTestId('face-cycle').boundingBox())!;
+  await page.mouse.click(c3.x + c3.width / 2, c3.y + c3.height / 2);
+  await expect(page.getByTestId('face-cycle')).toHaveAttribute('data-axis', 'z');
+  expect(await quadOf(page, id)).toEqual(q2);
 });
 
 test('면 막대 자리 = 외곽선 대각선 교점 (새로 그린 사인물도)', async ({ page, request }) => {
@@ -223,9 +263,9 @@ test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async 
   await loadSample(page);
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
-  await page.getByTestId('face-cycle').dispatchEvent('pointerdown', { button: 0 }); // Y → Z
+  await tapDot(page); // Y → Z
   await expect(page.getByTestId('face-cycle')).toHaveAttribute('data-axis', 'z');
-  await page.getByTestId('face-cycle').dispatchEvent('pointerdown', { button: 0 }); // Z → X
+  await tapDot(page); // Z → X
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
@@ -291,8 +331,8 @@ test('면 동그라미·회전 고리는 박스 방향만 바꾼다: 외곽선·
   const id = await addSign(page, q);
   const g = page.getByTestId('gizmo'), dot = page.getByTestId('face-cycle');
   await expect(g).toHaveAttribute('data-box', 'y');
-  await dot.dispatchEvent('pointerdown', { button: 0 });
-  await dot.dispatchEvent('pointerdown', { button: 0 }); // Y → Z → X
+  await tapDot(page);
+  await tapDot(page); // Y → Z → X
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await expect(g).toHaveAttribute('data-box', 'x');
   expect(await quadOf(page, id)).toEqual(q);
@@ -304,7 +344,7 @@ test('면 동그라미·회전 고리는 박스 방향만 바꾼다: 외곽선·
   await page.keyboard.press('w');
   await expect(g).toHaveAttribute('data-box', 'none');
   await expect(dot).toHaveAttribute('data-axis', 'none');
-  await dot.dispatchEvent('pointerdown', { button: 0 });
+  await tapDot(page);
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('y');
   await expect.poll(() => fieldOf(page, id, 'boxDir')).toBeNull();
 });

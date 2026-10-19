@@ -79,6 +79,13 @@ export function moveOutline(pose: CameraPose, face: PosedPlane, quad: Pt[], axis
   return moved.every((p) => depthOf(pose, p) > 0) ? moved.map((p) => projectPoint(pose, p)) : null;
 }
 
+/** 면 막대 끌기 (2026-10-19 사용자: "막대 끌면 깊이 이동되게"): 외곽선 꼭짓점의 3D 자리를 dir(단위) 방향으로 t mm 옮겨 다시 사진에. 카메라 뒤로 가면 null */
+export function shiftOutline(pose: CameraPose, face: PosedPlane, quad: Pt[], dir: V3, t: number): Pt[] | null {
+  const n = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+  const moved = quad.map((q) => add(toWorld(pose, face, applyHomography(face.Hinv, q)), dir, t / n));
+  return moved.every((p) => depthOf(pose, p) > 0) ? moved.map((p) => projectPoint(pose, p)) : null;
+}
+
 /** v 를 단위축 k 둘레로 th 만큼 (로드리게스) */
 function rot(v: V3, k: V3, th: number): V3 {
   const c = Math.cos(th), s = Math.sin(th), kv = cross(k, v), d = dot(k, v);

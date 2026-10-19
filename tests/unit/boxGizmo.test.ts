@@ -2,7 +2,7 @@
 // "박스만 회전하고 크기는 외곽선만", "새로 생성하는 사인물툴의 메니폴레이터가 엉뚱한곳에 나타나")
 import { describe, expect, it } from 'vitest';
 import { projectPoint, solveHomography, type CameraPose, type Pt } from '../../src/lib/core/homography';
-import { boxGizmoOf, localBoxDir, moveOutline, outlineCenter3, rotateDir, worldAxes } from '../../src/lib/core/boxGizmo';
+import { boxGizmoOf, localBoxDir, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes } from '../../src/lib/core/boxGizmo';
 import { quadCenter } from '../../src/lib/core/manipulator';
 import { boxGuideOf } from '../../src/lib/core/manipulator';
 import { projectionFromPlane, type WallPlane } from '../../src/lib/core/wallPlane';
@@ -52,6 +52,20 @@ describe('이동 (외곽선을 원근 축을 따라)', () => {
     const q = moveOutline(pose, cal, wallQ, A.y, proj(c3), proj(add(c3, A.y, 1500)))!;
     const w = (p: Pt[]) => Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]);
     expect(w(q)).toBeGreaterThan(w(wallQ) * 1.1);
+  });
+});
+
+describe('면 막대 끌기 = 깊이 이동 (shiftOutline, 2026-10-19 "막대 끌면 깊이 이동되게")', () => {
+  it('막대 방향(벽 밖 Y)으로 1500mm: 3D 꼭짓점을 그만큼 옮겨 다시 사진에 — moveOutline 의 같은 이동과 같고 외곽선이 커진다', () => {
+    const c3 = outlineCenter3(cal, cal, wallQ)!;
+    const q = shiftOutline(pose, cal, wallQ, A.y, 1500)!;
+    expect(maxDist(q, moveOutline(pose, cal, wallQ, A.y, proj(c3), proj(add(c3, A.y, 1500)))!)).toBeLessThan(0.5);
+    const w = (p: Pt[]) => Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]);
+    expect(w(q)).toBeGreaterThan(w(wallQ) * 1.1);
+  });
+  it('0mm 면 그대로, 카메라 뒤로 넘어가면 null', () => {
+    expect(maxDist(shiftOutline(pose, cal, wallQ, A.y, 0)!, wallQ)).toBeLessThan(1e-6);
+    expect(shiftOutline(pose, cal, wallQ, A.y, 100000)).toBeNull();
   });
 });
 
