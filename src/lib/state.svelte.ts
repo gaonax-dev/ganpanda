@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeByPhotos, unfold } from './core/arrange';
+import { arrangeUnderPhotos } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -18,14 +18,13 @@ import type { Calibration } from './core/calibration';
 import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
-import { clampFlatScale } from './core/boardCards';
+import { clampFlatScale, flatOrigin } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf } from './core/wallPlane';
-import { outlinePoints3 } from './core/boxGizmo';
+import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -901,33 +900,21 @@ class AppState {
   flatArrange = $state(false);
   /**
    * 카드 재정렬 (2026-10-20 사용자: "사진순서로 소속 카드들을 배치하고 순서는 사진에서의 순서와 위치로 … 재정렬하면 위의 상태로 다시 배열"
-   * → "사진의 구도대로 평면화 하고 여기에서 축이 다른 경우도 평면으로 펴서 카드가 정렬되게"):
-   * 사진 = 보드에서 왼쪽부터(같으면 위부터) 묶음을 위에서 아래로. 묶음 안 = 원근으로 편 실제 자리(벽 mm) — 원근이 있으면 사인물 면(벽·세로면·수평면)의 3D 외곽선을
-   * 벽 평면으로 펴고(core/arrange.ts unfold), 없으면 치수 넣은 사인물 기준 평면. 펴지 못한 카드는 묶음 아래 줄, 사진 없는 카드는 끝. 한 번의 ⌘Z
+   * → "카드 배치가 우선 사진 배치의 위치를 유지한다. 현재는 가로로 사진이 1장씩있다. 그리고 사진안의 사인물 배열을 한다. 위치는 1열 층 2열 층으로 정렬한다."):
+   * 묶음 = 각 사진 아래, 그 사진의 가로 자리(보드 px → 평면 mm). 묶음 안 = 사진 속 높이로 나눈 층별 줄(1열 = 가장 아래 층), 줄 안 왼쪽부터 (core/arrange.ts).
+   * 사진 없는 카드는 모두의 아래. 한 번의 ⌘Z
    */
   arrangeFlatCards(gap = this.flatGap) {
     if (!this.canEdit || !this.flatCards.length) return;
-    const photos = [...this.photos].sort((a, b) => a.x - b.x || a.y - b.y);
-    const idx = new Map(photos.map((p, i) => [p.id, i]));
-    const planes = new Map(photos.map((p) => [p.id, wallPlaneOf(this.objects.filter((o) => o.photoId === p.id), this.calibrations.get(p.id) ?? null)]));
     const k = this.flatScale;
-    const span = photos.length ? (Math.max(...photos.map((p) => p.x + p.width)) - Math.min(...photos.map((p) => p.x))) / k : 12000;
-    const centerOf = (o: SignObject): { cx: number; cy: number } | null => {
-      const cal = planes.get(o.photoId);
-      if (!cal || o.quad.length < 3) return null;
-      let pts: [number, number][];
-      if (cal.pose) {
-        const face = faceOf(o, cal);
-        const p3 = outlinePoints3(cal, face?.plane ?? cal, o.quad);
-        if (!p3) return null;
-        pts = unfold(p3, face?.axis ?? 'y');
-      } else pts = quadOnWall(cal, o);
-      if (!pts.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
-      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-      return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2 };
-    };
-    const cards = this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, photo: idx.get(o.photoId) ?? null, at: idx.has(o.photoId) ? centerOf(o) : null }));
-    const at = arrangeByPhotos(cards, gap, Math.max(4000, span));
+    const ox = flatOrigin(this.photos, 80, this.flatOffset).x;
+    const photoX = this.photos.map((p) => (p.x - ox) / k);
+    const idx = new Map(this.photos.map((p, i) => [p.id, i]));
+    const cards = this.flatCards.map(({ o, w, h }) => {
+      const xs = o.quad.map((q) => q[0]), ys = o.quad.map((q) => q[1]);
+      return { id: o.id, w, h, photo: idx.get(o.photoId) ?? null, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+    });
+    const at = arrangeUnderPhotos(cards, photoX, gap);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
     this.editBoundary();

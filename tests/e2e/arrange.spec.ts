@@ -7,7 +7,7 @@ type Pt = [number, number];
 async function loadSample(page: Page) {
   const dataUrl = await page.evaluate(async () => { const path = '/src/lib/sim/sample.ts'; const { makeSamplePhoto } = await import(/* @vite-ignore */ path); return makeSamplePhoto().toDataURL('image/png') as string; });
   await page.getByTestId('photo-input').setInputFiles({ name: '매장.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
-  await page.getByTestId('photo-zone').waitFor();
+  await page.getByTestId('photo-zone').first().waitFor();
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
 }
 const wallToPx = (page: Page, pts: Pt[]) => page.evaluate(async (pts) => {
@@ -38,21 +38,26 @@ const sideQuad = (page: Page, x: number, y0: number, h: number, out0: number, w:
 }, { x, y0, h, out0, w });
 const listOf = (page: Page) => page.evaluate(() => Object.fromEntries((window as unknown as { __ganpanda: { objects: { name: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.map((o) => [o.name, [o.listX, o.listY]])));
 
-test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 사진 구도대로 실제 자리(mm) — 돌출 간판은 펴서. 간격 ± 는 그 간격으로 다시, 카드는 자유롭게 옮길 수 있다', async ({ page, request }) => {
+test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 카드 묶음은 각 사진 아래(사진 가로 자리 유지), 묶음 안은 층별 줄(1열 = 아래 층) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
+  // 2026-10-20 사용자: "카드 배치가 우선 사진 배치의 위치를 유지한다. 현재는 가로로 사진이 1장씩있다. 그리고 사진안의 사인물 배열을 한다. 위치는 1열 층 2열 층으로 정렬한다."
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
   const band = await rectOnWall(page, 0, 3700, 9000, 1000);
   const door = await rectOnWall(page, 4000, 0, 1000, 2900);
   const side = await sideQuad(page, 300, 1000, 900, 0, 1200);
+  // 두 번째 사진 (오른쪽에 이어 붙는다)
+  await loadSample(page);
+  await expect(page.getByTestId('photo-zone')).toHaveCount(2);
   await page.evaluate((q) => {
-    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
-    const pid = a.photos[0].id;
-    a.project.addObject({ photoId: pid, name: '띠', shape: 'rect', quad: q.band, sheetIds: [], widthMm: 9000, heightMm: 1000, listX: 5000, listY: 9000 });
-    a.project.addObject({ photoId: pid, name: '문', shape: 'rect', quad: q.door, sheetIds: [], widthMm: 1000, heightMm: 2900, listX: 0, listY: 0 });
-    a.project.addObject({ photoId: pid, name: '돌출', shape: 'rect', quad: q.side, sheetIds: [], widthMm: 1200, heightMm: 900 });
+    const a = (window as unknown as { __ganpanda: { photos: { id: string; x: number }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const [p1, p2] = [...a.photos].sort((x, y) => x.x - y.x);
+    a.project.addObject({ photoId: p1.id, name: '띠', shape: 'rect', quad: q.band, sheetIds: [], widthMm: 9000, heightMm: 1000, listX: 5000, listY: 9000 });
+    a.project.addObject({ photoId: p1.id, name: '문', shape: 'rect', quad: q.door, sheetIds: [], widthMm: 1000, heightMm: 2900, listX: 0, listY: 0 });
+    a.project.addObject({ photoId: p1.id, name: '돌출', shape: 'rect', quad: q.side, sheetIds: [], widthMm: 1200, heightMm: 900 });
+    a.project.addObject({ photoId: p2.id, name: '둘째', shape: 'rect', quad: q.door, sheetIds: [], widthMm: 800, heightMm: 800 });
   }, { band, door, side });
-  await expect(page.getByTestId('board-card')).toHaveCount(3);
+  await expect(page.getByTestId('board-card')).toHaveCount(4);
   await expect(page.getByTestId('flat-outline')).toHaveCount(0);
   // ✥ 를 누르면(끌지 않고) 배열 모드
   await page.getByTestId('zoom-fit').click();
@@ -62,20 +67,24 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   await expect(page.getByTestId('flat-outline')).toBeVisible();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('600');
   await page.getByTestId('flat-rearrange').click();
-  const near = (v: number | undefined, t: number) => expect(Math.abs((v ?? NaN) - t)).toBeLessThan(200); // 원근 추정 오차(벽 9m 의 2% 안)
+  const p2x = await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { x: number }[]; flatScale: number } }).__ganpanda; const xs = a.photos.map((p) => p.x).sort((x, y) => x - y); return (xs[1] - xs[0]) / a.flatScale; });
   let L = await listOf(page);
-  near(L['띠'][0], 0); near(L['띠'][1], 0); // 벽 0~9000 × 3700~4700 → 왼쪽 위
-  near(L['문'][0], 4000); near(L['문'][1], 4700 - 2900); // 벽 4000, 위 2900 → 위에서 1800
-  near(L['돌출'][0], 300); near(L['돌출'][1], 4700 - 1900); // 벽 x=300 에서 1200 나온 세로면을 펴서: 300~1500 × 1000~1900
-  // 간격 + → 700, 그 간격으로 다시 (구도 자리는 그대로)
+  // 1열(아래 층): 돌출(왼쪽) · 문 / 2열: 띠
+  expect(L['돌출']).toEqual([0, 0]);
+  expect(L['문']).toEqual([1200 + 600, 0]);
+  expect(L['띠']).toEqual([0, 2900 + 600]);
+  // 둘째 사진의 카드는 그 사진 아래 (첫 묶음 9000 이 둘째 사진 자리보다 넓으면 밀린다)
+  expect(L['둘째'][1]).toBe(0);
+  expect(L['둘째'][0]).toBe(Math.max(Math.round(p2x), 9000 + 1200));
+  // 간격 + → 700, 그 간격으로 다시
   await page.getByTestId('flat-gap-up').click();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('700');
   L = await listOf(page);
-  near(L['문'][0], 4000);
-  // 카드는 자유롭게 옮긴다 → 다시 [재정렬]하면 구도대로
+  expect(L['문']).toEqual([1200 + 700, 0]);
+  // 카드는 자유롭게 옮긴다 → 다시 [재정렬]하면 정렬대로
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects.find((o) => o.name === '문')!.id, { listX: 20000, listY: 20000 }); });
   await page.getByTestId('flat-rearrange').click();
-  near((await listOf(page))['문'][0], 4000);
+  expect((await listOf(page))['문']).toEqual([1200 + 700, 0]);
   // 완료 → 외곽선·단추 사라짐
   await page.getByTestId('flat-arrange-done').click();
   await expect(page.getByTestId('flat-outline')).toHaveCount(0);
