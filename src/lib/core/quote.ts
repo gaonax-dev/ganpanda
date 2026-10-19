@@ -1,5 +1,4 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
-import { topLightOf } from './topLight';
 import { partKindsFor, partsOf } from './parts';
 import { componentOf, type PartPriceCtx } from './components';
 import { shapeAreaM2 } from './shapeArea';
@@ -103,17 +102,9 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const parts = partsOf(o);
   const usesParts = partKindsFor(o).length > 0; // 조합형 분류는 시트도 구성 요소로 (2026-10-16 모든 분류 조합형)
   const ctx: PartPriceCtx = { o, prices, sized, finish, need: (label, detail) => lines.push({ key, objectId: o.id, label, detail, amount: 0 }) };
-  const priceOf = (p: (typeof parts)[number]) => { key = `${o.id}:part:${p.id}`; componentOf(p.kind).price(p, ctx); };
-  for (const p of parts.filter((x) => componentOf(x.kind).layer > 0)) priceOf(p); // 입체(채널·스카시) 먼저
-  // 상단 조명 (2026-10-16): 투광등 = 개수 × 원/개, 트러스 = 간판 가로(m) × 원/m
-  const tl = topLightOf(o);
-  if (tl) {
-    key = `${o.id}:top`;
-    const label = `${o.name} · ${tl.label}`, unit = prices.products[tl.priceId] ?? 0;
-    if (tl.kind === 'arm') finish(label, `${tl.count}개 × ${fmt(unit)}원`, tl.count * unit, tl.priceId);
-    else if (!o.widthMm) lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 });
-    else finish(label, `가로 ${(o.widthMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (o.widthMm / 1000) * unit, tl.priceId);
-  }
+  const priceOf = (p: (typeof parts)[number]) => { const c = componentOf(p.kind); key = c.quoteKey?.(o, p) ?? `${o.id}:part:${p.id}`; c.price(p, ctx); };
+  const layerOf = (x: (typeof parts)[number]) => componentOf(x.kind).layer;
+  for (const p of parts.filter((x) => layerOf(x) > 0).sort((a, b) => layerOf(a) - layerOf(b))) priceOf(p); // 입체(채널·스카시) → 상단 조명 (전과 같은 줄 순서)
   for (const p of parts.filter((x) => componentOf(x.kind).layer === 0)) priceOf(p); // 면에 깔리는 것(시트)
   for (const id of usesParts ? [] : o.sheetIds) {
     key = `${o.id}:sheet:${id}`;

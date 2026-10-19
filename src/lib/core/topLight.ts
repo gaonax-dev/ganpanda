@@ -18,14 +18,20 @@ export const ARM_SPACING_MM = 1200;
 /** 타공 점 조명 간격 */
 export const PERF_SPACING_MM = 120;
 
-/** 사인물의 상단 조명 (없으면 null). widthMm = 간판 가로(입력 치수 > 주어진 값) */
-export function topLightOf(o: SignObject, widthMm?: number): (TopLightSpec & { label: string; priceId: string }) | null {
-  const t = TOP_LIGHTS.find((x) => x.label === o.options?.topLight);
+export type TopLightInfo = TopLightSpec & { label: string; priceId: string };
+/** 상단 조명 사양: 종류(priceId: tl-arm/tl-bar/tl-perf) + 옵션(topCount·topArm·topColor) + 간판 가로. 2026-10-19 부터 구성 요소(kind 'light')의 type·options */
+export function topLightFrom(priceId: string | undefined, opts: Record<string, unknown> | undefined, widthMm: number): TopLightInfo | null {
+  const t = TOP_LIGHTS.find((x) => x.priceId === priceId);
   if (!t) return null;
-  const w = o.widthMm ?? widthMm ?? 0;
-  const typed = Math.floor(Number(o.options?.topCount));
-  const count = t.kind === 'arm' ? (typed > 0 ? typed : Math.max(1, Math.round(w / ARM_SPACING_MM))) : 0;
-  const armMm = t.kind === 'arm' ? Number.parseInt(String(o.options?.topArm ?? '450'), 10) || 450 : 0;
-  const color = TOP_COLORS[String(o.options?.topColor ?? '')] ?? TOP_COLORS['주백색 4000K'];
+  const typed = Math.floor(Number(opts?.topCount));
+  const count = t.kind === 'arm' ? (typed > 0 ? typed : Math.max(1, Math.round(widthMm / ARM_SPACING_MM))) : 0;
+  const armMm = t.kind === 'arm' ? Number.parseInt(String(opts?.topArm ?? '450'), 10) || 450 : 0;
+  const color = TOP_COLORS[String(opts?.topColor ?? '')] ?? TOP_COLORS['주백색 4000K'];
   return { kind: t.kind, count, armMm, color, label: t.label, priceId: t.priceId };
+}
+/** 옛 몸통 옵션(options.topLight = 라벨)의 상단 조명 종류 id — 읽을 때 구성 요소로 바꾼다 (core/parts.ts) */
+export const legacyTopLightId = (o: Pick<SignObject, 'options'>): string | undefined => TOP_LIGHTS.find((x) => x.label === o.options?.topLight)?.priceId;
+/** 옛 몸통 옵션으로 읽기 (호환·테스트용). 새 코드는 parts.ts lightOf */
+export function topLightOf(o: SignObject, widthMm?: number): TopLightInfo | null {
+  return topLightFrom(legacyTopLightId(o), o.options, o.widthMm ?? widthMm ?? 0);
 }

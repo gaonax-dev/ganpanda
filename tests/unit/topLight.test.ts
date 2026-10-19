@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import type { SignObject } from '../../src/lib/core/model';
 import { optionGroupsFor } from '../../src/lib/core/options';
 import { topLightOf } from '../../src/lib/core/topLight';
+import { componentOf } from '../../src/lib/core/components';
+import { commitParts, describeParts, lightOf, newPart, partsOf } from '../../src/lib/core/parts';
+import { describeOptions, partOptionFields } from '../../src/lib/core/options';
 import { DEFAULT_PRICES } from '../../src/lib/core/pricing';
 import { quoteObject } from '../../src/lib/core/quote';
 import { renderSpecOf } from '../../src/lib/core/render';
@@ -12,17 +15,28 @@ import { topLightMeshes } from '../../src/lib/sim/signs';
 
 const obj = (o: Partial<SignObject>): SignObject => ({ id: 'o', photoId: 'p', name: 'x', shape: 'rect', quad: [[0, 0], [1, 0], [1, 1], [0, 1]], sheetIds: [], createdAt: 0, ...o });
 const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((f) => f.key));
-const values = (o: SignObject, k: string) => optionGroupsFor(o).flatMap((g) => g.fields).find((f) => f.key === k)?.values?.map((v) => v.id);
 
-describe('옵션: 간판의 상단 조명', () => {
-  it('간판에 상단 조명(없음/돌출 투광등/트러스 바 간접조명/트러스 타공 조명), 고르면 개수·색온도, 돌출 투광등은 팔 길이', () => {
-    const o = obj({ productId: 'board-flex' });
-    expect(values(o, 'topLight')).toEqual(['없음', '돌출 투광등', '트러스 바 간접조명', '트러스 타공 조명']);
-    expect(keys(o)).not.toContain('topCount');
-    const arm = obj({ productId: 'board-flex', options: { topLight: '돌출 투광등' } });
-    expect(keys(arm)).toEqual(expect.arrayContaining(['topCount', 'topArm', 'topColor']));
-    expect(values(arm, 'topArm')).toEqual(['300mm', '450mm', '600mm']);
-    expect(keys(obj({ productId: 'board-flex', options: { topLight: '트러스 바 간접조명' } }))).not.toContain('topArm');
+describe('상단 조명 = 구성 요소 (2026-10-19 사용자: "상단 조명부터 컴포넌트로 옮겨줘")', () => {
+  it('세부 종류 = 돌출 투광등/트러스 바 간접조명/트러스 타공 조명, 옵션 = 개수·팔 길이(투광등)·빛 색, 글자·그림은 없음', () => {
+    const c = componentOf('light');
+    expect(c.types.map((t) => t.label)).toEqual(['돌출 투광등', '트러스 바 간접조명', '트러스 타공 조명']);
+    expect(c.takesItems).toBe(false);
+    const arm = newPart('light', 'tl-arm');
+    expect(partOptionFields(arm).map((f) => f.key)).toEqual(['topCount', 'topArm', 'topColor']);
+    expect(partOptionFields(arm).find((f) => f.key === 'topArm')!.values!.map((v) => v.id)).toEqual(['300mm', '450mm', '600mm']);
+    expect(partOptionFields(newPart('light', 'tl-bar')).map((f) => f.key)).toEqual(['topColor']);
+    expect(keys(obj({ productId: 'board-flex' }))).not.toContain('topLight'); // 몸통 옵션에는 없다
+  });
+  it('옛 몸통 옵션(topLight)은 읽을 때 상단 조명 구성 요소로, 구성 요소를 저장하면 옛 옵션은 지워진다', () => {
+    const o = obj({ productId: 'board-flex', widthMm: 4800, options: { topLight: '돌출 투광등', topCount: '3', topColor: '전구색 3000K', light: 'LED' } });
+    const ps = partsOf(o);
+    expect(ps.at(-1)).toMatchObject({ kind: 'light', type: 'tl-arm', options: { topCount: '3', topColor: '전구색 3000K' } });
+    expect(describeParts(o).at(-1)).toBe('돌출 투광등 3개');
+    expect(describeOptions(o)).toContain('돌출 투광등 3개');
+    const saved = commitParts(o, ps);
+    expect(saved.options).toEqual({ light: 'LED' });
+    expect(lightOf({ ...o, ...saved })!.count).toBe(3);
+    expect(quoteObject({ ...o, ...saved }, DEFAULT_PRICES).find((l) => l.key === 'o:top')!.amount).toBe(Math.round((3 * DEFAULT_PRICES.products['tl-arm']) / 1000) * 1000); // 줄 키는 그대로 (수동 금액 유지)
   });
   it('간판이 아닌 분류(액자 등)와 조명 종류 단가는 종류 목록에 없다', () => {
     expect(keys(obj({ productId: 'frame-wood' }))).not.toContain('topLight');

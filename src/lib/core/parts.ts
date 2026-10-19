@@ -7,6 +7,7 @@ import type { Layer, PartItem, SignObject, SignPart } from './model';
 import { CHANNEL_OPTIONS, SCASHI_OPTIONS, isChannelProduct, productById, takesLetters } from './catalog';
 import { COMPONENTS, componentOf } from './components';
 import { fromParts, mergeParts, orderLike, sameParts, toParts } from './layers';
+import { legacyTopLightId, topLightFrom, type TopLightInfo } from './topLight';
 
 /**
  * 분류(종류)마다 붙일 수 있는 구성 요소 (2026-10-16 사용자: "사인물 상세설정들을 모두 조합형으로 변경해주고 중복도 확인해줘").
@@ -22,7 +23,8 @@ export function partKindsFor(o: Pick<SignObject, 'productId' | 'sheetIds' | 'par
   const id = o.productId;
   if (!id || !productById(id)) return o.sheetIds?.length || o.parts?.some((p) => p.kind === 'sheet') ? ['sheet'] : [];
   if (SCASHI_SET.has(id)) return ['scashi'];
-  if (takesLetters(id) || isChannelProduct(id)) return ['channel', 'scashi', 'sheet'];
+  if (takesLetters(id)) return ['channel', 'scashi', 'sheet', 'light']; // 상단 조명 (2026-10-19 구성 요소로)
+  if (isChannelProduct(id)) return ['channel', 'scashi', 'sheet'];
   return KINDS_OF[id] ?? [];
 }
 
@@ -51,9 +53,16 @@ const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.
 
 /** 이 사인물의 구성 요소. 저장된 것이 있으면 그것(종류 모듈의 normalize 로 옛 옵션 정리 — 바뀐 게 없으면 같은 배열), 없으면 옛 필드에서. 간판 분류가 아니면 없음 */
 const normalizePart = (p: SignPart): SignPart => componentOf(p.kind).normalize?.(p) ?? p;
+/** 옛 몸통 옵션 상단 조명(options.topLight·topCount·topArm·topColor) → 상단 조명 구성 요소 (2026-10-19). 이미 상단 조명 구성 요소가 있거나 붙일 수 없는 종류면 없음 */
+function legacyLight(o: SignObject, have: SignPart[]): SignPart | null {
+  const id = legacyTopLightId(o);
+  if (!id || have.some((p) => componentOf(p.kind).fromBody) || !partKindsFor(o).includes('light')) return null;
+  const opts = o.options ?? {};
+  return { id: 'legacy-light', kind: 'light', type: id, options: pick(opts, ['topCount', 'topArm', 'topColor']), items: [] };
+}
 export function partsOf(o: SignObject): SignPart[] {
-  if (o.parts) { const n = o.parts.map(normalizePart); return n.some((p, i) => p !== o.parts![i]) ? n : o.parts; }
-  if (o.layers) return toParts(o.layers).map(normalizePart); // 트리만 저장된 사인물 (1단계 이후)
+  if (o.parts) { const n = o.parts.map(normalizePart); const ll = legacyLight(o, n); if (ll) return [...n, ll]; return n.some((p, i) => p !== o.parts![i]) ? n : o.parts; }
+  if (o.layers) { const t = toParts(o.layers).map(normalizePart); const ll = legacyLight(o, t); return ll ? [...t, ll] : t; } // 트리만 저장된 사인물 (1단계 이후)
   const kinds = partKindsFor(o);
   if (!kinds.length) return [];
   const opts = o.options ?? {};
@@ -61,6 +70,7 @@ export function partsOf(o: SignObject): SignPart[] {
   const text = (o.text ?? '').trim();
   const textItem = (h: number | undefined, id: string): PartItem[] => (text || o.charCount ? [{ id, kind: 'text', text: o.text ?? '', ...(o.charCount ? { count: o.charCount } : {}), x: 0, y: 0, h: h ?? 0 }] : []);
   const id = o.productId;
+  const withLight = (ps: SignPart[]) => { const ll = legacyLight(o, ps); return ll ? [...ps, ll] : ps; };
   if (id && SCASHI_SET.has(id)) {
     // 스카시 분류: 사인물 자체가 스카시 → 스카시 구성 요소 하나 (옵션·글자 그대로)
     out.push({ id: 'legacy-scashi', kind: 'scashi', type: id, options: pick(opts, ['thickness', 'material', 'paintSystem', 'paintCode', 'paintGloss', 'finish', 'script']), items: textItem(o.heightMm, 'legacy-scashi-text') });
@@ -71,7 +81,7 @@ export function partsOf(o: SignObject): SignPart[] {
   if (ch && kinds.includes('channel')) out.push({ id: 'legacy-channel', kind: 'channel', type: ch, options: pick(opts, CH_KEYS), items: textItem(Number(opts.chHeight) || o.heightMm, 'legacy-channel-text') });
   const sc = SCASHI_OPTIONS.find((c) => c.label === opts.scashi)?.id;
   if (sc && !legacyChannel && kinds.includes('scashi')) out.push({ id: 'legacy-scashi', kind: 'scashi', type: sc, options: Object.fromEntries(Object.entries(SC_KEYS).filter(([k]) => opts[k] !== undefined).map(([k, v]) => [v, opts[k]])), items: textItem(Number(opts.scHeight) || o.heightMm, 'legacy-scashi-text') });
-  if (!kinds.includes('sheet')) return out;
+  if (!kinds.includes('sheet')) return withLight(out);
   const sheets = [...o.sheetIds];
   // 구성 요소와 겹치던 옛 옵션 → 시트 (포맥스 UV 시트 부착, 복합판 마감, 프레임 액자 출력)
   if (id === 'board-foamex' && opts.uvSheet === true) sheets.push('sh-print');
@@ -80,12 +90,13 @@ export function partsOf(o: SignObject): SignPart[] {
   if (id === 'frame-plain' && opts.print === '실사 출력') sheets.push('sh-print');
   if (id === 'frame-plain' && opts.print === '시트') sheets.push('sh-cut');
   for (const s of [...new Set(sheets)]) out.push(normalizePart({ id: `legacy-sheet-${s}`, kind: 'sheet', type: s, on: 'frame', options: pick(opts, ['transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode']), items: [] }));
-  return out;
+  return withLight(out);
 }
 
 /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
 export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
-  'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode'];
+  'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode',
+  'topLight', 'topCount', 'topArm', 'topColor']; // 상단 조명도 구성 요소로 (2026-10-19)
 /** 구성 요소 저장 패치: parts 로 저장하고 옛 옵션·sheetIds 를 정리 (설정 창 카드와 빠른 설정이 같이 씀) */
 export function commitParts(o: Pick<SignObject, 'options' | 'layers' | 'parts'>, parts: SignPart[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
   const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));
@@ -181,3 +192,10 @@ export function describeParts(o: SignObject): string[] {
     return [partSpecOf(p), ...texts, ...(imgs ? [`그림 ${imgs}`] : []), ...(shapes ? [`도형 ${shapes}`] : []), ...(on ? [`(${on})`] : [])].join(' ');
   });
 }
+
+/** 사인물의 상단 조명 (구성 요소 — 옛 몸통 옵션도 읽을 때 구성 요소로). widthMm = 간판 가로(입력 치수 > 주어진 값). 3D 가 쓴다 */
+export function lightOf(o: SignObject, widthMm?: number): TopLightInfo | null {
+  const p = partsOf(o).find((x) => componentOf(x.kind).fromBody);
+  return p ? topLightFrom(p.type, p.options, o.widthMm ?? widthMm ?? 0) : null;
+}
+

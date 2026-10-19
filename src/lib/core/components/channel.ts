@@ -12,6 +12,7 @@ const typeLabel = (type: string) => CHANNEL_OPTIONS.find((c) => c.id === type)?.
 export const channel: Component = {
   kind: 'channel', label: '채널', color: '#ff6b5e', types: CHANNEL_OPTIONS,
   termKey: 'product',
+  takesItems: true,
   hasSpec: false, sits: false, layer: 100, itemWidth: false, extrude: true,
   typeLabel: (p) => typeLabel(p.type),
   spec: (p) => typeLabel(p.type),

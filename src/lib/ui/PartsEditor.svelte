@@ -82,6 +82,7 @@
         <button class="btn small" data-testid="add-part-sheet-uv" onclick={() => addPart('sheet', 'sh-print')}>+ UV 출력</button>
         <button class="btn small" data-testid="add-part-sheet-cut" onclick={() => addPart('sheet', 'sh-cut')}>+ 재질 시트</button>
       {/if}
+      {#if kinds.includes('light')}<button class="btn small" data-testid="add-part-light" onclick={() => addPart('light')}>+ 상단 조명</button>{/if}
     </div>
   {/if}
   {#if hasItems && !partId}<FrontEditor {obj} {parts} {ro} bind:sel setItem={setItemById} />{/if}
@@ -125,6 +126,7 @@
           {/if}
         {/each}
       </div>
+      {#if comp.takesItems}
       <div class="items">
         {#each p.items as it, j (it.id)}
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -168,6 +170,7 @@
           </div>
         {/if}
       </div>
+      {/if}
     </div>
     {/if}
   {/each}

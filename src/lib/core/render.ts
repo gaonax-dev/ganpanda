@@ -3,9 +3,8 @@ import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } 
 import { itemBox } from './frontView';
 import { componentOf } from './components';
 import { paintAlpha, paintHex } from './materials';
-import { partsOf } from './parts';
+import { lightOf, partsOf } from './parts';
 import { layersOf, placedItems } from './layers';
-import { topLightOf } from './topLight';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
 import type { Placement } from './wallPlane';
@@ -137,7 +136,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const partH = lpTexts.length ? Math.max(...lpTexts.map((i) => i.h)) : 0;
   const text = o.parts ? lpTexts.map((i) => (i.text ?? '').trim()).join(' ') : (o.text ?? '').trim();
   // 상단 조명 (2026-10-16): 개수는 입력 가로(없으면 3D 배치 가로)로
-  const tl = topLightOf(o, p.w);
+  const tl = lightOf(o, p.w); // 상단 조명 구성 요소 (2026-10-19)
   const base = { id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color } } : {}) };
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
   if (o.parts && (o.widthMm || o.heightMm)) {

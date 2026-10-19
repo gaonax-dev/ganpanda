@@ -4,7 +4,7 @@ import { thicknessLabel } from './catalog';
 import { productById, takesLetters } from './catalog';
 import { describeParts, partsOf } from './parts';
 import { componentOf } from './components';
-import { CHANNEL_FIELDS, LEGACY_FIELDS, PRODUCT_OPTIONS, SCASHI_ACCESSORY_OPTIONS, SCASHI_ATTACH_FIELDS, SHEET_COMMON_OPTIONS, SHEET_OPTIONS, TOP_LIGHT_FIELDS, optionValue, type OptionField, type OptionGroup, type OptionValue, type Options } from './optionSchema';
+import { CHANNEL_FIELDS, LEGACY_FIELDS, PRODUCT_OPTIONS, SCASHI_ACCESSORY_OPTIONS, SCASHI_ATTACH_FIELDS, SHEET_COMMON_OPTIONS, SHEET_OPTIONS, optionValue, type OptionField, type OptionGroup, type OptionValue, type Options } from './optionSchema';
 export { PRODUCT_OPTIONS, SCASHI_ACCESSORY_OPTIONS, SHEET_COMMON_OPTIONS, SHEET_OPTIONS, SHEET_SPEC_KEYS, optionValue } from './optionSchema';
 export type { OptionField, OptionGroup, OptionValue, Options } from './optionSchema';
 
@@ -30,7 +30,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
     // 간판 몸통이면 채널 옵션(+ 고른 채널의 세부)이 따라붙는다
     // 스카시 분류: 두께·재질·도색은 스카시 구성 요소에 (옛 값도 읽을 때 구성 요소로 옮겨짐 — 겹침 정리 2026-10-16)
     const own = SCASHI_IDS.includes(p.id) ? [] : PRODUCT_OPTIONS[p.id] ?? [];
-    const fs = vis([...own, ...(takesLetters(p.id) ? [...(o.parts ? [] : [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS]), ...TOP_LIGHT_FIELDS] : [])]); // 채널·스카시 부착·상단 조명은 간판 옵션. 조합형(parts)이면 채널·스카시는 구성 요소 카드에서
+    const fs = vis([...own, ...(takesLetters(p.id) && !o.parts ? [...CHANNEL_FIELDS, ...SCASHI_ATTACH_FIELDS] : [])]); // 상단 조명은 구성 요소 (2026-10-19) // 채널·스카시 부착·상단 조명은 간판 옵션. 조합형(parts)이면 채널·스카시는 구성 요소 카드에서
     if (fs.length) groups.push({ title: `${p.name} 사양`, fields: fs });
     if (SCASHI_IDS.includes(p.id)) groups.push({ title: '시공 보조 부속품', fields: vis(SCASHI_ACCESSORY_OPTIONS) });
   }
@@ -64,10 +64,11 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
   const groups = optionGroupsFor(o).filter((g) => !(legacyParts && g.title === '시트 옵션'));
   const fromOptions = [...(thick ? [thick] : []), ...groups.flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
   // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16)
-  const ps = o.parts ?? legacyParts;
-  if (!ps?.length) return fromOptions;
+  const all = partsOf(o);
+  const shown = new Set((o.parts || legacyParts ? all : all.filter((p) => componentOf(p.kind).fromBody)).map((p) => p.id)); // 옛 사인물: 몸통 옵션이던 상단 조명만 구성 요소로
+  if (!shown.size) return fromOptions;
   const lines = describeParts(o);
-  return [...fromOptions, ...ps.flatMap((p, i) => [lines[i], ...partOptionFields(p).filter((f) => !componentOf(p.kind).specKeys?.has(f.key)).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
+  return [...fromOptions, ...all.flatMap((p, i) => !shown.has(p.id) ? [] : [lines[i], ...partOptionFields(p).filter((f) => !componentOf(p.kind).specKeys?.has(f.key)).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
 }
 
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */
@@ -82,5 +83,6 @@ export function normalizeOptions(o: SignObject): Options {
   const keep = new Set(fields.map((f) => f.key));
   // 라이브러리 색 스냅샷(<prefix>Hex·Ref·CardId, core/colorLibrary.ts)은 필드가 아니지만 도색 객체와 함께 남긴다 (2026-10-17)
   for (const f of fields) if (f.paint?.part === 'system') for (const x of ['Hex', 'Ref', 'CardId']) keep.add(`${f.paint.prefix}${x}`);
+  for (const k of ['topLight', 'topCount', 'topArm', 'topColor']) keep.add(k); // 옛 몸통 상단 조명 — 구성 요소로 저장될 때까지 지우지 않는다 (2026-10-19)
   return Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => keep.has(k)));
 }

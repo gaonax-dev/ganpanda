@@ -49,7 +49,8 @@ export interface PartItem {
 /** 구성 요소 (2026-10-16 조합형): 채널·스카시·시트. type = 채널 제품 id / 스카시 제품 id / 시트 id. 시트는 올릴 곳(on: 'frame' 또는 채널 구성 요소 id) */
 export interface SignPart {
   id: string;
-  kind: 'channel' | 'scashi' | 'sheet';
+  /** light = 상단 조명 (2026-10-19, 몸통 옵션에서 구성 요소로) */
+  kind: 'channel' | 'scashi' | 'sheet' | 'light';
   type: string;
   options?: Record<string, string | boolean>;
   on?: string;

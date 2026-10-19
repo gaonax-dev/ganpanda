@@ -13,7 +13,7 @@ const keys = (o: SignObject) => optionGroupsFor(o).flatMap((g) => g.fields.map((
 
 describe('분류마다 붙일 수 있는 구성 요소', () => {
   it.each([
-    ['board-flex', ['channel', 'scashi', 'sheet']],
+    ['board-flex', ['channel', 'scashi', 'sheet', 'light']],
     ['ch-rubber', ['scashi']],
     ['board-foamex', ['sheet', 'scashi']],
     ['banner', []],
@@ -67,7 +67,8 @@ describe('중복 정리', () => {
   it('상단 조명과 겹치는 간접조명 선택은 없다 (갈바·파이프 간접·트러스)', () => {
     for (const id of ['board-galva', 'board-pipe']) expect(PRODUCT_OPTIONS[id].map((f) => f.key)).not.toContain('indirect');
     expect(PRODUCT_OPTIONS['board-truss'].map((f) => f.key)).not.toContain('light');
-    expect(keys(obj({ productId: 'board-pipe', parts: [] }))).toContain('topLight');
+    expect(keys(obj({ productId: 'board-pipe', parts: [] }))).not.toContain('topLight'); // 상단 조명은 몸통 옵션이 아니라 구성 요소 (2026-10-19)
+    expect(partKindsFor(obj({ productId: 'board-pipe' }))).toContain('light');
   });
   it('옛 값은 요약에 남는다 (두께는 치수 두께가 없을 때만)', () => {
     expect(describeOptions(obj({ productId: 'board-foamex', options: { thick: '5T' } }))).toContain('두께 5T');

@@ -110,7 +110,7 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await expect(page.locator('.line').filter({ hasText: 'LED 사인미러' })).toContainText('1식');
 });
 
-test('간판 상단 조명: 옵션을 고르면 개수·팔 길이·빛 색이 나오고, 견적에 조명 줄이 생긴다', async ({ page, request }) => {
+test('간판 상단 조명: 구성 요소로 더하면 개수·팔 길이·빛 색이 나오고, 견적에 조명 줄이 생긴다', async ({ page, request }) => {
   // 2026-10-16 사용자: "간판에 상단에 돌출 조명, 트러스트바형식의 간접조명, 트러스트 타공조명 등을 자동 모델링" → "진행해줘"
   await openOwnedProject(page, request, '상단 조명');
   await uploadPhoto(page);
@@ -120,8 +120,17 @@ test('간판 상단 조명: 옵션을 고르면 개수·팔 길이·빛 색이 �
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('4800');
   await page.getByTestId('height-mm').fill('900');
-  await page.getByTestId('option-topLight').selectOption('돌출 투광등');
-  for (const k of ['topCount', 'topArm', 'topColor']) await expect(page.getByTestId(`option-${k}`)).toBeVisible();
+  // 2026-10-19 "상단 조명부터 컴포넌트로 옮겨줘": 몸통 옵션이 아니라 구성 요소 [+ 상단 조명] → 카드의 세부 종류·옵션
+  await expect(page.getByTestId('option-topLight')).toHaveCount(0);
+  await page.getByTestId('object-settings').getByTestId('quick-add').click();
+  await page.getByTestId('add-part-light').click();
+  const card = page.getByTestId('part-card');
+  await expect(card.getByTestId('part-type')).toHaveValue('tl-arm');
+  for (const k of ['topCount', 'topArm', 'topColor']) await expect(card.getByTestId(`part-option-${k}`)).toBeVisible();
+  await expect(card.getByTestId('add-item-text')).toHaveCount(0); // 글자·그림 객체는 없다
+  await card.getByTestId('part-type').selectOption('tl-bar');
+  await expect(card.getByTestId('part-option-topArm')).toHaveCount(0);
+  await card.getByTestId('part-type').selectOption('tl-arm');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();
   await expect(page.locator('.line').filter({ hasText: '돌출 투광등' })).toContainText('4개');

@@ -4,10 +4,11 @@ import type { Component } from './types';
 import { channel } from './channel';
 import { scashi } from './scashi';
 import { sheet } from './sheet';
+import { light } from './light';
 
 export type { Component, PartPriceCtx } from './types';
 
-export const COMPONENTS: readonly Component[] = [channel, scashi, sheet];
+export const COMPONENTS: readonly Component[] = [channel, scashi, sheet, light];
 const BY_KIND = new Map(COMPONENTS.map((c) => [c.kind, c]));
 
 /** 종류 모듈. 모르는 종류(옛 데이터·앞으로의 종류)는 시트처럼 평면·면적 없는 기본 동작 대신 오류로 — 데이터는 모델 유니온이 지킨다 */
