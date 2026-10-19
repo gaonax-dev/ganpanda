@@ -145,6 +145,9 @@ export class Project {
   }
 
   /** 연결된 영역(sameAs)의 규격 변경은 원본으로, 위치·기준 체크는 자기 것으로 */
+  /** 여러 변경을 한 트랜잭션으로 (끄는 동안 카드 여러 장 — 동기화·재계산 한 번, 2026-10-19) */
+  batch(fn: () => void) { this.doc.transact(fn); }
+
   updateObject(id: string, patch: Partial<Fields<SignObject>>) {
     const m = this.objects.get(id);
     const masterId = m?.get('sameAs') as string | undefined;

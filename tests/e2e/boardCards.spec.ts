@@ -174,3 +174,50 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(svg11).toContain('<g id="대지" data-layer="artboards">'); // 대지 레이어 (2026-10-18): 사인물 자리마다 보이지 않는 사각형
   expect((svg11.match(/data-artboard=/g) ?? []).length).toBe(1);
 });
+
+// 2026-10-19 사용자: "정면도들이 이동시 블로킹이 될 때가 있어" — 브라우저가 제스처를 가로채(pointercancel) pointerup 이 안 오면 끌기가 남아
+// 버튼을 뗀 뒤에도 카드가 마우스를 따라가거나 다음 끌기가 엉켰다. 다중 선택에 자리 없는 카드가 섞이면 좌표가 NaN 이 되었다
+test('카드 끌기가 취소돼도 끌기가 남지 않고, 다음 끌기는 정상 · 자리 없는 카드가 섞인 다중 끌기도 움직인다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string; linkObject(a: string, b: string): void } } }).__ganpanda;
+    const photoId = app.photos[0].id;
+    const a = app.project.addObject({ photoId, name: 'A', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600 });
+    const noSize = app.project.addObject({ photoId, name: '연결 영역', shape: 'rect', quad: [[900, 100], [1400, 100], [1400, 300], [900, 300]], sheetIds: [] });
+    app.project.linkObject(noSize, a); // 연결된 영역은 자기 평면도 카드(자리)가 없다
+    return { a, noSize };
+  });
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 2; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 700, clientY: 200, bubbles: true, cancelable: true })); });
+  const card = page.getByTestId('board-card');
+  await expect(card).toHaveCount(1);
+  const posOf = () => page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX ?? 0, o.listY ?? 0]; }, ids.a);
+  const b = (await card.boundingBox())!;
+  const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+  // 끄는 중에 취소 → 그 뒤 버튼 없이 움직여도 카드는 그대로
+  await page.mouse.move(cx, cy); await page.mouse.down();
+  await page.mouse.move(cx + 40, cy + 20, { steps: 3 });
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })));
+  await page.waitForTimeout(50);
+  const afterCancel = await posOf();
+  await page.mouse.move(cx + 200, cy + 150, { steps: 3 });
+  await page.waitForTimeout(50);
+  expect(await posOf()).toEqual(afterCancel);
+  await page.mouse.up();
+  // 다음 끌기는 정상
+  const b2 = (await card.boundingBox())!;
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2); await page.mouse.down();
+  await page.mouse.move(b2.x + b2.width / 2 + 60, b2.y + b2.height / 2, { steps: 4 }); await page.mouse.up();
+  await expect.poll(async () => (await posOf())[0]).toBeGreaterThan(afterCancel[0] + 100);
+  // 자리 없는 사인물이 다중 선택에 섞여도 카드는 움직이고 좌표는 숫자
+  await page.evaluate((ids) => { const app = (window as unknown as { __ganpanda: { selectObject(id: string, k: string): void; toggleSelect(id: string, k: string): void } }).__ganpanda; app.selectObject(ids.a, 'card'); app.toggleSelect(ids.noSize, 'card'); }, ids);
+  const before = await posOf();
+  const b3 = (await card.boundingBox())!;
+  await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2); await page.mouse.down();
+  await page.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2 + 60, { steps: 4 }); await page.mouse.up();
+  const after = await posOf();
+  expect(Number.isFinite(after[0]) && Number.isFinite(after[1])).toBe(true);
+  expect(after[1]).toBeGreaterThan(before[1]);
+  const other = await page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; listX?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!.listX, ids.noSize);
+  expect(other === undefined || Number.isFinite(other)).toBe(true);
+});

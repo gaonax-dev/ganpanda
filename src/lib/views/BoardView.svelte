@@ -238,6 +238,12 @@
   }
   // 평면도 카드 끌어 배치 → listX/listY (리스트 뷰에도 그대로)
   let cardDrag: { id: string; dx: number; dy: number } | null = null;
+  /** 진행 중인 카드 끌기 정리 (pointerup 이 오지 않은 채 남은 끌기를 다음 끌기 전에 끝낸다) */
+  let endCardDrag: (() => void) | null = null;
+  /**
+   * 카드 끌기 (2026-10-19 사용자: "정면도들이 이동시 블로킹이 될 때가 있어"): ① pointercancel·창 blur 로도 끝낸다(터치·트랙패드가 제스처를 가로채면 pointerup 이 안 와
+   * 끌기가 남았다) ② 함께 끌 카드 중 평면도 자리가 없는 것은 뺀다(좌표가 NaN 이 되어 멈췄다) ③ 이동은 프레임마다 한 번, 카드 여러 장을 한 트랜잭션으로(움직일 때마다 카드마다 문서에 써서 버벅였다)
+   */
   function cardDown(e: PointerEvent, o: typeof app.objects[number]) {
     if (e.button !== 0) return;
     e.stopPropagation();
@@ -247,21 +253,38 @@
     const group = app.cardDragIds(o.id);
     if (group.length === 1) app.selectObject(o.id, 'card');
     if (!app.canEdit) return;
+    endCardDrag?.();
     const w = canvas.clientToWorld(e.clientX, e.clientY);
-    const p = app.flatPlaced.get(o.id)!;
+    const p = app.flatPlaced.get(o.id);
+    if (!p) return;
     const at = listToBoard(origin, p.x, p.y, k);
     // Alt/Option + 끌기: 평면도 카드도 제자리에 복사해서 복사본을 끈다 (2026-10-17)
     const id = (group.length === 1 && e.altKey ? app.duplicateInPlace() : null) ?? o.id;
-    const base = (group.length === 1 ? [id] : group).map((gid) => ({ id: gid, ...app.flatPlaced.get(gid)! }));
+    const base = (group.length === 1 ? [id] : group).flatMap((gid) => { const g = app.flatPlaced.get(gid); return g ? [{ id: gid, x: g.x, y: g.y }] : []; });
     cardDrag = { id, dx: w.x - at.x, dy: w.y - at.y };
-    const move = (ev: PointerEvent) => {
-      if (!cardDrag) return;
-      const q = canvas.clientToWorld(ev.clientX, ev.clientY); const l = boardToList(origin, q.x - cardDrag.dx, q.y - cardDrag.dy, k);
+    app.editBoundary();
+    const pointerId = e.pointerId;
+    let last: { x: number; y: number } | null = null, frame = 0;
+    const apply = () => {
+      frame = 0;
+      if (!cardDrag || !last) return;
+      const l = boardToList(origin, last.x - cardDrag.dx, last.y - cardDrag.dy, k);
       const ddx = l.x - p.x, ddy = l.y - p.y;
-      for (const b of base) app.project.updateObject(b.id, { listX: b.x + ddx, listY: b.y + ddy });
+      app.project.batch(() => { for (const b of base) app.project.updateObject(b.id, { listX: b.x + ddx, listY: b.y + ddy }); });
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); cardDrag = null; app.editBoundary(); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const move = (ev: PointerEvent) => {
+      if (!cardDrag || ev.pointerId !== pointerId) return;
+      last = canvas.clientToWorld(ev.clientX, ev.clientY);
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    const end = () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); window.removeEventListener('blur', end);
+      if (frame) { cancelAnimationFrame(frame); apply(); } // 마지막 자리 반영
+      cardDrag = null; endCardDrag = null; app.editBoundary();
+    };
+    const onUp = (ev: PointerEvent) => { if (ev.pointerId === pointerId) end(); };
+    endCardDrag = end;
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', onUp); window.addEventListener('pointercancel', onUp); window.addEventListener('blur', end);
   }
 
   // 자동 분리 도구를 고르면 모델·사진 분석을 미리 시작한다

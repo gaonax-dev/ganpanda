@@ -95,10 +95,11 @@
     const group = app.cardDragIds(id);
     if (group.length === 1) app.selectObject(id, 'card');
     if (!app.canEdit) return;
-    const p = placed.get(id)!;
+    const p = placed.get(id);
+    if (!p) return;
     const w = canvas.clientToWorld(e.clientX, e.clientY);
     const base: Record<string, { x: number; y: number }> = {};
-    for (const gid of group) base[gid] = { ...placed.get(gid)! };
+    for (const gid of group) { const g = placed.get(gid); if (g) base[gid] = { x: g.x, y: g.y }; } // 자리가 없는 카드는 빼고 (2026-10-19 "정면도들이 이동시 블로킹")
     drag = { id, dx: w.x - p.x, dy: w.y - p.y, base, ddx: 0, ddy: 0 };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
@@ -111,9 +112,11 @@
   function up() {
     if (!drag) return;
     const d = drag;
-    for (const [id, b] of Object.entries(d.base)) app.project.updateObject(id, { listX: Math.round(b.x + d.ddx), listY: Math.round(b.y + d.ddy) });
+    app.project.batch(() => { for (const [id, b] of Object.entries(d.base)) app.project.updateObject(id, { listX: Math.round(b.x + d.ddx), listY: Math.round(b.y + d.ddy) }); });
     drag = null;
   }
+  /** 브라우저가 제스처를 가로채 끌기가 취소되면 자리를 되돌린다 (pointerup 이 오지 않아 끌기가 남던 문제, 2026-10-19) */
+  function cancel() { drag = null; }
 
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const inv = $derived(1 / viewport.zoom);
@@ -236,6 +239,7 @@
           onpointerdown={(e) => down(e, o.id)}
           onpointermove={move}
           onpointerup={up}
+          onpointercancel={cancel}
         >
           {#if photo && faces[o.id]}
             <img class="flat" src={faces[o.id].url} alt="" draggable="false" />
