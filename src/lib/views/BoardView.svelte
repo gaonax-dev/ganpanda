@@ -549,6 +549,9 @@
     .tools { left: 8px; right: 8px; bottom: 8px; transform: none; overflow-x: auto; justify-content: flex-start; gap: 2px; scrollbar-width: none; }
     .tools .lbl, .tools .zoom { display: none; }
     .tools button, .tools .file { padding: 9px 10px; font-size: 15px; }
+    /* 아이콘이 같은 너비로 자리를 나누고 구분선은 없앰 (2026-10-20 "툴바 아이콘 모바일에서 균등하게 자리 가지게해주고 구분은 제거") */
+    .tools button, .tools .file { flex: 1 1 0; min-width: 0; padding: 9px 0; display: flex; align-items: center; justify-content: center; }
+    .tools .sep { display: none; }
     .empty p { font-size: 15px; text-align: center; padding: 0 16px; }
   }
 </style>

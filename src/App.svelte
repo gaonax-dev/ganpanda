@@ -14,43 +14,11 @@
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
   import QuickBar from './lib/ui/QuickBar.svelte';
-  import { putAsset } from './lib/assets';
-  import { VoiceRecorder } from './lib/recorder';
-  import { baseMime, recordingLabel, voiceFileName, voiceMemoText } from './lib/core/attachments';
+  import { recording } from './lib/recording.svelte';
+  import { recordingLabel } from './lib/core/attachments';
 
-  // 휴대폰 녹음 (2026-10-18): 누르면 시작, 다시 누르면 마치고 그 사인물의 음성 메모(kind voice)로 저장
-  let recorder = $state<VoiceRecorder | null>(null);
-  let recSec = $state(0);
-  let recBusy = $state(false);
-  let recTimer = 0;
-  async function toggleRecord() {
-    const o = app.selected;
-    if (!o) return;
-    if (recorder) {
-      const r = recorder, id = o.id, sec = r.seconds;
-      recorder = null; clearInterval(recTimer); recBusy = true;
-      try {
-        const blob = await r.stop();
-        if (blob.size < 200 || sec < 0.5) { app.notice = '녹음이 너무 짧습니다.'; return; }
-        const assetId = await putAsset(blob);
-        const type = baseMime(blob.type || 'audio/webm');
-        // 말풍선(대화)과 섞지 않고 kind 'voice' 로 — 카드의 🎙n, 상세의 🎙 목록에서 듣는다 (2026-10-18 "말풍선으로 녹음이 들어있네 나중에 많아지면 복잡하다")
-        await app.sendMessage(id, voiceMemoText(sec), 'voice', [{ assetId, name: voiceFileName(type, new Date()), type, size: blob.size }]);
-        const msg = `${voiceMemoText(sec)} 저장 — 상세의 🎙 에서 들을 수 있습니다.`;
-        app.notice = msg; window.setTimeout(() => { if (app.notice === msg) app.notice = ''; }, 3000);
-      } catch (e) { app.notice = `음성 메모를 보내지 못했습니다: ${e instanceof Error ? e.message : e}`; }
-      finally { recBusy = false; }
-      return;
-    }
-    if (!VoiceRecorder.supported()) { app.notice = '이 브라우저에서는 녹음을 쓸 수 없습니다.'; return; }
-    const r = new VoiceRecorder();
-    recBusy = true;
-    try { await r.start(); recorder = r; recSec = 0; recTimer = window.setInterval(() => { recSec = r.seconds; }, 250); }
-    catch { app.notice = '마이크를 쓸 수 없습니다. 브라우저의 마이크 허용을 확인해 주세요.'; }
-    finally { recBusy = false; }
-  }
-  // 선택이 바뀌거나 풀리면 녹음 중이던 것은 버린다
-  $effect(() => { const id = app.selectedId; if (!id && recorder) { recorder.cancel(); recorder = null; clearInterval(recTimer); } });
+  // 휴대폰 녹음 (2026-10-18) — 말풍선 창과 같은 녹음 하나(lib/recording.svelte.ts, 2026-10-20). 선택이 풀리면 녹음 중이던 것은 버린다
+  $effect(() => { if (!app.selectedId && !app.selectedPinId && recording.recorder) recording.cancel(); });
   import PricesDialog from './lib/ui/PricesDialog.svelte';
   import QuoteSheet from './lib/ui/QuoteSheet.svelte';
   import ObjectSettingsDialog from './lib/ui/ObjectSettingsDialog.svelte';
@@ -125,7 +93,7 @@
         <!-- 휴대폰: 사인물을 고르면 단계 자리에 복사·붙여넣기·복제 (2026-10-18 사용자) + 말풍선·정리·녹음 (같은 날: "상단 메뉴에 녹음 버튼 … 말풍선도 여기로 … 녹음이 맨 오른쪽 같은자리에 정리버튼") -->
         <!-- [다중] 복사 앞 (2026-10-19 사용자: "모바일에 다중선택 버튼 복사 앞에 그리고 다중 선택켜지면 말풍선 녹음 사라지게") -->
         <div class="views stage" data-testid="mobile-edit">
-          <button data-testid="mobile-multi" class:on={app.multiMode} disabled={!!recorder} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 탭할 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
+          <button data-testid="mobile-multi" class:on={app.multiMode} disabled={!!recording.recorder} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 탭할 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
           <button data-testid="mobile-copy" title="복사" onclick={() => app.copySelected()}>복사</button>
           <button data-testid="mobile-paste" title="붙여넣기" disabled={!app.clipboard} onclick={() => app.pasteClipboard()}>붙여넣기</button>
           <button data-testid="mobile-duplicate" title="복제" onclick={() => (app.multiMode ? app.duplicateSelection() : app.duplicateSelected())}>복제</button>
@@ -134,7 +102,7 @@
           {/if}
           <button data-testid="mobile-done" title="정리 — 선택을 풀고 편집을 마칩니다" onclick={() => { app.closeChat(); app.panelOpen = false; app.selectObject(null); }}>정리</button>
           {#if !app.multiMode}
-          <button class="rec" class:on={!!recorder} data-testid="mobile-record" title={recorder ? '녹음 마침 — 말풍선에 보냅니다' : '녹음 — 이 사인물에 음성 메모'} disabled={recBusy} onclick={toggleRecord}>{recorder ? recordingLabel(recSec) : '🎙 녹음'}</button>
+          <button class="rec" class:on={!!recording.recorder} data-testid="mobile-record" title={recording.recorder ? '녹음 마침 — 음성 메모로 저장' : '녹음 — 이 사인물에 음성 메모'} disabled={recording.busy || (!!recording.recorder && recording.target !== (app.selected?.sameAs ?? app.selected?.id))} onclick={() => recording.toggle(app.selected!.sameAs ?? app.selected!.id)}>{recording.recorder ? recordingLabel(recording.sec) : '🎙 녹음'}</button>
           {/if}
         </div>
       {:else}

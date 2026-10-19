@@ -447,3 +447,47 @@ test('두 손가락이 모든 제스처보다 먼저: 손잡이를 끌던 중 �
   await touch(page, 'pointerup', 4, 300, 600);
   expect(parse(await world()).zoom / v1.zoom).toBeGreaterThan(1.8);
 });
+
+test('휴대폰 도구 막대: 아이콘이 같은 너비로 자리를 나누고 구분선은 없다 (2026-10-20 "툴바 아이콘 모바일에서 균등하게 자리 가지게해주고 구분은 제거")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const items = page.locator('.tools[role="toolbar"] > [data-testid]:not([data-testid="zoom-label"])');
+  const widths = await items.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+  expect(widths.length).toBeGreaterThan(6);
+  expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(2);
+  const bar = (await page.locator('.tools[role="toolbar"]').boundingBox())!;
+  expect(bar.x + bar.width).toBeLessThanOrEqual(390);
+  expect(await page.locator('.tools[role="toolbar"] .sep').evaluateAll((els) => els.filter((e) => getComputedStyle(e).display !== 'none').length)).toBe(0);
+});
+
+test('말풍선 창에도 녹음: 사인물 말풍선에서 녹음하면 그 사인물의 음성 메모(🎙), 지점 말풍선에서는 대화에 음성 첨부 (2026-10-20 "말풍선 속성창에 녹음도 추가")', async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const md = navigator.mediaDevices ?? ((navigator as unknown as { mediaDevices: object }).mediaDevices = {} as MediaDevices);
+    md.getUserMedia = async () => { const ctx = new AudioContext(); const osc = ctx.createOscillator(); const dst = ctx.createMediaStreamDestination(); osc.connect(dst); osc.start(); return dst.stream; };
+  });
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const id = app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600 });
+    app.selectObject(id);
+    return id;
+  });
+  const msgs = () => page.evaluate(() => (window as unknown as { __ganpanda: { messages: { objectId: string; kind: string; attachments?: { type: string }[] }[] } }).__ganpanda.messages);
+  await page.getByTestId('mobile-chat').click();
+  const rec = page.getByTestId('chat-record');
+  await expect(rec).toBeVisible();
+  await rec.click();
+  await expect(rec).toContainText('■');
+  await page.waitForTimeout(1200);
+  await rec.click();
+  await expect.poll(async () => (await msgs()).filter((m) => m.objectId === id && m.kind === 'voice').length, { timeout: 15_000 }).toBe(1);
+  // 지점 말풍선: 대화에 음성 첨부로
+  const pinId = await page.evaluate(async () => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; createPin(p: string, x: number, y: number): Promise<void>; selectedPinId: string } }).__ganpanda; await a.createPin(a.photos[0].id, 900, 500); return a.selectedPinId; });
+  const prec = page.getByTestId('pin-panel').getByTestId('chat-record');
+  await expect(prec).toBeVisible();
+  await prec.click();
+  await page.waitForTimeout(1200);
+  await prec.click();
+  await expect.poll(async () => (await msgs()).filter((m) => m.objectId === pinId && m.kind === 'chat' && m.attachments?.some((x) => x.type.startsWith('audio/'))).length, { timeout: 15_000 }).toBe(1);
+});

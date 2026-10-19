@@ -6,6 +6,8 @@
   import { formatBytes } from '../core/format';
   import { putAsset, StorageLimitError } from '../assets';
   import AttachmentView from './AttachmentView.svelte';
+  import { recording } from '../recording.svelte';
+  import { recordingLabel } from '../core/attachments';
 
   let { objectId }: { objectId: string } = $props();
   let text = $state('');
@@ -100,6 +102,13 @@
   </div>
 {/if}
 <form class="input" onsubmit={(e) => { e.preventDefault(); send(); }}>
+  <!-- 녹음 (2026-10-20 "말풍선 속성창에 녹음도 추가"): 사인물이면 음성 메모(🎙 목록), 지점 말풍선이면 이 대화에 음성 첨부. 상단 메뉴와 같은 녹음 하나 -->
+  {#if !app.isCustomer}
+    {@const mine = !!recording.recorder && recording.target === objectId}
+    <button type="button" class="rec" class:on={mine} data-testid="chat-record" disabled={recording.busy || (!!recording.recorder && !mine)}
+      title={mine ? '녹음 마침 — 저장' : app.objects.some((o) => o.id === objectId) ? '녹음 — 이 사인물에 음성 메모' : '녹음 — 이 대화에 음성으로'}
+      onclick={() => recording.toggle(objectId)}>{mine ? recordingLabel(recording.sec) : '🎙'}</button>
+  {/if}
   <label class="attach" title="사진·PDF 첨부">📎<input data-testid="chat-attach" type="file" accept={ATTACH_ACCEPT} multiple hidden onchange={(e) => { addFiles(e.currentTarget.files); e.currentTarget.value = ''; }} /></label>
   <textarea
     data-testid="chat-input"
@@ -135,6 +144,9 @@
   .input { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); align-items: flex-end; }
   .attach { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 16px; }
   .attach:hover { background: var(--hover); }
+  .rec { flex: none; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 8px; font-size: 15px; white-space: nowrap; background: transparent; color: var(--text); border: 0; }
+  .rec:hover:not(:disabled) { background: var(--hover); }
+  .rec.on { background: #c0392b; color: #fff; font-size: 12px; font-weight: 700; }
   .pending { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 8px 0; border-top: 1px solid var(--line); font-size: 12px; }
   .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 8px; }
   .chip button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0; }
