@@ -80,7 +80,8 @@ async function handleAsset(req: Request, env: Env, id: string, url: URL): Promis
   if (req.method === 'GET' || req.method === 'HEAD') {
     // 소유 계정에 등록된 에셋만 (다른 계정의 프로젝트 자격으로는 받을 수 없다)
     const mine = await env.DB.prepare('SELECT 1 FROM account_assets WHERE account_id = ? AND asset_id = ?').bind(ownerId, id).first();
-    if (!mine) return text('not found', req.method === 'HEAD' ? 404 : 403);
+    // 없음과 다른 계정 것을 구별하지 않고 404 — 받는 쪽은 404 를 "아직 올라오는 중"으로 보고 다시 받는다 (2026-10-19 사진 기기 먼저·뒤에서 올리기; 전엔 GET 이 403 이라 다른 기기가 바로 포기했다)
+    if (!mine) return text('not found', 404);
     const obj = req.method === 'HEAD' ? await env.ASSETS.head(id) : await env.ASSETS.get(id);
     if (!obj) return text('not found', 404);
     const headers = new Headers({

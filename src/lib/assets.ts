@@ -7,6 +7,11 @@
 //  · IndexedDB 를 못 쓰는 환경(사생활 보호 모드·용량 부족)에서도 서버에서 바로 받아 보여 준다
 //  · 올리기에 실패한 에셋은 재연결 때만이 아니라 시간을 두고 다시 올린다(5초→15초→45초→2분, schedulePendingFlush) — 연결이 끊긴 적 없이 한 번 실패하면
 //    휴대폰에만 남아 다른 기기에 영영 안 보이던 경우. 자격(setAssetScope)이 늦게 와도 그때 올린다
+// 2026-10-19 사용자: "모바일에서 카메라로 촬영하고 나서 프로젝트로 올라오는 시간이 너무 오래 걸린다. 우선 내부에서 가져다 쓰고 캐시에 가지고 있고 캐시가 없어지면 그때 서버에서" →
+//  · **기기 먼저**: putAsset 은 기기(IndexedDB)에 저장하고 바로 돌려준다 — 서버 업로드는 뒤에서(기다리지 않음). 사진이 바로 보드에 올라온다
+//  · 올릴 목록은 기기(localStorage)에 프로젝트와 함께 기억 → 업로드 전에 앱을 닫아도 다음에 그 프로젝트를 열 때 이어서 올린다
+//  · 다른 기기는 업로드가 끝나기 전에 받으러 올 수 있다: 서버 404 도 잠시 뒤 다시 받고(재시도), 그래도 없으면 20초마다 다시 받아 화면을 갱신한다
+//  · 저장 용량 한도는 뒤에서 알게 되므로 onStorageLimit 로 알린다
 import { SERVER_URL } from './sync';
 
 const DB = 'ganpanda-assets';
@@ -59,8 +64,20 @@ async function localGet(id: string): Promise<Blob | undefined> {
 }
 
 const urls = new Map<string, string>();
-/** 서버 전송에 실패한 에셋 — 다시 연결되면 재시도 */
+/** 서버에 아직 못 올린 에셋 (뒤에서 올리는 중·실패 후 재시도) */
 const pending = new Map<string, Blob>();
+/** 올릴 목록 기억 (기기, 프로젝트별): 업로드 전에 앱을 닫아도 다음에 그 프로젝트를 열면 이어서 올린다 */
+const PENDING_KEY = 'ganpanda.pendingAssets';
+type PendingRec = { id: string; project: string };
+function loadPendingList(): PendingRec[] { try { const v = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((r) => r && typeof r.id === 'string' && typeof r.project === 'string') : []; } catch { return []; } }
+function savePendingList(list: PendingRec[]) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch { /* 못 남겨도 메모리로는 올린다 */ } }
+function rememberPending(id: string, project: string | undefined) { if (!project) return; const l = loadPendingList(); if (!l.some((r) => r.id === id)) savePendingList([...l, { id, project }]); }
+function forgetPending(id: string) { savePendingList(loadPendingList().filter((r) => r.id !== id)); }
+/** 아직 서버에 없는 에셋 수 (화면 표시용) */
+export const pendingCount = () => pending.size;
+const limitHandlers: ((e: StorageLimitError) => void)[] = [];
+/** 뒤에서 올리다 저장 용량 한도를 넘었을 때 */
+export function onStorageLimit(f: (e: StorageLimitError) => void) { limitHandlers.push(f); }
 /** 받고 있는 에셋 (같은 id 를 동시에 여러 곳이 달라고 해도 한 번만) */
 const inflight = new Map<string, Promise<string | undefined>>();
 /** 끝내 못 받은 에셋 — 다시 연결될 때 받는다 */
@@ -71,7 +88,18 @@ export function onAssetsRecovered(f: () => void) { recovered.push(f); }
 
 /** 에셋 접근 자격: 서버는 프로젝트와 세션/초대로 권한을 검사한다 (state 가 방 진입 후 설정) */
 let scope: { project: string; session?: string | null; invite?: string | null } | null = null;
-export function setAssetScope(s: typeof scope) { scope = s; if (s && pending.size) void flushPendingUploads(); }
+export function setAssetScope(s: typeof scope) {
+  scope = s;
+  if (!s) return;
+  // 지난번에 다 못 올린 이 프로젝트의 에셋을 기기에서 꺼내 이어서 올린다
+  void (async () => {
+    for (const r of loadPendingList().filter((x) => x.project === s.project && !pending.has(x.id))) {
+      const b = await localGet(r.id);
+      if (b) pending.set(r.id, b); else forgetPending(r.id);
+    }
+    if (pending.size) void flushPendingUploads();
+  })();
+}
 
 function serverPath(id: string) {
   const q = new URLSearchParams();
@@ -89,7 +117,9 @@ export class StorageLimitError extends Error {
   }
 }
 
-/** true = 서버에 있음(올렸거나 이미 있음), false = 지금은 못 올림(재시도). 한도 초과는 예외 */
+/** 서버가 받지 않는 파일 (형식·요청이 틀림 — 다시 올려도 같다, 2026-10-19). 예: .ai(application/postscript) 원본 */
+class RejectedUpload extends Error {}
+/** true = 서버에 있음(올렸거나 이미 있음), false = 지금은 못 올림(재시도). 한도 초과·거절은 예외 */
 async function upload(id: string, blob: Blob): Promise<boolean> {
   if (!SERVER_URL || !scope) return false;
   try {
@@ -100,20 +130,27 @@ async function upload(id: string, blob: Blob): Promise<boolean> {
       const b = await r.json().catch(() => null) as { error?: string; limitBytes?: number; usedBytes?: number } | null;
       if (b?.error === 'storage_limit') throw new StorageLimitError(b.limitBytes ?? 0, b.usedBytes ?? 0, blob.size);
     }
+    if (r.status === 400 || r.status === 413 || r.status === 415) throw new RejectedUpload(String(r.status));
     return r.ok;
   } catch (e) {
-    if (e instanceof StorageLimitError) throw e;
+    if (e instanceof StorageLimitError || e instanceof RejectedUpload) throw e;
     return false;
   }
 }
 
-/** 기기에 저장하고 서버에 올린다. 용량 한도를 넘으면 저장하지 않고 StorageLimitError */
+/**
+ * 기기에 저장하고 바로 돌려준다 — 서버 업로드는 뒤에서 (2026-10-19 "우선 내부에서 가져다 쓰고 … 캐시가 없어지면 그때 서버에서").
+ * 저장 용량 한도는 업로드 중에 알게 되므로 onStorageLimit 로 알린다
+ */
 export async function putAsset(blob: Blob): Promise<string> {
   const id = await hash(blob);
-  const uploaded = SERVER_URL ? await upload(id, blob) : false;
   await localPut(id, blob);
-  urls.set(id, URL.createObjectURL(blob));
-  if (SERVER_URL && !uploaded) { pending.set(id, blob); schedulePendingFlush(); }
+  if (!urls.has(id)) urls.set(id, URL.createObjectURL(blob));
+  if (SERVER_URL) {
+    pending.set(id, blob);
+    rememberPending(id, scope?.project);
+    void flushPendingUploads();
+  }
   return id;
 }
 
@@ -132,10 +169,27 @@ function schedulePendingFlush() {
 }
 
 /** 연결이 돌아왔을 때 미전송 에셋을 다시 올린다 */
+let flushing = false;
 export async function flushPendingUploads() {
-  for (const [id, blob] of [...pending]) {
-    try { if (await upload(id, blob)) pending.delete(id); } catch { pending.delete(id); /* 한도 초과 — 재시도해도 같음 */ }
-  }
+  if (flushing || !scope) return;
+  flushing = true;
+  try {
+    // 올리는 동안 새로 들어온 것도 이어서 (PDF 페이지처럼 여러 개가 잇달아 들어올 때 첫 것만 올리고 나머지가 재시도 타이머를 기다렸다)
+    const tried = new Set<string>();
+    for (;;) {
+      const next = [...pending].find(([id]) => !tried.has(id));
+      if (!next) break;
+      const [id, blob] = next;
+      tried.add(id);
+      try {
+        if (await upload(id, blob)) { pending.delete(id); forgetPending(id); }
+      } catch (e) {
+        pending.delete(id); forgetPending(id); // 한도 초과·서버가 받지 않는 형식 — 다시 올려도 같다 (기기에는 남는다)
+        if (e instanceof StorageLimitError) for (const f of limitHandlers) f(e);
+      }
+    }
+  } finally { flushing = false; }
+  if (pending.size) schedulePendingFlush();
 }
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
@@ -162,12 +216,25 @@ async function fetchFromServer(id: string): Promise<Blob | undefined> {
     try {
       const r = await fetch(serverPath(id), { signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(FETCH_TIMEOUT_MS) : undefined });
       if (r.ok) return await r.blob();
-      if (r.status === 404 || r.status === 403 || r.status === 401) return undefined; // 없거나 권한 없음 — 재시도 무의미
+      if (r.status === 403 || r.status === 401) return undefined; // 권한 없음 — 재시도 무의미
+      // 404 = 아직 없음: 올린 기기가 뒤에서 올리는 중일 수 있다 (2026-10-19 기기 먼저) → 재시도
     } catch { /* 네트워크·시간 초과 → 재시도 */ }
     if (attempt < FETCH_RETRIES - 1) await sleep(retryDelay(attempt));
   }
   missing.add(id);
+  scheduleMissingRetry();
   return undefined;
+}
+/** 못 받은 에셋을 20초마다 다시 받는다 (다른 기기가 뒤에서 올리는 중일 때, 최대 30번 = 10분) */
+let missingTimer: ReturnType<typeof setTimeout> | null = null;
+let missingTries = 0;
+function scheduleMissingRetry() {
+  if (missingTimer || missingTries >= 30) return;
+  missingTimer = setTimeout(async () => {
+    missingTimer = null; missingTries++;
+    await retryMissingAssets();
+    if (missing.size) scheduleMissingRetry(); else missingTries = 0;
+  }, 20_000);
 }
 
 export function assetUrl(id: string): Promise<string | undefined> {

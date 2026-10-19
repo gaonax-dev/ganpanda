@@ -69,3 +69,11 @@ describe('에셋 (R2)', () => {
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
   });
 });
+
+describe('아직 없는 에셋 (2026-10-19 기기 먼저·뒤에서 올리기)', () => {
+  it('GET·HEAD 모두 404 — 받는 쪽이 "올라오는 중"으로 보고 다시 받는다', async () => {
+    const id = await idOf(new Uint8Array([9, 8, 7, 6]));
+    expect((await exports.default.fetch(`http://sync/api/assets/${id}${q}`)).status).toBe(404);
+    expect((await exports.default.fetch(`http://sync/api/assets/${id}${q}`, { method: 'HEAD' })).status).toBe(404);
+  });
+});

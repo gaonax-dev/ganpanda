@@ -28,7 +28,7 @@ import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
-import { flushPendingUploads, onAssetsRecovered, retryMissingAssets, setAssetScope } from './assets';
+import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
@@ -276,6 +276,8 @@ class AppState {
 
   constructor() {
     onAssetsRecovered(() => { this.assetEpoch++; });
+    // 사진은 기기에 먼저 두고 뒤에서 올린다(2026-10-19) — 용량 한도는 올리는 중에 알게 되므로 여기서 알린다
+    onStorageLimit((e) => { this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 파일(${formatBytes(e.sizeBytes)})을 서버에 올리지 못했습니다. 이 기기에서만 보이고 다른 사람에게는 보이지 않습니다. 사용 중 ${formatBytes(e.usedBytes)} — 요금제를 올려 주세요.`; });
     this.project.onChange(() => this.version++);
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
