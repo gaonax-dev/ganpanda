@@ -192,6 +192,8 @@ export interface ProjectSettings {
   flatScale?: number;
   /** 보드 평면 구역 이동 (보드 px, 기본 0,0 — 2026-10-17 왼쪽 위 이동 손잡이) */
   flatOffset?: { x: number; y: number };
+  /** 보드 카드 간격 (mm, 기본 600 — 2026-10-20 "상단 버튼에 카드 간격 + -") — 재정렬·자동 배치에 쓴다 */
+  flatGap?: number;
 }
 
 export interface Message {

@@ -8,6 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
+import { arrangeByPhotos, unfold } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -23,7 +24,8 @@ import { formatBytes } from './core/format';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
+import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf } from './core/wallPlane';
+import { outlinePoints3 } from './core/boxGizmo';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 import { isMacPlatform } from './core/wheel';
@@ -892,7 +894,50 @@ class AppState {
   flatScale = $derived(clampFlatScale(this.settings.flatScale));
   /** 보드 평면 구역 이동 (보드 px) — 프로젝트 설정 */
   flatOffset = $derived(this.settings.flatOffset && Number.isFinite(this.settings.flatOffset.x) && Number.isFinite(this.settings.flatOffset.y) ? this.settings.flatOffset : { x: 0, y: 0 });
-  flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY }))));
+  /** 카드 간격 mm (설정 flatGap, 0~3000, 기본 600) */
+  flatGap = $derived(Math.min(3000, Math.max(0, Number.isFinite(this.settings.flatGap) ? this.settings.flatGap! : 600)));
+  flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY })), this.flatGap));
+  /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
+  flatArrange = $state(false);
+  /**
+   * 카드 재정렬 (2026-10-20 사용자: "사진순서로 소속 카드들을 배치하고 순서는 사진에서의 순서와 위치로 … 재정렬하면 위의 상태로 다시 배열"
+   * → "사진의 구도대로 평면화 하고 여기에서 축이 다른 경우도 평면으로 펴서 카드가 정렬되게"):
+   * 사진 = 보드에서 왼쪽부터(같으면 위부터) 묶음을 위에서 아래로. 묶음 안 = 원근으로 편 실제 자리(벽 mm) — 원근이 있으면 사인물 면(벽·세로면·수평면)의 3D 외곽선을
+   * 벽 평면으로 펴고(core/arrange.ts unfold), 없으면 치수 넣은 사인물 기준 평면. 펴지 못한 카드는 묶음 아래 줄, 사진 없는 카드는 끝. 한 번의 ⌘Z
+   */
+  arrangeFlatCards(gap = this.flatGap) {
+    if (!this.canEdit || !this.flatCards.length) return;
+    const photos = [...this.photos].sort((a, b) => a.x - b.x || a.y - b.y);
+    const idx = new Map(photos.map((p, i) => [p.id, i]));
+    const planes = new Map(photos.map((p) => [p.id, wallPlaneOf(this.objects.filter((o) => o.photoId === p.id), this.calibrations.get(p.id) ?? null)]));
+    const k = this.flatScale;
+    const span = photos.length ? (Math.max(...photos.map((p) => p.x + p.width)) - Math.min(...photos.map((p) => p.x))) / k : 12000;
+    const centerOf = (o: SignObject): { cx: number; cy: number } | null => {
+      const cal = planes.get(o.photoId);
+      if (!cal || o.quad.length < 3) return null;
+      let pts: [number, number][];
+      if (cal.pose) {
+        const face = faceOf(o, cal);
+        const p3 = outlinePoints3(cal, face?.plane ?? cal, o.quad);
+        if (!p3) return null;
+        pts = unfold(p3, face?.axis ?? 'y');
+      } else pts = quadOnWall(cal, o);
+      if (!pts.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
+      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+      return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2 };
+    };
+    const cards = this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, photo: idx.get(o.photoId) ?? null, at: idx.has(o.photoId) ? centerOf(o) : null }));
+    const at = arrangeByPhotos(cards, gap, Math.max(4000, span));
+    this.editBoundary();
+    this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
+    this.editBoundary();
+  }
+  /** 카드 간격 바꾸고 그 간격으로 다시 정렬 */
+  setFlatGap(mm: number) {
+    const g = Math.min(3000, Math.max(0, Math.round(mm / 50) * 50));
+    this.updateSettings({ flatGap: g });
+    this.arrangeFlatCards(g);
+  }
   /**
    * 자동 배치된(옮긴 적 없는) 카드를 지금 자리에 고정한다 — 카드를 끌기 시작할 때 (2026-10-19 사용자: "최상단의 카드는 내려가지 못하고 중간 카드는 하단으로 이동시 하단카드가 같이 이동한다").
    * 자동 배치는 "옮긴 카드들 중 가장 아래"의 밑에 줄 서므로, 고정하지 않으면 한 장을 내릴 때 나머지가 함께 밀려 내려갔다. 호출자의 편집 묶음(⌘Z 한 번) 안에서

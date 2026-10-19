@@ -50,10 +50,12 @@
     viewport = fitRect({ x: p.x, y: p.y - 40, w: p.width, h: p.width * (p.h / p.w) + 40 }, w, h, 40);
   });
 
-  function fitAll() {
+  /** withCards: [전체 보기] 단추·단축키는 평면도 카드까지 (2026-10-20 — 카드 묶음이 화면 밖에 남았다). 처음 열 때·사진 올린 뒤는 사진만 */
+  function fitAll(withCards = false) {
     if (!app.photos.length) return;
     const xs = app.photos.flatMap((p) => [p.x, p.x + p.width]);
     const ys = app.photos.flatMap((p) => [p.y, p.y + p.width * (p.h / p.w)]);
+    if (withCards && bounds) { xs.push(bounds.x, bounds.x + bounds.w); ys.push(bounds.y, bounds.y + bounds.h); }
     const { w, h } = canvas.size();
     const x = Math.min(...xs), y = Math.min(...ys) - 60;
     viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, w, h, 60);
@@ -208,8 +210,15 @@
     e.stopPropagation();
     const start = canvas.clientToWorld(e.clientX, e.clientY);
     const base = { ...app.flatOffset };
-    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); app.updateSettings({ flatOffset: { x: Math.round(base.x + w.x - start.x), y: Math.round(base.y + w.y - start.y) } }); };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); app.editBoundary(); };
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    // 끌면 구역 이동, 누르고 떼면(4px 안) 카드 배열 모드 켜기/끄기 (2026-10-20 "사진 배열 이동 버튼을 선택하면 카드 배열 활성화하고 전체 아웃라인 표시")
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+      moved = true;
+      const w = canvas.clientToWorld(ev.clientX, ev.clientY); app.updateSettings({ flatOffset: { x: Math.round(base.x + w.x - start.x), y: Math.round(base.y + w.y - start.y) } });
+    };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); if (moved) app.editBoundary(); else app.flatArrange = !app.flatArrange; };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
   }
   function handleDown(e: PointerEvent) {
@@ -326,7 +335,7 @@
     bind:this={canvas}
     bind:viewport
     testid="board-canvas"
-    onfit={fitAll}
+    onfit={() => fitAll(true)}
     {zoomAnchor}
     onbackgrounddown={backgroundDown}
     cursor={app.canEdit && (app.tool === 'rect' || app.tool === 'ellipse') ? 'crosshair' : 'default'}
@@ -391,6 +400,18 @@
       <div class="flat-label" style:left="{origin.x}px" style:top="{origin.y - 22}px" style:transform="scale({1 / viewport.zoom})" style:transform-origin="0 100%">
         평면도 · 끌어서 배치 (리스트와 같은 배치)
         {#if app.canEdit}
+          {#if app.flatArrange}
+            <!-- 카드 배열 (2026-10-20): [재정렬] = 사진 순서·사진 구도대로(다른 축은 펴서), 간격 −/+ 는 그 간격으로 다시 정렬. 카드는 언제든 끌어 옮긴다 -->
+            <span class="arrange" data-testid="flat-arrange">
+              <button class="btn small primary" data-testid="flat-rearrange" title="사진 순서대로, 사진 구도대로 다시 배열 (옆면·아랫면 사인물은 펴서)" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.arrangeFlatCards()}>재정렬</button>
+              <span class="gap" title="카드 간격 (mm) — 바꾸면 그 간격으로 다시 배열">간격
+                <button class="icon" data-testid="flat-gap-down" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.setFlatGap(app.flatGap - 100)}>−</button>
+                <span data-testid="flat-gap-value">{app.flatGap}</span>
+                <button class="icon" data-testid="flat-gap-up" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.setFlatGap(app.flatGap + 100)}>+</button>
+              </span>
+              <button class="btn small" data-testid="flat-arrange-done" onpointerdown={(e) => e.stopPropagation()} onclick={() => (app.flatArrange = false)}>완료</button>
+            </span>
+          {/if}
           <span class="scale" data-testid="flat-scale" title="평면 구역 전체 크기 (모두에게 같음)">
             <button class="icon" data-testid="flat-scale-down" title="작게" onpointerdown={(e) => e.stopPropagation()} onclick={() => setScale(k / 1.25)}>−</button>
             <span data-testid="flat-scale-value">{Math.round((k / 0.1) * 100)}%</span>
@@ -398,8 +419,11 @@
           </span>
         {/if}
       </div>
+      {#if bounds && app.canEdit && app.flatArrange}
+        <div class="flat-outline" data-testid="flat-outline" style:left="{bounds.x}px" style:top="{bounds.y}px" style:width="{bounds.w}px" style:height="{bounds.h}px" style:border-width="{2 / viewport.zoom}px"></div>
+      {/if}
       {#if bounds && app.canEdit}
-        <div class="flat-handle move" data-testid="flat-move" role="button" tabindex="-1" aria-label="평면 구역 이동" title="끌어서 평면 구역 전체 이동" style:left="{bounds.x}px" style:top="{bounds.y}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={moveDown}>✥</div>
+        <div class="flat-handle move" data-testid="flat-move" role="button" tabindex="-1" aria-label="평면 구역 이동" class:on={app.flatArrange} title="끌어서 평면 구역 전체 이동 · 누르면 카드 배열(재정렬·간격)" style:left="{bounds.x}px" style:top="{bounds.y}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={moveDown}>✥</div>
         <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={handleDown}></div>
       {/if}
     {/if}
@@ -464,7 +488,7 @@
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>💬 말풍선</button>
           <span class="readonly">보기·대화만 가능</span>
         {/if}
-        <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
+        <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={() => fitAll(true)}>⤢</button>
         <span class="zoom" data-testid="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
       </div>
     {/snippet}
@@ -478,6 +502,11 @@
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: rgba(255, 204, 0, 0.08); pointer-events: none; }
   .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; display: flex; align-items: center; gap: 8px; }
+  .flat-label .arrange { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; }
+  .flat-label .arrange .gap { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
+  .flat-label .arrange .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
+  .flat-outline { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-sizing: content-box; margin: -8px 0 0 -8px; padding: 8px; z-index: 2; }
+  .flat-handle.move.on { outline: 2px solid #fff; }
   .flat-label .scale { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; }
   .flat-label .scale .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
   .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid #1a1500; cursor: nwse-resize; z-index: 3; }
