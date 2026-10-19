@@ -386,3 +386,64 @@ test('휴대폰 다중 선택: 상단 [다중] 단추(복사 앞)를 켜면 말�
   await expect(page.getByTestId('mobile-multi')).not.toHaveClass(/on/);
   await expect(page.getByTestId('mobile-chat')).toBeVisible();
 });
+
+test('선택한 사인물의 손잡이는 뒤에 그린 사인물보다 위 — 겹쳐도 손잡이가 눌린다 (2026-10-20 "컨트롤로들은 모든 선택영역의 최상단")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const pid = app.photos[0].id;
+    const a = app.project.addObject({ photoId: pid, name: '아래', shape: 'rect', quad: [[300, 200], [700, 200], [700, 400], [300, 400]], sheetIds: [] });
+    const b = app.project.addObject({ photoId: pid, name: '위', shape: 'rect', quad: [[600, 300], [1100, 300], [1100, 600], [600, 600]], sheetIds: [] }); // 나중에 그려 '아래'의 오른쪽 아래 꼭짓점을 덮는다
+    app.selectObject(a);
+    return [a, b];
+  });
+  expect(ids).toHaveLength(2);
+  await expect(page.getByTestId('sign-controls')).toHaveCount(1);
+  const handles = page.getByTestId('sign-controls').getByTestId('sign-handle');
+  await expect(handles).toHaveCount(4);
+  const top = await handles.nth(2).evaluate((el) => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.getAttribute('data-testid'); });
+  expect(['sign-handle', 'sign-handle-hit']).toContain(top);
+});
+
+test('두 손가락이 모든 제스처보다 먼저: 손잡이를 끌던 중 두 번째 손가락이 닿으면 편집은 취소되고 화면 이동, 간격이 크게 벌어져야 확대 (2026-10-20)', async ({ page, request }) => {
+  // 2026-10-20 사용자: "두손가락 드래그(화면팬)는 모든 제스처중 가장 우선한다. 그 다음 줌이다."
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const id = app.project.addObject({ photoId: app.photos[0].id, name: '띠', shape: 'rect', quad: [[300, 200], [1100, 200], [1100, 500], [300, 500]], sheetIds: [] });
+    app.selectObject(id);
+    return id;
+  });
+  const quad = () => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; quad: number[][] }[] } }).__ganpanda.objects.find((o) => o.id === id)!.quad, id);
+  const q0 = await quad();
+  const world = () => page.evaluate(() => getComputedStyle(document.querySelector('[data-testid="board-canvas"] .world')!).transform);
+  const parse = (t: string) => { const m = t.match(/matrix\(([^)]+)\)/)![1].split(',').map(Number); return { zoom: m[0], x: m[4], y: m[5] }; };
+  const v0 = parse(await world());
+  // 첫 손가락: 오른쪽 아래 꼭짓점 손잡이를 잡고 조금 끈다(편집 시작)
+  const h = (await page.getByTestId('sign-controls').getByTestId('sign-handle').nth(2).boundingBox())!;
+  const fx = h.x + h.width / 2, fy = h.y + h.height / 2;
+  await touch(page, 'pointerdown', 1, fx, fy);
+  await touch(page, 'pointermove', 1, fx + 12, fy + 8);
+  // 두 번째 손가락 → 두 손가락 화면 이동 (간격은 거의 그대로)
+  await touch(page, 'pointerdown', 2, fx - 120, fy);
+  for (let i = 1; i <= 8; i++) { // 손가락 둘이 번갈아 조금씩 (실제 터치처럼), 간격은 2% 정도만 흔들림
+    await touch(page, 'pointermove', 1, fx + 12 + 5 * i, fy + 8 + 4 * i);
+    await touch(page, 'pointermove', 2, fx - 120 + 5 * i + (i % 2 ? 2 : -2), fy + 4 * i);
+  }
+  await touch(page, 'pointerup', 1, fx + 52, fy + 40);
+  await touch(page, 'pointerup', 2, fx - 80, fy + 32);
+  const v1 = parse(await world());
+  expect(v1.zoom).toBeCloseTo(v0.zoom, 5); // 간격 흔들림(2%)으로는 확대되지 않는다
+  expect(v1.y - v0.y).toBeGreaterThan(20); // 화면은 이동
+  expect(await quad()).toEqual(q0); // 첫 손가락 편집은 취소
+  // 간격을 크게 벌리면 확대
+  await touch(page, 'pointerdown', 3, 150, 600);
+  await touch(page, 'pointerdown', 4, 250, 600);
+  await touch(page, 'pointermove', 3, 100, 600);
+  await touch(page, 'pointermove', 4, 300, 600);
+  await touch(page, 'pointerup', 3, 100, 600);
+  await touch(page, 'pointerup', 4, 300, 600);
+  expect(parse(await world()).zoom / v1.zoom).toBeGreaterThan(1.8);
+});

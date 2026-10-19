@@ -402,6 +402,9 @@
       : editing.orig.map((p, i) => (i === editing!.mode || (ed >= 0 && (i === ed || i === (ed + 1) % 4)) ? clamp([p[0] + dx, p[1] + dy]) : p)); // 변 = 양 끝 꼭짓점이 함께 (2026-10-18 "선만 움직여야지")
   }
 
+  /** 두 번째 손가락이 닿거나(두 손가락 화면 조작이 먼저 — 2026-10-20) 브라우저가 취소하면: 진행 중인 편집을 저장하지 않고 되돌린다 */
+  function cancelEdit() { editing = null; draft = null; zoneDraft = null; }
+
   function up() {
     if (zoneDraft) {
       const q = quadFromDrag(zoneDraft.start, zoneDraft.end).map(([x, y]) => [Math.round(x), Math.round(y)] as Pt);
@@ -554,6 +557,7 @@
     onpointerdown={bgDown}
     onpointermove={(e) => { move(e); magicMove(e); }}
     onpointerup={up}
+    onpointercancel={cancelEdit}
     onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
     onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
@@ -612,7 +616,6 @@
       {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
       {@const chatId = o.sameAs ?? o.id}
       {@const lastMsg = lastStateOf(app.messages, chatId)}
-      {@const turned = !!o.turn}
       <!-- 상자 가이드 (두께 있는 사인물): 원본·2D 에서 3D 가 그릴 입체 상자를 미리 보여 준다. 2026-10-18 "아웃라인 제거" 는 포커스 링 얘기였음 → 복원 -->
       {#if sel && editable && tool === 'select' && gizmoable(o)}
         {@const bg = boxFor(o, q)}
@@ -657,6 +660,29 @@
             ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
         {/if}
+      </g>
+    {/each}
+    <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
+    {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
+      {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
+      {@const tip = [pin.x, pin.y] as Pt}
+      {@const bodyAt = (pin.bx !== undefined && pin.by !== undefined ? [pin.x + pin.bx, pin.y + pin.by] : [pin.x + 56 * u, pin.y - 48 * u]) as Pt}
+      <!-- 지점 말풍선 (2026-10-18 모양): 몸통 안에 번호·받는 사람·마지막 상태, 꼭지는 사진 지점. 안쪽 끌기 = 전체, 변 끌기 = 몸통만, 꼭지 손잡이 = 꼭지만 -->
+      <BubbleShape {tip} body={bodyAt} label={last} number={`#${pin.number}${pin.to ? ' →' : ''}`} badge={unread[pin.id] ?? 0} color={colorFor(pin.author)} {u}
+        selected={pin.id === selectedPinId} resolved={pin.resolved} {editable} testid="pin" attrs={{ 'data-resolved': String(pin.resolved), 'data-to': pin.to || undefined }} title="{pin.author} → {pin.to || '모두'}"
+        onclick={() => onselectpin?.(pin.id)}
+        onwhole={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy) })}
+        onbody={(dx, dy) => onpinpatch?.(pin.id, { bx: Math.round(bodyAt[0] + dx - pin.x), by: Math.round(bodyAt[1] + dy - pin.y) })}
+        ontip={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy), bx: Math.round(bodyAt[0] - pin.x - dx), by: Math.round(bodyAt[1] - pin.y - dy) })}
+        ondragend={() => onpinmoveend?.()} />
+    {/each}
+    <!-- 선택한 사인물의 조작 손잡이(변·꼭짓점 손잡이·면 막대·매니퓰레이터·원근 맞추기)는 모든 사인물·말풍선보다 위 — 겹쳐도 가장 먼저 눌린다
+         (2026-10-20 사용자: "메니폴레이터와 같은 컨트롤로들은 모든 선택영역의 최상단에 놓는다. 최우선 터치 가능하게") -->
+    {#each objects.filter((x) => x.id === selectedId) as o (o.id)}
+      {@const q = quadOf(o)}
+      {@const sel = true}
+      {@const turned = !!o.turn}
+      <g class="sign sel ctl" data-testid="sign-controls">
         <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘", "선만 움직여야지"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 그 변(양 끝 꼭짓점)만 옮긴다. 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 — 누른 자리에서 가장 가까운 변 -->
         {#if sel && editable && tool === 'select' && !turned}
           {#if app.compact}
@@ -759,20 +785,6 @@
         {/if}
       </g>
     {/each}
-    <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
-    {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
-      {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
-      {@const tip = [pin.x, pin.y] as Pt}
-      {@const bodyAt = (pin.bx !== undefined && pin.by !== undefined ? [pin.x + pin.bx, pin.y + pin.by] : [pin.x + 56 * u, pin.y - 48 * u]) as Pt}
-      <!-- 지점 말풍선 (2026-10-18 모양): 몸통 안에 번호·받는 사람·마지막 상태, 꼭지는 사진 지점. 안쪽 끌기 = 전체, 변 끌기 = 몸통만, 꼭지 손잡이 = 꼭지만 -->
-      <BubbleShape {tip} body={bodyAt} label={last} number={`#${pin.number}${pin.to ? ' →' : ''}`} badge={unread[pin.id] ?? 0} color={colorFor(pin.author)} {u}
-        selected={pin.id === selectedPinId} resolved={pin.resolved} {editable} testid="pin" attrs={{ 'data-resolved': String(pin.resolved), 'data-to': pin.to || undefined }} title="{pin.author} → {pin.to || '모두'}"
-        onclick={() => onselectpin?.(pin.id)}
-        onwhole={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy) })}
-        onbody={(dx, dy) => onpinpatch?.(pin.id, { bx: Math.round(bodyAt[0] + dx - pin.x), by: Math.round(bodyAt[1] + dy - pin.y) })}
-        ontip={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy), bx: Math.round(bodyAt[0] - pin.x - dx), by: Math.round(bodyAt[1] - pin.y - dy) })}
-        ondragend={() => onpinmoveend?.()} />
-    {/each}
     {#if tool === 'magic' && hoverPolygon}
       <polygon class="magic" data-testid="magic-preview" points={hoverPolygon.map((p) => p.join(',')).join(' ')} stroke-width={2 * u} />
     {/if}
@@ -830,7 +842,7 @@
   .sign.sel polygon { fill: rgba(255, 204, 0, 0.16); stroke: var(--accent); }
   .sign.same polygon { fill: rgba(255, 204, 0, 0.1); stroke: var(--accent); stroke-dasharray: 6 4; }
   /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
-  .sign polygon.touch-outline, .sign.sel polygon.touch-outline, .sign.warn polygon.touch-outline, .sign.same polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
+  .sign polygon.touch-outline, .sign.sel polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }

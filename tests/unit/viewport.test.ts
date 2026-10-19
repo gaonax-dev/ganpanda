@@ -65,3 +65,25 @@ describe('핀치 (두 손가락)', async () => {
     expect(v1.zoom).toBeCloseTo(v0.zoom);
   });
 });
+
+describe('두 손가락: 화면 이동이 가장 먼저, 그다음 확대·축소 (twoFinger, 2026-10-20 "두손가락 드래그(화면팬)는 모든 제스처중 가장 우선한다. 그 다음 줌이다")', async () => {
+  const { twoFinger, startTwoFinger } = await import('../../src/lib/core/viewport');
+  const v = { x: 0, y: 0, zoom: 1 };
+  const A = { x: 100, y: 300 }, B = { x: 300, y: 300 };
+  it('나란히 끌면 이동만 — 손가락 간격이 조금(8% 안) 흔들려도 배율은 그대로', () => {
+    let st = startTwoFinger([A, B]);
+    let r = twoFinger(v, st, [A, B], [{ x: 150, y: 340 }, { x: 357, y: 340 }]); // 간격 200 → 207 (3.5%)
+    expect(r.v.zoom).toBe(1);
+    expect(r.v.x).toBeCloseTo(53.5, 1); expect(r.v.y).toBeCloseTo(40, 5); // 가운데 점을 따라 이동
+    st = r.st;
+    r = twoFinger(r.v, st, [{ x: 150, y: 340 }, { x: 357, y: 340 }], [{ x: 200, y: 380 }, { x: 410, y: 380 }]); // 누적 5%
+    expect(r.v.zoom).toBe(1);
+    expect(r.st.zooming).toBe(false);
+  });
+  it('간격이 분명히 바뀌면(8% 넘게) 그때부터 확대·축소도 — 이동은 계속', () => {
+    const st = startTwoFinger([A, B]);
+    const r = twoFinger(v, st, [A, B], [{ x: 50, y: 300 }, { x: 350, y: 300 }]); // 200 → 300
+    expect(r.st.zooming).toBe(true);
+    expect(r.v.zoom).toBeCloseTo(1.5, 5);
+  });
+});

@@ -218,16 +218,16 @@
       moved = true;
       const w = canvas.clientToWorld(ev.clientX, ev.clientY); app.updateSettings({ flatOffset: { x: Math.round(base.x + w.x - start.x), y: Math.round(base.y + w.y - start.y) } });
     };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); if (moved) app.editBoundary(); else app.flatArrange = !app.flatArrange; };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const up = (ev: PointerEvent) => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); if (moved) app.editBoundary(); else if (ev.type === 'pointerup') app.flatArrange = !app.flatArrange; };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up); // 두 손가락이 먼저 — 취소면 끝냄
   }
   function handleDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
     const cards = app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h }));
     const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(origin, cards, w.x)); };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); app.editBoundary(); };
-    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); app.editBoundary(); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
   // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
@@ -237,8 +237,10 @@
     if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false;
     draft = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
     const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); draft = { ...draft!, x1: w.x, y1: w.y }; };
+    const cancel = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); draft = null; }; // 두 손가락이 먼저 — 그리던 사각은 버림
+    window.addEventListener('pointercancel', cancel);
     const up = () => {
-      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
       const d = draft!; draft = null;
       const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
       if (w < 8 || h < 8) return;

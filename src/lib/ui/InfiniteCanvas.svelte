@@ -1,13 +1,13 @@
 <!--
   공용 무한 캔버스 — 화면 조작은 xlpop 캔버스와 같다 (docs/features/shortcuts.md)
   · 마우스 휠, Ctrl+휠, 핀치 → 커서 기준 확대·축소 / 트랙패드 스크롤 → 이동
-  · 터치: 두 손가락 핀치 → 가운데 기준 확대·축소 + 이동, 한 손가락 빈 곳 드래그 → 이동
+  · 터치: 두 손가락 → 이동이 먼저(가운데 점을 따라), 간격이 8% 넘게 바뀌면 확대·축소도 (2026-10-20). 두 번째 손가락이 닿으면 첫 손가락 편집은 취소. 한 손가락 빈 곳 드래그 → 이동
   · 단축키(설정에서 변경 가능): ⌘/Ctrl + = - 0, 스페이스+드래그
   · 가운데 버튼 드래그, 빈 곳 드래그 → 이동
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { pan, pinch, toWorld, zoomAt, type Viewport, type XY } from '../core/viewport';
+  import { pan, startTwoFinger, toWorld, twoFinger, zoomAt, type TwoFingerState, type Viewport, type XY } from '../core/viewport';
   import { wheelIntent, isWindowsPlatform } from '../core/wheel';
   import { matchAction } from '../core/keymap';
   import { app } from '../state.svelte';
@@ -52,11 +52,30 @@
     const r = el.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
-  /** 캡처 단계에서 손가락을 추적한다. 두 번째 손가락이 닿으면 핀치로 전환하고 자식(사진·도형)에는 이벤트를 주지 않는다 */
+  /** 두 손가락 상태: 처음 간격·확대 켜짐 (core/viewport.ts twoFinger — 이동이 먼저, 그다음 확대) */
+  let tf: TwoFingerState | null = null;
+  /** 첫 손가락이 누른 요소 — 두 번째 손가락이 닿으면 그 요소의 진행 중인 편집(사인물 끌기·손잡이·그리기)을 취소한다 */
+  let firstTarget: EventTarget | null = null;
+  let cancelling = false;
+  /**
+   * 캡처 단계에서 손가락을 추적한다. 두 번째 손가락이 닿으면 두 손가락 화면 조작으로 전환하고 자식(사진·도형)에는 이벤트를 주지 않는다.
+   * 두 손가락 끌기(이동)가 모든 제스처보다 먼저 (2026-10-20 사용자: "두손가락 드래그(화면팬)는 모든 제스처중 가장 우선한다. 그 다음 줌이다") —
+   * 첫 손가락으로 시작한 편집은 pointercancel 을 보내 되돌린다
+   */
   function touchDown(e: PointerEvent) {
     if (e.pointerType !== 'touch') return;
     touches.set(e.pointerId, local(e));
-    if (touches.size === 2) { pinching = true; drag = null; e.stopPropagation(); e.preventDefault(); }
+    if (touches.size === 1) firstTarget = e.target;
+    if (touches.size === 2) {
+      pinching = true; drag = null; e.stopPropagation(); e.preventDefault();
+      const [a, b] = [...touches.values()];
+      tf = startTwoFinger([a, b]);
+      const firstId = [...touches.keys()][0];
+      if (firstTarget) {
+        cancelling = true;
+        try { firstTarget.dispatchEvent(new PointerEvent('pointercancel', { pointerId: firstId, pointerType: 'touch', isPrimary: true, bubbles: true, composed: true })); } finally { cancelling = false; }
+      }
+    }
     else if (touches.size > 2) e.stopPropagation();
   }
   function touchMove(e: PointerEvent) {
@@ -69,12 +88,14 @@
     const prev: [XY, XY] = [touches.get(a)!, touches.get(b)!];
     touches.set(e.pointerId, local(e));
     const now: [XY, XY] = [touches.get(a)!, touches.get(b)!];
-    viewport = pinch(viewport, prev, now);
+    const r = twoFinger(viewport, tf ?? startTwoFinger(prev), prev, now);
+    viewport = r.v; tf = r.st;
   }
   function touchUp(e: PointerEvent) {
-    if (e.pointerType !== 'touch') return;
+    if (e.pointerType !== 'touch' || cancelling) return; // 첫 손가락 편집 취소용으로 보낸 pointercancel 은 손가락을 떼는 것이 아니다
     touches.delete(e.pointerId);
-    if (pinching) { e.stopPropagation(); if (touches.size < 2) { pinching = false; touches.clear(); } }
+    if (pinching) { e.stopPropagation(); if (touches.size < 2) { pinching = false; touches.clear(); tf = null; firstTarget = null; } }
+    else if (!touches.size) firstTarget = null;
   }
   const isWindows = isWindowsPlatform();
 

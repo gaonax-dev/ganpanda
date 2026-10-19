@@ -35,3 +35,21 @@ export function pinch(v: Viewport, prev: [XY, XY], now: [XY, XY]): Viewport {
   const zoomed = d0 > 1 && d1 > 1 ? zoomAt(v, m0, d1 / d0) : v;
   return pan(zoomed, m1.x - m0.x, m1.y - m0.y);
 }
+
+/**
+ * 두 손가락 (2026-10-20 사용자: "두손가락 드래그(화면팬)는 모든 제스처중 가장 우선한다. 그 다음 줌이다"):
+ * 가운데 점을 따라 **늘 이동**하고, 손가락 간격이 처음보다 분명히(ZOOM_ENGAGE, 8%) 바뀐 뒤에야 확대·축소를 더한다 — 끌다가 간격이 조금 흔들려 배율이 바뀌지 않게
+ */
+export const ZOOM_ENGAGE = 0.08;
+export interface TwoFingerState { d0: number; zooming: boolean }
+const dist2 = (a: XY, b: XY) => Math.hypot(a.x - b.x, a.y - b.y);
+const mid2 = (a: XY, b: XY): XY => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+export function startTwoFinger(at: [XY, XY]): TwoFingerState { return { d0: dist2(at[0], at[1]), zooming: false }; }
+export function twoFinger(v: Viewport, st: TwoFingerState, prev: [XY, XY], now: [XY, XY]): { v: Viewport; st: TwoFingerState } {
+  const dp = dist2(prev[0], prev[1]), dn = dist2(now[0], now[1]);
+  const mp = mid2(prev[0], prev[1]), mn = mid2(now[0], now[1]);
+  const zooming = st.zooming || (st.d0 > 1 && Math.abs(dn / st.d0 - 1) > ZOOM_ENGAGE);
+  let out = pan(v, mn.x - mp.x, mn.y - mp.y);
+  if (zooming && dp > 1 && dn > 1) out = zoomAt(out, mn, st.zooming ? dn / dp : dn / st.d0); // 막 켜질 때는 처음 간격부터 — 손가락 아래 지점이 따라온다
+  return { v: out, st: { ...st, zooming } };
+}
