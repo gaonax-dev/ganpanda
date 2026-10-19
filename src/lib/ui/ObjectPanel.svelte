@@ -178,8 +178,9 @@
   .voices .none { margin: 0; font-size: 12px; color: var(--muted); }
   .voice-row .vdel { margin-left: auto; opacity: 0.6; } .voice-row .vdel:hover { opacity: 1; }
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
+  /* 내용 높이만큼만 (화면 높이를 넘으면 안에서 스크롤) — 전엔 위아래 전체로 떠 있어 내용 아래 빈 자리가 그 밑의 정면도 카드를 덮었다 (2026-10-19 젠 프로젝트 점검: "정면도들이 이동시 블로킹") */
   .panel {
-    position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; z-index: 5;
+    position: absolute; top: 12px; right: 12px; max-height: calc(100% - 24px); width: 330px; z-index: 5;
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
     display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   }
@@ -209,11 +210,11 @@
   .info { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   /* 휴대폰 폭: 화면 아래쪽 시트 (사진이 위에 보이게) */
   @media (max-width: 720px) {
-    .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; border-radius: 14px; }
+    .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; max-height: none; border-radius: 14px; }
     .info { max-height: 55%; }
   }
   /* 휴대폰 세로 보기: [상세정보] 패널도 전체 화면 (2026-10-17) */
   @media (max-width: 720px) and (orientation: portrait) {
-    .panel { left: 0; right: 0; top: 0; bottom: 0; height: auto; border-radius: 0; border: 0; }
+    .panel { left: 0; right: 0; top: 0; bottom: 0; height: auto; max-height: none; border-radius: 0; border: 0; }
   }
 </style>

@@ -221,3 +221,22 @@ test('카드 끌기가 취소돼도 끌기가 남지 않고, 다음 끌기는 �
   const other = await page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; listX?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!.listX, ids.noSize);
   expect(other === undefined || Number.isFinite(other)).toBe(true);
 });
+
+// 2026-10-19 젠 프로젝트 점검: 카드를 고르면 열리는 속성 패널이 화면 위아래 전체 높이로 떠 있어, 내용이 끝난 아래 빈 자리에 깔린 카드를 잡을 수 없었다
+test('속성 패널은 내용 높이만큼만 — 패널 아래 빈 자리의 카드도 잡아 끌 수 있다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string, k?: string): void } }).__ganpanda;
+    const photoId = app.photos[0].id;
+    app.selectObject(app.project.addObject({ photoId, name: '고른 것', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600 }), 'card');
+  });
+  const panel = page.getByTestId('object-panel');
+  await expect(panel).toBeVisible();
+  const pb = (await panel.boundingBox())!;
+  const vh = page.viewportSize()!.height;
+  expect(pb.y + pb.height).toBeLessThan(vh - 100); // 화면 아래까지 늘어나지 않는다
+  // 패널 아래 빈 자리는 보드가 받는다
+  const below = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-testid="object-panel"]') ? 'panel' : 'board', [pb.x + pb.width / 2, vh - 60]);
+  expect(below).toBe('board');
+});
