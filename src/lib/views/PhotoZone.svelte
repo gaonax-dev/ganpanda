@@ -631,6 +631,7 @@
       <g class="sign" class:sel={sel || multiSel} class:same class:warn data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
+          data-id={o.id}
           data-shape={o.shape}
           data-selected={sel || undefined}
           data-same={same || undefined}

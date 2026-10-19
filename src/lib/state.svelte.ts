@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeUnderPhotos } from './core/arrange';
+import { arrangeLikePhotos } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -899,22 +899,21 @@ class AppState {
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
   flatArrange = $state(false);
   /**
-   * 카드 재정렬 (2026-10-20 사용자: "사진순서로 소속 카드들을 배치하고 순서는 사진에서의 순서와 위치로 … 재정렬하면 위의 상태로 다시 배열"
-   * → "카드 배치가 우선 사진 배치의 위치를 유지한다. 현재는 가로로 사진이 1장씩있다. 그리고 사진안의 사인물 배열을 한다. 위치는 1열 층 2열 층으로 정렬한다."):
-   * 묶음 = 각 사진 아래, 그 사진의 가로 자리(보드 px → 평면 mm). 묶음 안 = 사진 속 높이로 나눈 층별 줄(1열 = 가장 아래 층), 줄 안 왼쪽부터 (core/arrange.ts).
-   * 사진 없는 카드는 모두의 아래. 한 번의 ⌘Z
+   * 카드 재정렬 (2026-10-20 사용자: "카드 배치가 우선 사진 배치의 위치를 유지한다 …" → "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘"):
+   * 카드를 사진 속 사인물 자리 그대로 — 사진을 보드에서의 자리·폭으로 옮겼을 때의 사인물 가운데에 카드 가운데(core/arrange.ts arrangeLikePhotos).
+   * 겹치면 덜 움직이는 쪽으로 비키고, 카드 아래 이름 줄(보드 약 100px)도 겹침으로 친다. 사진 없는 카드는 모두의 아래. 한 번의 ⌘Z
    */
   arrangeFlatCards(gap = this.flatGap) {
     if (!this.canEdit || !this.flatCards.length) return;
     const k = this.flatScale;
     const ox = flatOrigin(this.photos, 80, this.flatOffset).x;
-    const photoX = this.photos.map((p) => (p.x - ox) / k);
+    const photos = this.photos.map((p) => ({ x: (p.x - ox) / k, w: p.width / k, imgW: p.w }));
     const idx = new Map(this.photos.map((p, i) => [p.id, i]));
     const cards = this.flatCards.map(({ o, w, h }) => {
       const xs = o.quad.map((q) => q[0]), ys = o.quad.map((q) => q[1]);
-      return { id: o.id, w, h, photo: idx.get(o.photoId) ?? null, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+      return { id: o.id, w, h, photo: o.quad.length ? idx.get(o.photoId) ?? null : null, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
-    const at = arrangeUnderPhotos(cards, photoX, gap);
+    const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
     this.editBoundary();

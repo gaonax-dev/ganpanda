@@ -1,44 +1,43 @@
-// 사진 보드 카드 정렬 (2026-10-20 사용자: "카드 배치가 우선 사진 배치의 위치를 유지한다. 현재는 가로로 사진이 1장씩있다. 그리고 사진안의 사인물 배열을 한다. 위치는 1열 층 2열 층으로 정렬한다.")
+// 사진 보드 카드 정렬 (2026-10-20 사용자: "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘")
 import { describe, expect, it } from 'vitest';
-import { arrangeUnderPhotos, floorRows } from '../../src/lib/core/arrange';
+import { arrangeLikePhotos } from '../../src/lib/core/arrange';
 
-describe('floorRows — 사진 안 사인물을 층별 줄로: 1열 = 가장 아래 층, 줄 안은 왼쪽부터', () => {
-  it('세로 자리가 겹치는 것끼리 한 층, 아래 층부터', () => {
-    const rows = floorRows([
-      { id: 'door', x0: 500, y0: 600, x1: 700, y1: 1000 },
-      { id: 'right', x0: 900, y0: 100, x1: 1400, y1: 300 },
-      { id: 'left', x0: 100, y0: 120, x1: 600, y1: 320 },
-      { id: 'window', x0: 900, y0: 650, x1: 1100, y1: 900 },
-    ]);
-    expect(rows).toEqual([['door', 'window'], ['left', 'right']]);
-  });
-  it('여러 층에 걸친 긴 사인물(세로 현수막)이 층을 삼키지 않는다 — 가운데 높이의 층에', () => {
-    const rows = floorRows([
-      { id: 'a1', x0: 0, y0: 800, x1: 200, y1: 1000 },
-      { id: 'tall', x0: 300, y0: 100, x1: 400, y1: 1000 },
-      { id: 'b2', x0: 600, y0: 100, x1: 800, y1: 300 },
-    ]);
-    expect(rows).toEqual([['a1'], ['tall'], ['b2']]);
-  });
-});
+// 사진 1 장: 평면 x 0, 폭 12000mm(보드에서의 폭), 사진 원본 1200px → 1px = 10mm
+const photo = { x: 0, w: 12000, imgW: 1200 };
+const card = (id: string, w: number, h: number, x0: number, y0: number, x1: number, y1: number, p: number | null = 0) => ({ id, w, h, photo: p, box: { x0, y0, x1, y1 } });
 
-describe('arrangeUnderPhotos — 카드 묶음은 각 사진 아래(사진의 가로 자리 유지), 묶음 안은 층별 줄', () => {
-  const card = (id: string, w: number, h: number, photo: number | null, x0 = 0, y0 = 0, x1 = 100, y1 = 50) => ({ id, w, h, photo, box: { x0, y0, x1, y1 } });
-  it('사진 0 은 x=0, 사진 1 은 그 사진 자리 — 1열(아래 층) 다음 2열', () => {
-    const out = arrangeUnderPhotos([
-      card('B', 1000, 500, 0, 100, 100, 300, 300),
-      card('A', 2000, 800, 0, 100, 700, 300, 900),
-      card('C', 1500, 600, 0, 400, 120, 600, 320),
-      card('D', 1200, 400, 1),
-    ], [0, 15000], 300);
-    expect(out.get('A')).toEqual({ x: 0, y: 0 });
-    expect(out.get('B')).toEqual({ x: 0, y: 800 + 300 });
-    expect(out.get('C')).toEqual({ x: 1000 + 300, y: 800 + 300 });
-    expect(out.get('D')).toEqual({ x: 15000, y: 0 });
+describe('arrangeLikePhotos — 카드는 사진 속 사인물 자리 그대로(사진을 보드 폭으로 옮긴 자리)', () => {
+  it('사인물 가운데 아래에 카드 가운데, 위 사인물은 위에 — 묶음 맨 위가 0', () => {
+    const out = arrangeLikePhotos([
+      card('upper', 2000, 800, 100, 100, 300, 180), // 가운데 (200, 140) px → (2000, 1400) mm
+      card('lower', 1000, 1000, 800, 500, 900, 600), // 가운데 (850, 550) → (8500, 5500)
+    ], [photo], 200, 0);
+    expect(out.get('upper')).toEqual({ x: 2000 - 1000, y: 0 });
+    expect(out.get('lower')).toEqual({ x: 8500 - 500, y: 5500 - 500 - (1400 - 400) });
   });
-  it('묶음이 다음 사진 자리를 넘으면 다음 묶음을 오른쪽으로 밀고, 사진 없는 카드는 모두의 아래', () => {
-    const out = arrangeUnderPhotos([card('wide', 9000, 1000, 0), card('next', 1000, 500, 1), card('free', 700, 700, null)], [0, 5000], 300);
-    expect(out.get('next')).toEqual({ x: 9000 + 600, y: 0 });
-    expect(out.get('free')).toEqual({ x: 0, y: 1000 + 600 });
+  it('겹치면 덜 움직이는 쪽(오른쪽·왼쪽·아래·위)으로 비키고, 이름 줄(labelMm)도 겹침으로 친다', () => {
+    const out = arrangeLikePhotos([
+      card('big', 4000, 1000, 100, 100, 500, 200), // 가운데 3000,1500 → 1000~5000 × 1000~2000
+      card('small', 1000, 500, 450, 120, 550, 170), // 가운데 5000,1450 → 4500~5500: 오른쪽으로 700 이면 비킨다
+    ], [photo], 200, 300);
+    expect(out.get('big')).toEqual({ x: 1000, y: 0 });
+    expect(out.get('small')).toEqual({ x: 5200, y: 200 });
+  });
+  it('큰 카드의 왼쪽에 있던 사인물은 왼쪽으로 비킨다 (오른쪽 아래로 멀리 밀리지 않음)', () => {
+    const out = arrangeLikePhotos([
+      card('big', 3000, 4000, 500, 100, 800, 500), // 가운데 6500 → 5000~8000
+      card('left', 2000, 300, 300, 200, 500, 230), // 가운데 4000 → 3000~5000: 큰 카드와 겹침 → 왼쪽으로
+    ], [photo], 200, 0);
+    expect(out.get('left')!.x).toBe(5000 - 200 - 2000);
+  });
+  it('두 번째 사진의 카드는 그 사진 자리 아래, 앞 묶음이 넘어오면 밀린다. 사진 없는 카드는 모두의 아래', () => {
+    const out = arrangeLikePhotos([
+      card('a', 3000, 500, 0, 0, 100, 100),
+      card('b', 1000, 500, 600, 0, 700, 100, 1),
+      card('free', 700, 700, 0, 0, 0, 0, null),
+    ], [photo, { x: 13000, w: 12000, imgW: 1200 }], 200, 0);
+    expect(out.get('a')).toEqual({ x: -1000, y: 0 }); // 사진 왼쪽 끝 사인물 가운데 아래 — 사진보다 왼쪽으로 나와도 그 자리
+    expect(out.get('b')).toEqual({ x: 13000 + 6500 - 500, y: 0 });
+    expect(out.get('free')).toEqual({ x: 0, y: 500 + 400 });
   });
 });

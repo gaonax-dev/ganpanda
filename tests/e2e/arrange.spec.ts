@@ -38,16 +38,15 @@ const sideQuad = (page: Page, x: number, y0: number, h: number, out0: number, w:
 }, { x, y0, h, out0, w });
 const listOf = (page: Page) => page.evaluate(() => Object.fromEntries((window as unknown as { __ganpanda: { objects: { name: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.map((o) => [o.name, [o.listX, o.listY]])));
 
-test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 카드 묶음은 각 사진 아래(사진 가로 자리 유지), 묶음 안은 층별 줄(1열 = 아래 층) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
-  // 2026-10-20 사용자: "카드 배치가 우선 사진 배치의 위치를 유지한다. 현재는 가로로 사진이 1장씩있다. 그리고 사진안의 사인물 배열을 한다. 위치는 1열 층 2열 층으로 정렬한다."
+test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 카드가 사진 속 사인물 자리 그대로(사진 바로 아래 같은 배치) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
+  // 2026-10-20 사용자: "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
   const band = await rectOnWall(page, 0, 3700, 9000, 1000);
   const door = await rectOnWall(page, 4000, 0, 1000, 2900);
   const side = await sideQuad(page, 300, 1000, 900, 0, 1200);
-  // 두 번째 사진 (오른쪽에 이어 붙는다)
-  await loadSample(page);
+  await loadSample(page); // 두 번째 사진 (오른쪽에 이어 붙는다)
   await expect(page.getByTestId('photo-zone')).toHaveCount(2);
   await page.evaluate((q) => {
     const a = (window as unknown as { __ganpanda: { photos: { id: string; x: number }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
@@ -67,24 +66,36 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   await expect(page.getByTestId('flat-outline')).toBeVisible();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('600');
   await page.getByTestId('flat-rearrange').click();
-  const p2x = await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { x: number }[]; flatScale: number } }).__ganpanda; const xs = a.photos.map((p) => p.x).sort((x, y) => x - y); return (xs[1] - xs[0]) / a.flatScale; });
-  let L = await listOf(page);
-  // 1열(아래 층): 돌출(왼쪽) · 문 / 2열: 띠
-  expect(L['돌출']).toEqual([0, 0]);
-  expect(L['문']).toEqual([1200 + 600, 0]);
-  expect(L['띠']).toEqual([0, 2900 + 600]);
-  // 둘째 사진의 카드는 그 사진 아래 (첫 묶음 9000 이 둘째 사진 자리보다 넓으면 밀린다)
-  expect(L['둘째'][1]).toBe(0);
-  expect(L['둘째'][0]).toBe(Math.max(Math.round(p2x), 9000 + 1200));
+  await page.getByTestId('zoom-fit').click();
+  await page.waitForTimeout(300);
+  // 화면에서 사인물(사진 위)과 그 카드(사진 아래)를 비교
+  const boxes = () => page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[] } }).__ganpanda;
+    const out: Record<string, { sign: number[]; card: number[] }> = {};
+    for (const o of a.objects) {
+      const s = document.querySelector(`[data-testid="photo-zone"] polygon[data-testid="sign-shape"][data-id="${o.id}"]`)?.getBoundingClientRect();
+      const c = document.querySelector(`[data-testid="board-card"][data-id="${o.id}"]`)?.getBoundingClientRect();
+      if (s && c) out[o.name] = { sign: [s.x + s.width / 2, s.y + s.height / 2], card: [c.x + c.width / 2, c.y, c.width] };
+    }
+    return out;
+  });
+  let B = await boxes();
+  const zones = await page.getByTestId('photo-zone').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x, r.x + r.width]; }).sort((p, q) => p[0] - q[0]));
+  const photoW = zones[0][1] - zones[0][0];
+  for (const n of ['띠', '문']) expect(Math.abs(B[n].card[0] - B[n].sign[0])).toBeLessThan(photoW * 0.08); // 사인물 가운데 아래에 카드 가운데
+  expect(B['띠'].card[1]).toBeLessThan(B['문'].card[1]); // 위 사인물은 위
+  expect(B['돌출'].card[0]).toBeLessThan(B['문'].card[0]); // 왼쪽 사인물은 왼쪽
+  expect(B['둘째'].card[0]).toBeGreaterThan(zones[1][0]); // 둘째 사진의 카드는 그 사진 아래
+  expect(B['둘째'].card[0]).toBeLessThan(zones[1][1]);
   // 간격 + → 700, 그 간격으로 다시
   await page.getByTestId('flat-gap-up').click();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('700');
-  L = await listOf(page);
-  expect(L['문']).toEqual([1200 + 700, 0]);
-  // 카드는 자유롭게 옮긴다 → 다시 [재정렬]하면 정렬대로
+  // 카드는 자유롭게 옮긴다 → 다시 [재정렬]하면 그 자리로
+  const before = (await listOf(page))['문'];
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects.find((o) => o.name === '문')!.id, { listX: 20000, listY: 20000 }); });
+  expect((await listOf(page))['문']).toEqual([20000, 20000]);
   await page.getByTestId('flat-rearrange').click();
-  expect((await listOf(page))['문']).toEqual([1200 + 700, 0]);
+  expect((await listOf(page))['문']).toEqual(before);
   // 완료 → 외곽선·단추 사라짐
   await page.getByTestId('flat-arrange-done').click();
   await expect(page.getByTestId('flat-outline')).toHaveCount(0);
