@@ -61,3 +61,27 @@ describe('/api/spec-rules/defaults', async () => {
     expect((await (await get('/api/spec-rules/defaults', a[0])).json<{ defaults: { phrase: string; meaning: { id: string }[]; count: number }[] }>()).defaults.find((d) => d.phrase === phrase)).toMatchObject({ count: 8, meaning: [expect.objectContaining({ id: 'ch-both' })] });
   });
 });
+
+// V3 (2026-10-19): 지역은 추천 힌트 — 같은 지역 계정이 정한 뜻을 먼저
+describe('지역 힌트', () => {
+  it('내 지역(요청판 지역의 시·도)과 같은 지역 계정의 뜻이 먼저 온다, 전체 수도 함께', async () => {
+    const phrase = `지역광${crypto.randomUUID().slice(0, 6)}`;
+    const mk = async (region: string | null, id: string) => {
+      const s = await login(`r-${crypto.randomUUID().slice(0, 6)}@example.com`);
+      if (region) await json('/api/me/request-settings', { receive: false, regions: [region] }, s, 'PUT');
+      await json('/api/me/spec-rules', rule(phrase, id), s, 'PUT');
+      return s;
+    };
+    await mk('서울 강남구', 'ch-halo'); await mk('서울 마포구', 'ch-halo'); // 서울 2곳 = 후광
+    await mk('부산 해운대구', 'ch-both'); await mk('부산 사하구', 'ch-both'); await mk('경기 성남시', 'ch-both'); // 전체 다수 = 전후광 (3곳)
+    const seoul = await login(`rs-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    await json('/api/me/request-settings', { receive: false, regions: ['서울 송파구'] }, seoul, 'PUT');
+    const r = await (await get(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`, seoul)).json<{ suggestions: { meaning: { id: string }[]; count: number; regionCount: number }[]; region: string | null }>();
+    expect(r.region).toBe('서울');
+    expect(r.suggestions.map((x) => [x.meaning[0].id, x.count, x.regionCount])).toEqual([['ch-halo', 2, 2], ['ch-both', 3, 0]]); // 같은 지역 먼저
+    const none = await login(`rn-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    const r2 = await (await get(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`, none)).json<{ suggestions: { meaning: { id: string }[] }[]; region: string | null }>();
+    expect(r2.region).toBeNull();
+    expect(r2.suggestions[0].meaning[0].id).toBe('ch-both'); // 지역 없으면 전체 수
+  });
+});

@@ -29,7 +29,7 @@
   const sample = $derived(items ? sampleOf(text, items, obj.productId) : null);
   /** 뜻 묻기 (2026-10-18 V1, docs/features/spec-vocabulary.md): 못 알아본 말에 사용자가 고른 뜻 — 적용하면 개인 규칙으로 저장되고 다음부터 바로 알아본다. 추천 = 다른 계정들이 많이 정한 뜻(대세) */
   let meanings = $state<Meaning[]>([]);
-  let suggestions = $state<{ meaning: Meaning[]; count: number }[]>([]);
+  let suggestions = $state<{ meaning: Meaning[]; count: number; regionCount?: number }[]>([]);
   const choices = $derived(meaningChoices(obj, app.colorLibrary));
   const groups = $derived([...new Set(choices.map((c) => c.group))]);
   const addMeaning = (id: string) => { const c = choices.find((x) => x.id === id); if (c && !meanings.some((m) => meaningKey([m]) === meaningKey([c.item]))) meanings = [...meanings, c.item]; };
@@ -71,7 +71,7 @@
           <div class="ask" data-testid="spec-ask">
             <p><b>'{askPhrase}'</b>는 무엇인가요? 뜻을 고르면 다음부터 바로 알아봅니다.{#if dispute} <small>(전국 기본값과 다른 내 뜻 — 내 사전에 저장)</small>{/if}</p>
             {#if suggestions.length}
-              <div class="suggest">{#each suggestions as s, i (i)}<button class="btn small" data-testid="spec-suggest" title="다른 사용자 {s.count}곳이 이 뜻으로 씁니다" onclick={() => (meanings = s.meaning)}>추천: {s.meaning.map((m) => m.label).join(' · ')} <small>({s.count}곳)</small></button>{/each}</div>
+              <div class="suggest">{#each suggestions as s, i (i)}<button class="btn small" data-testid="spec-suggest" title="다른 사용자 {s.count}곳이 이 뜻으로 씁니다{s.regionCount ? ` (같은 지역 ${s.regionCount}곳)` : ''}" onclick={() => (meanings = s.meaning)}>추천: {s.meaning.map((m) => m.label).join(' · ')} <small>({s.regionCount ? `같은 지역 ${s.regionCount}곳 · ` : ''}{s.count}곳)</small></button>{/each}</div>
             {/if}
             <select data-testid="spec-meaning" value="" disabled={ro} onchange={(e) => { addMeaning(e.currentTarget.value); e.currentTarget.value = ''; }}>
               <option value="">설정으로 고르기…</option>

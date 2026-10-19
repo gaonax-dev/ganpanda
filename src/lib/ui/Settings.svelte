@@ -102,6 +102,11 @@
             </ul>
           {:else}<p class="hint">아직 없습니다. 퀵입력 확인 창에서 뜻을 고르면 여기에 쌓입니다.</p>{/if}
           <p class="hint">전국 기본값(여러 계정이 같은 뜻으로 쓰는 말) {app.specDefaults.length}개</p>
+          {#if !app.requestsEnabled}
+            <!-- 지역 힌트 (V3, 2026-10-19): 요청판 지역 칸이 숨겨져 있을 때 여기서 — 같은 지역 사용자의 뜻을 추천에서 먼저 보여 주는 데만 쓴다 -->
+            <label class="opt">내 지역 <small>(시·도부터, 예: 서울 송파구 — 같은 지역 사용자의 말뜻을 추천에서 먼저)</small><input data-testid="rules-region" bind:value={reqRegions} placeholder="예: 경기 광주시" onblur={saveRequests} /></label>
+            {#if reqSaved}<p class="hint" data-testid="rules-region-saved">{reqSaved}</p>{/if}
+          {/if}
         </section>
         <!-- 요청판 (2026-10-17): 요청 받기 + 지역 → 홈 "받은 요청". 지금은 숨김 (app.requestsEnabled) -->
         {#if app.requestsEnabled}

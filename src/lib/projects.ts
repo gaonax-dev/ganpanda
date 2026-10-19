@@ -66,7 +66,7 @@ export const deleteSpecRule = (phrase: string) => call<{ ok: true }>('/api/me/sp
 /** 전국 기본값 (V2): 말마다 대세 뜻 */
 export const getSpecDefaults = () => call<{ defaults: { phrase: string; meaning: unknown[]; count: number }[] }>('/api/spec-rules/defaults').then((r) => r.defaults);
 /** 같은 말에 다른 계정들이 정한 뜻 — 계정 수 순 (추천은 대세) */
-export const suggestSpecRule = (phrase: string) => call<{ suggestions: { meaning: unknown[]; count: number }[] }>(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`).then((r) => r.suggestions);
+export const suggestSpecRule = (phrase: string) => call<{ suggestions: { meaning: unknown[]; count: number; regionCount?: number }[]; region?: string | null }>(`/api/spec-rules/suggest?phrase=${encodeURIComponent(phrase)}`).then((r) => r.suggestions);
 
 /** 퀵입력이 못 알아본 글 표본 보내기 (2026-10-18 "메모로 전환하는 글만 모아서") — 실패해도 조용히 */
 export const postSpecSample = (body: { text: string; leftover: string; recognized: string[]; productId?: string }) =>

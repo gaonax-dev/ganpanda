@@ -3,6 +3,10 @@
 // V2 (2026-10-19): GET /api/spec-rules/defaults — 전국 기본값(대세): 말마다 계정 수 1위 뜻, 5곳부터. 바뀌려면 3곳 차 + 30일 (루프 방지 문턱). 규칙을 쓰고 지울 때마다 그 말만 다시 센다
 import { authenticate } from './auth';
 import { json, readJson, text } from './http';
+import { regionsOf } from './requests';
+
+/** 계정의 지역 힌트 = 요청판 지역 첫 항목의 시·도 (2026-10-19 V3: "지역은 강제 범위가 아니라 추천 힌트"). 없으면 null */
+export const regionHintOf = (a: Parameters<typeof regionsOf>[0]): string | null => regionsOf(a)[0]?.split(/\s+/)[0] ?? null;
 
 const PHRASE_MAX = 60, ITEMS_MAX = 10, MEANING_MAX = 4000, LIMIT = 500;
 const DEFAULT_MIN = 5, DEFAULT_LEAD = 3, DEFAULT_HOLD_MS = 30 * 86_400_000;
@@ -47,9 +51,11 @@ export async function handleSpecRules(req: Request, env: Env, pathname: string, 
   if (pathname === '/api/spec-rules/suggest') {
     const phrase = normPhrase(url.searchParams.get('phrase'));
     if (!phrase || phrase.length > PHRASE_MAX) return text('bad phrase', 400);
-    const rows = await env.DB.prepare('SELECT meaning_key, MIN(meaning) AS meaning, COUNT(DISTINCT account_id) AS n FROM spec_rules WHERE phrase = ? GROUP BY meaning_key ORDER BY n DESC, MIN(created_at) ASC LIMIT 3')
-      .bind(phrase).all<{ meaning: string; n: number }>();
-    return json({ suggestions: rows.results.map((r) => ({ meaning: JSON.parse(r.meaning), count: r.n })) });
+    // 같은 지역 계정이 정한 뜻을 먼저, 그다음 전체 계정 수 (V3 지역 힌트)
+    const region = regionHintOf(me);
+    const rows = await env.DB.prepare('SELECT meaning_key, MIN(meaning) AS meaning, COUNT(DISTINCT account_id) AS n, COUNT(DISTINCT CASE WHEN region IS NOT NULL AND region = ? THEN account_id END) AS r FROM spec_rules WHERE phrase = ? GROUP BY meaning_key ORDER BY r DESC, n DESC, MIN(created_at) ASC LIMIT 3')
+      .bind(region ?? '', phrase).all<{ meaning: string; n: number; r: number }>();
+    return json({ suggestions: rows.results.map((x) => ({ meaning: JSON.parse(x.meaning), count: x.n, regionCount: x.r })), region });
   }
   if (req.method === 'GET') {
     const rows = await env.DB.prepare('SELECT phrase, meaning FROM spec_rules WHERE account_id = ? ORDER BY created_at ASC LIMIT ?').bind(me.id, LIMIT).all<{ phrase: string; meaning: string }>();
@@ -62,8 +68,8 @@ export async function handleSpecRules(req: Request, env: Env, pathname: string, 
     const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM spec_rules WHERE account_id = ?').bind(me.id).first<{ n: number }>();
     const exists = await env.DB.prepare('SELECT 1 FROM spec_rules WHERE account_id = ? AND phrase = ?').bind(me.id, phrase).first();
     if (!exists && (n?.n ?? 0) >= LIMIT) return text('too many rules', 429);
-    await env.DB.prepare('INSERT INTO spec_rules (id, account_id, phrase, meaning, meaning_key, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, phrase) DO UPDATE SET meaning = excluded.meaning, meaning_key = excluded.meaning_key, created_at = excluded.created_at')
-      .bind(crypto.randomUUID(), me.id, phrase, JSON.stringify(b!.meaning), keyOf(b!.meaning as Record<string, unknown>[]), Date.now()).run();
+    await env.DB.prepare('INSERT INTO spec_rules (id, account_id, phrase, meaning, meaning_key, created_at, region) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, phrase) DO UPDATE SET meaning = excluded.meaning, meaning_key = excluded.meaning_key, created_at = excluded.created_at, region = excluded.region')
+      .bind(crypto.randomUUID(), me.id, phrase, JSON.stringify(b!.meaning), keyOf(b!.meaning as Record<string, unknown>[]), Date.now(), regionHintOf(me)).run();
     await recomputeDefault(env, phrase);
     return json({ rule: { phrase, meaning: b!.meaning } });
   }

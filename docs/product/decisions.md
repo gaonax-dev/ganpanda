@@ -165,3 +165,4 @@
 | 2026-10-19 | 레이어 구조 4단계 중 세트 라이브러리 구현(계정 저장, 비율 유지 넣기). 새 컴포넌트는 공급사 사양이 정해진 뒤, 거울 parts 제거는 보류 | 사용자: "순서대로 진행해줘" → [../architecture/composition-layers.md](../architecture/composition-layers.md) 7절 4단계 |
 | 2026-10-19 | 사양 글 사전 V2 구현: 전국 기본값은 서버가 자동으로(5곳 문턱, 교체는 3곳 차+30일 — 운영자 확인 단계는 생략), 이의 = 개인 규칙 + 한 표, 설정에 규칙 목록·삭제 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) 10절 |
 | 2026-10-19 | 퀵입력 배치 어휘 구현(V4): 따옴표 글자·높이·N줄·위치어, 로고·그림 자리, 스카시, "채널 위에 시트" → 적용 때 레이어 트리에 자리 계산 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V4 |
+| 2026-10-19 | 사양 글 사전 V3 지역 힌트 구현: 규칙에 계정 지역(요청판 지역의 시·도) 기록, 추천은 같은 지역 수 → 전체 수 순. 설정에 "내 지역" 칸 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V3 |
