@@ -227,3 +227,35 @@ describe('세로 Y(깊이) 축 지정 (옆면 벽: 깊이 선 + 높이 선)', ()
     expect(Math.hypot(u - tu, v - tv)).toBeLessThan(1);
   });
 });
+
+// 2026-10-19 사용자: "이전에 잘 맞던 사인물 어긋나면 나오는 교정 버튼이 현재 다른 각도를 보인다. 원근과 사인물에서 축이 다르게 연결되었는지"
+// — 원근을 X·Y(가로 + 바닥 깊이 선)로 잡으면 풀이의 평면이 바닥이 되어, 벽을 가정하는 사인물(면 판정·교정 버튼)이 바닥 기준으로 각도를 쟀다.
+// 두 쌍에 Z(높이)가 없으면 사인물 기준 평면은 X·Z 수직 벽 (X·Y 수평, Z 수직)
+describe('X·Y 로 잡아도 사인물 기준 평면은 X·Z 수직 벽', () => {
+  // 바닥(높이 0) 위 깊이 선: 벽 앞으로 나오는 방향(합성 좌표 z)
+  const xy = (dir: '+y' | '-y'): CameraSetup => ({
+    x: setupOf(proj).x,
+    y: [seg(proj, [0, 0, 0], [0, 0, 3000]), seg(proj, [6000, 0, 0], [6000, 0, 3000])],
+    origin: proj([0, 0, 0]),
+    ref: { axis: 'x', from: proj([1000, 0, 0]), to: proj([3000, 0, 0]), mm: 2000 },
+    axes: { first: '+x', second: dir },
+  });
+  it('벽 위 점(가로 x, 높이 h)이 제자리에 투영되고, 벽면 축은 [X, +Z]', () => {
+    const s = [solveCamera(xy('+y'), imgW, imgH)!, solveCamera(xy('-y'), imgW, imgH)!].find((x) => x && !x.warnings.some((w) => w.includes('거울상') || w.includes('벽 안쪽')))!;
+    expect(s).toBeDefined();
+    expect(s.wallAxes).toEqual(['+x', '+z']);
+    for (const [x, h] of [[0, 0], [6000, 3000], [2500, 1200]] as [number, number][]) {
+      const [u, v] = applyHomography(s.H, [x, h]), [tu, tv] = proj([x, h, 0]);
+      expect(Math.hypot(u - tu, v - tv)).toBeLessThan(2);
+    }
+  });
+  it('교정 버튼 경로: X·Y 로 잡은 사진에서 벽 위에 반듯이 그린 사인물은 어긋남이 거의 0°', async () => {
+    const { wallPlaneOf } = await import('../../src/lib/core/wallPlane');
+    const { skewOf } = await import('../../src/lib/core/manipulator');
+    const s = [solveCamera(xy('+y'), imgW, imgH)!, solveCamera(xy('-y'), imgW, imgH)!].find((x) => x && !x.warnings.some((w) => w.includes('거울상') || w.includes('벽 안쪽')))!;
+    const wall = wallPlaneOf([], calibrationOf(s))!;
+    const quad: Pt[] = [[1000, 2500], [5000, 2500], [5000, 1500], [1000, 1500]].map(([x, h]) => proj([x, h, 0]));
+    expect(skewOf(wall, quad)).toBeLessThan(1);
+  });
+});
+

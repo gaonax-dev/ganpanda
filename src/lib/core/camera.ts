@@ -181,6 +181,13 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   let r1 = scale(d1, sgn(axesUsed.first)), r2 = scale(d2o, sgn(axesUsed.second));
   let wallAxes: [AxisDir, AxisDir] = [axesUsed.first, axesUsed.second];
   if (A === 'z' && B !== 'z') { [r1, r2] = [r2, r1]; wallAxes = [axesUsed.second, axesUsed.first]; }
+  // 두 쌍에 높이(Z)가 없으면(X·Y = 가로 + 바닥 깊이 선) 두 쌍의 평면은 바닥이다. 사인물(면 판정·교정 버튼·매니퓰레이터·3D)은 이 평면을 정면 벽으로 쓰므로
+  // **X·Z 수직 벽**을 내준다: u = 월드 X(지정 부호), v = 월드 Z(위). X·Y 는 수평, Z 는 수직 (2026-10-19 사용자: "교정 버튼이 현재 다른 각도를 보인다. 원근과 사인물에서 축이 다르게 연결되었는지")
+  if (A !== 'z' && B !== 'z') {
+    const xDir = A === 'x' ? axesUsed.first : axesUsed.second;
+    const up = cols.z[1] > 0 ? scale(cols.z, -1) : cols.z; // 카메라 y 는 아래 + — 위를 향하게
+    r1 = scale(cols.x, sgn(xDir)); r2 = up; wallAxes = [xDir, '+z'];
+  }
   const r3 = cross(r1, r2);
   // 벽 밖(n = u×v)은 카메라 쪽(카메라 좌표 −z)이어야 한다. 아니면 거울상 — 리버스 안내
   if (r3[2] > 0) warnings.push('벽의 바깥쪽(법선)이 벽 안쪽을 향합니다 (축이 거울상). 두 쌍 중 하나를 리버스하세요.');
