@@ -238,6 +238,10 @@
     {/if}
   </main>
 </div>
+<!-- 원근 완성 안내 (2026-10-20 "화면 기준으로 휘발성 안내"): 화면 위쪽 가운데, 다른 요소를 밀지 않고 누르기를 막지 않으며 잠깐 뒤 사라진다 -->
+{#if app.flash}
+  {#key app.flash.seq}<div class="flash" data-testid="perspective-done" role="status" aria-live="polite">{app.flash.text}</div>{/key}
+{/if}
 <div class="toasts">
   {#each app.toasts as t (t.id)}
     <button class="toast" data-testid="toast" onclick={() => app.openFromToast(t)}>
@@ -286,6 +290,11 @@
   .views button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
   .dot { background: var(--warn); color: #000; border-radius: 9px; font-size: 10px; padding: 0 6px; font-weight: 700; }
   .dot.chat { background: var(--accent); }
+  .flash { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); z-index: 45; pointer-events: none; padding: 10px 20px; border-radius: 999px; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis;
+    background: rgba(22, 12, 44, 0.92); color: #efe8ff; font-size: 15px; font-weight: 600; letter-spacing: 0.03em; text-shadow: 0 0 8px #b39dff;
+    border: 1px solid rgba(185, 164, 255, 0.6); box-shadow: 0 0 24px rgba(160, 130, 255, 0.55), 0 8px 30px rgba(0, 0, 0, 0.45); animation: flash-in 3.2s ease-out both; }
+  @keyframes flash-in { 0% { opacity: 0; transform: translate(-50%, -12px) scale(0.96); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
   .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
   .toast { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 300px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
   .toast span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -318,6 +327,7 @@
     .right { gap: 6px; }
     .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
     .toasts { left: 12px; right: 12px; bottom: 76px; }
+    .flash { top: 136px; font-size: 14px; } /* 휴대폰: 여러 줄 상단 바 아래 */
     .toast { width: auto; }
   }
 </style>

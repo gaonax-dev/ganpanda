@@ -260,6 +260,15 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(1000);
   await expect(page.getByTestId('camera-fx')).toHaveCount(0);
   await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
+  // 완성되면 화면 기준으로 잠깐 안내 (2026-10-20 "원근 완성될때 대부분 외곽에 표시된 완성을 확인하지 못한다. 화면 기준으로 휘발성 안내")
+  const done = page.getByTestId('perspective-done');
+  await expect(done).toBeVisible();
+  await expect(done).toContainText('원근 완성');
+  await expect(done).toContainText('매장.png');
+  const vb = (await done.boundingBox())!;
+  expect(vb.y).toBeLessThan(200); // 화면 위쪽 (사진이 어디 있든)
+  expect(await done.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none'); // 누르기를 막지 않는다
+  await expect(done).toHaveCount(0, { timeout: 6000 }); // 휘발성
   const c1 = (await camOf())!;
   expect(Math.hypot(c1.origin[0] - dBL[0], c1.origin[1] - dBL[1])).toBeLessThan(1);
   expect(c1.auto).toBe(true);

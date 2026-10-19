@@ -232,6 +232,24 @@ class AppState {
     }
     return out;
   });
+  /** 화면 기준 휘발성 안내 (2026-10-20 사용자: "원근 완성될때 대부분 외곽에 표시된 완성을 확인하지 못한다. 화면 기준으로 휘발성 안내 보낼 수 있나?") */
+  flash = $state<{ text: string; seq: number } | null>(null);
+  private flashTimer: ReturnType<typeof setTimeout> | undefined;
+  showFlash(text: string, ms = 3200) {
+    clearTimeout(this.flashTimer);
+    const seq = (this.flash?.seq ?? 0) + 1;
+    this.flash = { text, seq };
+    this.flashTimer = setTimeout(() => { if (this.flash?.seq === seq) this.flash = null; }, ms);
+  }
+  /** 원근을 바꾸는 내 편집: 그 결과 완성도가 3(완성)이 되면 화면 안내 */
+  private updateCamera(photoId: string, patch: { camera?: CameraSetup; autoCamera?: false }) {
+    const before = this.cameraLevels.get(photoId)?.level ?? 0;
+    this.editBoundary();
+    this.project.updatePhoto(photoId, patch);
+    this.editBoundary();
+    const after = this.cameraLevels.get(photoId)?.level ?? 0;
+    if (before < 3 && after === 3) this.showFlash(`✨ 원근 완성 · ${this.photos.find((p) => p.id === photoId)?.name ?? ''}`);
+  }
   /** 사진별 원근 완성도 (축 → 길이 → 확인, core/camera.ts cameraLevel — 2026-10-19 "완성도 표시만해줘") */
   cameraLevels = $derived.by(() => {
     const out = new Map<string, ReturnType<typeof cameraLevel>>();
@@ -474,9 +492,7 @@ class AppState {
     if (sign) {
       const setup: CameraSetup = { ...signCameraSetup(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w), auto: true };
       if (solveCamera(setup, p.w, p.h)) {
-        this.editBoundary();
-        this.project.updatePhoto(p.id, { camera: setup, autoCamera: undefined });
-        this.editBoundary();
+        this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
       }
     }
@@ -487,9 +503,7 @@ class AppState {
       if (!gray || !found) return false;
       const base = p.camera ? (JSON.parse(JSON.stringify(p.camera)) as CameraSetup) : defaultCameraSetup(p.w, p.h);
       const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: base.axes ?? { first: '+x', second: '+z' }, auto: true });
-      this.editBoundary();
-      this.project.updatePhoto(p.id, { camera: next, autoCamera: undefined });
-      this.editBoundary();
+      this.updateCamera(p.id, { camera: next, autoCamera: undefined });
       return true;
     } finally { this.cameraBusy = false; }
   }
@@ -560,9 +574,7 @@ class AppState {
       });
       const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h);
       if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
-      this.editBoundary();
-      this.project.updatePhoto(p.id, { camera: next }); // 조용히 — 효과·안내 없이 완성도만 오른다
-      this.editBoundary();
+      this.updateCamera(p.id, { camera: next }); // 조용히 — 완성(3)이 될 때만 화면 안내 (2026-10-20)
     }
   }
 
@@ -581,10 +593,8 @@ class AppState {
   applyCamera() {
     const p = this.cameraPhoto;
     if (!p || !this.cameraDraft || !this.canEdit) return;
-    this.editBoundary();
     const { auto: _auto, ...manual } = $state.snapshot(this.cameraDraft) as CameraSetup; // 사람이 맞춘 원근 — 자동이 다시 손대지 않는다
-    this.project.updatePhoto(p.id, { camera: manual, autoCamera: undefined });
-    this.editBoundary();
+    this.updateCamera(p.id, { camera: manual, autoCamera: undefined });
     this.closeCamera();
   }
 
