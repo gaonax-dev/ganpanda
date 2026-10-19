@@ -29,6 +29,7 @@ export const sheet: Component = {
   kind: 'sheet', label: '시트', color: '#5aa8ff',
   // 시트 = UV 출력 / 재질 시트 (커팅은 옵션, 2026-10-16). 옛 안개 시트는 재질 "안개"
   types: [{ id: 'sh-print', label: 'UV 출력' }, { id: 'sh-cut', label: '재질 시트' }],
+  termKey: 'sheet',
   hasSpec: true, sits: true, layer: 0, itemWidth: true, extrude: false,
   init: (p) => ({ ...p, on: 'frame' }),
   normalize,

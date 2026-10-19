@@ -58,6 +58,8 @@ export interface Component {
   lighting(part: SignPart): Lighting;
   /** 색의 도색 키: face = 글자 앞면·평면 객체 색, side = 입체 옆면 색 */
   paint: { face: string; side: string };
+  /** 용어 표 키 앞부분 (core/terms.ts): 시트 = 'sheet', 채널·스카시 = 'product' (단가표의 시트·제품) */
+  termKey: 'product' | 'sheet';
   /** 견적 줄 (ctx.finish / ctx.need) */
   price(part: SignPart, ctx: PartPriceCtx): void;
 }

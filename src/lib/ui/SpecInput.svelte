@@ -10,6 +10,7 @@
   import { sampleOf } from '../core/specSamples';
   import { postSpecSample, suggestSpecRule } from '../projects';
   import { meaningChoices, meaningKey, normPhrase, type Meaning } from '../core/specRules';
+  import { termHint } from '../core/terms';
 
   let { obj, ro, update }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void } = $props();
   let text = $state('');
@@ -65,6 +66,7 @@
         <p>이렇게 적용할까요? 아닌 것은 체크를 빼세요.</p>
         {#each items as it, i (i)}
           <label class="item" data-testid="spec-item" data-kind={it.kind} data-src={it.src?.tag}><input type="checkbox" bind:checked={checked[i]} /> {it.label}
+            {#if termHint(it, obj, app.prices)}<small class="term" data-testid="spec-term" title="그 품목에 연결된 공급사의 용어 — 주문서에는 이 이름으로">→ {termHint(it, obj, app.prices)}</small>{/if}
             {#if it.src?.tag === '전국' && dispute !== it.src.phrase}<button class="btn small" data-testid="spec-dispute" title="이 말을 다른 뜻으로 씁니다 — 내 사전에 저장되고 그 뜻에 한 표" onclick={(e) => { e.preventDefault(); startDispute(it.src!.phrase); }}>다른 뜻이에요</button>{/if}</label>
         {/each}
         {#if sample || dispute}
@@ -112,6 +114,7 @@
   .ask { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255, 204, 0, 0.4); }
   .ask p { margin: 0; color: var(--text); }
   .ask small { color: var(--muted); }
+  .term { color: var(--muted); margin-left: 4px; }
   .suggest { display: flex; flex-wrap: wrap; gap: 4px; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
   .chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 4px 1px 8px; border-radius: 10px; background: rgba(90, 168, 255, 0.18); font-size: 12px; }

@@ -13,7 +13,7 @@
   const order = $derived(app.settings.order ?? {});
   const hasOrder = $derived(!!(order.customer || order.company || order.phone || order.address || order.dueDate || order.delivery));
   function exportJson() {
-    const json = orderJson({ projectName, signs: app.signs, sizeOf: (o) => app.sizeOf(o), sources: app.sources, quote: q, order });
+    const json = orderJson({ projectName, signs: app.signs, sizeOf: (o) => app.sizeOf(o), sources: app.sources, quote: q, prices: app.prices, order });
     const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

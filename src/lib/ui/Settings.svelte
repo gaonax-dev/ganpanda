@@ -6,6 +6,13 @@
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
   import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
+  import { glossaryCsv } from '../core/terms';
+  /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
+  function exportGlossary() {
+    const blob = new Blob([glossaryCsv(app.prices, app.specRules)], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `간판다 용어집 ${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  }
 
   // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
   let members = $state<TeamMember[] | null>(null);
@@ -101,7 +108,7 @@
               {/each}
             </ul>
           {:else}<p class="hint">아직 없습니다. 퀵입력 확인 창에서 뜻을 고르면 여기에 쌓입니다.</p>{/if}
-          <p class="hint">전국 기본값(여러 계정이 같은 뜻으로 쓰는 말) {app.specDefaults.length}개</p>
+          <p class="hint">전국 기본값(여러 계정이 같은 뜻으로 쓰는 말) {app.specDefaults.length}개 <button class="btn small" data-testid="glossary-export" title="표준 용어(레지스트리 값) · 연결 공급사 용어 · 내 동의어를 CSV 로" onclick={exportGlossary}>용어집 내보내기</button></p>
           {#if !app.requestsEnabled}
             <!-- 지역 힌트 (V3, 2026-10-19): 요청판 지역 칸이 숨겨져 있을 때 여기서 — 같은 지역 사용자의 뜻을 추천에서 먼저 보여 주는 데만 쓴다 -->
             <label class="opt">내 지역 <small>(시·도부터, 예: 서울 송파구 — 같은 지역 사용자의 말뜻을 추천에서 먼저)</small><input data-testid="rules-region" bind:value={reqRegions} placeholder="예: 경기 광주시" onblur={saveRequests} /></label>

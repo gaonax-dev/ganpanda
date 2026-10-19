@@ -1,5 +1,12 @@
 // 주문 (2026-10-14): 프로젝트 주문 정보 + 사인물 사양 + 파일 → 주문서·JSON
 import { partLabel, partsOf, signTextOf } from './parts';
+import { partSupplierLabel } from './terms';
+
+/** 구성 요소의 공급사 용어 (연결된 공급사가 있고 이름이 다를 때) */
+function supplierFields(p: import('./model').SignPart, prices: import('./pricing').PriceTable | null | undefined): { supplier?: string; supplier_label?: string } {
+  const r = partSupplierLabel(p, prices, partLabel(p));
+  return r.supplier ? { supplier: r.supplier, supplier_label: r.label } : {};
+}
 import { categoryOf, CATEGORY_GROUPS, productById, sheetById } from './catalog';
 import type { DesignSource, SignObject } from './model';
 import { describeOptions, effectiveOptions, effectivePartOptions } from './options';
@@ -23,7 +30,7 @@ export interface OrderInfo {
 export interface OrderItem {
   id: string;
   /** 조합형 구성 요소 (2026-10-16) */
-  parts?: { kind: string; type: string; label: string; on?: string; options: Record<string, string | boolean>; items: Omit<import('./model').PartItem, 'id'>[] }[];
+  parts?: { kind: string; type: string; label: string; /** 연결 공급사 id · 그 공급사의 용어 (2026-10-19) */ supplier?: string; supplier_label?: string; on?: string; options: Record<string, string | boolean>; items: Omit<import('./model').PartItem, 'id'>[] }[];
   name: string;
   category: string;
   type: string;
@@ -58,8 +65,10 @@ export function orderJson(args: {
   quote: Quote;
   order: OrderInfo;
   now?: Date;
+  /** 단가표 — 구성 요소에 연결된 공급사의 용어를 함께 적는다 (2026-10-19 V5 "공급사의 용어가 우선한다") */
+  prices?: import('./pricing').PriceTable | null;
 }): OrderJson {
-  const { signs, sizeOf, sources, quote, order } = args;
+  const { signs, sizeOf, sources, quote, order, prices } = args;
   const items: OrderItem[] = signs.map((o) => {
     const cat = categoryOf(o);
     const p = productById(o.productId);
@@ -74,7 +83,7 @@ export function orderJson(args: {
       options: effectiveOptions(o),
       option_summary: describeOptions(o, { defaults: true }),
       // 조합형 구성 요소 (2026-10-16): 종류·이름·옵션(기본값 포함)·글자·그림
-      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...(p.on ? { on: p.on } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
+      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...supplierFields(p, prices), ...(p.on ? { on: p.on } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
       ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), ...(o.depthMm ? { depth_mm: Math.round(o.depthMm) } : {}), estimated: sz.estimated } } : {}),
       ...(signTextOf(o) ? { text: signTextOf(o) } : {}), // 문구가 없으면 구성내역 (2026-10-16)
       ...(src ? { design_file: `${src.name} (${o.design!.page + 1}쪽)` } : {}),

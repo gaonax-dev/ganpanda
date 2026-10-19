@@ -10,6 +10,7 @@ const typeLabel = (type: string) => productById(type)?.name ?? type;
 
 export const scashi: Component = {
   kind: 'scashi', label: '스카시', color: '#e0b85a', types: SCASHI_OPTIONS,
+  termKey: 'product',
   hasSpec: false, sits: false, layer: 100, itemWidth: false, extrude: true,
   typeLabel: (p) => typeLabel(p.type),
   spec: (p) => typeLabel(p.type),

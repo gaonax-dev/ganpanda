@@ -69,6 +69,7 @@ describe('종류 이름 분기 금지 (레지스트리 밖)', () => {
     'core/quickSpec.ts': 2, // 빠른 설정의 채널 칩 (채널 전용 UI)
     'core/specText.ts': 6, // 사양 글의 채널·스카시 항목(SpecItem.kind — 구성 요소 종류 비교가 아님) + 배치 적용의 시트 레이어 찾기 (2026-10-19)
     'ui/ObjectSettingsDialog.svelte': 2, // 칩에서 열 때 채널 탭
+    'core/terms.ts': 5, // 사양 글 항목(SpecItem.kind 'channel'·'scashi')의 공급사 용어 힌트·용어집 동의어 — 구성 요소 종류 비교가 아님 (2026-10-19)
   };
   const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? walk(p) : [p]; });
   it('src/lib 에서 kind === \'채널|스카시|시트\' 비교는 허용 목록 안에서만', () => {

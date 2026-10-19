@@ -166,3 +166,4 @@
 | 2026-10-19 | 사양 글 사전 V2 구현: 전국 기본값은 서버가 자동으로(5곳 문턱, 교체는 3곳 차+30일 — 운영자 확인 단계는 생략), 이의 = 개인 규칙 + 한 표, 설정에 규칙 목록·삭제 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) 10절 |
 | 2026-10-19 | 퀵입력 배치 어휘 구현(V4): 따옴표 글자·높이·N줄·위치어, 로고·그림 자리, 스카시, "채널 위에 시트" → 적용 때 레이어 트리에 자리 계산 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V4 |
 | 2026-10-19 | 사양 글 사전 V3 지역 힌트 구현: 규칙에 계정 지역(요청판 지역의 시·도) 기록, 추천은 같은 지역 수 → 전체 수 순. 설정에 "내 지역" 칸 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V3 |
+| 2026-10-19 | 용어 통일 V5 1차: 연결 공급사의 용어를 확인 창 힌트·주문 JSON(supplier_label)에, 용어집 CSV 내보내기. 공급사 용어 표는 코드(`SUPPLIER_TERMS`)에 두고 단가표에서 옮겨 적음 | 사용자: "순서대로 진행해줘" → [../features/spec-vocabulary.md](../features/spec-vocabulary.md) V5 |
