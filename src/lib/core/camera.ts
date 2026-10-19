@@ -307,6 +307,24 @@ export function signLengthSetup(setup: CameraSetup, quad: Pt[], widthMm: number,
   return { ...setup, origin: pbl, ref: { axis: 'x', from: pbl, to: pbr, mm: widthMm }, auto: true };
 }
 /**
+ * 치수를 넣은 사인물로 자동 원근 정하기 (2026-10-19 사용자: "실재 치수를 넣었는데 원근이 완성되지 않는다"):
+ * · 원근 없음 → 그 사인물로 잡는다(signCameraSetup)
+ * · 자동 원근이고 사인물이 맞음(라인·비율) → 축은 두고 원점·길이를 그 사인물로(signLengthSetup)
+ * · 자동 원근인데 안 맞음 → 다른 실측 사인물(others)이 지금 원근을 확인하고 있으면 그대로(null), 아무것도 확인하지 않으면 AI 축이 틀린 것으로 보고 그 사인물로 다시 잡는다
+ * · 사람이 맞춘 원근 → null
+ */
+export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number): CameraSetup | null {
+  const fromSign = (): CameraSetup | null => { const s: CameraSetup = { ...signCameraSetup(quad, widthMm), auto: true }; return solveCamera(s, imgW, imgH) ? s : null; };
+  if (!setup) return fromSign();
+  if (!setup.auto) return null;
+  const fit = signLengthSetup(setup, quad, widthMm, heightMm, imgW, imgH);
+  if (fit) return fit;
+  const sol = solveCamera(setup, imgW, imgH);
+  if (sol && sol.scaled && others.some((o) => signMatches(sol, o.quad, o.w, o.h))) return null;
+  return fromSign();
+}
+
+/**
  * 원근 완성도 (2026-10-19 사용자: "정확도를 경고하지 마라 … 완성도 표시만해줘"): 축(원근 선을 풀 수 있음) → 길이(기준 길이로 mm 축척) → 확인.
  * 확인 = 사람이 원근 창에서 맞췄거나(자동 아님), 치수 넣은 사인물 두 개 이상이 그 원근과 맞음(라인·비율). level = 앞에서부터 채운 칸 수 (0~3)
  */
@@ -315,7 +333,8 @@ export function cameraLevel(setup: CameraSetup | undefined, sized: { quad: Pt[];
   const sol = setup ? solveCamera(setup, imgW, imgH) : null;
   if (!setup || !sol) return { axes: false, length: false, check: false, level: 0 };
   const length = sol.scaled;
-  const check = length && (!setup.auto || sized.filter((s) => signMatches(sol, s.quad, s.w, s.h)).length >= 2);
+  // 확인: 사람이 맞춘 원근, 또는 실측 사인물 하나라도 원근과 맞음(라인·비율) — AI 축과 실측이 서로 확인 (2026-10-19 "실재 치수를 넣었는데 원근이 완성되지 않는다")
+  const check = length && (!setup.auto || sized.some((s) => signMatches(sol, s.quad, s.w, s.h)));
   return { axes: true, length, check, level: (1 + (length ? 1 : 0) + (check ? 1 : 0)) as 1 | 2 | 3 };
 }
 

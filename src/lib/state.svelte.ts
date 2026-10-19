@@ -14,7 +14,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, signLengthSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { clampFlatScale } from './core/boardCards';
@@ -551,16 +551,15 @@ class AppState {
       const size = o && this.sizeOf(o);
       if (!o || !p || !size || size.estimated || o.shape === 'polygon' || o.quad.length !== 4) continue;
       const quad = o.quad.map((q) => [q[0], q[1]] as [number, number]);
-      let next: CameraSetup | null = null;
-      if (!p.camera) {
-        if (p.autoCamera === false) continue;
-        const s: CameraSetup = { ...signCameraSetup(quad, size.w), auto: true };
-        next = solveCamera(s, p.w, p.h) ? s : null;
-      } else if (p.camera.auto) {
-        next = signLengthSetup(p.camera, quad, size.w, size.h, p.w, p.h);
-        if (next && JSON.stringify(next) === JSON.stringify(p.camera)) next = null;
-      }
-      if (!next) continue;
+      if (!p.camera && p.autoCamera === false) continue; // 원근을 지웠으면(자동 끔) 새로 만들지 않는다
+      // 같은 사진의 다른 실측 사인물 — 지금 원근을 확인하고 있으면 안 맞는 새 사인물로 갈아엎지 않는다
+      const others = this.objects.flatMap((x) => {
+        if (x.id === o.id || x.photoId !== p.id || x.shape === 'polygon' || x.quad.length !== 4) return [];
+        const sz = this.sizeOf(x);
+        return sz && !sz.estimated ? [{ quad: x.quad.map((q) => [q[0], q[1]] as [number, number]), w: sz.w, h: sz.h }] : [];
+      });
+      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h);
+      if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
       this.editBoundary();
       this.project.updatePhoto(p.id, { camera: next }); // 조용히 — 효과·안내 없이 완성도만 오른다
       this.editBoundary();

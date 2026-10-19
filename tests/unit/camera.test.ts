@@ -320,19 +320,56 @@ describe('원근 완성도 (cameraLevel, 2026-10-19 "완성도 표시만해줘")
   const ai: CameraSetup = { ...setupOf(proj), origin: proj([2500, 1500, 0]), ref: undefined, auto: true };
   const onWall = (x: number, h: number, w: number, hh: number) => ([[x, h + hh], [x + w, h + hh], [x + w, h], [x, h]] as [number, number][]).map(([a, b]) => proj([a, b, 0]));
   const sign = { quad: onWall(1500, 2200, 2000, 600), w: 2000, h: 600 };
-  const door = { quad: onWall(4000, 0, 1000, 2100), w: 1000, h: 2100 };
   it('원근 없음 = 0, 축만 = 1 (축 ✓ · 길이 – · 확인 –)', () => {
     expect(cameraLevel(undefined, [], imgW, imgH).level).toBe(0);
     expect(cameraLevel(ai, [], imgW, imgH)).toEqual({ axes: true, length: false, check: false, level: 1 });
   });
-  it('사인물로 길이를 잡으면 2, 다른 사인물 하나가 더 맞으면(라인·비율) 3', () => {
+  it('실측 사인물 하나가 원근과 맞으면(라인·비율) 바로 3 — AI 축 선과 실측이 서로 확인 (2026-10-19 "실재 치수를 넣었는데 원근이 완성되지 않는다")', () => {
     const withLen = signLengthSetup(ai, sign.quad, sign.w, sign.h, imgW, imgH)!;
-    expect(cameraLevel(withLen, [sign], imgW, imgH).level).toBe(2);
-    expect(cameraLevel(withLen, [sign, door], imgW, imgH)).toEqual({ axes: true, length: true, check: true, level: 3 });
-    // 비율이 안 맞는 치수는 확인으로 치지 않는다
-    expect(cameraLevel(withLen, [sign, { ...door, h: 1000 }], imgW, imgH).level).toBe(2);
+    expect(cameraLevel(withLen, [sign], imgW, imgH)).toEqual({ axes: true, length: true, check: true, level: 3 });
+    // 비율이 안 맞는 치수만 있으면 확인으로 치지 않는다
+    expect(cameraLevel(withLen, [{ ...sign, h: 1000 }], imgW, imgH).level).toBe(2);
   });
   it('사람이 원근 창에서 맞춘 원근(자동 아님)은 기준 길이가 있으면 3', () => {
     expect(cameraLevel(setupOf(proj), [], imgW, imgH).level).toBe(3);
+  });
+});
+
+describe('치수 넣은 사인물로 자동 원근 고치기 (autoCameraFrom, 2026-10-19 "실재 치수를 넣었는데 원근이 완성되지 않는다")', async () => {
+  const { autoCameraFrom, cameraLevel } = await import('../../src/lib/core/camera');
+  const onWall = (x: number, h: number, w: number, hh: number) => ([[x, h + hh], [x + w, h + hh], [x + w, h], [x, h]] as [number, number][]).map(([a, b]) => proj([a, b, 0]));
+  const sign = { quad: onWall(1500, 2200, 2000, 600), w: 2000, h: 600 };
+  const door = { quad: onWall(4000, 0, 1000, 2100), w: 1000, h: 2100 };
+  const ai: CameraSetup = { ...setupOf(proj), origin: proj([2500, 1500, 0]), ref: undefined, auto: true };
+  // AI 가 엉뚱한 선을 잡은 원근: 가로 축 선 두 개가 8° 기울어짐 (전선·현수막 등)
+  const tilt = (l: Line): Line => { const m: Pt = [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2], r = (8 * Math.PI) / 180; const t = (p: Pt): Pt => [m[0] + (p[0] - m[0]) * Math.cos(r) - (p[1] - m[1]) * Math.sin(r), m[1] + (p[0] - m[0]) * Math.sin(r) + (p[1] - m[1]) * Math.cos(r)]; return { a: t(l.a), b: t(l.b) }; };
+  const wrong: CameraSetup = { ...ai, x: [tilt(ai.x[0]), tilt(ai.x[1])] };
+  const band = onWall(0, 2000, 6000, 1000);
+  it('원근이 없으면 그 사인물로 잡는다', () => {
+    const s = autoCameraFrom(undefined, sign.quad, sign.w, sign.h, [], imgW, imgH)!;
+    expect(s.auto).toBe(true);
+    expect(s.ref).toMatchObject({ mm: 2000 });
+  });
+  it('AI 축이 맞으면 축은 두고 원점·길이만 그 사인물로', () => {
+    const s = autoCameraFrom(ai, sign.quad, sign.w, sign.h, [], imgW, imgH)!;
+    expect(s.x).toEqual(ai.x);
+    expect(s.ref).toMatchObject({ mm: 2000 });
+  });
+  it('AI 축이 틀려 사인물이 안 맞고 다른 확인도 없으면, 실측 사인물로 원근을 다시 잡는다 — 다른 영역 크기가 맞고 완성도 3', () => {
+    const s = autoCameraFrom(wrong, sign.quad, sign.w, sign.h, [], imgW, imgH)!;
+    expect(s).not.toBeNull();
+    expect(s.x).not.toEqual(wrong.x);
+    expect(s.auto).toBe(true);
+    const m = measureQuad(calibrationOf(solveCamera(s, imgW, imgH)!), band);
+    near(m.widthMm, 6000, 0.05); near(m.heightMm, 1000, 0.05);
+    expect(cameraLevel(s, [sign], imgW, imgH).level).toBe(3);
+  });
+  it('이미 다른 실측 사인물이 지금 원근을 확인하고 있으면, 안 맞는 새 사인물로 갈아엎지 않는다', () => {
+    const confirmed = autoCameraFrom(ai, door.quad, door.w, door.h, [], imgW, imgH)!;
+    const skewed = { ...sign, h: 1500 }; // 비율이 틀린 입력
+    expect(autoCameraFrom(confirmed, skewed.quad, skewed.w, skewed.h, [door], imgW, imgH)).toBeNull();
+  });
+  it('사람이 맞춘 원근은 손대지 않는다', () => {
+    expect(autoCameraFrom(setupOf(proj), sign.quad, sign.w, sign.h, [], imgW, imgH)).toBeNull();
   });
 });

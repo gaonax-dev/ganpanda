@@ -256,10 +256,10 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   }, { dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL });
   const setSize = (id: string, w: number, h: number) => page.evaluate(({ id, w, h }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: w, heightMm: h }), { id, w, h });
   await setSize(ids[0], 1000, 2900);
-  // 근사치 → 원점 = 문 왼쪽 아래, 기준 길이 = 1000mm. 조용히(효과·안내 없이) 완성도만 2
+  // 근사치 → 원점 = 문 왼쪽 아래, 기준 길이 = 1000mm. 조용히(효과·안내 없이) — AI 축과 실측이 맞으니 완성도 3
   await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(1000);
   await expect(page.getByTestId('camera-fx')).toHaveCount(0);
-  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '2');
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
   const c1 = (await camOf())!;
   expect(Math.hypot(c1.origin[0] - dBL[0], c1.origin[1] - dBL[1])).toBeLessThan(1);
   expect(c1.auto).toBe(true);
@@ -272,8 +272,8 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   await page.waitForTimeout(1200);
   expect((await camOf())!.ref!.mm).toBe(1000);
   await expect(page.getByTestId('sign-warning-icon')).toHaveCount(0);
-  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '2');
-  // 띠를 맞는 치수로 고치면: 두 사인물이 원근과 맞아 완성도 3 (확인)
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3'); // 문이 이미 확인하고 있어 안 맞는 띠로 갈아엎지 않는다
+  // 띠를 맞는 치수로 고치면 기준이 띠로
   await setSize(ids[1], 9000, 1000);
   await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
   await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(9000); // 기준 길이는 마지막으로 맞춘 사인물(띠)로
@@ -291,4 +291,28 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   await setSize(ids[0], 1000, 2900);
   await page.waitForTimeout(1200);
   expect(await camOf()).toBeNull();
+});
+
+test('AI 가 원근 선을 잘못 잡았어도, 실측 치수를 넣은 사인물이 원근을 다시 잡아 완성한다 (2026-10-19 "실재 치수를 넣었는데 원근이 완성되지 않는다")', async ({ page, request }) => {
+  type Cam = { x: { a: number[]; b: number[] }[]; ref?: { mm: number }; auto?: boolean };
+  const camOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { camera?: Cam }[] } }).__ganpanda.photos[0].camera ?? null);
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '1', { timeout: 15_000 });
+  // AI 가 엉뚱한 선(벽과 15° 어긋난 가로 선)을 잡은 상황을 만든다
+  const [a0, a1, b0, b1, d0, d1, e0, e1] = await wallToPx(page, [[0, 4700], [9000, 4700], [0, 3700], [9000, 3700], [4000, 2900], [4000, 0], [5000, 2900], [5000, 0]]);
+  await page.evaluate((c) => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { updatePhoto(id: string, p: unknown): void } } }).__ganpanda;
+    const tilt = (p: number[], q: number[]) => { const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], r = (15 * Math.PI) / 180; const t = (v: number[]) => [m[0] + (v[0] - m[0]) * Math.cos(r) - (v[1] - m[1]) * Math.sin(r), m[1] + (v[0] - m[0]) * Math.sin(r) + (v[1] - m[1]) * Math.cos(r)]; return { a: t(p), b: t(q) }; };
+    app.project.updatePhoto(app.photos[0].id, { camera: { x: [tilt(c.a0, c.a1), tilt(c.b0, c.b1)], y: [{ a: c.d0, b: c.d1 }, { a: c.e0, b: c.e1 }], origin: c.d1, axes: { first: '+x', second: '+z' }, principal: 'center', auto: true } });
+  }, { a0, a1, b0, b1, d0, d1, e0, e1 });
+  const wrongX = (await camOf())!.x;
+  // 문에 맞게 그린 사인물에 실측 1000×2900
+  const [dTL, dTR, dBR, dBL] = await wallToPx(page, [[4000, 2900], [5000, 2900], [5000, 0], [4000, 0]]);
+  const id = await page.evaluate((q) => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; return a.project.addObject({ photoId: a.photos[0].id, name: '문', shape: 'rect', quad: q, sheetIds: [] }); }, [dTL, dTR, dBR, dBL]);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 1000, heightMm: 2900 }), id);
+  await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(1000);
+  expect((await camOf())!.x).not.toEqual(wrongX); // 틀린 AI 선을 버리고 사인물로
+  expect((await camOf())!.auto).toBe(true);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
 });
