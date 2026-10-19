@@ -127,7 +127,7 @@
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
-    if (action === 'gizmoMove') { app.tool = 'select'; app.gizmoMode = app.gizmoMode === 'move' ? 'none' : 'move'; return; } // W = 이동 켜기/끄기 (2026-10-18)
+    if (action === 'gizmoMove') { app.tool = 'select'; app.gizmoMode = 'none'; return; } // W = 기본(면 직각 막대) — 이동 매니퓰레이터는 없앰 (2026-10-19)
     if (action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoRotate' ? 'rotate' : 'scale'; return; } // 단추는 숨겼지만 단축키로는
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';

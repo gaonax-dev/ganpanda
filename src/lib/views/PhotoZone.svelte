@@ -210,13 +210,20 @@
     const per = Math.max(...(['x', 'y', 'z'] as const).map((k) => { const b = projectPoint(pose, [c3[0] + A[k][0] * 1000, c3[1] + A[k][1] * 1000, c3[2] + A[k][2] * 1000]); return Math.hypot(b[0] - c[0], b[1] - c[1]) / 1000; }));
     return per > 0 ? (gizmoPx * u) / per : 500;
   }
-  /** 평면 판: 그 축을 박스 방향으로. 지금 그 축이면(고른 것) 자동으로 */
-  function pickFace(o: SignObject, a: 'x' | 'y' | 'z', cur: string) {
-    if (!onbox) return;
-    if (cur === a && (o.faceAxis === a || o.boxDir)) onbox(o.id, { faceAxis: undefined, boxDir: undefined });
-    else onbox(o.id, { faceAxis: a, boxDir: undefined });
+  /**
+   * 면 직각 막대 (2026-10-19 사용자: "이동 메티폴레이터제거한다. 대신 면 직각 막대와 끝에 동그라미만 표시한다. 동그라미를 클릭하면 다른축 으로 바뀐다. xyz"):
+   * 외곽선 대각선 교점에서 박스 방향(면의 법선, 카메라 쪽)으로 막대. 화면에서 너무 짧으면(정면으로 본 Y) 같은 방향으로 늘린다
+   */
+  function faceBarOf(pose: import('../core/homography').CameraPose, c3: V3, dir: V3, L: number): { a: Pt; b: Pt } {
+    const a = projectPoint(pose, c3), t = projectPoint(pose, [c3[0] + dir[0] * L, c3[1] + dir[1] * L, c3[2] + dir[2] * L]);
+    let d: Pt = [t[0] - a[0], t[1] - a[1]];
+    const n = Math.hypot(d[0], d[1]), min = gizmoPx * u * 0.8;
+    if (n < 1e-6) d = [0, -1]; else d = [d[0] / n, d[1] / n];
+    const len = Math.max(n, min);
+    return { a, b: [a[0] + d[0] * len, a[1] + d[1] * len] };
   }
-  const FACE_TITLE = { x: '정면 X: 박스가 벽 가로로 (돌출 간판)', y: '정면 Y: 박스가 벽 밖으로 (벽면 간판)', z: '정면 Z: 박스가 위·아래로 (어닝 등)' } as const;
+  const NEXT_AXIS = { x: 'y', y: 'z', z: 'x', none: 'y' } as const;
+  const FACE_TITLE = { x: 'X: 박스가 벽 가로로 (돌출 간판)', y: 'Y: 박스가 벽 밖으로 (벽면 간판)', z: 'Z: 박스가 위·아래로 (어닝 등)', none: '축 사이로 돌린 박스' } as const;
 
   /**
    * 상자 가이드 (2026-10-15 사용자: "원근 문제 격자도 어렵다. 정육면체로 가이드를 줄 수 있나? 두께가 있는 것만 문제"):
@@ -411,19 +418,7 @@
 
 <!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
 
-{#snippet modeChips(at: Pt)}
-  <!-- 매니퓰레이터 모드 단추 (2026-10-18 사용자: "회전 스케일 우선 숨겨줘, 이동도 이동 선택하면 나오게 기본은 안나오게"): [이동 ✥] 하나, 누르면 켜고 끈다. 회전·크기는 단축키 E·R 로만 -->
-  <g class="modes" transform="translate({at[0] - 11 * gu} {at[1] + 14 * gu})">
-    <g class="mode" class:on={gizmoMode === 'move'} role="button" tabindex="-1" data-testid="gizmo-mode-move" onpointerdown={(e) => { e.stopPropagation(); app.gizmoMode = gizmoMode === 'move' ? 'none' : 'move'; }}>
-      <title>이동 (W)</title>
-      <!-- 아이콘은 글리프(✥) 대신 선으로 그린다 — 아이폰에서 글리프가 비어 보였음 (2026-10-18 캡처) -->
-      <circle cx={11 * gu} cy={9 * gu} r={8 * gu} />
-      <g class="ico" transform="translate({11 * gu} {9 * gu}) scale({gu})" pointer-events="none">
-        <path d="M0 -5 L0 5 M-5 0 L5 0 M0 -5 L-1.6 -3.2 M0 -5 L1.6 -3.2 M0 5 L-1.6 3.2 M0 5 L1.6 3.2 M-5 0 L-3.2 -1.6 M-5 0 L-3.2 1.6 M5 0 L3.2 -1.6 M5 0 L3.2 1.6" />
-      </g>
-    </g>
-  </g>
-{/snippet}
+<!-- [이동 ✥] 모드 단추·이동 매니퓰레이터는 없앰 (2026-10-19) — 면 직각 막대 + 끝 동그라미 -->
 
 {#snippet iconBtn(at: Pt, icon: string, title: string, testid: string, act: () => void, color: string)}
   <!-- 아이콘 버튼 (뜻은 마우스를 올리면 나오는 설명으로) -->
@@ -680,23 +675,22 @@
             <!-- 단추 자리 = 외곽선 아래 [이동] 칩 오른쪽 (2026-10-18 사용자: "원근 교정버튼이 모바일에서 모서리 컨트롤러에 가까워 오터치된다" — 전엔 오른쪽 아래 꼭짓점 옆) -->
             {#if !editing && skew <= 25 && (skew > SKEW_ALERT || (tilt > 0.5 && tilt <= 25))}
               <g class="persp" data-testid="persp-guide" data-skew={skew.toFixed(1)}>
-                {@render iconBtn([mAt[0] + 26 * gu, mAt[1] + 23 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
+                {@render iconBtn([mAt[0], mAt[1] + 16 * gu], '⊞', `원근에 맞추기 (${Math.round(Math.max(skew, tilt))}° 어긋남)`, 'persp-align', () => alignToPerspective(o, alignPlane), '#ff4dd2')}
               </g>
             {/if}
             <g class="gizmo box3" data-testid="gizmo" data-mode={gizmoMode} data-box={cur}>
-              {#if gizmoMode === 'move'}
-                {#each ['x', 'y', 'z'] as const as a (a)}
-                  {@const ar = g3.arrows[a]}
-                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={2.4 * gu} />
-                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={ar[1][0]} y2={ar[1][1]} stroke-width={1.1 * gu} style:stroke={AXIS_COLOR[a]} />
-                  <circle class="gh axis" data-testid="gizmo-{a}" cx={ar[1][0]} cy={ar[1][1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>{a.toUpperCase()} 축을 따라 옮기기</title></circle>
-                  <!-- 반대 방향 (2026-10-18 "이동 6방향으로 표시"): 같은 축, 끄는 방향으로 움직인다 -->
-                  {@const neg = [2 * ar[0][0] - ar[1][0], 2 * ar[0][1] - ar[1][1]]}
-                  <line class="halo" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={2.4 * gu} />
-                  <line class="ax {a}" x1={ar[0][0]} y1={ar[0][1]} x2={neg[0]} y2={neg[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR[a]} stroke-opacity="0.7" />
-                  <circle class="gh axis" data-testid="gizmo-{a}-neg" cx={neg[0]} cy={neg[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'bmove', a)}><title>-{a.toUpperCase()} 방향으로 옮기기</title></circle>
-                {/each}
-                <circle class="dot" cx={g3.c[0]} cy={g3.c[1]} r={2.5 * gu} pointer-events="none" /><rect class="gh center" data-testid="gizmo-move" x={g3.c[0] - 7 * gu} y={g3.c[1] - 7 * gu} width={14 * gu} height={14 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree', 0, 0, face3)}><title>사인물 면 위에서 옮기기</title></rect>
+              {#if gizmoMode === 'none' && onbox && dirNow && c3}
+                <!-- 면 직각 막대 + 끝 동그라미: 누르면 다음 축 (X → Y → Z → X) -->
+                {@const fb = faceBarOf(pose, c3, dirNow, len3(c3))}
+                {@const col = cur === 'none' ? '#ffffff' : AXIS_COLOR[cur]}
+                {@const next = NEXT_AXIS[cur]}
+                <g class="facebar" data-testid="face-bar" data-axis={cur}>
+                  <line class="halo" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={3 * gu} />
+                  <line class="ax" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={1.4 * gu} style:stroke={col} />
+                  <circle class="dot" data-testid="face-bar-origin" cx={fb.a[0]} cy={fb.a[1]} r={2.5 * gu} pointer-events="none" />
+                  <circle class="gh fcyc" data-testid="face-cycle" data-axis={cur} cx={fb.b[0]} cy={fb.b[1]} r={7 * gu} stroke-width={2 * gu} style:fill={col} role="button" tabindex="-1"
+                    onpointerdown={(e) => { e.stopPropagation(); onbox(o.id, { faceAxis: next, boxDir: undefined }); }}><title>{FACE_TITLE[cur]} — 누르면 {next.toUpperCase()} 축으로</title></circle>
+                </g>
               {:else if gizmoMode === 'rotate'}
                 {#each ['x', 'y', 'z'] as const as a (a)}
                   {@const pts = g3.rings[a].map((p) => p.join(',')).join(' ')}
@@ -713,22 +707,6 @@
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)}><title>{h.sx && h.sy ? '외곽선 크기 (비율 유지)' : h.sx ? '외곽선 가로' : '외곽선 세로'}</title></rect>
                 {/each}
               {/if}
-              <!-- 메뉴는 맨 마지막(맨 위)에, 외곽선 아래에 (2026-10-16 사용자: "메이폴레이터로 인해서 하단 매뉴를 누를 수 없게될 때가 있다") -->
-              {@render modeChips(mAt)}
-                {#if gizmoMode === 'move' && onbox}
-                  <!-- 정면(박스 방향) 단추 (2026-10-15 사용자: "사인물 정면을 선택하는 것 move일때 하단에 x,y,z 단추로 선택하게 사각은 보이지 않는다"):
-                       모드 단추 아래 X·Y·Z. 누르면 그 축이 박스 방향(외곽선·사인물 크기는 그대로), 켜진 단추를 다시 누르면 자동 -->
-                  <g class="faces" data-testid="face-axes" data-axis={cur} data-auto={String(!o.faceAxis && !o.boxDir)} transform="translate({mAt[0] - 22 * gu} {mAt[1] + 45 * gu})">
-                    {#each ['x', 'y', 'z'] as const as a, i (a)}
-                      <g class="fb" class:on={cur === a} role="button" tabindex="-1" data-testid="face-{a}" data-on={String(cur === a)}
-                        onpointerdown={(e) => { e.stopPropagation(); pickFace(o, a, cur); }}>
-                        <title>{FACE_TITLE[a]}{cur === a ? (o.faceAxis === a || o.boxDir ? ' — 지금 (다시 누르면 자동)' : ' — 지금 (자동)') : ''}</title>
-                        <circle cx={i * 22 * gu} cy={0} r={9 * gu} style:fill={AXIS_COLOR[a]} stroke-width={(cur === a ? 2.5 : 0) * gu} />
-                        <text x={i * 22 * gu} y={4 * gu} font-size={11 * gu} text-anchor="middle">{a.toUpperCase()}</text>
-                      </g>
-                    {/each}
-                  </g>
-                {/if}
             </g>
           {/if}
         {:else if sel && editable && tool === 'select' && gizmoable(o)}
@@ -738,22 +716,7 @@
             {@const fr = frameOf(plane, q)}
             {@const g = gizmoOf(plane, fr, screenLen(plane, fr))}
             <g class="gizmo" data-testid="gizmo" data-mode={gizmoMode}>
-              {#if gizmoMode === 'move'}
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]}   stroke-width={3 * gu} />
-                <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={g.x[0]} y2={g.x[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.x} />
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]}   stroke-width={3 * gu} />
-                <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={g.z[0]} y2={g.z[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.z} />
-                <circle class="gh axis" data-testid="gizmo-x" cx={g.x[0]} cy={g.x[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
-                <circle class="gh axis" data-testid="gizmo-z" cx={g.z[0]} cy={g.z[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
-                <!-- 반대 방향 (2026-10-18 "이동 6방향"): 원근 없는 사진은 X·Z 양쪽 = 4방향 -->
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.x[0]} y2={2 * g.c[1] - g.x[1]} stroke-width={3 * gu} />
-                <line class="ax x" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.x[0]} y2={2 * g.c[1] - g.x[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.x} stroke-opacity="0.7" />
-                <line class="halo" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.z[0]} y2={2 * g.c[1] - g.z[1]} stroke-width={3 * gu} />
-                <line class="ax z" x1={g.c[0]} y1={g.c[1]} x2={2 * g.c[0] - g.z[0]} y2={2 * g.c[1] - g.z[1]} stroke-width={1.3 * gu} style:stroke={AXIS_COLOR.z} stroke-opacity="0.7" />
-                <circle class="gh axis" data-testid="gizmo-x-neg" cx={2 * g.c[0] - g.x[0]} cy={2 * g.c[1] - g.x[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gx')} />
-                <circle class="gh axis" data-testid="gizmo-z-neg" cx={2 * g.c[0] - g.z[0]} cy={2 * g.c[1] - g.z[1]} r={8 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gz')} />
-                <circle class="dot" cx={g.c[0]} cy={g.c[1]} r={2.5 * gu} pointer-events="none" /><rect class="gh center" data-testid="gizmo-move" x={g.c[0] - 7 * gu} y={g.c[1] - 7 * gu} width={14 * gu} height={14 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gfree')} />
-              {:else if gizmoMode === 'rotate'}
+              {#if gizmoMode === 'rotate'}
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
                 <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
@@ -764,7 +727,6 @@
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
                 {/each}
               {/if}
-              {@render modeChips(menuAt(q, g.c))}
             </g>
           {/if}
         {/if}
@@ -885,28 +847,17 @@
   .gizmo .ring { fill: none; stroke: #fff; pointer-events: none; }
   .gizmo .ring-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; } /* 얇은 고리를 잡기 쉽게 넓은 투명 영역 */
   .gizmo .ring3 { fill: none; pointer-events: stroke; cursor: grab; stroke-linecap: round; }
-  .faces .fb { cursor: pointer; }
-  .faces .fb circle { stroke: #fff; }
-  .faces .fb:not(.on) circle { fill-opacity: 0.55; }
-  .faces .fb text { fill: #111; font-weight: 700; pointer-events: none; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
   .gizmo .gh { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; cursor: grab; }
-  /* 이동 매니퓰레이터는 선만 보인다 (2026-10-18 "매니퓰레이터 나오면 그냥 선만 보이게"): 축 손잡이·가운데는 보이지 않는 터치 영역, 가운데에 작은 점 */
-  .gizmo .gh.axis, .gizmo .gh.center { fill: transparent; stroke: none; }
   .gizmo .dot { fill: #fff; stroke: rgba(0,0,0,0.7); stroke-width: 1px; vector-effect: non-scaling-stroke; }
   .gizmo .gh.rot { fill: #ffcc00; }
+  /* 면 직각 막대 끝 동그라미 (2026-10-19): 축 색, 어두운 테두리 — 누르면 다음 축 */
+  .gizmo .gh.fcyc { stroke: #111; cursor: pointer; }
   .gizmo .gh.size { fill: #fff; stroke: #333; }
-  /* 돌린 사인물: 이동 모드 = 경첩 옮기기, 회전 모드 = 각도, 크기 모드는 펴서(벽에 붙여) */
-  .modes .mode { cursor: pointer; }
-  .modes .mode circle { fill: rgba(23, 26, 33, 0.85); stroke: rgba(255,255,255,0.5); stroke-width: 1px; vector-effect: non-scaling-stroke; }
-  .modes .mode.on circle { fill: #ffcc00; stroke: #111; }
-  .modes .mode .ico path { fill: none; stroke: #fff; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
-  .modes .mode.on .ico path { stroke: #1a1500; }
   .ibtn { cursor: pointer; }
   .ibtn circle { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
   .ibtn text { fill: #111; stroke: none; font-weight: 800; pointer-events: none; }
   .gizmo .gh.uni { fill: #ffcc00; stroke: #333; }
-  .gizmo .deg { fill: #fff; stroke: rgba(0,0,0,0.7); paint-order: stroke; font-weight: 700; pointer-events: none; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
   svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
   svg.ghost .sign.sel polygon { stroke: var(--accent); stroke-dasharray: 6 4; }

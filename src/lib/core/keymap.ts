@@ -30,7 +30,7 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'toolPin', label: '말풍선 (위치 코멘트)', group: '도구' },
   { id: 'toolMagic', label: '자동 분리 (AI)', group: '도구' },
   { id: 'toolZone', label: '작업 존', group: '도구' },
-  { id: 'gizmoMove', label: '매니퓰레이터: 이동', group: '도구' },
+  { id: 'gizmoMove', label: '매니퓰레이터: 기본 (면 직각 막대)', group: '도구' },
   { id: 'gizmoRotate', label: '매니퓰레이터: 회전', group: '도구' },
   { id: 'gizmoScale', label: '매니퓰레이터: 크기', group: '도구' },
   { id: 'deleteSelection', label: '선택한 사인물 삭제', group: '편집' },
