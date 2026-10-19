@@ -295,8 +295,8 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성
   });
   const menu = page.getByTestId('mobile-edit');
   await expect(menu).toBeVisible();
-  // 순서: 복사·붙여넣기·복제·말풍선·정리·녹음(맨 오른쪽). 빠른 막대의 말풍선 단추는 없어졌다
-  await expect(menu.locator('button')).toHaveCount(6);
+  // 순서: 다중·복사·붙여넣기·복제·말풍선·정리·녹음(맨 오른쪽). 빠른 막대의 말풍선 단추는 없어졌다
+  await expect(menu.locator('button')).toHaveCount(7);
   await expect(menu.locator('button').last()).toHaveAttribute('data-testid', 'mobile-record');
   await expect(page.getByTestId('quick-chat-open')).toHaveCount(0);
   await page.getByTestId('mobile-record').click();
@@ -326,4 +326,63 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성
   await page.getByTestId('mobile-done').click();
   await expect(menu).toHaveCount(0);
   await expect(chat).toHaveCount(0);
+});
+
+test('휴대폰 다중 선택: 상단 [다중] 단추(복사 앞)를 켜면 말풍선·녹음이 숨고, 탭으로 더하고, 하단은 종류 셀렉터만 — 한 번에 종류 변경 (2026-10-19)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const photoId = app.photos[0].id;
+    const a = app.project.addObject({ photoId, name: '첫째', shape: 'rect', quad: [[100, 100], [500, 100], [500, 300], [100, 300]], sheetIds: [], productId: 'board-galva' });
+    const b = app.project.addObject({ photoId, name: '둘째', shape: 'rect', quad: [[700, 100], [1100, 100], [1100, 300], [700, 300]], sheetIds: [] });
+    const c = app.project.addObject({ photoId, name: '셋째', shape: 'rect', quad: [[1300, 100], [1700, 100], [1700, 300], [1300, 300]], sheetIds: [], productId: 'board-galva' });
+    app.selectObject(a);
+    return [a, b, c];
+  });
+  const objs = () => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { id: string; productId?: string; sheetIds: string[] }[] } }).__ganpanda.objects);
+  const menu = page.getByTestId('mobile-edit');
+  // [다중] 은 복사 바로 앞
+  await expect(menu.locator('button').first()).toHaveAttribute('data-testid', 'mobile-multi');
+  await expect(menu.locator('button').nth(1)).toHaveAttribute('data-testid', 'mobile-copy');
+  // 단추가 하나 늘어도 상단 바가 화면 폭(390)을 넘지 않는다 — 녹음 단추까지 화면 안
+  expect((await page.getByTestId('mobile-record').boundingBox())!.x + (await page.getByTestId('mobile-record').boundingBox())!.width).toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByTestId('mobile-multi').tap();
+  await expect(page.getByTestId('mobile-multi')).toHaveClass(/on/);
+  await expect(page.getByTestId('mobile-chat')).toHaveCount(0);
+  await expect(page.getByTestId('mobile-record')).toHaveCount(0);
+  // 하단: 종류 셀렉터만 (이름·사이즈·상세정보·사양 글 없음)
+  const bar = page.getByTestId('quick-bar');
+  await expect(bar.getByTestId('quick-kind')).toBeVisible();
+  await expect(bar.getByTestId('quick-name')).toHaveCount(0);
+  await expect(bar.getByTestId('quick-panel-open')).toHaveCount(0);
+  await expect(bar.getByTestId('quick-spec')).toHaveCount(0);
+  await expect(page.getByTestId('multi-bar')).toHaveCount(0); // 데스크톱 작업 막대는 휴대폰에서 안 뜬다
+  // 탭으로 더하기 (Shift 없이)
+  // 사진 위 외곽선을 왼쪽부터 (그리는 순서는 선택에 따라 바뀐다)
+  const boxes = (await page.locator('[data-testid="sign-shape"]').evaluateAll((es) => es.map((e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }))).sort((a, b) => a.x - b.x);
+  const tapSign = (i: number) => page.touchscreen.tap(boxes[i].x, boxes[i].y);
+  await tapSign(1);
+  await tapSign(2);
+  await expect(page.getByTestId('quick-multi-count')).toHaveText('3개 선택');
+  // 다시 탭하면 빠진다
+  await tapSign(2);
+  await expect(page.getByTestId('quick-multi-count')).toHaveText('2개 선택');
+  await tapSign(2);
+  // 종류: 섞여 있으면(간판·없음) 비어 보이고, 고르면 이미 분류가 있는 것이 있으니 확인을 거친 뒤 모두 한 번에
+  await expect(bar.getByTestId('quick-kind')).toHaveValue('');
+  await bar.getByTestId('quick-kind').selectOption('scashi');
+  await bar.getByTestId('category-confirm-ok').tap();
+  await expect.poll(async () => { const objsNow = await objs(); return ids.map((id) => objsNow.find((o) => o.id === id)?.productId); }).toEqual(['ch-rubber', 'ch-rubber', 'ch-rubber']);
+  await expect(bar.getByTestId('quick-kind')).toHaveValue('scashi');
+  // 한 번의 되돌리기로 모두 돌아간다
+  await page.evaluate(() => (window as unknown as { __ganpanda: { undo(): void } }).__ganpanda.undo());
+  await expect.poll(async () => { const objsNow = await objs(); return ids.map((id) => objsNow.find((o) => o.id === id)?.productId); }).toEqual(['board-galva', undefined, 'board-galva']);
+  // 정리: 다중 선택이 끝나고 선택도 풀린다
+  await page.getByTestId('mobile-done').tap();
+  await expect(menu).toHaveCount(0);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), ids[0]);
+  await expect(page.getByTestId('mobile-multi')).not.toHaveClass(/on/);
+  await expect(page.getByTestId('mobile-chat')).toBeVisible();
 });

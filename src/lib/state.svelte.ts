@@ -36,7 +36,8 @@ import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unr
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
-import { productById, signParts } from './core/catalog';
+import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
+import { categoryPatch } from './core/parts';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -196,6 +197,8 @@ class AppState {
   /** 선택이 무엇으로 이루어졌나: 사진 위 외곽선(shape) / 평면도 카드(card). 섞이지 않는다 — 다른 쪽을 Shift+클릭하면 선택을 풀고 새로 시작 (2026-10-17 사용자: "정면도와 사인물 외곽라인은 같이 선택할 수 없다. 다른게 선택되면 선택 풀어줘") */
   selectionKind = $state<'shape' | 'card'>('shape');
   /** 선택 전체 (마지막 선택이 맨 뒤) */
+  /** 휴대폰 다중 선택 모드 (2026-10-19 사용자: "모바일에 다중선택 버튼 복사 앞에 … 다중 선택켜지면 말풍선 녹음 사라지게"): 켜져 있으면 탭이 Shift+클릭처럼 선택에 더하기/빼기 */
+  multiMode = $state(false);
   selectionIds = $derived([...this.multi.filter((id) => id !== this.selectedId), ...(this.selectedId ? [this.selectedId] : [])]);
   /** 선택한 사인물과 같은 사인물인 다른 영역들(원본·연결) — 다른 사진에서도 하이라이트 */
   sameAsSelected = $derived.by(() => {
@@ -854,10 +857,28 @@ class AppState {
     const all = new Set(this.selectionIds);
     if (all.has(id) && id !== this.selectedId) { all.delete(id); this.multi = [...all].filter((x) => x !== this.selectedId); return; }
     if (id === this.selectedId) { // 주 선택을 빼면 남은 것 중 마지막이 주 선택
-      all.delete(id); const rest = [...all]; this.multi = rest.slice(0, -1); this.selectedId = rest.at(-1) ?? null; return;
+      all.delete(id); const rest = [...all]; this.multi = rest.slice(0, -1); this.selectedId = rest.at(-1) ?? null; if (!this.selectedId) this.multiMode = false; return;
     }
     all.add(this.selectedId); all.delete(id);
     this.multi = [...all]; this.objectSettingsOpen = false; this.panelOpen = false; this.selectedId = id;
+  }
+  /** 다중 선택 모드 켜기/끄기 — 켤 때는 대화·패널을 닫고, 끌 때는 마지막 선택만 남긴다 */
+  setMultiMode(on: boolean) {
+    if (on && !this.selectedId) return;
+    this.multiMode = on;
+    if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else this.multi = [];
+  }
+  /** 선택한 사인물 모두를 한 분류로 (2026-10-19 "한번에 종류 선택 및 변경"). 이미 그 분류인 것은 그대로 — 한 번의 되돌리기 */
+  applyCategoryToSelection(g: Group) {
+    if (!this.canEdit || !this.selectionIds.length) return;
+    this.editBoundary();
+    this.project.batch(() => {
+      for (const id of this.selectionIds) {
+        const o = this.objects.find((x) => x.id === id);
+        if (o && categoryOf(o) !== g) this.project.updateObject(id, categoryPatch(o, g, defaultProductFor(g)));
+      }
+    });
+    this.editBoundary();
   }
   /** 평면도 카드 선택(card)의 다중 선택 id — 외곽선 선택일 때는 빈 배열 (카드와 외곽선은 따로 하이라이트) */
   cardMulti = $derived(this.selectionKind === 'card' ? this.multi : []);
@@ -872,7 +893,7 @@ class AppState {
     this.editBoundary();
     for (const id of this.selectionIds) this.project.removeObject(id);
     this.editBoundary();
-    this.multi = []; this.selectedId = null;
+    this.multi = []; this.selectedId = null; this.multiMode = false;
   }
   /** 선택한 사인물 모두 복제 (각각 바로 옆에) → 복제본들이 선택 */
   duplicateSelection() {
@@ -906,6 +927,7 @@ class AppState {
     this.multi = [];
     this.selectionKind = kind;
     this.selectedId = id;
+    if (!id) this.multiMode = false;
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }
 

@@ -47,11 +47,36 @@
     update(categoryPatch(obj, g, defaultProductFor(g))); // 못 붙는 구성 요소는 정리 (2026-10-16 모든 분류 조합형)
     pending = null;
   }
+  // 다중 선택 모드 (2026-10-19 사용자: "하단의 기능은 종류선택만 보이고 한번에 종류 선택 및 변경"): 셀렉터 값은 모두 같은 분류일 때만, 이미 분류가 있는 것이 바뀌면 확인
+  const selObjs = $derived(app.multiMode ? app.selectionIds.map((id) => app.objects.find((o) => o.id === id)).filter((o): o is SignObject => !!o) : []);
+  const multiCategory = $derived.by(() => { const cs = new Set(selObjs.map((o) => categoryOf(o))); return cs.size === 1 ? [...cs][0] : null; });
+  let multiPending: Group | null = $state(null);
+  function pickMulti(g: Group | '') {
+    if (!g || g === multiCategory) return;
+    if (selObjs.every((o) => categoryOf(o) === null || categoryOf(o) === g)) { app.applyCategoryToSelection(g); return; }
+    multiPending = g;
+  }
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
   const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
 </script>
 
 <div class="quick" data-testid="quick-bar">
+  {#if app.multiMode}
+  <div class="row">
+    <span class="cnt" data-testid="quick-multi-count">{app.selectionIds.length}개 선택</span>
+    <select class="kind" data-testid="quick-kind" value={multiPending ?? multiCategory ?? ''} disabled={ro} onchange={(e) => pickMulti(e.currentTarget.value as Group | '')}>
+      <option value="" disabled>종류 선택</option>
+      {#each CATEGORY_GROUPS as g (g.id)}<option value={g.id}>{g.label}</option>{/each}
+    </select>
+  </div>
+  {#if multiPending}
+    <div class="row confirm" data-testid="category-confirm">
+      <p>선택한 {selObjs.length}개를 <b>{label(multiPending)}</b>(으)로 바꾸면 분류가 다른 사인물은 종류·옵션이 초기화되고 모두에게 적용됩니다.</p>
+      <button class="btn small primary" data-testid="category-confirm-ok" onclick={() => { app.applyCategoryToSelection(multiPending!); multiPending = null; }}>바꾸기</button>
+      <button class="btn small" data-testid="category-confirm-cancel" onclick={() => (multiPending = null)}>취소</button>
+    </div>
+  {/if}
+  {:else}
   <div class="row">
     <select class="kind" data-testid="quick-kind" value={pending ?? category ?? ''} disabled={ro} onchange={(e) => pickCategory(e.currentTarget.value as Group | '')}>
       <option value="" disabled>종류 선택</option>
@@ -94,6 +119,7 @@
   <!-- 빠른 설정 칩 (2026-10-17): 몸통·채널·LED — 휴대폰에서도 설정 창 없이 -->
   <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.panelOpen = true; app.objectSettingsOpen = true; }} />
   {#if obj.productId || obj.sheetIds.length}<small class="hint" data-testid="quick-detail">{productById(obj.productId)?.name ?? obj.sheetIds.map((id) => sheetById(id)?.name ?? id).join(', ')} — 세부 종류·옵션은 [상세정보]</small>{/if}
+  {/if}
 </div>
 
 <style>
@@ -109,6 +135,7 @@
   .edit input { flex: 1; min-width: 0; padding: 6px 6px; font-size: 13px; }
   .edit input[type='number'] { text-align: right; }
   .edit small, .edit span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .cnt { font-size: 12px; color: var(--accent); font-weight: 700; white-space: nowrap; padding: 0 4px; }
   .hint { color: var(--muted); font-size: 11px; }
   .confirm { flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); font-size: 12px; }
   .confirm p { margin: 0; flex-basis: 100%; line-height: 1.4; }

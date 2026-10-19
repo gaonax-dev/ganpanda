@@ -221,7 +221,7 @@
   // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
   let draft: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
   function backgroundDown(_e: PointerEvent, world: { x: number; y: number }) {
-    app.selectObject(null); app.selectPin(null); app.selectZone(null);
+    if (!app.multiMode) { app.selectObject(null); app.selectPin(null); app.selectZone(null); } // 다중 선택 중 빈 곳 탭은 선택 유지 — 끝내기는 [정리]
     if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false;
     draft = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
     const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); draft = { ...draft!, x1: w.x, y1: w.y }; };
@@ -248,7 +248,7 @@
     if (e.button !== 0) return;
     e.stopPropagation();
     // Shift+클릭: 평면도 카드도 다중 선택에 더하기/빼기 (2026-10-17 사용자: "정면도는 다중 선택이 안돼") — 끌기는 하지 않는다
-    if (e.shiftKey) { app.toggleSelect(o.id, 'card'); return; }
+    if (e.shiftKey || app.multiMode) { app.toggleSelect(o.id, 'card'); return; }
     // 선택에 든 카드를 끌면 선택 전체가 함께 움직인다 (2026-10-17 "정면도들을 다중선택하고 이동하게")
     const group = app.cardDragIds(o.id);
     if (group.length === 1) app.selectObject(o.id, 'card');
@@ -434,7 +434,7 @@
           <small>또는 사진을 여기로 끌어다 놓으세요</small>
         </div>
       {/if}
-        {#if app.multi.length && app.canEdit}
+        {#if app.multi.length && app.canEdit && !app.compact}
     <!-- 다중 선택 작업 막대 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기") -->
     <div class="multibar" data-testid="multi-bar">
       <span class="cnt" data-testid="multi-count">{app.selectionIds.length}개 선택</span>

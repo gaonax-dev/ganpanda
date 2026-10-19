@@ -161,7 +161,7 @@
   function edgeDown(e: PointerEvent, o: SignObject, q: Pt[], edge?: number) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    if (e.shiftKey) { onselect(o.id, true); return; }
+    if (e.shiftKey || app.multiMode) { onselect(o.id, true); return; } // 휴대폰 다중 선택 모드: 탭 = 더하기/빼기 (2026-10-19)
     onselect(o.id);
     if (!editable) return;
     const from = toPhoto(e.clientX, e.clientY);
@@ -317,6 +317,7 @@
       oncreatepin?.(x, y);
       return;
     }
+    if (tool === 'select' && app.multiMode) return; // 다중 선택 중 빈 곳을 잘못 눌러도 선택이 풀리지 않게 — 끝내기는 [정리]
     if (tool === 'select') { onselect(null); onselectpin?.(null); onselectzone?.(null, null); return; } // 이벤트 전파 → 캔버스 이동
     e.stopPropagation();
     const p = clamp(toPhoto(e.clientX, e.clientY));
@@ -327,7 +328,7 @@
   function shapeDown(e: PointerEvent, o: SignObject, mode: number | 'move') {
     if (e.button !== 0) return;
     e.stopPropagation();
-    if (e.shiftKey && mode === 'move') { onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
+    if ((e.shiftKey || app.multiMode) && mode === 'move') { onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
     onselect(o.id);
     if (!editable || (tool !== 'select' && mode === 'move')) return;
     // Alt/Option + 끌기: 제자리에 복사하고 복사본을 끈다 (2026-10-17 "alt/option 누르고 이동하면 복사")

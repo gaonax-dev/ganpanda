@@ -123,13 +123,19 @@
       <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
       {#if app.compact && app.selected && app.canEdit}
         <!-- 휴대폰: 사인물을 고르면 단계 자리에 복사·붙여넣기·복제 (2026-10-18 사용자) + 말풍선·정리·녹음 (같은 날: "상단 메뉴에 녹음 버튼 … 말풍선도 여기로 … 녹음이 맨 오른쪽 같은자리에 정리버튼") -->
+        <!-- [다중] 복사 앞 (2026-10-19 사용자: "모바일에 다중선택 버튼 복사 앞에 그리고 다중 선택켜지면 말풍선 녹음 사라지게") -->
         <div class="views stage" data-testid="mobile-edit">
+          <button data-testid="mobile-multi" class:on={app.multiMode} disabled={!!recorder} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 탭할 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
           <button data-testid="mobile-copy" title="복사" onclick={() => app.copySelected()}>복사</button>
           <button data-testid="mobile-paste" title="붙여넣기" disabled={!app.clipboard} onclick={() => app.pasteClipboard()}>붙여넣기</button>
-          <button data-testid="mobile-duplicate" title="복제" onclick={() => app.duplicateSelected()}>복제</button>
+          <button data-testid="mobile-duplicate" title="복제" onclick={() => (app.multiMode ? app.duplicateSelection() : app.duplicateSelected())}>복제</button>
+          {#if !app.multiMode}
           <button data-testid="mobile-chat" title="말풍선 (이 사인물의 대화)" onclick={() => app.openChat(app.selected!.id)}>💬{#if app.unread[app.selected.sameAs ?? app.selected.id]}<span class="n">{app.unread[app.selected.sameAs ?? app.selected.id]}</span>{/if}</button>
+          {/if}
           <button data-testid="mobile-done" title="정리 — 선택을 풀고 편집을 마칩니다" onclick={() => { app.closeChat(); app.panelOpen = false; app.selectObject(null); }}>정리</button>
+          {#if !app.multiMode}
           <button class="rec" class:on={!!recorder} data-testid="mobile-record" title={recorder ? '녹음 마침 — 말풍선에 보냅니다' : '녹음 — 이 사인물에 음성 메모'} disabled={recBusy} onclick={toggleRecord}>{recorder ? recordingLabel(recSec) : '🎙 녹음'}</button>
+          {/if}
         </div>
       {:else}
       <div class="views stage" data-testid="stage">

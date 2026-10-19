@@ -91,7 +91,7 @@
   function down(e: PointerEvent, id: string) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    if (e.shiftKey) { app.toggleSelect(id, 'card'); return; } // 다중 선택 (카드끼리만)
+    if (e.shiftKey || app.multiMode) { app.toggleSelect(id, 'card'); return; } // 다중 선택 (카드끼리만)
     const group = app.cardDragIds(id);
     if (group.length === 1) app.selectObject(id, 'card');
     if (!app.canEdit) return;
