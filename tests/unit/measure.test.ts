@@ -99,6 +99,13 @@ describe('카메라 설정 + 입력 치수 (2026-10-15 사용자: "원근을 설
     // 보정 없이 카메라만 쓰면 20% 틀린다 (치수 없는 사진)
     expect(measurePhoto([{ id: 'door', quad: door }], imgW, imgH, calibWith(1.2)).get('door')!.estimate!.widthMm).toBeCloseTo(1440, 0);
   });
+  it('기준 길이가 없는(축척 모름) 자동 원근은 치수 넣은 사인물이 생기기 전까지 크기를 추정하지 않는다 (2026-10-19)', () => {
+    const unscaled = { ...calibWith(1.2), unscaled: true };
+    expect(measurePhoto([{ id: 'door', quad: door }], imgW, imgH, unscaled).get('door')!.estimate).toBeUndefined();
+    // 치수가 하나 들어오면 그 치수로 축척을 잡아 잰다
+    const r = measurePhoto([{ id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 }, { id: 'door', quad: door }], imgW, imgH, unscaled);
+    expect(r.get('door')!.estimate!.widthMm).toBeCloseTo(1200, 0);
+  });
   it('가로·세로 축척이 따로 틀려도(초점거리 오차) 축마다 보정한다', () => {
     const objs = [{ id: 'sign', quad: sign, widthMm: 4000, heightMm: 900 }, { id: 'door', quad: door }];
     const r = measurePhoto(objs, imgW, imgH, calibWith(1.1, 1.15));

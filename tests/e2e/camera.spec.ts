@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { clearAutoCamera, openOwnedProject } from './helpers';
 
 type Pt = [number, number];
 async function loadSample(page: import('@playwright/test').Page) {
@@ -25,6 +25,7 @@ const wallToPx = (page: import('@playwright/test').Page, pts: Pt[]) => page.eval
 test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 치수 추정이 10% 안, 실사 보기에 쓰인다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
+  await clearAutoCamera(page); // 손으로 맞추는 흐름 (등록 즉시 자동 원근은 따로 시험)
   await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'none');
   await expect(page.getByTestId('camera-overlay')).toHaveCount(0);
   // 치수 없는 창문 영역만 있음 → 카메라 없이는 추정 불가
@@ -140,6 +141,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
 test('카메라 창에서 핸들을 끌면 설정이 바뀌고, 선 쌍이 평행하면 경고한다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
+  await clearAutoCamera(page);
   await page.getByTestId('camera-open').click();
   const dlg = page.getByTestId('camera-dialog');
   const handle = dlg.locator('[data-testid="camera-handle"][data-key="x0a"]');
@@ -230,4 +232,63 @@ test('사진 머리글 [원근 자동 매칭]: 크기를 넣은 사인물로 원
   expect(await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { name: string }[]; sizeOf(o: unknown): { w: number } | null } }).__ganpanda; return a.sizeOf(a.objects.find((o) => o.name === '띠')!)!.w; })).toBeLessThan(9900);
   await page.getByTestId('camera-open').click();
   await expect(page.getByTestId('camera-dialog')).toBeVisible();
+});
+
+test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인물 치수가 라인·비율과 맞으면 조용히 길이로 — 완성도만 오르고 경고 없음. 사람이 맞춘 원근·지운 원근은 손대지 않는다 (2026-10-19)', async ({ page, request }) => {
+  type Cam = { origin: number[]; ref?: { mm: number; from: number[] }; auto?: boolean };
+  const camOf = () => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { camera?: Cam }[] } }).__ganpanda.photos[0].camera ?? null);
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  // 등록 즉시: 읽는 효과 → 원근을 잡음(축 선이 빛나며 그려짐). 기준 길이는 아직 없다
+  await expect(page.getByTestId('camera-fx')).toHaveAttribute('data-kind', 'found', { timeout: 15_000 });
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'set');
+  const c0 = (await camOf())!;
+  expect(c0.auto).toBe(true);
+  expect(c0.ref).toBeUndefined();
+  await expect(page.getByTestId('camera-fx')).toHaveCount(0, { timeout: 5000 }); // 효과는 잠깐
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '1'); // 축만
+  // 문(벽 4000~5000 × 0~2900mm)에 맞게 그린 사인물 — 그리고 나서 치수를 넣는다
+  const [dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL] = await wallToPx(page, [[4000, 2900], [5000, 2900], [5000, 0], [4000, 0], [0, 4700], [9000, 4700], [9000, 3700], [0, 3700]]);
+  const ids = await page.evaluate(({ dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL }) => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const pid = app.photos[0].id;
+    return [app.project.addObject({ photoId: pid, name: '문', shape: 'rect', quad: [dTL, dTR, dBR, dBL], sheetIds: [] }), app.project.addObject({ photoId: pid, name: '띠', shape: 'rect', quad: [bTL, bTR, bBR, bBL], sheetIds: [] })];
+  }, { dTL, dTR, dBR, dBL, bTL, bTR, bBR, bBL });
+  const setSize = (id: string, w: number, h: number) => page.evaluate(({ id, w, h }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: w, heightMm: h }), { id, w, h });
+  await setSize(ids[0], 1000, 2900);
+  // 근사치 → 원점 = 문 왼쪽 아래, 기준 길이 = 1000mm. 조용히(효과·안내 없이) 완성도만 2
+  await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(1000);
+  await expect(page.getByTestId('camera-fx')).toHaveCount(0);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '2');
+  const c1 = (await camOf())!;
+  expect(Math.hypot(c1.origin[0] - dBL[0], c1.origin[1] - dBL[1])).toBeLessThan(1);
+  expect(c1.auto).toBe(true);
+  // 그 원근으로 크기 없는 띠의 가로가 실제(9000mm) 가까이
+  const bandW = () => page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { name: string }[]; sizeOf(o: unknown): { w: number } | null } }).__ganpanda; return a.sizeOf(a.objects.find((o) => o.name === '띠')!)?.w ?? 0; });
+  expect(Math.abs((await bandW()) - 9000) / 9000).toBeLessThan(0.12);
+  // 근사치가 아닌 치수(띠 9000×3000 — 실제 9000×1000)는 반영하지 않고, 경고도 없다 (경고 옵션을 켜도)
+  await page.evaluate(() => (window as unknown as { __ganpanda: { setWarnMeasure(v: boolean): void } }).__ganpanda.setWarnMeasure(true));
+  await setSize(ids[1], 9000, 3000);
+  await page.waitForTimeout(1200);
+  expect((await camOf())!.ref!.mm).toBe(1000);
+  await expect(page.getByTestId('sign-warning-icon')).toHaveCount(0);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '2');
+  // 띠를 맞는 치수로 고치면: 두 사인물이 원근과 맞아 완성도 3 (확인)
+  await setSize(ids[1], 9000, 1000);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
+  await expect.poll(async () => (await camOf())?.ref?.mm, { timeout: 5000 }).toBe(9000); // 기준 길이는 마지막으로 맞춘 사인물(띠)로
+  // 사람이 원근 창에서 적용하면 자동이 아니게 되고, 그 뒤 치수는 원근을 바꾸지 않는다
+  await page.getByTestId('camera-open').click();
+  await page.getByTestId('camera-apply').click();
+  expect((await camOf())!.auto).toBeUndefined();
+  await setSize(ids[0], 1200, 3480);
+  await page.waitForTimeout(1200);
+  expect((await camOf())!.ref!.mm).toBe(9000);
+  // 원근을 지우면 자동도 꺼져 치수가 들어와도 다시 만들지 않는다
+  await page.getByTestId('camera-open').click();
+  await page.getByTestId('camera-clear').click();
+  await expect(page.getByTestId('camera-open')).toHaveAttribute('data-status', 'none');
+  await setSize(ids[0], 1000, 2900);
+  await page.waitForTimeout(1200);
+  expect(await camOf()).toBeNull();
 });

@@ -95,3 +95,8 @@ export async function openObjectSettings(page: Page) {
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
 }
+
+/** 사진 등록 즉시 자동 원근(2026-10-19)을 끈다 — "원근 없는 사진"을 시험하는 테스트용. 읽는 중이어도 끔(autoCamera false)이 이긴다 */
+export async function clearAutoCamera(page: Page) {
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; clearCamera(id: string): void } }).__ganpanda; for (const p of a.photos) a.clearCamera(p.id); });
+}

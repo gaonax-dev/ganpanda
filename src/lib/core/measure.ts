@@ -66,6 +66,7 @@ export function measurePhoto<T extends Sized & { id: string; quad: Pt[] }>(
       else if (fs === undefined && !(faceSize === undefined && o.turn)) raw.set(o.id, measureQuad(calib, o.quad));
     }
     const sized = objs.filter((o): o is T & Size => hasSize(o) && raw.has(o.id));
+    if (calib.unscaled && !sized.length) { for (const o of objs) out.set(o.id, { warnings: [] }); return out; } // 축척을 모르면 추정하지 않는다
     const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
     const sx = sized.length ? median(sized.map((o) => o.widthMm / raw.get(o.id)!.widthMm)) : 1;
     const sy = sized.length ? median(sized.map((o) => o.heightMm / raw.get(o.id)!.heightMm)) : 1;

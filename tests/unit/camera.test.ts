@@ -280,3 +280,59 @@ describe('사인물로 원근 자동 매칭 (signCameraSetup)', async () => {
     }
   });
 });
+
+describe('자동 원근에 사인물 길이 반영 (signLengthSetup, 2026-10-19)', async () => {
+  const { signLengthSetup } = await import('../../src/lib/core/camera');
+  // AI 가 잡은 축 선(기준 길이 없음, 원점은 아무 데나) — "사진이 등록되면 바로 원근 자동으로"
+  const ai: CameraSetup = { ...setupOf(proj), origin: proj([2500, 1500, 0]), ref: undefined, auto: true };
+  // 벽 위 사인물 2000×600mm, 왼쪽 아래 코너 = 벽 (1500, 2200)
+  const quad = ([[1500, 2800], [3500, 2800], [3500, 2200], [1500, 2200]] as [number, number][]).map(([x, h]) => proj([x, h, 0]));
+  it('원근이 근사치면: 축 선은 그대로, 원점 = 사인물 왼쪽 아래, 기준 길이 = 사인물 가로 → 다른 영역 크기가 맞는다', () => {
+    const s = signLengthSetup(ai, quad, 2000, 600, imgW, imgH)!;
+    expect(s).not.toBeNull();
+    expect(s.x).toEqual(ai.x);
+    expect(s.y).toEqual(ai.y);
+    expect(s.origin).toEqual(quad[3]);
+    expect(s.ref).toEqual({ axis: 'x', from: quad[3], to: quad[2], mm: 2000 });
+    expect(s.auto).toBe(true);
+    const band = ([[0, 3000], [6000, 3000], [6000, 2000], [0, 2000]] as [number, number][]).map(([x, h]) => proj([x, h, 0]));
+    const m = measureQuad(calibrationOf(solveCamera(s, imgW, imgH)!), band);
+    near(m.widthMm, 6000, 0.03);
+    near(m.heightMm, 1000, 0.03);
+  });
+  it('입력 치수의 비율이 원근으로 잰 모양과 크게 다르면(근사치 아님) 반영하지 않는다', () => {
+    expect(signLengthSetup(ai, quad, 2000, 1500, imgW, imgH)).toBeNull();
+  });
+  it('판정 = 외곽선이 원근 축과 맞고(라인) 가로/세로 비율이 15% 안 — 비율 12% 차이는 반영, 20% 는 반영 안 함', () => {
+    expect(signLengthSetup(ai, quad, 2000, 600 * 1.12, imgW, imgH)).not.toBeNull();
+    expect(signLengthSetup(ai, quad, 2000, 600 * 1.2, imgW, imgH)).toBeNull();
+  });
+  it('외곽선이 원근 축과 어긋나게(12° 돌려) 그려졌으면 비율이 맞아도 반영하지 않는다', () => {
+    const cx = quad.reduce((t, p) => t + p[0], 0) / 4, cy = quad.reduce((t, p) => t + p[1], 0) / 4, r = (12 * Math.PI) / 180;
+    const tilted: Pt[] = quad.map(([x, y]) => [cx + (x - cx) * Math.cos(r) - (y - cy) * Math.sin(r), cy + (x - cx) * Math.sin(r) + (y - cy) * Math.cos(r)]);
+    const m = measureQuad(calibrationOf(solveCamera(ai, imgW, imgH)!), tilted);
+    expect(signLengthSetup(ai, tilted, 2000, (2000 * m.heightMm) / m.widthMm, imgW, imgH)).toBeNull();
+  });
+});
+
+describe('원근 완성도 (cameraLevel, 2026-10-19 "완성도 표시만해줘")', async () => {
+  const { cameraLevel, signLengthSetup } = await import('../../src/lib/core/camera');
+  const ai: CameraSetup = { ...setupOf(proj), origin: proj([2500, 1500, 0]), ref: undefined, auto: true };
+  const onWall = (x: number, h: number, w: number, hh: number) => ([[x, h + hh], [x + w, h + hh], [x + w, h], [x, h]] as [number, number][]).map(([a, b]) => proj([a, b, 0]));
+  const sign = { quad: onWall(1500, 2200, 2000, 600), w: 2000, h: 600 };
+  const door = { quad: onWall(4000, 0, 1000, 2100), w: 1000, h: 2100 };
+  it('원근 없음 = 0, 축만 = 1 (축 ✓ · 길이 – · 확인 –)', () => {
+    expect(cameraLevel(undefined, [], imgW, imgH).level).toBe(0);
+    expect(cameraLevel(ai, [], imgW, imgH)).toEqual({ axes: true, length: false, check: false, level: 1 });
+  });
+  it('사인물로 길이를 잡으면 2, 다른 사인물 하나가 더 맞으면(라인·비율) 3', () => {
+    const withLen = signLengthSetup(ai, sign.quad, sign.w, sign.h, imgW, imgH)!;
+    expect(cameraLevel(withLen, [sign], imgW, imgH).level).toBe(2);
+    expect(cameraLevel(withLen, [sign, door], imgW, imgH)).toEqual({ axes: true, length: true, check: true, level: 3 });
+    // 비율이 안 맞는 치수는 확인으로 치지 않는다
+    expect(cameraLevel(withLen, [sign, { ...door, h: 1000 }], imgW, imgH).level).toBe(2);
+  });
+  it('사람이 원근 창에서 맞춘 원근(자동 아님)은 기준 길이가 있으면 3', () => {
+    expect(cameraLevel(setupOf(proj), [], imgW, imgH).level).toBe(3);
+  });
+});

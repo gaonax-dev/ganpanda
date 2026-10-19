@@ -79,8 +79,9 @@
       // 기존 사진 오른쪽에 이어 붙이기
       const right = app.photos.reduce((m, p) => Math.max(m, p.x + p.width + 120), 0);
       app.editBoundary();
-      app.project.addPhoto({ name: f.name, assetId, w, h, x: right + i * 40, y: 0, width });
+      const pid = app.project.addPhoto({ name: f.name, assetId, w, h, x: right + i * 40, y: 0, width });
       app.editBoundary();
+      void app.autoCameraOnAdd(pid); // 등록 즉시 자동 원근 (2026-10-19)
       i++;
     }
     fitted = false;

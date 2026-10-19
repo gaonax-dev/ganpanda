@@ -23,6 +23,8 @@ export interface Photo {
   zone?: Pt[];
   /** 카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 벽면 평면 (core/camera.ts). 사인물과 무관 */
   camera?: CameraSetup;
+  /** false = 자동 원근 끔 (원근 창에서 [설정 지우기] — 2026-10-19). 그 뒤로는 사인물 치수가 들어와도 원근을 새로 만들지 않는다 */
+  autoCamera?: false;
 }
 
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */

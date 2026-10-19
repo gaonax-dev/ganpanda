@@ -114,6 +114,13 @@
   const tiny = $derived(photo.width * zoom < 260);
   /** 화면 1px 에 해당하는 사진 픽셀 */
   const u = $derived(1 / (scale * zoom));
+  // 자동 원근 효과 (2026-10-19 "좀 신비롭게 처리되는 효과"): 읽는 동안 빛이 훑고 별이 반짝, 잡으면 축 선이 빛나며 그려진다. 길이 반영은 조용히 — 완성도만
+  const fx = $derived(app.cameraFx[photo.id]);
+  const fxCaption = $derived(!fx ? '' : fx.kind === 'scan' ? '✨ 원근을 읽는 중…' : '✨ 원근을 잡았습니다');
+  const level = $derived(app.cameraLevels.get(photo.id));
+  const levelTitle = $derived(level ? `원근 완성도 ${level.level}/3 — 축 ${level.axes ? '✓' : '–'} · 길이 ${level.length ? '✓' : '– (사인물에 치수를 넣으면 채워집니다)'} · 확인 ${level.check ? '✓' : '– (치수 넣은 사인물 두 개가 맞거나 옵션 창에서 맞추면)'}` : '');
+  /** 반짝이 자리 (고정 — 매번 같은 무늬) */
+  const SPARKS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37 + 11) % 97, y: (i * 53 + 23) % 89, d: ((i * 7) % 10) / 10 * 1.4, s: 0.6 + ((i * 13) % 7) / 10 }));
   const worldH = $derived(photo.width * (photo.h / photo.w));
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
@@ -445,6 +452,8 @@
     {#if oncamera && !tiny}
       <!-- 원근 자동 매칭 + 옵션(네모 두 개 겹친 아이콘 → 원근 맞추기 창) (2026-10-19 사용자: "원근 -> 원근자동매칭 옆에 옵션버튼(네모두개겹친 아이콘)으로") -->
       {#if oncameraauto}<button class="x cam" class:set={cameraSet} data-testid="camera-auto" disabled={cameraBusy} title="크기를 넣은 사인물로 원근을 맞춥니다 — 외곽선 = 축 선, 왼쪽 아래 코너 = 원점, 가로 = 기준 길이 (고른 사인물 우선, 없으면 AI 가 사진의 직선으로). 고치려면 옆의 옵션" onpointerdown={(e) => e.stopPropagation()} onclick={oncameraauto}>{cameraBusy ? '📐 분석 중…' : narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 자동 매칭 ✓' : '📐 원근 자동 매칭'}</button>{/if}
+      <!-- 원근 완성도 (2026-10-19 "정확도를 경고하지 마라 … 완성도 표시만해줘"): 축 → 길이 → 확인, 세 칸 -->
+      {#if level?.level}<span class="lvl" data-testid="camera-level" data-level={level.level} title={levelTitle} aria-label={levelTitle}>{#each [1, 2, 3] as k (k)}<i class:on={level.level >= k}></i>{/each}</span>{/if}
       <button class="x cam opt" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} aria-label="원근 옵션" title={cameraSet ? '원근 옵션 — 이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '원근 옵션 — 벽의 직선과 실측 길이로 원근을 직접 맞추기'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}><svg class="opt-ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5" /><rect x="5.5" y="1.5" width="9" height="9" rx="1.5" /></svg></button>
     {/if}
     {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
@@ -562,6 +571,18 @@
         {#if refL}<line class="cr" style:stroke={REF_COLOR} x1={refL.a[0]} y1={refL.a[1]} x2={refL.b[0]} y2={refL.b[1]} stroke-width={2 * u} />{/if}
         <circle class="co" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={5 * u} stroke-width={1.5 * u} />
       </g>
+    {/if}
+    {#if fx && fx.kind === 'found' && photo.camera}
+      {@const pw = pairAxes(photo.camera)}
+      {#key fx.seq}
+        <g class="fxg" pointer-events="none">
+          {#each [...photo.camera.x.map((l) => [l, pw[0]] as const), ...photo.camera.y.map((l) => [l, pw[1]] as const)] as [l, ax], i (i)}
+            <line class="fxl" pathLength="1" style:color={AXIS_COLOR[ax]} style:stroke={AXIS_COLOR[ax]} style:animation-delay="{i * 0.12}s, 0s" x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={3 * u} />
+          {/each}
+          <circle class="fxring" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={18 * u} stroke-width={2 * u} />
+          <circle class="fxring late" cx={photo.camera.origin[0]} cy={photo.camera.origin[1]} r={18 * u} stroke-width={2 * u} />
+        </g>
+      {/key}
     {/if}
     {#each objects as o (o.id)}
       {@const q = quadOf(o)}
@@ -773,6 +794,15 @@
       <polygon class="draft" points={outline('rect', quadFromDrag(draft.start, draft.end), undefined, drawShape === 'ellipse' ? 0.5 : 0)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
   </svg>
+  {#if fx}
+    {#key fx.seq}
+      <div class="fx {fx.kind}" data-testid="camera-fx" data-kind={fx.kind} aria-live="polite">
+        {#if fx.kind === 'scan'}<div class="sweep"></div>{/if}
+        {#each SPARKS as sp, i (i)}<i class="spark" style:left="{sp.x}%" style:top="{sp.y}%" style:animation-delay="{sp.d}s" style:--s={sp.s}></i>{/each}
+        <span class="fx-cap" style:font-size="{Math.min(48, Math.max(11, 14 / zoom))}px">{fxCaption}</span>
+      </div>
+    {/key}
+  {/if}
 </div>
 
 <style>
@@ -817,6 +847,28 @@
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }
   .camera { opacity: 0.55; }
+  /* 자동 원근 효과 */
+  .fx { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+  .fx.found { animation: fx-glow 2.6s ease-out both; }
+  .fx .sweep { position: absolute; inset: 0 -60%; background: linear-gradient(100deg, transparent 38%, rgba(150, 120, 255, 0.18) 45%, rgba(210, 190, 255, 0.42) 50%, rgba(120, 220, 255, 0.18) 55%, transparent 62%); mix-blend-mode: screen; animation: fx-sweep 1.5s ease-in-out infinite; }
+  .fx .spark { position: absolute; width: 12px; height: 12px; margin: -6px; opacity: 0; background: radial-gradient(circle, #fff 0 18%, rgba(205, 185, 255, 0.9) 34%, transparent 70%); clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); animation: fx-twinkle 1.4s ease-in-out infinite; }
+  .fx.found .spark { animation-iteration-count: 1; animation-duration: 1.8s; }
+  .fx-cap { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); padding: 0.3em 0.9em; border-radius: 999px; white-space: nowrap; background: rgba(22, 12, 44, 0.7); color: #efe8ff; letter-spacing: 0.04em; text-shadow: 0 0 8px #b39dff; box-shadow: 0 0 18px rgba(160, 130, 255, 0.55); animation: fx-cap 0.5s ease-out both; }
+  .fxl { fill: none; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 6px currentColor); animation: fx-draw 0.9s ease-out forwards, fx-fade 2.6s ease-in forwards; }
+  .fxring { fill: none; stroke: #e6dcff; transform-box: fill-box; transform-origin: center; opacity: 0; animation: fx-ring 1.3s ease-out forwards; }
+  .fxring.late { animation-delay: 0.35s; }
+  @keyframes fx-sweep { from { transform: translateX(-35%); } to { transform: translateX(35%); } }
+  @keyframes fx-twinkle { 0%, 100% { opacity: 0; transform: scale(calc(var(--s, 1) * 0.3)) rotate(0deg); } 50% { opacity: 1; transform: scale(calc(var(--s, 1) * 1.2)) rotate(45deg); } }
+  @keyframes fx-cap { from { opacity: 0; transform: translate(-50%, 30%); filter: blur(4px); } to { opacity: 1; transform: translate(-50%, 0); filter: blur(0); } }
+  @keyframes fx-draw { to { stroke-dashoffset: 0; } }
+  @keyframes fx-fade { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes fx-ring { 0% { opacity: 1; transform: scale(0.2); } 100% { opacity: 0; transform: scale(3.2); } }
+  @keyframes fx-glow { 0% { box-shadow: inset 0 0 0 0 rgba(170, 140, 255, 0); } 25% { box-shadow: inset 0 0 60px 6px rgba(170, 140, 255, 0.45); } 100% { box-shadow: inset 0 0 0 0 rgba(170, 140, 255, 0); } }
+  @media (prefers-reduced-motion: reduce) {
+    .fx .sweep, .fx .spark { display: none; }
+    .fx.found, .fx-cap, .fxring { animation: none; }
+    .fxl { animation: none; stroke-dashoffset: 0; }
+  }
   .camera .cl { stroke-dasharray: 6 4; }
   .camera .co { fill: none; stroke: #fff; }
   .header .cam.set, .header .x.set { color: var(--ok); }
@@ -874,6 +926,10 @@
   .status { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   svg.magicking { cursor: cell; }
   /* 옵션 아이콘 (네모 두 개, 2026-10-19): 매니퓰레이터 칩의 .ico 와 이름이 겹쳐 머리글을 덮었다 → 따로 */
+  .lvl { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px; flex: none; }
+  .lvl i { width: 6px; height: 10px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); transition: background 0.6s, box-shadow 0.6s; }
+  .lvl i.on { background: #b9a4ff; box-shadow: 0 0 6px rgba(185, 164, 255, 0.8); }
+  .lvl[data-level='3'] i.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
   .cam.opt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px; }
   .header svg.opt-ico { position: static; display: block; width: 14px; height: 14px; inset: auto; fill: none; stroke: currentColor; stroke-width: 1.4; pointer-events: none; } /* 사진 위 겹층용 svg 규칙(absolute)을 끊는다 */
 </style>

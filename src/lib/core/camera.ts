@@ -6,7 +6,7 @@
 import type { Calibration, Gray } from './calibration';
 import { snapEdge } from './calibration';
 import { proposeAxes } from './lines';
-import { DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
+import { applyHomography, DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
 
 export interface Line { a: Pt; b: Pt }
 export type Axis = 'x' | 'y' | 'z';
@@ -28,6 +28,8 @@ export interface CameraSetup {
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
    *  두 쌍이 이루는 평면이 벽면이 된다 (예: 세로 Y + 높이 Z = 옆면 벽). 없으면 자동(첫 쌍 = +X 가로, 둘째 쌍 = +Z 높이) */
   axes?: { first: AxisDir; second: AxisDir };
+  /** 자동으로 잡은 설정 (사진 등록 때 AI, 사인물 치수로 길이 반영 — 2026-10-19). 원근 창에서 사람이 적용하면 지워지고, 그때부터는 자동이 손대지 않는다 */
+  auto?: boolean;
 }
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 /** 월드 축 색 (fSpy 와 같이 X 빨강 · Y 초록 · Z 파랑). 축 선 쌍·원점 축·3D 뷰 모두 같은 색 */
@@ -97,6 +99,8 @@ export interface CameraSolution {
   axisImageDir: Record<'x' | 'y' | 'z', Pt>;
   /** 화각 (도) 가로·세로 */
   fov: { h: number; v: number };
+  /** 기준 길이로 축척(mm)을 정했나 — 없으면 단위 미정 (자동 원근 직후) */
+  scaled: boolean;
   warnings: string[];
 }
 
@@ -206,6 +210,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
     return H;
   };
   let s = 1000;
+  let scaled = false;
   const H1 = Hof(poseAt(1)), H1inv = invert3(H1);
   if (!H1inv) return null;
   // 원점에서 각 월드 축이 사진에서 뻗는 방향 (s 와 무관: 소실점 방향)
@@ -236,14 +241,14 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
     const r = setup.ref;
     const la = 'from' in r ? lambdaOf(r.axis, r.from) : 0, lb = lambdaOf(r.axis, 'from' in r ? r.to : r.point);
     const L1 = Math.abs(lb - la); // 두 핸들 사이 거리 (s=1 단위) → s = mm / L1
-    if (L1 > 1e-9) s = r.mm / L1; else warnings.push('기준 길이의 두 핸들이 겹칩니다. 축을 따라 떨어뜨리세요.');
+    if (L1 > 1e-9) { s = r.mm / L1; scaled = true; } else warnings.push('기준 길이의 두 핸들이 겹칩니다. 축을 따라 떨어뜨리세요.');
   } else {
     const refL = refLineOf(setup, wallAxes[0] !== axesUsed.first);
     if (refL && setup.ref && setup.ref.mm > 0) {
       const toWall = (p: Pt): Pt => { const w = H1inv[6] * p[0] + H1inv[7] * p[1] + H1inv[8]; return [(H1inv[0] * p[0] + H1inv[1] * p[1] + H1inv[2]) / w, (H1inv[3] * p[0] + H1inv[4] * p[1] + H1inv[5]) / w]; };
       const a = toWall(refL.a), b = toWall(refL.b);
       const L1 = refL.axis === 'x' ? Math.abs(b[0] - a[0]) : Math.abs(b[1] - a[1]);
-      if (L1 > 1e-9) s = setup.ref.mm / L1; else warnings.push('기준 길이 선이 너무 짧습니다.');
+      if (L1 > 1e-9) { s = setup.ref.mm / L1; scaled = true; } else warnings.push('기준 길이 선이 너무 짧습니다.');
     } else warnings.push('기준 길이가 없어 축척(mm)을 정할 수 없습니다. 원점에서 뻗는 축 하나를 고르고 실측 거리를 넣으세요.');
   }
   const pose = poseAt(s);
@@ -254,7 +259,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   const T = pose.t;
   const cameraPos: V3 = [-(R[0] * T[0] + R[3] * T[1] + R[6] * T[2]), -(R[1] * T[0] + R[4] * T[1] + R[7] * T[2]), -(R[2] * T[0] + R[5] * T[1] + R[8] * T[2])];
   const fov = { h: (2 * Math.atan(imgW / 2 / f) * 180) / Math.PI, v: (2 * Math.atan(imgH / 2 / f) * 180) / Math.PI };
-  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, originPx, axisImageDir, warnings };
+  return { f, pp, pose, H, Hinv, vx, vy, vz, cameraPos, fov, worldR, axesUsed, wallAxes, worldPose: { ...pose, R: worldR }, originPx, axisImageDir, scaled, warnings };
 }
 
 /** 기존 실측·벽면 코드가 쓰는 Calibration 형태: 사진 px → 벽 mm (축척 포함) */
@@ -275,8 +280,47 @@ export function signCameraSetup(quad: Pt[], widthMm: number): CameraSetup {
   };
 }
 
+/**
+ * 근사치 판정 (2026-10-19 사용자: "입력된 치수의 정확도는 원근을 통한 가로세로 비례값으로 판정한다" → "라인과 가로세로 비율이 맞으면 조용히 그걸 원근 길이로"):
+ * 외곽선을 원근으로 벽에 폈을 때 **라인**(아래·왼쪽 변이 벽 축과 6° 안)과 **가로/세로 비율**(입력 치수와 15% 안)이 맞으면 근사치. 경고는 하지 않는다
+ */
+export const LENGTH_RATIO_TOL = 0.15;
+export const LENGTH_ANGLE_TOL = (6 * Math.PI) / 180;
+export function signMatches(sol: CameraSolution, quad: Pt[], widthMm: number, heightMm: number): boolean {
+  if (quad.length !== 4 || !(widthMm > 0) || !(heightMm > 0)) return false;
+  const [tl, tr, br, bl] = quad.map((p) => applyHomography(sol.Hinv, p));
+  const len = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const w = (len(tl, tr) + len(bl, br)) / 2, h = (len(tl, bl) + len(tr, br)) / 2;
+  if (!(w > 0) || !(h > 0)) return false;
+  if (Math.abs(w / h / (widthMm / heightMm) - 1) > LENGTH_RATIO_TOL) return false;
+  const off = (a: Pt, b: Pt, along: 0 | 1) => Math.atan2(Math.abs(b[1 - along] - a[1 - along]), Math.abs(b[along] - a[along]));
+  return off(bl, br, 0) <= LENGTH_ANGLE_TOL && off(bl, tl, 1) <= LENGTH_ANGLE_TOL;
+}
+/**
+ * 자동 원근에 사인물 길이 반영 (2026-10-19 사용자: "사진이 등록되면 바로 원근 자동으로 잡고 오브젝트에 사이즈 들어오고 원근 근사치면 길이 반영하고 이걸 자동으로"):
+ * 근사치(signMatches)면 축 선은 그대로 두고 원점 = 왼쪽 아래 코너, 기준 길이 = 왼쪽 아래 → 오른쪽 아래 = 가로 mm 로 바꾼 설정. 아니면 null (원근을 그대로 둔다)
+ */
+export function signLengthSetup(setup: CameraSetup, quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number): CameraSetup | null {
+  const sol = solveCamera(setup, imgW, imgH);
+  if (!sol || !signMatches(sol, quad, widthMm, heightMm)) return null;
+  const [, , pbr, pbl] = quad;
+  return { ...setup, origin: pbl, ref: { axis: 'x', from: pbl, to: pbr, mm: widthMm }, auto: true };
+}
+/**
+ * 원근 완성도 (2026-10-19 사용자: "정확도를 경고하지 마라 … 완성도 표시만해줘"): 축(원근 선을 풀 수 있음) → 길이(기준 길이로 mm 축척) → 확인.
+ * 확인 = 사람이 원근 창에서 맞췄거나(자동 아님), 치수 넣은 사인물 두 개 이상이 그 원근과 맞음(라인·비율). level = 앞에서부터 채운 칸 수 (0~3)
+ */
+export interface CameraLevel { axes: boolean; length: boolean; check: boolean; level: 0 | 1 | 2 | 3 }
+export function cameraLevel(setup: CameraSetup | undefined, sized: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number): CameraLevel {
+  const sol = setup ? solveCamera(setup, imgW, imgH) : null;
+  if (!setup || !sol) return { axes: false, length: false, check: false, level: 0 };
+  const length = sol.scaled;
+  const check = length && (!setup.auto || sized.filter((s) => signMatches(sol, s.quad, s.w, s.h)).length >= 2);
+  return { axes: true, length, check, level: (1 + (length ? 1 : 0) + (check ? 1 : 0)) as 1 | 2 | 3 };
+}
+
 export function calibrationOf(s: CameraSolution): Calibration {
-  return { H: s.Hinv, sx: 1, sy: 1, metric: true, pose: s.pose, perRef: [], warnings: s.warnings };
+  return { H: s.Hinv, sx: 1, sy: 1, metric: true, pose: s.pose, perRef: [], warnings: s.warnings, ...(s.scaled ? {} : { unscaled: true }) };
 }
 
 // ---------- 자동 제안 (AI): 선분 검출 + RANSAC 소실점 (lines.ts) ----------

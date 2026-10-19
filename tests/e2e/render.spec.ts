@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, makePhoto, openInvited, openOwnedProject } from './helpers';
+import { apiCreateInvite, clearAutoCamera, makePhoto, openInvited, openOwnedProject } from './helpers';
 
 /** 합성 건물 사진 + 파사드 띠 영역(9000×1000, 전광 채널 "간판다") */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -205,6 +205,7 @@ test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 �
 
 test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도 실사 보기를 열 수 있다', async ({ page, request, browser }) => {
   const { session, projectId } = await setup(page, request);
+  await clearAutoCamera(page); // 원근 없는 사진에서 그린 영역만으로
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await guest.getByTestId('render-open').click();
   await expect(guest.getByTestId('render-dialog')).toBeVisible();

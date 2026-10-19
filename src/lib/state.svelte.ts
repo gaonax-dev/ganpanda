@@ -14,7 +14,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { calibrationOf, proposeAxisLines, signCameraSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, signLengthSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { clampFlatScale } from './core/boardCards';
@@ -226,7 +226,22 @@ class AppState {
       const calib = this.calibrations.get(p.id);
       // 세 면: 벽면이 아닌 면(벽에 직각인 세로면·수평면)의 사인물은 그 면에서 잰다 (2026-10-15 "삼면 구조로 진행해줘")
       const cal = calib?.metric ? wallPlaneOf([], calib) : null;
-      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, calib, cal ? (o) => faceSizeOf(o, cal) : undefined)) out.set(id, r);
+      // 자동 원근 사진은 정확도를 경고하지 않는다 (2026-10-19 사용자: "정확도를 경고하지 마라")
+      const quiet = !!p.camera?.auto;
+      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, calib, cal ? (o) => faceSizeOf(o, cal) : undefined)) out.set(id, quiet ? { ...r, warnings: [] } : r);
+    }
+    return out;
+  });
+  /** 사진별 원근 완성도 (축 → 길이 → 확인, core/camera.ts cameraLevel — 2026-10-19 "완성도 표시만해줘") */
+  cameraLevels = $derived.by(() => {
+    const out = new Map<string, ReturnType<typeof cameraLevel>>();
+    for (const p of this.photos) {
+      const sized = this.objects.flatMap((o) => {
+        if (o.photoId !== p.id || o.shape === 'polygon' || o.quad.length !== 4) return [];
+        const s = this.sizeOf(o);
+        return s && !s.estimated ? [{ quad: o.quad.map((q) => [q[0], q[1]] as [number, number]), w: s.w, h: s.h }] : [];
+      });
+      out.set(p.id, cameraLevel(p.camera, sized, p.w, p.h));
     }
     return out;
   });
@@ -235,6 +250,20 @@ class AppState {
   cameraPhoto = $derived(this.cameraPhotoId ? this.photos.find((p) => p.id === this.cameraPhotoId) ?? null : null);
   cameraDraft = $state<CameraSetup | null>(null);
   cameraBusy = $state(false);
+  /** 자동 원근 효과 (2026-10-19 "좀 신비롭게 처리되는 효과"): 사진 등록 때만 — scan(읽는 중) / found(축을 잡음). 길이 반영은 조용히("조용히 그걸 원근 길이로 설정해두고 완성도 표시만") */
+  cameraFx = $state<Record<string, { kind: 'scan' | 'found'; seq: number }>>({});
+  private fxSeq = 0;
+  private fxTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private showCameraFx(photoId: string, fx: { kind: 'scan' | 'found' }, ms = 0) {
+    clearTimeout(this.fxTimers.get(photoId));
+    this.cameraFx = { ...this.cameraFx, [photoId]: { ...fx, seq: ++this.fxSeq } };
+    if (ms) this.fxTimers.set(photoId, setTimeout(() => this.clearCameraFx(photoId), ms));
+  }
+  private clearCameraFx(photoId: string) {
+    clearTimeout(this.fxTimers.get(photoId));
+    const { [photoId]: _, ...rest } = this.cameraFx;
+    this.cameraFx = rest;
+  }
   /** 편집 중인 설정의 풀이 (경고·초점거리 표시용) */
   cameraDraftSolution = $derived.by(() => {
     const p = this.cameraPhoto, d = this.cameraDraft;
@@ -282,6 +311,7 @@ class AppState {
     // 사진은 기기에 먼저 두고 뒤에서 올린다(2026-10-19) — 용량 한도는 올리는 중에 알게 되므로 여기서 알린다
     onStorageLimit((e) => { this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 파일(${formatBytes(e.sizeBytes)})을 서버에 올리지 못했습니다. 이 기기에서만 보이고 다른 사람에게는 보이지 않습니다. 사용 중 ${formatBytes(e.usedBytes)} — 요금제를 올려 주세요.`; });
     this.project.onChange(() => this.version++);
+    this.watchSizes();
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
     this.page = url.pathname === '/request' ? 'request' : /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
@@ -442,10 +472,10 @@ class AppState {
     if (!p || !this.canEdit) return false;
     const sign = this.matchSignOf(photoId);
     if (sign) {
-      const setup = signCameraSetup(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w);
+      const setup: CameraSetup = { ...signCameraSetup(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w), auto: true };
       if (solveCamera(setup, p.w, p.h)) {
         this.editBoundary();
-        this.project.updatePhoto(p.id, { camera: setup });
+        this.project.updatePhoto(p.id, { camera: setup, autoCamera: undefined });
         this.editBoundary();
         return true;
       }
@@ -456,12 +486,85 @@ class AppState {
       const found = gray && proposeAxisLines(gray);
       if (!gray || !found) return false;
       const base = p.camera ? (JSON.parse(JSON.stringify(p.camera)) as CameraSetup) : defaultCameraSetup(p.w, p.h);
-      const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: base.axes ?? { first: '+x', second: '+z' } });
+      const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: base.axes ?? { first: '+x', second: '+z' }, auto: true });
       this.editBoundary();
-      this.project.updatePhoto(p.id, { camera: next });
+      this.project.updatePhoto(p.id, { camera: next, autoCamera: undefined });
       this.editBoundary();
       return true;
     } finally { this.cameraBusy = false; }
+  }
+
+  /**
+   * 사진 등록 즉시 자동 원근 (2026-10-19 사용자: "사진이 등록되면 바로 원근 자동으로 잡고 … 이걸 자동으로 해도 될거같아 좀 신비롭게 처리되는 효과주면서"):
+   * AI 가 축 선을 찾아 auto 설정으로 저장(기준 길이 없음 — 치수가 들어오면 autoLength 가 채운다). 못 찾으면 조용히 넘어간다(치수가 들어오면 사인물로 잡는다)
+   */
+  async autoCameraOnAdd(photoId: string) {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p || !this.canEdit || p.camera) return;
+    this.showCameraFx(photoId, { kind: 'scan' });
+    let ok = false;
+    try {
+      const gray = await this.grayOf(p.assetId, p.w, p.h);
+      const found = gray && proposeAxisLines(gray);
+      const now = this.photos.find((x) => x.id === photoId);
+      if (gray && found && now && !now.camera && now.autoCamera !== false) { // 읽는 사이 지웠으면(자동 끔) 쓰지 않는다
+        const { ref: _ref, ...base } = defaultCameraSetup(p.w, p.h);
+        const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: { first: '+x', second: '+z' }, auto: true }); // 기준 길이는 모른다 — 치수가 들어오면 채운다
+        if (solveCamera(next, p.w, p.h)) {
+          this.editBoundary();
+          this.project.updatePhoto(photoId, { camera: next });
+          this.editBoundary();
+          ok = true;
+        }
+      }
+    } catch { /* 사진을 못 읽음 — 자동은 조용히 실패 */ }
+    if (ok) this.showCameraFx(photoId, { kind: 'found' }, 2600); else this.clearCameraFx(photoId);
+  }
+
+  /**
+   * 사인물 치수가 들어오면 자동 원근에 길이 반영 (2026-10-19): 내 편집으로 사인물의 가로·세로·외곽선이 바뀌면(원격·되돌리기는 제외) 잠시 뒤 그 사진에서 —
+   * 원근이 없으면(자동 끔이 아니면) 사인물로 원근을 잡고, 자동 원근이면 근사치일 때만(signLengthSetup) 원점·기준 길이를 그 사인물로. 사람이 맞춘 원근은 손대지 않는다
+   */
+  private sizeSnap = new Map<string, string>();
+  private lengthQueue = new Set<string>();
+  private lengthTimer: ReturnType<typeof setTimeout> | undefined;
+  private watchSizes() {
+    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}` : ''; };
+    this.project.doc.on('afterTransaction', (tr: { local: boolean; origin: unknown; changedParentTypes: Map<unknown, unknown> }) => {
+      if (![...tr.changedParentTypes.keys()].some((t) => t === this.project.objects || (t as { parent?: unknown }).parent === this.project.objects)) return;
+      const mine = tr.local && tr.origin === null; // Project 메서드는 origin 없이 — 동기화·IndexedDB·되돌리기는 origin 이 있다
+      for (const o of this.project.allObjects()) {
+        const k = keyOf(o), prev = this.sizeSnap.get(o.id);
+        this.sizeSnap.set(o.id, k);
+        if (mine && prev !== undefined && k && k !== prev && o.shape !== 'polygon' && o.quad.length === 4) this.lengthQueue.add(o.id);
+      }
+      if (this.lengthQueue.size) { clearTimeout(this.lengthTimer); this.lengthTimer = setTimeout(() => this.autoLength(), 700); }
+    });
+  }
+  private autoLength() {
+    const ids = [...this.lengthQueue];
+    this.lengthQueue.clear();
+    if (!this.canEdit) return;
+    for (const id of ids) {
+      const o = this.objects.find((x) => x.id === id);
+      const p = o && this.photos.find((x) => x.id === o.photoId);
+      const size = o && this.sizeOf(o);
+      if (!o || !p || !size || size.estimated || o.shape === 'polygon' || o.quad.length !== 4) continue;
+      const quad = o.quad.map((q) => [q[0], q[1]] as [number, number]);
+      let next: CameraSetup | null = null;
+      if (!p.camera) {
+        if (p.autoCamera === false) continue;
+        const s: CameraSetup = { ...signCameraSetup(quad, size.w), auto: true };
+        next = solveCamera(s, p.w, p.h) ? s : null;
+      } else if (p.camera.auto) {
+        next = signLengthSetup(p.camera, quad, size.w, size.h, p.w, p.h);
+        if (next && JSON.stringify(next) === JSON.stringify(p.camera)) next = null;
+      }
+      if (!next) continue;
+      this.editBoundary();
+      this.project.updatePhoto(p.id, { camera: next }); // 조용히 — 효과·안내 없이 완성도만 오른다
+      this.editBoundary();
+    }
   }
 
   /** 현재 선들의 끝점을 사진 모서리에 붙인다 */
@@ -480,7 +583,8 @@ class AppState {
     const p = this.cameraPhoto;
     if (!p || !this.cameraDraft || !this.canEdit) return;
     this.editBoundary();
-    this.project.updatePhoto(p.id, { camera: $state.snapshot(this.cameraDraft) as CameraSetup });
+    const { auto: _auto, ...manual } = $state.snapshot(this.cameraDraft) as CameraSetup; // 사람이 맞춘 원근 — 자동이 다시 손대지 않는다
+    this.project.updatePhoto(p.id, { camera: manual, autoCamera: undefined });
     this.editBoundary();
     this.closeCamera();
   }
@@ -488,7 +592,7 @@ class AppState {
   clearCamera(photoId: string) {
     if (!this.canEdit) return;
     this.editBoundary();
-    this.project.updatePhoto(photoId, { camera: undefined });
+    this.project.updatePhoto(photoId, { camera: undefined, autoCamera: false }); // 지우면 자동도 끔 (치수가 들어와도 다시 만들지 않는다)
     this.editBoundary();
     if (this.cameraPhotoId === photoId) this.closeCamera();
   }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { clearAutoCamera, openOwnedProject } from './helpers';
 
 type Pt = [number, number];
 async function loadSample(page: Page) {
@@ -210,6 +210,7 @@ test('크기 모드(외곽선만): 노란 꼭짓점 손잡이는 비율 유지, 
 test('원근 설정이 없는 사진: 박스 회전 고리·평면 판이 없다 (원근 축이 없으므로). 크기 손잡이 8개는 있다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
+  await clearAutoCamera(page);
   await addSign(page, await rectOnWall(page, 1500, 3800, 2000, 800));
   await moveMode(page);
   await expect(page.getByTestId('gizmo')).toBeVisible();
