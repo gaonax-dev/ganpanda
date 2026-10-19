@@ -194,8 +194,8 @@ export function describeParts(o: SignObject): string[] {
 }
 
 /** 사인물의 상단 조명 (구성 요소 — 옛 몸통 옵션도 읽을 때 구성 요소로). widthMm = 간판 가로(입력 치수 > 주어진 값). 3D 가 쓴다 */
-export function lightOf(o: SignObject, widthMm?: number): TopLightInfo | null {
+export function lightOf(o: SignObject, widthMm?: number, heightMm?: number): TopLightInfo | null {
   const p = partsOf(o).find((x) => componentOf(x.kind).fromBody);
-  return p ? topLightFrom(p.type, p.options, o.widthMm ?? widthMm ?? 0) : null;
+  return p ? topLightFrom(p.type, p.options, o.widthMm ?? widthMm ?? 0, o.heightMm ?? heightMm ?? 0) : null;
 }
 

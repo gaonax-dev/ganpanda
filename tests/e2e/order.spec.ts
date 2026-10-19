@@ -130,6 +130,15 @@ test('간판 상단 조명: 구성 요소로 더하면 개수·팔 길이·빛 �
   await expect(card.getByTestId('add-item-text')).toHaveCount(0); // 글자·그림 객체는 없다
   await card.getByTestId('part-type').selectOption('tl-bar');
   await expect(card.getByTestId('part-option-topArm')).toHaveCount(0);
+  await card.getByTestId('part-type').selectOption('tl-perf'); // 타공: 수량·빛 방향 (2026-10-19)
+  await expect(card.getByTestId('part-option-topCount')).toBeVisible();
+  await card.getByTestId('part-option-topAim').selectOption('간판 쪽 (간접)');
+  await card.getByTestId('part-option-topSide').selectOption('하단');
+  await expect(card.getByTestId('part-option-fixture-color')).toHaveCount(0); // 기본 = 간판과 같은 색
+  await card.getByTestId('part-option-fixtureMode').selectOption('색 지정');
+  await expect(card.getByTestId('part-option-fixture-color')).toBeVisible(); // 컬러 선택
+  await card.getByTestId('part-option-fixtureMode').selectOption('간판과 같은 색');
+  await card.getByTestId('part-option-topSide').selectOption('상단');
   await card.getByTestId('part-type').selectOption('tl-arm');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('view-list').click();

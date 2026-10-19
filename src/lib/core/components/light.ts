@@ -9,7 +9,8 @@ import { fmt } from '../priceFormat';
 const typeLabel = (type: string) => TOP_LIGHTS.find((t) => t.priceId === type)?.label ?? type;
 function spec(type: string, opts: Record<string, unknown> | undefined): string {
   const n = Math.floor(Number(opts?.topCount));
-  return [typeLabel(type), type === 'tl-arm' && n > 0 ? `${n}개` : ''].filter(Boolean).join(' ');
+  const side = String(opts?.topSide ?? '상단');
+  return [typeLabel(type), type !== 'tl-bar' && n > 0 ? `${n}개` : '', side !== '상단' ? side : '', type === 'tl-perf' && String(opts?.topAim ?? '').startsWith('간판') ? '간접' : ''].filter(Boolean).join(' ');
 }
 
 export const light: Component = {
@@ -28,11 +29,11 @@ export const light: Component = {
   quoteKey: (o) => `${o.id}:top`, // 몸통 옵션 때의 줄 키 — 수동 금액 유지
   price: (p, ctx) => {
     const { o, prices } = ctx;
-    const tl = topLightFrom(p.type, p.options, o.widthMm ?? 0);
+    const tl = topLightFrom(p.type, p.options, o.widthMm ?? 0, o.heightMm ?? 0);
     if (!tl) return;
     const label = `${o.name} · ${tl.label}`, unit = prices.products[tl.priceId] ?? 0;
     if (tl.kind === 'arm') ctx.finish(label, `${tl.count}개 × ${fmt(unit)}원`, tl.count * unit, tl.priceId);
-    else if (!o.widthMm) ctx.need(label, '치수 필요');
-    else ctx.finish(label, `가로 ${(o.widthMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (o.widthMm / 1000) * unit, tl.priceId);
+    else if (!tl.spanMm) ctx.need(label, '치수 필요');
+    else ctx.finish(label, `${tl.side === 'left' || tl.side === 'right' ? '세로' : '가로'} ${(tl.spanMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (tl.spanMm / 1000) * unit, tl.priceId); // 좌·우면 간판 세로 길이
   },
 };

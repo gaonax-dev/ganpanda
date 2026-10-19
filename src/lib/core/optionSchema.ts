@@ -3,7 +3,7 @@
 // 이 파일은 잎(leaf) 모듈: 구성 요소 레지스트리(core/components)가 여기만 보고, 사인물을 다루는 함수는 options.ts 에 (2026-10-18 레이어 구조 0단계)
 import type { SignObject } from './model';
 import { CHANNEL_NONE, CHANNEL_OPTIONS, SCASHI_OPTIONS } from './catalog';
-import { TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE } from './topLight';
+import { FIXTURE_MODES, TOP_AIMS, TOP_COLORS, TOP_LIGHTS, TOP_LIGHT_NONE, TOP_SIDES } from './topLight';
 import { GLOSSES, NAMED_COLORS, PAINT_SYSTEMS, labelsOf, materialByLabel } from './materials';
 
 export type OptionValue = string | boolean;
@@ -109,9 +109,14 @@ export const SCASHI_ATTACH_FIELDS: OptionField[] = [
 const hasTop = (opts: Options) => !!opts.topLight && opts.topLight !== TOP_LIGHT_NONE;
 export const TOP_LIGHT_FIELDS: OptionField[] = [
   sel('topLight', '상단 조명', [TOP_LIGHT_NONE, ...TOP_LIGHTS.map((t) => t.label)]),
-  txt('topCount', '투광등 개수', '비우면 가로 1.2m 마다 하나', (opts) => opts.topLight === TOP_LIGHTS[0].label),
+  // 2026-10-19 사용자: "조명 수량 / 트러스트 타공 방향이 정면, 간판간접등(간판쪽으로 비치는) / 하단, 좌, 우 도 있다 / 도색: 간판과 같은 색, 컬러선택"
+  sel('topSide', '위치', [...TOP_SIDES], hasTop),
+  txt('topCount', '조명 수량', '비우면 자동 (투광등 1.2m · 타공 120mm 마다)', (opts) => opts.topLight === TOP_LIGHTS[0].label || opts.topLight === TOP_LIGHTS[2].label),
   sel('topArm', '팔 길이', ['300mm', '450mm', '600mm'], (opts) => opts.topLight === TOP_LIGHTS[0].label),
+  sel('topAim', '빛 방향', [...TOP_AIMS], (opts) => opts.topLight === TOP_LIGHTS[2].label),
   sel('topColor', '빛 색', Object.keys(TOP_COLORS), hasTop),
+  sel('fixtureMode', '기구 색', [...FIXTURE_MODES], hasTop),
+  ...paint('fixture', '기구 도색', (opts) => hasTop(opts) && opts.fixtureMode === FIXTURE_MODES[1]),
 ];
 /** 프레임 재질 (후렉스 제외 프레임 스타일, 2026-10-15 사용자: "프레임 재질(후렉스제외):스텐,알루미늄,철,천") */
 const FRAME_MAT = material('frameMat', '프레임 재질', ['stain', 'iron', 'alu', 'tension'], 'framePaint', '프레임 도색');

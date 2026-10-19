@@ -115,10 +115,17 @@ export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
  * 사인물 좌표(가로 중심 0, 위 끝 = h/2, 벽 z=0 → 앞면 z=d)에 부품을 만든다. 그린 사각형 맞춤(warpToQuad)이 정점에 적용되므로
  * 모든 변환은 정점에 굽고 메쉬는 위치·회전 없이 둔다. 낮에는 기구만, 밤에는 빛 줄기·면 번짐·점이 켜진다
  */
-export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, w: number, h: number, d: number): { meshes: THREE.Mesh[]; setNight(night: boolean): void; dispose(): void } {
+/**
+ * frameColor = 간판 프레임(상자 옆면) 색 — 기구 색이 "간판과 같은 색"이면 이 색. 위치(side)가 하단·좌·우면 상단 기준으로 만든 뒤 정점을 돌린다(좌·우는 간판 세로가 길이)
+ */
+export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, W: number, H: number, d: number, frameColor?: string): { meshes: THREE.Mesh[]; setNight(night: boolean): void; dispose(): void } {
+  const side = tl.side ?? 'top';
+  const vertical = side === 'left' || side === 'right';
+  const w = vertical ? H : W, h = vertical ? W : H; // 상단 기준 좌표계의 가로·세로
   const meshes: THREE.Mesh[] = [];
   const light = new THREE.Color(tl.color);
-  const metal = new THREE.MeshStandardMaterial({ color: tl.kind === 'perf' ? '#2b2f33' : '#4a4f55', metalness: 0.6, roughness: 0.5 });
+  const fixtureColor = tl.fixture === 'sign' ? frameColor : tl.fixture; // 2026-10-19 기구 색: 간판과 같은 색 / 색 지정
+  const metal = new THREE.MeshStandardMaterial({ color: fixtureColor ?? (tl.kind === 'perf' ? '#2b2f33' : '#4a4f55'), metalness: 0.6, roughness: 0.5 });
   const glowMat = new THREE.MeshStandardMaterial({ color: '#dddddd', emissive: light, emissiveIntensity: 0, roughness: 0.5 });
   const beamMat = new THREE.MeshBasicMaterial({ color: light, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const washMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -166,14 +173,21 @@ export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, w: n
       add(led, glowMat, 'led');
       wash(0.9);
     } else {
-      const n = Math.floor(w / 120);
+      // 타공 점 조명: 수량(비우면 120mm 마다). 빛 방향 정면 = 바 앞면에서 보는 사람 쪽 / 간판 쪽(간접) = 바 아랫면에서 간판 면을 비춤 (2026-10-19)
+      const n = Math.max(1, tl.count || Math.floor(w / 120));
+      const toSign = tl.aim === 'sign';
       for (let i = 0; i < n; i++) {
-        const dot = new THREE.BoxGeometry(22, 22, 6);
-        dot.translate(-w / 2 + ((i + 0.5) * w) / n, barY, d + 73);
+        const dot = new THREE.BoxGeometry(22, toSign ? 6 : 22, toSign ? 22 : 6);
+        dot.translate(-w / 2 + ((i + 0.5) * w) / n, toSign ? barY - 25.5 : barY, toSign ? barZ : d + 73);
         add(dot, glowMat, 'dot');
       }
-      wash(0.45);
+      wash(toSign ? 0.9 : 0.45);
     }
+  }
+  // 위치: 상단 기준으로 만든 것을 간판 중심 둘레로 돌린다 (하단 180°, 좌 +90°, 우 −90°)
+  if (side !== 'top') {
+    const rot = new THREE.Matrix4().makeRotationZ(side === 'bottom' ? Math.PI : side === 'left' ? Math.PI / 2 : -Math.PI / 2);
+    for (const m of meshes) m.geometry.applyMatrix4(rot);
   }
   return {
     meshes,
@@ -188,7 +202,7 @@ export function topLightMeshes(tl: import('../core/topLight').TopLightSpec, w: n
 /** 만든 간판에 상단 조명을 더한다 (사양에 있을 때) */
 function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
   if (!spec.topLight) return b;
-  const t = topLightMeshes(spec.topLight, spec.widthMm, spec.heightMm, spec.depthMm);
+  const t = topLightMeshes(spec.topLight, spec.widthMm, spec.heightMm, spec.depthMm, spec.sideColor); // 기구 색 '간판과 같은 색' = 프레임 색
   for (const m of t.meshes) b.group.add(m);
   return { ...b, setNight(night) { b.setNight(night); t.setNight(night); }, dispose() { b.dispose(); t.dispose(); } };
 }
