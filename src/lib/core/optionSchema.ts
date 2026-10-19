@@ -73,8 +73,9 @@ export const CHANNEL_FIELDS: OptionField[] = [
   tog('chDouble', '양면 (돌출용 전후광)', (opts) => opts.channel === CHANNEL_OPTIONS[2].label),
   LED_COLOR((opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('font', '서체', ['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)'], hasChannel),
-  // 측면 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다")
-  ...material('chSideMat', '측면 재질', ['alu', 'stain', 'iron', 'galva'], 'body', '측면', hasChannel),
+  // 몸통 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다").
+  // 이름은 '몸통' (2026-10-19 사용자: "체널에 측면컬러라고 되어있는데 몸통컬러라고 해야한다") — 저장 키(chSideMat·body…)는 그대로
+  ...material('chSideMat', '몸통 재질', ['alu', 'stain', 'iron', 'galva'], 'body', '몸통', hasChannel),
   sel('chFace', '앞면 판', ['아크릴', 'PC판'], (opts) => opts.channel === CHANNEL_OPTIONS[0].label || opts.channel === CHANNEL_OPTIONS[2].label),
   // 앞면 색(시트): 앞면이 빛나는 채널(전광·전후광·통아크릴·벌브) — 2026-10-17 "채널 앞면 색상(시트) 옵션 필요하다". 3D 글자 앞면·2D 글자 색
   ...paint('face', '앞면 색 (시트)', (opts) => [CHANNEL_OPTIONS[0].label, CHANNEL_OPTIONS[2].label, CHANNEL_OPTIONS[4].label, CHANNEL_OPTIONS[5].label].includes(String(opts.channel))),
@@ -218,7 +219,7 @@ export const PRODUCT_OPTIONS: Record<string, OptionField[]> = {
   ...Object.fromEntries(['ch-front', 'ch-halo', 'ch-both', 'ch-galva'].map((id) => [id, [
     sel('chType', '채널 종류', ['캡', '오싸이', '일체형']),
     LED_COLOR(isLit),
-    ...paint('body', '알루미늄·측면·프레임 도색'),
+    ...paint('body', '몸통 도색'), // 2026-10-19 '측면' → '몸통'
     txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이'),
   ]])),
   // 스카시: 두께 · 재질 · 도색 컬러코드 (+ 티타늄 표면 마감, 아크릴 문자)

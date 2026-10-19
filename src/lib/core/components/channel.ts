@@ -25,6 +25,6 @@ export const channel: Component = {
   host: (p) => `${typeLabel(p.type)} 앞면`,
   depthMm: (_p, o) => ({ ...DEFAULT_LETTER3D, ...(o.letter3d ?? {}) }).depthMm,
   lighting: (p) => lightingOf(p.type),
-  paint: { face: 'face', side: 'body' }, // 앞면 색(시트) · 측면 재질 도색
+  paint: { face: 'face', side: 'body' }, // 앞면 색(시트) · 몸통 도색 (3D 글자 옆면)
   price: (p, ctx) => lettersPrice(p, `${ctx.o.name} · ${typeLabel(p.type)}`, ctx),
 };
