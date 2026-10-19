@@ -40,7 +40,7 @@ test('사진 하나가 줄이기에 실패해도(깨진 파일) 다른 사진은
   const buf = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 3000; c.height = 2000; const g = c.getContext('2d')!; g.fillStyle = '#c9b'; g.fillRect(0, 0, 3000, 2000); return c.toDataURL('image/jpeg', 0.8); });
   await page.getByTestId('photo-input').setInputFiles({ name: '정상.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(buf.split(',')[1], 'base64') });
   await expect(page.getByTestId('photo-zone')).toHaveCount(2);
-  const good = page.getByTestId('photo-zone').filter({ hasText: '정상.jpg' }).getByTestId('photo-img');
+  const good = page.getByTestId('photo-zone').filter({ hasText: '테스트 매장_img_1' }).getByTestId('photo-img');
   await expect.poll(() => good.evaluate((e: HTMLImageElement) => e.naturalWidth).catch(() => 0), { timeout: 10_000 }).toBeGreaterThan(0);
 });
 

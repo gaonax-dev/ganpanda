@@ -5,10 +5,13 @@ test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
 });
 
-test('사진을 올리면 보드에 구역으로 놓인다', async ({ page }) => {
+test('사진을 올리면 보드에 구역으로 놓이고, 이름은 프로젝트 이름_img_번호 (2026-10-20 "이미지 이름이 모두 같아")', async ({ page }) => {
   await uploadPhoto(page);
   await expect(page.getByTestId('photo-zone')).toHaveCount(1);
-  await expect(page.getByTestId('photo-zone')).toContainText('정면.png');
+  await expect(page.getByTestId('photo-zone').locator('.name')).toHaveText('테스트 매장_img_1');
+  await uploadPhoto(page);
+  await expect(page.getByTestId('photo-zone')).toHaveCount(2);
+  await expect(page.getByTestId('photo-zone').nth(1).locator('.name')).toHaveText('테스트 매장_img_2');
 });
 
 test('사각 도구로 사인물 영역을 그리면 오브젝트가 생기고 패널이 열린다', async ({ page }) => {

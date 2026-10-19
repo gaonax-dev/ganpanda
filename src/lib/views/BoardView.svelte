@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { nextPhotoName } from '../core/photoName';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
@@ -79,7 +80,9 @@
       // 기존 사진 오른쪽에 이어 붙이기
       const right = app.photos.reduce((m, p) => Math.max(m, p.x + p.width + 120), 0);
       app.editBoundary();
-      const pid = app.project.addPhoto({ name: f.name, assetId, w, h, x: right + i * 40, y: 0, width });
+      // 이름 = 프로젝트 이름_img_번호 (2026-10-20 "이미지 이름이 모두 같아" — 휴대폰 사진은 대개 image.jpg)
+      const name = nextPhotoName(app.access.status === 'ok' ? app.access.projectName : '', app.project.allPhotos().map((p) => p.name));
+      const pid = app.project.addPhoto({ name, assetId, w, h, x: right + i * 40, y: 0, width });
       app.editBoundary();
       void app.autoCameraOnAdd(pid); // 등록 즉시 자동 원근 (2026-10-19)
       i++;

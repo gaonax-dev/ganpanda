@@ -17,7 +17,7 @@ test('리스트의 사인물을 [사진에 올리기]로 다른 사진에 같은
   await page.getByTestId('view-list').click();
   const place = page.getByTestId('place-on-photo');
   await expect(place).toBeVisible();
-  const second = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { id: string; name: string }[] } }).__ganpanda.photos.find((p) => p.name === '측면.png')!.id);
+  const second = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { id: string; name: string }[] } }).__ganpanda.photos.find((p) => p.name === '테스트 매장_img_2')!.id);
   await place.selectOption(second);
   // 보드로 돌아와 새 영역이 선택되고, 같은 사인물로 연결되어 있다
   await expect(page.getByTestId('view-board')).toHaveClass(/on/);

@@ -264,7 +264,7 @@ test('사진을 올리면 바로 원근을 자동으로 잡고(효과), 사인�
   const done = page.getByTestId('perspective-done');
   await expect(done).toBeVisible();
   await expect(done).toContainText('원근 완성');
-  await expect(done).toContainText('매장.png');
+  await expect(done).toContainText('테스트 매장_img_1');
   const vb = (await done.boundingBox())!;
   expect(vb.y).toBeLessThan(200); // 화면 위쪽 (사진이 어디 있든)
   expect(await done.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none'); // 누르기를 막지 않는다
