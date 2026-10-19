@@ -14,7 +14,7 @@ test('자동 분리: 호버하면 물체 윤곽이 미리 보이고, 클릭하�
   await page.getByTestId('photo-input').setInputFiles({ name: '매장.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
   await page.getByTestId('photo-zone').waitFor();
   await page.keyboard.press('a');
-  await expect(page.getByTestId('tool-magic')).toHaveClass(/on/);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { tool: string } }).__ganpanda.tool)).toBe('magic'); // 단추는 빠졌고(2026-10-20) 단축키 A 로만
   await expect(page.getByTestId('ai-status')).toHaveCount(0, { timeout: 120_000 });
   await expect(page.getByTestId('photo-ai-status')).toHaveCount(0, { timeout: 120_000 });
 

@@ -16,7 +16,6 @@
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
-  import { SERVER_URL } from '../sync';
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
@@ -451,24 +450,21 @@
   {/if}
 <div class="tools" role="toolbar">
         {#if app.canEdit}
+          <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
-          <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
-          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="원형 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>◯<span class="lbl"> 원형</span></button>
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트, 받는 사람 지정 가능 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>💬<span class="lbl"> 말풍선</span></button>
+          <span class="sep"></span>
           <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
-          {#if SERVER_URL}
-            <button data-testid="tool-magic" class:on={app.tool === 'magic'} disabled={no3d} title="자동 분리 · AI ({hint('toolMagic')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'magic')}>✨<span class="lbl"> 자동</span></button>
-          {/if}
-          <span class="sep"></span>
-          <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}>↶</button>
-          <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}>↷</button>
-          <span class="sep"></span>
-          <label class="file" title="사진 추가">＋<span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+          <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
+          <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
+          <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
+          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="타원 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>⬭<span class="lbl"> 타원</span></button>
+          <label class="file" data-testid="tool-photo" title="사진 추가"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
         {:else}
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>💬 말풍선</button>
           <span class="readonly">보기·대화만 가능</span>
         {/if}
-        <button title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
+        <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={fitAll}>⤢</button>
         <span class="zoom" data-testid="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
       </div>
     {/snippet}
@@ -509,6 +505,8 @@
   .tools button:hover, .tools .file:hover { background: var(--hover); }
   .tools button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
   .tools button:disabled { opacity: 0.35; cursor: default; }
+  .tools .ico { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tools .file { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; } /* 전역 label 은 세로 배치 — 아이콘 옆에 글자 */
   .ai-status { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 13px; z-index: 4; }
   .ai-status[data-status='error'] { border-color: var(--danger); }
   .readonly { color: var(--muted); font-size: 12px; padding: 7px 11px; }
