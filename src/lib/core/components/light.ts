@@ -31,7 +31,7 @@ export const light: Component = {
     const { o, prices } = ctx;
     const tl = topLightFrom(p.type, p.options, o.widthMm ?? 0, o.heightMm ?? 0);
     if (!tl) return;
-    const label = `${o.name} · ${tl.label}`, unit = prices.products[tl.priceId] ?? 0;
+    const label = `${o.name} · ${ctx.term(`product:${tl.priceId}`, tl.label)}`, unit = prices.products[tl.priceId] ?? 0;
     if (tl.kind === 'arm') ctx.finish(label, `${tl.count}개 × ${fmt(unit)}원`, tl.count * unit, tl.priceId);
     else if (!tl.spanMm) ctx.need(label, '치수 필요');
     else ctx.finish(label, `${tl.side === 'left' || tl.side === 'right' ? '세로' : '가로'} ${(tl.spanMm / 1000).toFixed(2)}m × ${fmt(unit)}원/m`, (tl.spanMm / 1000) * unit, tl.priceId); // 좌·우면 간판 세로 길이

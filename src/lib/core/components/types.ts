@@ -15,6 +15,8 @@ export interface PartPriceCtx {
   sized: boolean;
   /** 금액 줄 (raw = 배수 적용 전 금액이 아니라 판매 금액 계산값; cost = 계산법일 때 배수 전 공급 금액) */
   finish(label: string, detail: string, raw: number, priceId?: string, cost?: number): void;
+  /** 표시 이름: 그 단가 항목에 연결된 공급사의 용어가 있으면 그것, 없으면 fallback (2026-10-19 V5 "공급사의 용어가 우선한다"). key = 'product:<id>' | 'sheet:<id>' */
+  term(key: string, fallback: string): string;
   /** 입력이 더 필요한 줄 (0원) */
   need(label: string, detail: string): void;
 }

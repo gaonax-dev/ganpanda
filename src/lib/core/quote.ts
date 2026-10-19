@@ -1,6 +1,7 @@
 // 규칙 기반 견적 (2-2): 사인물 + 단가표 + 설치비·추가 항목 → 견적
 import { partKindsFor, partsOf } from './parts';
 import { componentOf, type PartPriceCtx } from './components';
+import { supplierOf, termFor } from './terms';
 import { shapeAreaM2 } from './shapeArea';
 import { fmt, roundTo, scaled } from './priceFormat';
 export { charCountOf } from './charCount';
@@ -63,6 +64,8 @@ export const won = (n: number) => Math.round(n).toLocaleString('ko-KR') + '원';
 
 export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const lines: QuoteLine[] = [];
+  /** 견적 줄 이름: 연결 공급사 용어 > 기본 이름 (2026-10-19 V5 "공급사의 용어가 우선한다") */
+  const term = (key: string, fallback: string) => termFor(key, supplierOf(prices, key.slice(key.indexOf(':') + 1)), fallback);
   const sized = !!(o.widthMm && o.heightMm);
   const size = sized ? `${fmt(o.widthMm!)}×${fmt(o.heightMm!)}mm` : '';
   let key = `${o.id}:body`;
@@ -82,7 +85,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const { bodyId } = signParts(o);
   const body = productById(bodyId);
   if (body && body.unit === 'm2') {
-    const label = `${o.name} · ${body.name}`;
+    const label = `${o.name} · ${term(`product:${body.id}`, body.name)}`;
     const unit = prices.products[body.id] ?? 0;
     const method = findMethod(prices.methods?.[body.id]);
     if (!sized) lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 });
@@ -101,7 +104,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   // 조합형 (2026-10-16): 구성 요소마다 종류 모듈이 줄을 만든다 (채널·스카시 = 글자수 × 높이, 시트 = 면적 — core/components, 0단계). 옛 데이터는 읽을 때 구성 요소로 바뀐다
   const parts = partsOf(o);
   const usesParts = partKindsFor(o).length > 0; // 조합형 분류는 시트도 구성 요소로 (2026-10-16 모든 분류 조합형)
-  const ctx: PartPriceCtx = { o, prices, sized, finish, need: (label, detail) => lines.push({ key, objectId: o.id, label, detail, amount: 0 }) };
+  const ctx: PartPriceCtx = { o, prices, sized, finish, term, need: (label, detail) => lines.push({ key, objectId: o.id, label, detail, amount: 0 }) };
   const priceOf = (p: (typeof parts)[number]) => { const c = componentOf(p.kind); key = c.quoteKey?.(o, p) ?? `${o.id}:part:${p.id}`; c.price(p, ctx); };
   const layerOf = (x: (typeof parts)[number]) => componentOf(x.kind).layer;
   for (const p of parts.filter((x) => layerOf(x) > 0).sort((a, b) => layerOf(a) - layerOf(b))) priceOf(p); // 입체(채널·스카시) → 상단 조명 (전과 같은 줄 순서)
@@ -110,7 +113,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
     key = `${o.id}:sheet:${id}`;
     const s = sheetById(id);
     if (!s) continue;
-    const label = `${o.name} · ${s.name}`;
+    const label = `${o.name} · ${term(`sheet:${id}`, s.name)}`;
     if (!sized) { lines.push({ key, objectId: o.id, label, detail: '치수 필요', amount: 0 }); continue; }
     const method = findMethod(prices.methods?.[id]);
     if (method && method.kind !== 'letters') {

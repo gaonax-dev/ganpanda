@@ -31,7 +31,7 @@ export const molding: Component = {
   }),
   price: (p, ctx) => {
     const { o, prices } = ctx;
-    const label = `${o.name} · ${name(p.type)}`, unit = prices.products[p.type] ?? 0;
+    const label = `${o.name} · ${ctx.term(`product:${p.type}`, name(p.type))}`, unit = prices.products[p.type] ?? 0;
     if (!o.widthMm || !o.heightMm) { ctx.need(label, '치수 필요'); return; }
     const edges = EDGES[String(p.options?.moldEdges ?? '')] ?? 'all';
     const m = moldingLengthMm(edges, o.widthMm, o.heightMm) / 1000;
@@ -53,7 +53,7 @@ export const pole: Component = {
   // 지주 하나 길이 = 지면 ~ 간판 아래(높이) + 간판 세로 (간판을 잡고 올라간다)
   price: (p, ctx) => {
     const { o, prices } = ctx;
-    const label = `${o.name} · ${name(p.type)}`, unit = prices.products[p.type] ?? 0;
+    const label = `${o.name} · ${ctx.term(`product:${p.type}`, name(p.type))}`, unit = prices.products[p.type] ?? 0;
     const count = num(p.options?.poleCount, 2), len = (num(p.options?.poleHeight, 2500) + (o.heightMm ?? 0)) / 1000;
     ctx.finish(label, `${count}개 × ${len.toFixed(2)}m × ${fmt(unit)}원/m`, count * len * unit, p.type);
   },
@@ -75,7 +75,7 @@ export const ledModule: Component = {
   optionFields: fields(LED_MODULE_FIELDS),
   price: (p, ctx) => {
     const { o, prices } = ctx;
-    const label = `${o.name} · ${name(p.type)}`, unit = prices.products[p.type] ?? 0;
+    const label = `${o.name} · ${ctx.term(`product:${p.type}`, name(p.type))}`, unit = prices.products[p.type] ?? 0;
     const n = moduleCountOf(p, o);
     if (n === null) { ctx.need(label, '치수 또는 모듈 수량 필요'); return; }
     ctx.finish(label, `${n}개 × ${fmt(unit)}원${Number(p.options?.moduleCount) > 0 ? '' : ` (면적 × ${LED_PER_M2}개/㎡)`}`, n * unit, p.type);

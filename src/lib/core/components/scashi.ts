@@ -21,5 +21,5 @@ export const scashi: Component = {
   depthMm: (p) => parseFloat(String(p.options?.thickness ?? '')) || 10,
   lighting: () => 'none',
   paint: { face: 'paint', side: 'paint' }, // 도색 (2D 정면도와 같은 키 — 전엔 3D 가 채널 키를 봐서 스카시 도색이 안 비쳤다)
-  price: (p, ctx) => lettersPrice(p, `${ctx.o.name} · ${typeLabel(p.type)}`, ctx),
+  price: (p, ctx) => lettersPrice(p, `${ctx.o.name} · ${ctx.term(`product:${p.type}`, typeLabel(p.type))}`, ctx),
 };

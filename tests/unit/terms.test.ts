@@ -42,3 +42,16 @@ describe('공급사 용어', () => {
     expect(csv).toContain('시트,UV 출력,알리다,UV시트 출력,');
   });
 });
+
+describe('견적서 줄 이름도 공급사 용어 (2026-10-19 V5 후속)', async () => {
+  const { quoteObject } = await import('../../src/lib/core/quote');
+  it('연결된 시트·채널은 공급사 이름으로, 재질·컷팅·금액·키는 그대로; 연결 없으면 기본 이름', () => {
+    const sh = newPart('sheet', 'sh-print');
+    const o = obj({ productId: 'board-galva', widthMm: 2000, heightMm: 1000, parts: [sh] });
+    const plain = quoteObject(o, DEFAULT_PRICES).find((l) => l.key === `o:part:${sh.id}`)!;
+    const named = quoteObject(o, linked).find((l) => l.key === `o:part:${sh.id}`)!;
+    expect(plain.label).toBe('A · UV 출력 돔보컷팅 완컷');
+    expect(named.label).toBe('A · UV시트 출력 돔보컷팅 완컷');
+  });
+});
+

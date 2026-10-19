@@ -48,7 +48,7 @@ export const sheet: Component = {
     const { o, prices } = ctx;
     const sh = sheetById(p.type);
     if (!sh) return;
-    const label = `${o.name} · ${spec(p)}`, unit = prices.sheets[p.type] ?? 0;
+    const label = `${o.name} · ${spec(p).replace(typeLabel(p.type), ctx.term(`sheet:${p.type}`, typeLabel(p.type)))}`, unit = prices.sheets[p.type] ?? 0; // 종류 이름만 공급사 용어로, 재질·컷팅은 그대로
     const sizedItems = p.items.filter((it) => it.w && it.h);
     if (!sizedItems.length && !ctx.sized) { ctx.need(label, '치수 필요'); return; }
     const method = findMethod(prices.methods?.[p.type]);
