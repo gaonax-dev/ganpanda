@@ -4,7 +4,7 @@
 // 월드 축 이름은 가로·세로·높이 관례(2026-10-14 사용자): X = 가로(오른쪽), Y = 세로(깊이, 벽 안쪽이 +), Z = 높이(위) — Blender/fSpy 와 같은 Z-up.
 // 내부 벽면 프레임(pose·H)은 u 가로, v 위, n 벽 밖(카메라 쪽), 단위 mm.
 import type { Calibration, Gray } from './calibration';
-import { snapEdge } from './calibration';
+import { measureQuad, snapEdge } from './calibration';
 import { proposeAxes } from './lines';
 import { applyHomography, DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
 
@@ -28,6 +28,8 @@ export interface CameraSetup {
   /** fSpy 식 축 지정: 첫 쌍(노랑)·둘째 쌍(파랑)이 월드 축 X/Y/Z 의 어느 방향인가(서로 다른 축). 없으면 자동(첫 쌍 = 사진 오른쪽이 +X, 둘째 쌍 = 사진 위가 +Y).
    *  두 쌍이 이루는 평면이 벽면이 된다 (예: 세로 Y + 높이 Z = 옆면 벽). 없으면 자동(첫 쌍 = +X 가로, 둘째 쌍 = +Z 높이) */
   axes?: { first: AxisDir; second: AxisDir };
+  /** 초점거리(px) 고정 — 크기를 아는 사각형(실측 사인물)의 가로세로 비율로 찾은 값 (2026-10-20). 있으면 소실점 직교 계산 대신 쓴다 */
+  focal?: number;
   /** 자동으로 잡은 설정 (사진 등록 때 AI, 사인물 치수로 길이 반영 — 2026-10-19). 원근 창에서 사람이 적용하면 지워지고, 그때부터는 자동이 손대지 않는다 */
   auto?: boolean;
 }
@@ -157,7 +159,8 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
   // 초점거리: 두 소실점 직교. (vx−pp)·(vy−pp) = −f²
   const long = Math.max(imgW, imgH);
   let f = DEFAULT_FOCAL_RATIO * long;
-  if (finite(vx) && finite(vy)) {
+  if (setup.focal && setup.focal > 0) f = setup.focal;
+  else if (finite(vx) && finite(vy)) {
     const a = toPt(vx), b = toPt(vy);
     const f2 = -((a[0] - pp[0]) * (b[0] - pp[0]) + (a[1] - pp[1]) * (b[1] - pp[1]));
     if (f2 > (0.25 * long) ** 2 && f2 < (5 * long) ** 2) f = Math.sqrt(f2);
@@ -313,8 +316,35 @@ export function signLengthSetup(setup: CameraSetup, quad: Pt[], widthMm: number,
  * · 자동 원근인데 안 맞음 → 다른 실측 사인물(others)이 지금 원근을 확인하고 있으면 그대로(null), 아무것도 확인하지 않으면 AI 축이 틀린 것으로 보고 그 사인물로 다시 잡는다
  * · 사람이 맞춘 원근 → null
  */
+/**
+ * 실측 사인물로 원근 + 화각 (2026-10-20 사용자: "실측을 넣었는데 원근완성이 뜨지 않는다"): 사인물 외곽선으로 원근을 잡고(signCameraSetup),
+ * 소실점으로 구한 화각(또는 좌우 변이 거의 평행해 쓴 기본 화각)으로 잰 가로세로 비율이 입력과 맞지 않으면 — 크기를 아는 사각형은 화각도 알려 주므로 —
+ * 비율이 맞는 초점거리를 찾아 고정한다(focal, 장변의 0.25~5배). 그래도 안 맞으면 화각 고정 없이
+ */
+export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number): CameraSetup | null {
+  const base: CameraSetup = { ...signCameraSetup(quad, widthMm), auto: true };
+  const sol = solveCamera(base, imgW, imgH);
+  if (!sol) return null;
+  if (signMatches(sol, quad, widthMm, heightMm) || !(heightMm > 0)) return base;
+  const target = widthMm / heightMm;
+  const err = (f: number) => {
+    const so = solveCamera({ ...base, focal: f }, imgW, imgH);
+    if (!so) return Infinity;
+    const m = measureQuad({ H: so.Hinv, sx: 1, sy: 1, perRef: [], warnings: [] }, quad);
+    return m.widthMm > 0 && m.heightMm > 0 ? Math.abs(Math.log(m.widthMm / m.heightMm / target)) : Infinity;
+  };
+  const L = Math.max(imgW, imgH), N = 80, step = Math.pow(20, 1 / N);
+  let best = L, bestE = Infinity;
+  for (let i = 0; i <= N; i++) { const f = L * 0.25 * Math.pow(step, i), e = err(f); if (e < bestE) { best = f; bestE = e; } }
+  let a = best / step, b = best * step;
+  for (let k = 0; k < 40; k++) { const m1 = a + (b - a) * 0.382, m2 = a + (b - a) * 0.618; if (err(m1) < err(m2)) b = m2; else a = m1; }
+  const fitted: CameraSetup = { ...base, focal: Math.round((a + b) / 2) };
+  const fs = solveCamera(fitted, imgW, imgH);
+  return fs && signMatches(fs, quad, widthMm, heightMm) ? fitted : base;
+}
+
 export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number): CameraSetup | null {
-  const fromSign = (): CameraSetup | null => { const s: CameraSetup = { ...signCameraSetup(quad, widthMm), auto: true }; return solveCamera(s, imgW, imgH) ? s : null; };
+  const fromSign = (): CameraSetup | null => signCameraFit(quad, widthMm, heightMm, imgW, imgH);
   if (!setup) return fromSign();
   if (!setup.auto) return null;
   const fit = signLengthSetup(setup, quad, widthMm, heightMm, imgW, imgH);

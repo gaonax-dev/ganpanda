@@ -373,3 +373,30 @@ describe('치수 넣은 사인물로 자동 원근 고치기 (autoCameraFrom, 20
     expect(autoCameraFrom(setupOf(proj), sign.quad, sign.w, sign.h, [], imgW, imgH)).toBeNull();
   });
 });
+
+describe('실측 사인물로 원근을 잡을 때 화각도 맞춘다 (signCameraFit, 2026-10-20 "실측을 넣었는데 원근완성이 뜨지 않는다")', async () => {
+  const { signCameraFit, autoCameraFrom, cameraLevel } = await import('../../src/lib/core/camera');
+  // 실제 프로젝트 사진(3200×2400)의 사인물 "실측" 600×600 — 좌우 변이 거의 평행해 소실점 화각이 틀려 비율이 600:472 로 재졌다
+  const quad: Pt[] = [[917, 224], [1615, 469], [1636, 1213], [933, 1179]];
+  it('입력한 가로세로 비율이 맞도록 초점거리를 찾는다 → 자기 자신을 재면 600×600, 완성도 3', () => {
+    const s = signCameraFit(quad, 600, 600, 3200, 2400)!;
+    expect(s.focal).toBeGreaterThan(0.5 * 3200); expect(s.focal).toBeLessThan(1.0 * 3200); // 휴대폰 화각 근처
+    const m = measureQuad(calibrationOf(solveCamera(s, 3200, 2400)!), quad);
+    near(m.widthMm, 600, 0.01); near(m.heightMm, 600, 0.02);
+    expect(cameraLevel(s, [{ quad, w: 600, h: 600 }], 3200, 2400).level).toBe(3);
+  });
+  it('원근이 없거나 자동 원근이 이 사인물과 안 맞으면 화각까지 맞춘 사인물 원근으로 — 완성도 3', () => {
+    const fresh = autoCameraFrom(undefined, quad, 600, 600, [], 3200, 2400)!;
+    expect(fresh.focal).toBeGreaterThan(0);
+    expect(cameraLevel(fresh, [{ quad, w: 600, h: 600 }], 3200, 2400).level).toBe(3);
+    // 이 사진의 실제 자동 원근(사인물 외곽선으로 잡혔지만 화각이 틀려 2 에 머물던 것)
+    const stuck: CameraSetup = { x: [{ a: quad[0], b: quad[1] }, { a: quad[3], b: quad[2] }], y: [{ a: quad[3], b: quad[0] }, { a: quad[2], b: quad[1] }], axes: { first: '+x', second: '+z' }, origin: quad[3], ref: { axis: 'x', from: quad[3], to: quad[2], mm: 600 }, principal: 'center', auto: true };
+    expect(cameraLevel(stuck, [{ quad, w: 600, h: 600 }], 3200, 2400).level).toBe(2);
+    const s = autoCameraFrom(stuck, quad, 600, 600, [], 3200, 2400)!;
+    expect(cameraLevel(s, [{ quad, w: 600, h: 600 }], 3200, 2400).level).toBe(3);
+  });
+  it('소실점 화각으로 이미 비율이 맞으면 화각을 고정하지 않는다', () => {
+    const q = ([[1500, 2800], [3500, 2800], [3500, 2200], [1500, 2200]] as [number, number][]).map(([x, h]) => proj([x, h, 0]));
+    expect(signCameraFit(q, 2000, 600, imgW, imgH)!.focal).toBeUndefined();
+  });
+});

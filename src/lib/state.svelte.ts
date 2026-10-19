@@ -14,7 +14,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraSetup, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { clampFlatScale } from './core/boardCards';
@@ -490,8 +490,8 @@ class AppState {
     if (!p || !this.canEdit) return false;
     const sign = this.matchSignOf(photoId);
     if (sign) {
-      const setup: CameraSetup = { ...signCameraSetup(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w), auto: true };
-      if (solveCamera(setup, p.w, p.h)) {
+      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h); // 가로세로 비율로 화각까지 (2026-10-20)
+      if (setup) {
         this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
       }

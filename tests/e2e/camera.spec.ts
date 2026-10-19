@@ -325,3 +325,28 @@ test('AI 가 원근 선을 잘못 잡았어도, 실측 치수를 넣은 사인�
   expect((await camOf())!.auto).toBe(true);
   await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
 });
+
+test('실측 사인물의 좌우 변이 거의 평행해 화각이 틀려도, 가로세로 비율로 화각을 맞춰 완성된다 (2026-10-20 "실측을 넣었는데 원근완성이 뜨지 않는다" — 실제 프로젝트 외곽선)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '1', { timeout: 15_000 });
+  // 실제 사진(3200×2400)의 외곽선을 이 사진 크기로 줄여 쓴다
+  const id = await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string; w: number }[]; project: { addObject(o: unknown): string; updatePhoto(id: string, p: unknown): void }; editBoundary(): void } }).__ganpanda;
+    const k = a.photos[0].w / 3200;
+    const q = [[917, 224], [1615, 469], [1636, 1213], [933, 1179]].map(([x, y]) => [x * k, y * k]);
+    // 전 버전이 남긴 상태: 사인물 외곽선으로 잡혔지만 화각이 틀려 2 에 머문 자동 원근
+    a.project.updatePhoto(a.photos[0].id, { camera: { x: [{ a: q[0], b: q[1] }, { a: q[3], b: q[2] }], y: [{ a: q[3], b: q[0] }, { a: q[2], b: q[1] }], axes: { first: '+x', second: '+z' }, origin: q[3], ref: { axis: 'x', from: q[3], to: q[2], mm: 600 }, principal: 'center', auto: true } });
+    const id = a.project.addObject({ photoId: a.photos[0].id, name: '실측', shape: 'rect', quad: q, sheetIds: [], widthMm: 600, heightMm: 600 });
+    a.editBoundary();
+    return id;
+  });
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '2');
+  // 실측을 다시 넣으면 화각까지 맞춰 완성 + 화면 안내
+  await page.evaluate((id) => { const a = (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(id, { widthMm: 601 }); a.project.updateObject(id, { widthMm: 600 }); }, id);
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3', { timeout: 5000 });
+  await expect(page.getByTestId('perspective-done')).toBeVisible();
+  // 원근 자동 매칭 단추로도 같은 결과
+  await page.getByTestId('camera-auto').click();
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
+});
