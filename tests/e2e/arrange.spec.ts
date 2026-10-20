@@ -38,8 +38,8 @@ const sideQuad = (page: Page, x: number, y0: number, h: number, out0: number, w:
 }, { x, y0, h, out0, w });
 const listOf = (page: Page) => page.evaluate(() => Object.fromEntries((window as unknown as { __ganpanda: { objects: { name: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.map((o) => [o.name, [o.listX, o.listY]])));
 
-test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 카드가 사진 속 사인물 자리 그대로(사진 바로 아래 같은 배치) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
-  // 2026-10-20 사용자: "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘"
+test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 그리드(사인물 축선으로 행·열 셀, 사진 묶음은 사진 배치대로 그 사진 아래) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
+  // 2026-10-20 사용자: "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘" → "그리드 방식으로 진행해줘"
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -82,7 +82,7 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   let B = await boxes();
   const zones = await page.getByTestId('photo-zone').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x, r.x + r.width]; }).sort((p, q) => p[0] - q[0]));
   const photoW = zones[0][1] - zones[0][0];
-  for (const n of ['띠', '문']) expect(Math.abs(B[n].card[0] - B[n].sign[0])).toBeLessThan(photoW * 0.08); // 사인물 가운데 아래에 카드 가운데
+  for (const n of ['띠', '문', '돌출']) { expect(B[n].card[0]).toBeGreaterThan(zones[0][0] - photoW * 0.05); expect(B[n].card[0]).toBeLessThan(zones[0][1] + photoW * 0.5); } // 첫 사진 묶음은 첫 사진 아래에서 시작
   expect(B['띠'].card[1]).toBeLessThan(B['문'].card[1]); // 위 사인물은 위
   expect(B['돌출'].card[0]).toBeLessThan(B['문'].card[0]); // 왼쪽 사인물은 왼쪽
   expect(B['둘째'].card[0]).toBeGreaterThan(zones[1][0]); // 둘째 사진의 카드는 그 사진 아래
