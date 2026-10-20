@@ -37,6 +37,8 @@ export class Room extends DurableObject<Env> {
     ctx.blockConcurrencyWhile(async () => {
       const sql = ctx.storage.sql;
       sql.exec('CREATE TABLE IF NOT EXISTS updates (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB NOT NULL)');
+      // 백업용 (2026-10-21): changed = 마지막 변경 시각, backed = 마지막으로 백업한 변경 시각
+      sql.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL)');
       // 접속자 상태의 주인(소켓) 기록 — y-websocket 은 남의 상태도 되돌려 보내므로 "처음 보낸 소켓 = 주인"으로 추적
       sql.exec('CREATE TABLE IF NOT EXISTS awareness (client_id INTEGER PRIMARY KEY, sock TEXT NOT NULL, clock INTEGER NOT NULL, state TEXT NOT NULL)');
       try { sql.exec('ALTER TABLE awareness ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0'); } catch { /* 이미 있음 */ }
@@ -119,11 +121,30 @@ export class Room extends DurableObject<Env> {
     if (a.owner) this.ctx.waitUntil(this.env.ACCOUNT.getByName(a.owner).release(a.sid));
   }
 
+  private meta(key: string): number | null {
+    const r = this.ctx.storage.sql.exec<{ value: number }>('SELECT value FROM meta WHERE key = ?', key).toArray()[0];
+    return r ? Number(r.value) : null;
+  }
+  private setMeta(key: string, value: number) {
+    this.ctx.storage.sql.exec('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', key, value);
+  }
+
+  /** 백업할 상태 (2026-10-21): 마지막 백업 뒤 바뀌었으면 Yjs 전체 상태, 아니면 null. 빈 문서는 백업하지 않는다.
+   *  변경 기록이 없는 옛 방(이 기능 전에 만든 것)은 바뀐 것으로 본다 */
+  async backupState(): Promise<{ data: Uint8Array; changedAt: number } | null> {
+    if (!this.rows) return null;
+    const changedAt = this.meta('changed') ?? 1;
+    const backed = this.meta('backed') ?? 0;
+    return changedAt > backed ? { data: Y.encodeStateAsUpdate(this.doc), changedAt } : null;
+  }
+  async markBackedUp(changedAt: number) { this.setMeta('backed', changedAt); }
+
   /** 문서 변경: 저장 먼저, 그다음 다른 접속자에게 전달 */
   private onUpdate(update: Uint8Array, origin: unknown) {
     if (origin === LOAD) return;
     const sql = this.ctx.storage.sql;
     sql.exec('INSERT INTO updates (data) VALUES (?)', update);
+    this.setMeta('changed', Date.now());
     if (++this.rows > COMPACT_AT) {
       // 같은 동기 블록 안의 쓰기는 원자적으로 반영된다
       sql.exec('DELETE FROM updates');

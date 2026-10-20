@@ -3,6 +3,7 @@ export { Room } from './room';
 export { Account } from './account';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
+import { runBackup } from './backup';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
@@ -71,6 +72,7 @@ async function handleAsset(req: Request, env: Env, id: string, url: URL): Promis
       if (usedBytes + bytes.byteLength > limitBytes) return json({ error: 'storage_limit', limitBytes, usedBytes, sizeBytes: bytes.byteLength }, 413);
     }
     await env.ASSETS.put(id, bytes, { httpMetadata: { contentType: type } });
+    await env.BACKUP.put(id, bytes, { httpMetadata: { contentType: type } }); // 백업 버킷에도 (2026-10-21)
     if (!counted) {
       await env.DB.prepare('INSERT OR IGNORE INTO account_assets (account_id, asset_id, size, created_at) VALUES (?, ?, ?, ?)')
         .bind(ownerId, id, bytes.byteLength, Date.now()).run();
@@ -275,5 +277,9 @@ export default {
     if (asset) return withCors(await handleAsset(req, env, asset[1], url));
 
     return withCors(text('not found', 404));
+  },
+  /** 매시간 백업 (2026-10-21, wrangler.jsonc triggers.crons) */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(runBackup(env));
   },
 } satisfies ExportedHandler<Env>;

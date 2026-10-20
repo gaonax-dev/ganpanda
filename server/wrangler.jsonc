@@ -20,7 +20,13 @@
     { "tag": "v2", "new_sqlite_classes": ["Account"] }
   ],
   // 사진·디자인 파일 (내용 해시 = 키)
-  "r2_buckets": [{ "binding": "ASSETS", "bucket_name": "ganpanda-assets" }],
+  "r2_buckets": [
+    { "binding": "ASSETS", "bucket_name": "ganpanda-assets" },
+    // 백업 (2026-10-21): D1·프로젝트 문서·사진 사본 — 사진 버킷과 따로 (src/backup.ts, docs/server/backup.md)
+    { "binding": "BACKUP", "bucket_name": "ganpanda-backup" }
+  ],
+  // 매시간 17분: 백업 (src/backup.ts runBackup)
+  "triggers": { "crons": ["17 * * * *"] },
   // 계정·세션·프로젝트·초대 (관계 조회) — 좌석 계산은 Account DO (1-2c)
   "d1_databases": [{ "binding": "DB", "database_name": "ganpanda", "database_id": "071b8dc9-e526-4da1-aabc-f8143771169d", "migrations_dir": "migrations" }],
   // 매직링크 이메일 (도메인 ganpanda.co.kr 을 Email Sending 에 온보딩해야 발송됨)

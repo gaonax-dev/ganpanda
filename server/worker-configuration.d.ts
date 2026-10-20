@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20261006.1 2026-10-01
 interface __BaseEnv_Env {
 	ASSETS: R2Bucket;
+	BACKUP: R2Bucket;
 	DB: D1Database;
 	EMAIL: SendEmail;
 	AUTH_DEV_LINK: string;
