@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { openOwnedProject, uploadPhoto } from './helpers';
 
 /** 합성 건물 사진 + 띠 영역(치수 입력 → 3D 벽면 있음) */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -61,4 +61,26 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   await expect(page.getByTestId('tool-rect')).toBeEnabled();
+});
+
+test('[실측] 단추에 가로·세로를 아직 넣지 않은 사인물 수가 보인다 — 다 넣으면 사라진다 (2026-10-21 "실측타이틀에 미실측 수량 넣어줘 가로 세로 미입력수")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string; linkObject(id: string, to: string): void } } }).__ganpanda;
+    const pid = a.photos[0].id;
+    a.project.addObject({ photoId: pid, name: '측정됨', shape: 'rect', quad: [[100, 100], [400, 100], [400, 300], [100, 300]], sheetIds: [], widthMm: 3000, heightMm: 600 });
+    const h = a.project.addObject({ photoId: pid, name: '가로만', shape: 'rect', quad: [[500, 100], [800, 100], [800, 300], [500, 300]], sheetIds: [], widthMm: 1000 });
+    const n = a.project.addObject({ photoId: pid, name: '없음', shape: 'rect', quad: [[900, 100], [1200, 100], [1200, 300], [900, 300]], sheetIds: [] });
+    const c = a.project.addObject({ photoId: pid, name: '연결본', shape: 'rect', quad: [[100, 400], [400, 400], [400, 600], [100, 600]], sheetIds: [] });
+    a.project.linkObject(c, n); // 연결된 영역은 같은 사인물 — 따로 세지 않는다
+    return { h, n };
+  });
+  const badge = page.getByTestId('unmeasured-count');
+  await expect(badge).toHaveText('2');
+  await expect(page.getByTestId('stage-original')).toHaveAttribute('title', /미실측 2/);
+  await page.evaluate(({ h }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(h, { heightMm: 200 }), ids);
+  await expect(badge).toHaveText('1');
+  await page.evaluate(({ n }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(n, { widthMm: 500, heightMm: 500 }), ids);
+  await expect(badge).toHaveCount(0);
 });

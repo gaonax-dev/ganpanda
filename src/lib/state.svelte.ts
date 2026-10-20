@@ -204,6 +204,8 @@ class AppState {
   objects = $derived.by(() => (this.version, resolveLinks(this.project.allObjects())));
   /** 사인물 = 원본만 (리스트·견적·UV 대상). 연결된 영역은 제외 */
   signs = $derived(this.objects.filter((o) => !o.sameAs));
+  /** 가로·세로를 아직 넣지 않은 사인물 수 (원본만 — 연결 영역은 같은 사인물). [실측] 단추에 표시 (2026-10-21 "실측타이틀에 미실측 수량") */
+  unmeasuredCount = $derived(this.signs.filter((o) => !(o.widthMm && o.heightMm)).length);
   selected = $derived.by(() => (this.selectedId ? this.objects.find((o) => o.id === this.selectedId) ?? null : null));
   /** 다중 선택 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기"): Shift+클릭으로 더한 사인물들. selectedId 가 마지막 선택 */
   multi = $state<string[]>([]);
