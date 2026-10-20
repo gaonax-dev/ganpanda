@@ -139,6 +139,35 @@ export class Room extends DurableObject<Env> {
   }
   async markBackedUp(changedAt: number) { this.setMeta('backed', changedAt); }
 
+  /** 지금 문서 전체 (Yjs 상태) — 복원 확인·버전 저장용 */
+  async exportState(): Promise<Uint8Array> { return Y.encodeStateAsUpdate(this.doc); }
+
+  /** 백업을 그대로 합친다(merge) — 잃어버린·빈 방, 새 프로젝트로 꺼내기 (2026-10-21) */
+  async seedFrom(update: Uint8Array) { Y.applyUpdate(this.doc, update); }
+
+  /**
+   * 되돌리기 (2026-10-21): 사진·사인물·말풍선·디자인 소스·설정을 백업 내용으로 바꾼다. 대화(messages)는 그대로 둔다.
+   * Yjs 는 옛 상태를 합치기만 하면 새 내용이 남으므로, 지금 문서에서 키를 지우고 백업 값을 새로 넣는 변경을 만든다 → 접속자에게도 그대로 전달.
+   * 설정 restored = 누가·언제·어느 버전으로 (앱이 안내)
+   */
+  async revertTo(update: Uint8Array, by: string, version: string) {
+    const old = new Y.Doc();
+    Y.applyUpdate(old, update);
+    const clone = (v: unknown): unknown => {
+      if (v instanceof Y.Map) { const m = new Y.Map<unknown>(); for (const [k, x] of v.entries()) m.set(k, clone(x)); return m; }
+      if (v instanceof Y.Array || v instanceof Y.Text) return v.toJSON();
+      return v === undefined ? v : JSON.parse(JSON.stringify(v));
+    };
+    this.doc.transact(() => {
+      for (const name of ['photos', 'objects', 'pins', 'sources', 'settings']) {
+        const cur = this.doc.getMap<unknown>(name), src = old.getMap<unknown>(name);
+        for (const k of [...cur.keys()]) if (!src.has(k)) cur.delete(k);
+        for (const [k, v] of src.entries()) cur.set(k, clone(v));
+      }
+      this.doc.getMap<unknown>('settings').set('restored', { by, at: Date.now(), version });
+    });
+  }
+
   /** 문서 변경: 저장 먼저, 그다음 다른 접속자에게 전달 */
   private onUpdate(update: Uint8Array, origin: unknown) {
     if (origin === LOAD) return;

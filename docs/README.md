@@ -51,6 +51,7 @@
   - [api.md](server/api.md) — HTTP·WebSocket API 명세
   - [internals.md](server/internals.md) — Durable Object, 저장, 압축, 접속자 표시
   - [deploy.md](server/deploy.md) — 로컬 실행과 배포
+  - [backup.md](server/backup.md) — 백업(매시간, 백업 버킷)·운영자 복원 절차·시험 복원 (2026-10-21)
 - dev
   - [tdd.md](dev/tdd.md) — 테스트 주도 개발 절차와 명령
   - [conventions.md](dev/conventions.md) — 코드·문서 작성 규칙

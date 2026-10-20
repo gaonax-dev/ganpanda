@@ -4,6 +4,7 @@ export { Account } from './account';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
+import { handleAdmin } from './admin';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
@@ -241,6 +242,7 @@ export default {
     if (pathname === '/api/spec-samples') return withCors(await handleSpecSamples(req, env)); // 퀵입력이 못 알아본 글 표본 (2026-10-18)
     if (pathname === '/api/me/spec-rules' || pathname === '/api/spec-rules/suggest' || pathname === '/api/spec-rules/defaults') return withCors(await handleSpecRules(req, env, pathname, url)); // 사양 글 개인 사전 + 추천 + 전국 기본값 (2026-10-18 V1 · 10-19 V2)
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
+    if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));

@@ -86,3 +86,9 @@
 
 ## 관련 테스트
 - `server/test/sync.test.ts`, `server/test/assets.test.ts`, `server/test/auth.test.ts`, `server/test/projects.test.ts`, `server/test/access.test.ts`, `server/test/limits.test.ts`
+
+## 운영자 복원 (2026-10-21, `ADMIN_TOKEN` 비밀값이 있을 때만 — 없으면 404) → [backup.md](backup.md)
+| 메서드 | 경로 | 설명 | 응답 |
+|---|---|---|---|
+| POST | `/api/admin/restore` `{project, key, mode: merge\|revert}` (Bearer ADMIN_TOKEN) | 백업 파일로 프로젝트 문서 복원 — merge = 그대로 합침, revert = 내용 바꿈(대화 유지) | `{ok}` / 400 / 401 / 404 |
+| POST | `/api/admin/restore-assets` `{cursor?}` (Bearer ADMIN_TOKEN) | 백업에만 있는 사진을 사진 버킷으로 (300개씩) | `{copied, cursor}` |
