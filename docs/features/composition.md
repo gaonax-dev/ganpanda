@@ -106,11 +106,12 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - **전개도 PDF**(`listSvg` 카드의 `items`·`itemHrefs`): 같은 배치를 카드 축척으로, 그림은 data URL 로 묻는다.
 - 공통 계산: `core/partsLayout.ts` `layoutParts`(사인물 mm → 그릴 곳, 왼쪽 위 기준) · `partsSvg`(SVG 조각) · `PART_COLOR`.
 
-## 후렉스 출력의 배경색·글자·그림 (2026-10-21)
-사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘". 후렉스·천갈이처럼 **몸통이 곧 출력면**인 종류:
-- **배경색**: 몸통 옵션의 출력면 색(도색 객체 `face`) 이름을 "출력면 색 (인쇄물 임시)" → **"배경색"** 으로. 프레임 색(`framePaint`)과의 구분은 그대로(2026-10-17 결정).
-- **글자·그림**: 몸통 탭의 **[+ 출력 글자] [+ 출력 그림]**(`add-print-text/image`, 빠른 설정 [+] 메뉴에도) → **출력 구성 요소** = UV 출력 시트(`sh-print`, 프레임 면)에 `options.included = true`(`parts.ts addPrintItem`, 하나만 두고 객체를 더한다). 구성내역 "출력 (몸통 출력에 포함)", 칩 "출력", **컷팅·코팅 같은 시트 옵션 없음, 견적 줄 없음**(후렉스 단가에 출력이 포함). 글자·그림은 다른 시트처럼 정면도·2D 사진 위·3D 앞면에 보인다.
-- 테스트: `tests/unit/printItems.test.ts`, `tests/e2e/parts.spec.ts` "UV 후렉스 출력".
+## 후렉스 출력의 배경색·글자·그림 = 미리보기 (2026-10-21)
+사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘" → "내가 놓친 게 있다. 실제 옵션과 미리보기를 구분하지 않았어" → **"미리보기로 하고 디자인은 별도로 하면 된다. 미리보기를 디자이너도 확인 가능하다."** 후렉스·천갈이·현수막·액자처럼 **몸통이 곧 출력면**인 종류는 실제 원고가 **디자인 파일**이고, 배경색·글자·그림은 그 전까지 보드·3D·제안 페이지에 보이는 **미리보기**(디자이너 참고)일 뿐 사양이 아니다.
+- **미리보기 필드**(`OptionField.preview`, `optionSchema.ts printFace`): 배경색(도색 객체 `face`, 이름 **"배경색 (미리보기)"**)은 `optionGroupsFor` 가 **"미리보기" 묶음**(`OptionGroup.preview`)으로 맨 뒤에 따로 모은다. 속성창은 이 묶음에 안내("디자이너 참고용 — 요약·주문서 사양에는 안 들어갑니다", `preview-hint`). **`describeOptions`·`effectiveOptions` 는 미리보기 묶음을 뺀다** → 요약·주문서 사양·JSON `options` 에 없음. `normalizeOptions` 는 값을 지킨다(화면 색). 프레임 색(`framePaint`)은 실제 사양 그대로.
+- **미리보기 글자·그림**: 몸통 탭 "미리보기" 줄의 **[+ 글자] [+ 그림]**(`add-print-text/image`, 빠른 설정 [+] 메뉴 "+ 글자/그림 미리보기") → UV 출력 시트(`sh-print`, 프레임 면)에 `options.included = true`(`parts.ts addPrintItem`, `isPreviewPart`; 하나만 두고 객체를 더한다). 구성내역 **"출력 미리보기 (디자이너 참고)"**, 칩 "미리보기", 컷팅·코팅 같은 시트 옵션 없음, 견적 줄 없음. 정면도·2D 사진 위·3D 앞면에 보이다가 **디자인 파일이 붙으면 숨는다**(`drawnParts` — 디자인이 실제 원고; `partsLayout`·`render`).
+- **주문서 JSON**: 미리보기 구성 요소는 `parts` 에서 빼고 품목의 **`preview`** 블록(`note`, `background` 색 이름, `items` 글자·그림 자리)으로 디자이너에게 전달 → [order.md](order.md).
+- 테스트: `tests/unit/previewOptions.test.ts`, `tests/unit/printItems.test.ts`, `tests/e2e/parts.spec.ts` "UV 후렉스 출력".
 
 ## 재료 층 (`core/stack.ts`, 2026-10-21 — 스카시부터)
 사용자: "스카시 선택하면 고무를 선택했다 하고 여기에 기본은 얇은 철판인데 어떤 경우는 고무만 사용하잖아. 나는 이때 결합된 상태로 제공하고 필요한 상태를 추가하고 싶은 거야 시트나 페인트를, 사실 페인트는 어디든 쓸 수 있거든" → "스카시부터 진행해줘".

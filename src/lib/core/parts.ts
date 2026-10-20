@@ -105,6 +105,10 @@ export function commitParts(o: Pick<SignObject, 'options' | 'layers' | 'parts'>,
   const layers = keep ? mergeParts(o.layers!, parts) : fromParts(parts);
   return { parts: orderLike(toParts(layers), parts), layers, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf). layers = 트리, parts 는 그 거울(숨긴 것 제외, 편집 전 순서 유지)
 }
+/** 미리보기 구성 요소(출력 글자·그림)인가 — 디자인 파일이 붙으면 그리지 않는다 (2026-10-21 "미리보기로 하고 디자인은 별도로") */
+export const isPreviewPart = (p: SignPart) => p.options?.included === true; // included 는 출력 시트(addPrintItem)에만
+/** 그릴 구성 요소: 디자인 파일이 있으면 미리보기 구성 요소는 뺀다 */
+export const drawnParts = (o: Pick<SignObject, 'design'>, parts: SignPart[]) => (o.design ? parts.filter((p) => !isPreviewPart(p)) : parts);
 /**
  * 출력 글자·그림 (2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"): 후렉스·천갈이처럼 몸통이 곧 출력면인 종류에 글자·그림을 넣는다.
  * 출력 = UV 출력 시트 구성 요소(프레임 면, `options.included = true` — 몸통 출력에 포함이라 컷팅 옵션·견적 줄 없음). 하나만 두고 객체를 더한다

@@ -3,7 +3,7 @@ import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } 
 import { itemBox } from './frontView';
 import { componentOf, surfaceOf } from './components';
 import { paintAlpha, paintHex } from './materials';
-import { lightOf, partsOf } from './parts';
+import { lightOf, partsOf , drawnParts } from './parts';
 import { layersOf, placedItems } from './layers';
 import { DEFAULT_LETTER3D, channelHeightOf, lightingOf } from './letter3d';
 import type { SignObject } from './model';
@@ -96,7 +96,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   const letterItems: NonNullable<SignSpec['letterItems']> = [];
   const faceItems: NonNullable<SignSpec['faceItems']> = [];
   // 레이어 트리를 걸으며 깊이 누적 (2단계): 채널 앞면 위 시트의 글자·그림은 채널 두께만큼 앞에, 시트 위 시트는 그대로. 그룹은 오프셋만
-  const placed = placedItems(layersOf(o, partsOf(o)), (part) => componentOf(part.kind).depthMm(part, o));
+  const placed = placedItems(layersOf(o, drawnParts(o, partsOf(o))), (part) => componentOf(part.kind).depthMm(part, o)); // 디자인 파일이 있으면 미리보기 글자·그림은 뺌 (2026-10-21)
   for (const { item: it, part, z } of placed) {
     if (it.kind === 'text' && !hasText(it.text)) continue;
     const c = componentOf(part.kind); // 종류 모듈: 밀어내기 여부·두께·조명·도색 키 (0단계)

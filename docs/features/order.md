@@ -77,8 +77,9 @@ SHEET_COMMON_OPTIONS + SHEET_OPTIONS[sheetId]  // 시트 공통 + 시트별
 - **사인물 리스트** 오른쪽: [주문 정보](`open-order` → `OrderDialog.svelte`, `app.orderOpen`), [주문서·견적서](`open-quote-sheet`).
 - **주문서**(`QuoteSheet.svelte`): 주문 정보가 하나라도 있으면 제목이 "주 문 서", 머리에 주문자·연락처·배송/시공·납기(`order-info`). 항목마다 사양 문구(기본값 포함)·문구·디자인 파일·요청사항. 아래에 추가 요청사항, 첨부 파일(UV 소스) 목록, **작업 파일 체크**(CMYK, 윤곽선, 칼선 레이어, 벡터 원본). [JSON 내보내기](`order-json`) → `orderJson()` 구조:
   ```json
-  { "project", "created_at", "order_info": {…, "delivery_label"}, "items": [{ "id","name","category","type","sheets","options","option_summary","size":{"width_mm","height_mm","estimated"},"text","design_file","amount","note" }], "files": [{"name","pages"}], "file_check": […], "totals": {…}, "notes" }
+  { "project", "created_at", "order_info": {…, "delivery_label"}, "items": [{ "id","name","category","type","sheets","options","option_summary","size":{"width_mm","height_mm","estimated"},"text","design_file","parts","preview","amount","note" }], "files": [{"name","pages"}], "file_check": […], "totals": {…}, "notes" }
   ```
+  `options`·`option_summary` 에는 **미리보기 필드(배경색)가 없고**, `parts` 에는 미리보기 구성 요소(출력 글자·그림)가 없다. 대신 `preview: { note, background?, items?: [{kind,text?,image?,h,w?,x,y}] }` 로 디자이너 참고용 미리보기만 따로 (2026-10-21 "미리보기를 디자이너도 확인 가능하다") → [composition.md](composition.md#후렉스-출력의-배경색글자그림--미리보기-2026-10-21).
 
 ## 관련 코드·테스트
 - `src/lib/core/options.ts`, `src/lib/core/order.ts`, `src/lib/core/catalog.ts`, `src/lib/ui/ObjectSettingsDialog.svelte`, `src/lib/ui/OrderDialog.svelte`, `src/lib/ui/QuoteSheet.svelte`

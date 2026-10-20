@@ -263,7 +263,7 @@ test('스카시 재료 층: 고무 스카시 = 철판 + 고무 묶음, 철판을
   expect(await depth()).toBe(21.5);
 });
 
-test('UV 후렉스 출력: 몸통에 배경색, [+ 출력 글자]·[+ 출력 그림]은 출력 구성 요소(몸통 출력에 포함 — 컷팅 옵션·견적 줄 없음)로, 2D 사진 위에 글자가 보인다 (2026-10-21)', async ({ page, request }) => {
+test('UV 후렉스 출력: 몸통에 배경색(미리보기), [+ 글자]·[+ 그림]은 미리보기 구성 요소(디자이너 참고 — 컷팅 옵션·견적 줄 없음)로, 2D 사진 위에 글자가 보인다 (2026-10-21)', async ({ page, request }) => {
   // 2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"
   await openOwnedProject(page, request);
   await uploadPhoto(page);
@@ -275,11 +275,12 @@ test('UV 후렉스 출력: 몸통에 배경색, [+ 출력 글자]·[+ 출력 그
   await dlg.getByTestId('product-select').selectOption('board-flex');
   await dlg.getByTestId('width-mm').fill('3000');
   await dlg.getByTestId('height-mm').fill('600');
-  await expect(dlg.getByTestId('option-face-color')).toContainText('배경색');
+  await expect(dlg.getByTestId('option-face-color')).toContainText('배경색 (미리보기)'); // 미리보기 묶음 (사양 아님)
+  await expect(dlg.locator('[data-testid="option-group"][data-preview="true"]').getByTestId('preview-hint')).toBeVisible();
   await dlg.getByTestId('add-print-text').click();
   const card = dlg.getByTestId('part-card');
   await expect(card).toHaveCount(1);
-  await expect(card.getByTestId('part-spec')).toContainText('출력 (몸통 출력에 포함)');
+  await expect(card.getByTestId('part-spec')).toContainText('출력 미리보기 (디자이너 참고)');
   await expect(card.getByTestId('part-option-cut')).toHaveCount(0); // 시트 옵션 없음
   await card.getByTestId('item-text').fill('바로바로정육점');
   // 두 번째 글자·그림도 같은 출력 구성 요소에

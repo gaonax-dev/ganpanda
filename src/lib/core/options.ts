@@ -38,7 +38,7 @@ export function optionGroupsFor(o: SignObject): OptionGroup[] {
     const fs = [...SHEET_COMMON_OPTIONS, ...o.sheetIds.flatMap((id) => SHEET_OPTIONS[id] ?? [])];
     groups.push({ title: '시트 옵션', fields: vis(fs) });
   }
-  return groups;
+  return splitPreview(groups);
 }
 
 /** 값 하나의 표시 문자열. select 는 값 그대로, toggle 은 켜졌을 때 라벨, text 는 "라벨 값" */
@@ -53,6 +53,14 @@ function describeField(f: OptionField, v: OptionValue | undefined): string | nul
  * 요약·견적서·주문서용: 옵션들을 짧은 문구 목록으로 (보이는 필드만).
  * defaults = true 면 고르지 않은 select 도 기본값(첫 값)으로 적는다 — 주문서에는 기본값도 사양이므로
  */
+/** 미리보기 필드는 "미리보기" 묶음으로 따로 (2026-10-21) — 요약·주문서는 이 묶음을 뺀다 */
+function splitPreview(groups: OptionGroup[]): OptionGroup[] {
+  const previews = groups.flatMap((g) => g.fields.filter((f) => f.preview));
+  if (!previews.length) return groups;
+  const rest = groups.map((g) => ({ ...g, fields: g.fields.filter((f) => !f.preview) })).filter((g) => g.fields.length);
+  return [...rest, { title: '미리보기', preview: true, fields: previews }];
+}
+
 export function describeOptions(o: SignObject, { defaults = false } = {}): string[] {
   const opts = o.options ?? {};
   const legacy = (LEGACY_FIELDS[o.productId ?? ''] ?? [])
@@ -61,7 +69,7 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
   const thick = thicknessLabel(o); // 두께는 소재 옆에 (치수는 가로×세로만)
   // 옛 데이터라도 시트 분류(제품 없음)·스카시 분류는 구성 요소로 요약 (그 옛 옵션 묶음은 구성 요소 쪽에서)
   const legacyParts = !o.parts && (!o.productId || SCASHI_IDS.includes(o.productId)) ? partsOf(o) : undefined;
-  const groups = optionGroupsFor(o).filter((g) => !(legacyParts && g.title === '시트 옵션'));
+  const groups = optionGroupsFor(o).filter((g) => !(legacyParts && g.title === '시트 옵션') && !g.preview); // 미리보기는 요약에 없다 (2026-10-21)
   const fromOptions = [...(thick ? [thick] : []), ...groups.flatMap((g) => g.fields.map((f) => describeField(f, defaults ? optionValue(f, opts) : opts[f.key])).filter((s): s is string => !!s)), ...legacy];
   // 조합형: 구성 요소마다 요약(이름·글자·그림) + 옵션 값 (2026-10-16)
   const all = partsOf(o);
@@ -74,7 +82,7 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */
 export function effectiveOptions(o: SignObject): Options {
   const opts = o.options ?? {};
-  return Object.fromEntries(optionGroupsFor(o).flatMap((g) => g.fields.map((f) => [f.key, optionValue(f, opts)])));
+  return Object.fromEntries(optionGroupsFor(o).filter((g) => !g.preview).flatMap((g) => g.fields.map((f) => [f.key, optionValue(f, opts)]))); // 미리보기 제외 (2026-10-21)
 }
 
 /** 스키마에 없는(종류를 바꿔서 더는 안 보이는) 키를 버린다 */

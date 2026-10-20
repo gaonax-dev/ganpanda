@@ -20,7 +20,7 @@ const normalize = (p: SignPart): SignPart => {
 /** 출력 (몸통 출력에 포함): 후렉스·천갈이의 글자·그림 자리 (2026-10-21 parts.ts addPrintItem) */
 const included = (p: SignPart) => p.options?.included === true;
 function spec(p: SignPart): string {
-  if (included(p)) return '출력 (몸통 출력에 포함)';
+  if (included(p)) return '출력 미리보기 (디자이너 참고)'; // 실제 원고는 디자인 파일 (2026-10-21)
   const op = normalize(p).options ?? {};
   const cut = (op.cut as string | undefined) ?? (p.type === 'sh-print' ? '돔보컷팅' : '커팅');
   const on = cut !== '컷팅 없음';
@@ -39,10 +39,10 @@ export const sheet: Component = {
   normalize,
   typeLabel: (p) => typeLabel(p.type),
   spec,
-  chip: (p) => ({ text: included(p) ? '출력' : spec(p), color: null }),
+  chip: (p) => ({ text: included(p) ? '미리보기' : spec(p), color: null }),
   optionFields: (part) => { if (included(part)) return []; const opts = part.options ?? {}; return [...SHEET_COMMON_OPTIONS, ...(SHEET_OPTIONS[part.type] ?? [])].filter((f) => !f.when || f.when(opts, {} as SignObject)); },
   specKeys: SHEET_SPEC_KEYS,
-  host: (p) => (included(p) ? '출력 위' : `${spec(p)} 위`),
+  host: (p) => (included(p) ? '미리보기 위' : `${spec(p)} 위`),
   depthMm: () => 0,
   lighting: () => 'none',
   paint: { face: 'sheet', side: 'sheet' },

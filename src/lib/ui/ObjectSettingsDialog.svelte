@@ -137,11 +137,11 @@
           </select>
         {/if}
         {#if (bodyId === 'board-flex' || bodyId === 'board-reface') && !ro}
-          <!-- 출력 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션"): 배경색은 아래 옵션, 글자·그림은 출력 구성 요소(몸통 출력에 포함) -->
+          <!-- 미리보기 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션" → "미리보기로 하고 디자인은 별도로"): 배경색은 아래 미리보기 묶음, 글자·그림은 미리보기 구성 요소 — 실제 원고는 디자인 파일 -->
           <div class="row" data-testid="print-items">
-            <span class="hint">출력 내용</span>
-            <button class="btn small" data-testid="add-print-text" onclick={() => { const r = addPrintItem(obj, 'text'); update(r.patch); tab = `part:${r.partId}`; }}>+ 출력 글자</button>
-            <button class="btn small" data-testid="add-print-image" onclick={() => { const r = addPrintItem(obj, 'image'); update(r.patch); tab = `part:${r.partId}`; }}>+ 출력 그림</button>
+            <span class="hint">미리보기</span>
+            <button class="btn small" data-testid="add-print-text" onclick={() => { const r = addPrintItem(obj, 'text'); update(r.patch); tab = `part:${r.partId}`; }}>+ 글자</button>
+            <button class="btn small" data-testid="add-print-image" onclick={() => { const r = addPrintItem(obj, 'image'); update(r.patch); tab = `part:${r.partId}`; }}>+ 그림</button>
           </div>
         {/if}
         {#if thick}
@@ -174,8 +174,9 @@
       {/if}
 
       {#each optionGroups as g (g.title)}
-        <section data-testid="option-group">
+        <section data-testid="option-group" data-preview={g.preview ? 'true' : undefined}>
           <h3>{g.title}</h3>
+          {#if g.preview}<p class="hint" data-testid="preview-hint">디자이너 참고용 — 요약·주문서 사양에는 안 들어갑니다. 실제 원고는 디자인 파일.</p>{/if}
           <div class="opts">
             {#each g.fields as f (f.key + (f.paint?.part ?? ''))}
               {@const v = optionValue(f, obj.options ?? {})}

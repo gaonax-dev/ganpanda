@@ -2,6 +2,7 @@
 // 객체 좌표(간판 중앙 기준 mm, 위 +) → 그릴 곳(왼쪽 위 기준, 아래 +). 정면도 편집기와 같은 상자(itemBox)와 색.
 import type { PartItem, SignObject, SignPart } from './model';
 import { itemBox } from './frontView';
+import { drawnParts } from './parts';
 import { svgText, type TextRenderer } from './svgText';
 import { layerOrder } from './parts';
 
@@ -27,7 +28,7 @@ export interface LaidItem {
 export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, H: number): LaidItem[] {
   if (!o.parts || !(mmW > 0) || !(mmH > 0)) return [];
   const sx = W / mmW, sy = H / mmH;
-  return layerOrder(o.parts).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다
+  return layerOrder(drawnParts(o, o.parts)).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
     const b = itemBox(it);
     return {
       id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),

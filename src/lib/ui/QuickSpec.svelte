@@ -46,8 +46,8 @@
       update(commitParts(obj, ps));
       onPick(`part:${np.id}`);
     };
-    // 후렉스·천갈이: 출력 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션")
-    if (obj.productId === 'board-flex' || obj.productId === 'board-reface') for (const k of ['text', 'image'] as const) out.push({ id: `add-print-${k}`, label: k === 'text' ? '+ 출력 글자' : '+ 출력 그림', run: () => { const r = addPrintItem(obj, k); update(r.patch); onPick(`part:${r.partId}`); } });
+    // 후렉스·천갈이: 미리보기 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션" → 미리보기, 실제 원고는 디자인 파일)
+    if (obj.productId === 'board-flex' || obj.productId === 'board-reface') for (const k of ['text', 'image'] as const) out.push({ id: `add-print-${k}`, label: k === 'text' ? '+ 글자 미리보기' : '+ 그림 미리보기', run: () => { const r = addPrintItem(obj, k); update(r.patch); onPick(`part:${r.partId}`); } });
     if (kinds.includes('channel')) out.push({ id: 'add-part-channel', label: '+ 채널', run: addPart('channel') });
     if (kinds.includes('scashi')) out.push({ id: 'add-part-scashi', label: '+ 스카시', run: addPart('scashi') });
     if (kinds.includes('sheet')) { out.push({ id: 'add-part-sheet-uv', label: '+ UV 출력', run: addPart('sheet', 'sh-print') }); out.push({ id: 'add-part-sheet-cut', label: '+ 재질 시트', run: addPart('sheet', 'sh-cut') }); }

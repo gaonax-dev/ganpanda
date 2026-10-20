@@ -11,6 +11,8 @@ function supplierFields(p: import('./model').SignPart, prices: import('./pricing
 import { categoryOf, CATEGORY_GROUPS, productById, sheetById } from './catalog';
 import type { DesignSource, SignObject } from './model';
 import { describeOptions, effectiveOptions, effectivePartOptions } from './options';
+import { isPreviewPart } from './parts';
+import { paintLabel } from './materials';
 import type { Quote } from './quote';
 
 export type DeliveryType = 'install' | 'ship' | 'pickup';
@@ -58,6 +60,14 @@ export interface OrderJson {
 
 export const FILE_CHECK = ['CMYK 모드', '글자 윤곽선(Outlines) 처리', '돔보·시트 컷팅용 칼선 레이어 분리', '벡터 원본(.ai/.pdf/.eps) 첨부'];
 
+/** 미리보기 (디자이너 참고): 배경색 + 글자·그림 자리 — 실제 원고는 design_file (2026-10-21) */
+function previewOf(o: SignObject): { preview?: { note: string; background?: string; items?: { kind: string; text?: string; image?: string; h: number; w?: number; x: number; y: number }[] } } {
+  const background = paintLabel(o.options, 'face') ?? undefined;
+  const items = partsOf(o).filter(isPreviewPart).flatMap((p) => p.items.map((it) => ({ kind: it.kind, ...(it.text ? { text: it.text } : {}), ...(it.image && 'name' in it.image && it.image.name ? { image: it.image.name } : {}), h: it.h, ...(it.w ? { w: it.w } : {}), x: it.x, y: it.y })));
+  if (!background && !items.length) return {};
+  return { preview: { note: '미리보기 — 디자이너 참고용, 실제 원고는 design_file', ...(background ? { background } : {}), ...(items.length ? { items } : {}) } };
+}
+
 export function orderJson(args: {
   projectName: string;
   signs: SignObject[];
@@ -84,7 +94,9 @@ export function orderJson(args: {
       options: effectiveOptions(o),
       option_summary: describeOptions(o, { defaults: true }),
       // 조합형 구성 요소 (2026-10-16): 종류·이름·옵션(기본값 포함)·글자·그림
-      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...supplierFields(p, prices), ...(p.on ? { on: p.on } : {}), ...(p.stack ? { stack: p.stack.map((l) => ({ material: stackMaterialLabel(l.material), thickness_mm: l.thickness, ...(l.role ? { role: l.role } : {}), ...(finishLabel(l, 'face', p.options) ? { face: finishLabel(l, 'face', p.options)! } : {}), ...(finishLabel(l, 'side', p.options) ? { side: finishLabel(l, 'side', p.options)! } : {}) })) } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
+      // 미리보기(배경색·출력 글자·그림)는 사양이 아니라 디자이너 참고 — parts 에서 빼고 preview 에 따로 (2026-10-21)
+      ...previewOf(o),
+      ...(partsOf(o).filter((p) => !isPreviewPart(p)).length ? { parts: partsOf(o).filter((p) => !isPreviewPart(p)).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...supplierFields(p, prices), ...(p.on ? { on: p.on } : {}), ...(p.stack ? { stack: p.stack.map((l) => ({ material: stackMaterialLabel(l.material), thickness_mm: l.thickness, ...(l.role ? { role: l.role } : {}), ...(finishLabel(l, 'face', p.options) ? { face: finishLabel(l, 'face', p.options)! } : {}), ...(finishLabel(l, 'side', p.options) ? { side: finishLabel(l, 'side', p.options)! } : {}) })) } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
       ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), ...(o.depthMm ? { depth_mm: Math.round(o.depthMm) } : {}), estimated: sz.estimated } } : {}),
       ...(signTextOf(o) ? { text: signTextOf(o) } : {}), // 문구가 없으면 구성내역 (2026-10-16)
       ...(src ? { design_file: `${src.name} (${o.design!.page + 1}쪽)` } : {}),
