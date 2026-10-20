@@ -14,7 +14,7 @@ export interface PartPriceCtx {
   /** 사인물에 가로·세로가 있나 */
   sized: boolean;
   /** 금액 줄 (raw = 배수 적용 전 금액이 아니라 판매 금액 계산값; cost = 계산법일 때 배수 전 공급 금액) */
-  finish(label: string, detail: string, raw: number, priceId?: string, cost?: number): void;
+  finish(label: string, detail: string, raw: number, priceId?: string, cost?: number, /** 같은 구성 요소의 둘째 줄 키 꼬리 (앞면 시트 등 — 수동 금액이 겹치지 않게) */ sub?: string): void;
   /** 표시 이름: 그 단가 항목에 연결된 공급사의 용어가 있으면 그것, 없으면 fallback (2026-10-19 V5 "공급사의 용어가 우선한다"). key = 'product:<id>' | 'sheet:<id>' */
   term(key: string, fallback: string): string;
   /** 입력이 더 필요한 줄 (0원) */
@@ -60,6 +60,8 @@ export interface Component {
   lighting(part: SignPart): Lighting;
   /** 색의 도색 키: face = 글자 앞면·평면 객체 색, side = 입체 옆면 색 */
   paint: { face: string; side: string };
+  /** 재료 층이 있는 종류(2026-10-21): 앞면·옆면 색을 층의 마감에서 (없으면 paint 키로) — components/index.ts surfaceOf */
+  surface?(part: SignPart): { face: string | null; side: string | null; faceSheet?: string } | null;
   /** 글자·그림·도형 객체를 받나 (상단 조명은 아님) */
   takesItems: boolean;
   /** 견적 줄 키 (없으면 `<사인물>:part:<구성 요소>`) — 옛 키를 이어 써서 수동 금액을 지킨다 */

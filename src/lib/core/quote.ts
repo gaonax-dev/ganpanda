@@ -70,7 +70,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const size = sized ? `${fmt(o.widthMm!)}×${fmt(o.heightMm!)}mm` : '';
   let key = `${o.id}:body`;
   /** cost: 계산법이면 배수 전 금액을 넘긴다. 없으면 공급 품목 연결에서 (수량 × 공급 단가) */
-  const finish = (label: string, detail: string, raw: number, priceId?: string, cost?: number) => {
+  const finish = (label: string, detail: string, raw: number, priceId?: string, cost?: number, sub?: string) => {
     let amount = roundTo(raw, prices.rounding);
     if (amount < prices.minimum) { amount = prices.minimum; detail += ` · 최소 ${fmt(prices.minimum)}원 적용`; }
     const supplier = (priceId && findMethod(prices.methods?.[priceId])?.supplier.tag) || supplierTagOf(priceId && prices.links?.[priceId]);
@@ -79,7 +79,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       const unit = prices.products[priceId] ?? prices.sheets[priceId];
       if (hit && unit) cost = (raw * hit.item.price) / unit;
     }
-    lines.push({ key, objectId: o.id, label, detail: supplier ? `${detail} · ${supplier} 단가` : detail, amount, ...(priceId ? { priceId } : {}), ...(supplier ? { supplier } : {}), ...(cost !== undefined ? { cost: Math.round(cost) } : {}) });
+    lines.push({ key: sub ? `${key}:${sub}` : key, objectId: o.id, label, detail: supplier ? `${detail} · ${supplier} 단가` : detail, amount, ...(priceId ? { priceId } : {}), ...(supplier ? { supplier } : {}), ...(cost !== undefined ? { cost: Math.round(cost) } : {}) });
   };
   // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
   const { bodyId } = signParts(o);

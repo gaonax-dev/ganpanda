@@ -70,10 +70,11 @@ describe('옵션·요약·3D', () => {
     const k = optionGroupsFor(obj({ productId: 'board-galva', parts: [] })).flatMap((g) => g.fields.map((f) => f.key));
     expect(k).not.toContain('channel'); expect(k).not.toContain('scashi'); expect(k).not.toContain('topLight'); // 상단 조명도 구성 요소 카드에서 (2026-10-19)
   });
-  it('구성 요소의 옵션: 채널은 채널 세부(방식·제작 방식…), 스카시는 두께·재질·도색, 시트는 시트 옵션', () => {
+  it('구성 요소의 옵션: 채널은 채널 세부(방식·제작 방식…), 스카시는 재질(아크릴 종류)·도색 (두께는 재료 층, 2026-10-21), 시트는 시트 옵션', () => {
     expect(partOptionFields(newPart('channel', 'ch-front')).map((f) => f.key)).toEqual(expect.arrayContaining(['chType', 'chBuild', 'chDepth', 'ledColor']));
     expect(partOptionFields(newPart('channel', 'ch-galva')).map((f) => f.key)).not.toContain('ledColor');
-    expect(partOptionFields(newPart('scashi', 'ch-scashi')).map((f) => f.key)).toEqual(expect.arrayContaining(['thickness', 'material', 'paintSystem', 'script']));
+    expect(partOptionFields(newPart('scashi', 'ch-scashi')).map((f) => f.key)).toEqual(expect.arrayContaining(['material', 'paintSystem', 'script']));
+    expect(partOptionFields(newPart('scashi', 'ch-scashi')).map((f) => f.key)).not.toContain('thickness'); // 두께 = 재료 층
     expect(partOptionFields(newPart('sheet', 'sh-print')).map((f) => f.key)).toEqual(expect.arrayContaining(['base', 'ink', 'coating']));
   });
   it('요약: 구성 요소마다 종류 + 글자', () => {

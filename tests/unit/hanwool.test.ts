@@ -124,12 +124,14 @@ describe('채널 (입체 글자) 조합', () => {
 });
 
 describe('스카시·시트', () => {
-  it('고무 스카시 표면: 칼라 알루미늄 · 수입 금색 · 수입 은색 · 시트 · 아크릴 · 없음', () => {
-    expect(values(obj({ productId: 'ch-rubber' }), 'material')).toEqual(['칼라 알루미늄', '수입 금색', '수입 은색', '시트 부착', '아크릴 전면판', '없음']);
+  it('고무 스카시 표면(칼라 알루미늄 · 수입 금색 · 수입 은색 · 시트 · 아크릴 · 없음)은 재료 층의 면판·앞면 시트로 (2026-10-21) — 옵션엔 없다', () => {
+    expect(keys(obj({ productId: 'ch-rubber' }))).not.toContain('material');
+    expect(partsOf(obj({ productId: 'ch-rubber' }))[0].stack!.map((l) => l.material)).toEqual(['iron', 'rubber']);
   });
   it('아크릴 스카시(레이저 커팅): 두께 3/5/8/10T · 한글/영문', () => {
     const o = obj({ productId: 'ch-scashi' });
-    expect(values(o, 'thickness')).toEqual(['3T', '5T', '8T', '10T']);
+    expect(keys(o)).not.toContain('thickness'); // 두께는 재료 층 (2026-10-21), 기본 8T
+    expect(partsOf(o)[0].stack!.map((l) => l.thickness)).toEqual([8]);
     expect(values(o, 'script')).toEqual(['한글', '영문']);
   });
   it('UV 실사: 바탕(흰색/회색) · 잉크, 원웨이: 잉크 (2026-10-15 분류 재정리)', () => {

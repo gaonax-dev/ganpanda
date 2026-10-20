@@ -30,7 +30,8 @@ describe('주문서 JSON', () => {
     const b = json.items[1];
     expect(b.category).toBe('시트'); expect(b.sheets).toEqual(['재질 시트']); expect(b.option_summary.some((x: string) => x.includes('반컷'))).toBe(true); // 시트 = UV 출력/재질, 컷팅은 옵션 (2026-10-16)
     const c = json.items[2];
-    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['시공용 1:1 종이 도안', '부착 출고', '고무 스카시 "OPEN" 300mm', '30T', '칼라 알루미늄', '도색 없음']); // 스카시 사양은 스카시 구성 요소로 (2026-10-16)
+    expect(c.category).toBe('스카시'); expect(c.size).toBeUndefined(); expect(c.option_summary).toEqual(['시공용 1:1 종이 도안', '부착 출고', '고무 스카시 (철판 1.5T + 고무 30T) "OPEN" 300mm', '도색 없음']); // 스카시 사양은 스카시 구성 요소로 (2026-10-16), 두께·면판은 재료 층 (2026-10-21)
+    expect(c.parts![0].stack).toEqual([{ material: '철판', thickness_mm: 1.5, role: 'base' }, { material: '고무', thickness_mm: 30, role: 'body' }]); // 주문서에 재료 층
     expect(json.files).toEqual([{ name: 'design_v1.ai', pages: 1 }]);
     expect(json.file_check.length).toBeGreaterThan(2);
     expect(json.totals.total).toBe(quote.total);

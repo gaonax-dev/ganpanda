@@ -1,7 +1,7 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
-import { componentOf } from './components';
+import { componentOf, surfaceOf } from './components';
 import { paintAlpha, paintHex } from './materials';
 import { lightOf, partsOf } from './parts';
 import { layersOf, placedItems } from './layers';
@@ -107,13 +107,13 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
         text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing, ...(zMm ? { z: zMm } : {}),
         depthMm: c.depthMm(part, o),
         // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
-        lighting: c.lighting(part), faceColor: paintHex(part.options, c.paint.face) ?? d.faceColor, sideColor: paintHex(part.options, c.paint.side) ?? d.sideColor,
+        lighting: c.lighting(part), faceColor: surfaceOf(part).face ?? d.faceColor, sideColor: surfaceOf(part).side ?? d.sideColor, // 재료 층 마감 > 도색 키 (2026-10-21)
       });
     } else {
       const b = itemBox(it);
       faceItems.push({
         id: it.id, kind: it.kind, ...(it.kind === 'text' ? { text: it.text!.trim() } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),
-        x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: paintHex(part.options, c.paint.face) ?? c.color, ...(zMm ? { z: zMm } : {}), // 시트 색 (2026-10-17)
+        x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: surfaceOf(part).face ?? c.color, ...(zMm ? { z: zMm } : {}), // 시트 색 (2026-10-17)
       });
     }
   }

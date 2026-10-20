@@ -4,8 +4,8 @@ import type { PartItem, SignObject, SignPart } from './model';
 import { itemBox } from './frontView';
 import { svgText, type TextRenderer } from './svgText';
 import { layerOrder } from './parts';
-import { paintHex } from './materials';
-import { COMPONENTS, componentOf } from './components';
+
+import { COMPONENTS, componentOf, surfaceOf } from './components';
 
 /** 구성 요소 색 (정면도 편집기·카드·PDF·3D 앞면 공용) */
 export const PART_COLOR: Record<SignPart['kind'], string> = Object.fromEntries(COMPONENTS.map((c) => [c.kind, c.color])) as Record<SignPart['kind'], string>; // 종류 모듈의 색 (0단계)
@@ -32,7 +32,7 @@ export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, 
     return {
       id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),
       // 채널은 앞면 색(시트), 스카시는 도색을 골랐으면 그 색 (2026-10-17)
-      color: paintHex(p.options, componentOf(p.kind).paint.face) ?? componentOf(p.kind).color, // 채널 앞면·시트 색·스카시 도색 — 종류 모듈의 도색 키
+      color: surfaceOf(p).face ?? componentOf(p.kind).color, // 채널 앞면·시트 색·스카시 도색 — 재료 층 마감 > 종류 모듈의 도색 키 (2026-10-21)
       x: W / 2 + (b.x - b.w / 2) * sx, y: H / 2 - (b.y + b.h / 2) * sy, w: b.w * sx, h: b.h * sy,
     };
   }));

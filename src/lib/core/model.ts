@@ -49,8 +49,15 @@ export interface PartItem {
   image?: { sourceId: string; page: number } | { assetId: string; name?: string };
 }
 /** 구성 요소 (2026-10-16 조합형): 채널·스카시·시트. type = 채널 제품 id / 스카시 제품 id / 시트 id. 시트는 올릴 곳(on: 'frame' 또는 채널 구성 요소 id) */
+/** 재료 층의 마감 (2026-10-21 core/stack.ts): 도색 = options 의 도색 객체 접두사(paintHex/paintLabel 로 읽음), 시트 = 시트 종류 id */
+export interface Finish { kind: 'paint' | 'sheet'; ref: string }
+/** 재료 층: 뒤에서 앞으로 쌓인다. role = 밑판(base)·몸통(body)·면판(face). 마감은 앞면(face)·옆면(side) */
+export interface MaterialLayer { id: string; material: string; thickness: number; role?: 'base' | 'body' | 'face'; face?: Finish; side?: Finish }
+
 export interface SignPart {
   id: string;
+  /** 재료 층 (2026-10-21, 스카시부터): 종류의 기본 묶음에서 시작해 층을 빼고 더한다. 없으면 읽을 때 종류 모듈이 옛 옵션(두께·재질·도색)에서 채운다 */
+  stack?: MaterialLayer[];
   /** light = 상단 조명 (2026-10-19, 몸통 옵션에서 구성 요소로) */
   kind: 'channel' | 'scashi' | 'sheet' | 'light' | 'molding' | 'pole' | 'led';
   type: string;

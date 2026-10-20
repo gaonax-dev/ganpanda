@@ -63,6 +63,7 @@ describe('레지스트리', () => {
 describe('종류 이름 분기 금지 (레지스트리 밖)', () => {
   const ALLOWED: Record<string, number> = {
     'core/catalog.ts': 3, // categoryOf·signParts: 분류 판정 (시트 분류·첫 채널·첫 스카시)
+    'core/stack.ts': 3, // 재료 층 마감 종류(Finish.kind 'sheet') 비교 (2026-10-21) — 구성 요소 종류 비교가 아님
     'core/parts.ts': 3, // partKindsFor·categoryPatch 의 시트 분류 판정, 옛 데이터 변환
     'core/letter3d.ts': 1, // 입체 보기 = 채널 글자
     'core/render.ts': 2, // 옛 형식(letters) 의 첫 채널·스카시

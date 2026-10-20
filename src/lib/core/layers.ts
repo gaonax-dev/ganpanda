@@ -28,7 +28,7 @@ function partLayer(p: SignPart, parts: SignPart[], seen: Set<string>): Layer {
   seen.add(p.id);
   const kids = parts.filter((q) => q.on === p.id && !seen.has(q.id)); // 이 위에 올라온 것(시트)
   return {
-    id: p.id, kind: p.kind, spec: { type: p.type, ...(p.options ?? {}) }, box: { ...FILL },
+    id: p.id, kind: p.kind, spec: { type: p.type, ...(p.options ?? {}), ...(p.stack ? { stack: p.stack } : {}) }, box: { ...FILL }, // 재료 층도 spec 에 (2026-10-21)
     children: [...p.items.map(itemLayer), ...kids.map((q) => partLayer(q, parts, seen))],
   };
 }
@@ -62,8 +62,8 @@ export function toParts(layers: Layer[]): SignPart[] {
       const ax = ox + l.box.x, ay = oy + l.box.y;
       if (isItemKind(l.kind)) { if (parent) parent.items.push(itemOf(l, ax, ay)); continue; }
       if (!isPartKind(l.kind)) { walk(l.children, parent, ax, ay); continue; } // 그룹 등: 투명
-      const { type, ...options } = l.spec as { type?: string } & Record<string, string | boolean>;
-      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), items: [] };
+      const { type, stack, ...options } = l.spec as { type?: string; stack?: SignPart['stack'] } & Record<string, string | boolean>;
+      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), ...(stack ? { stack } : {}), items: [] };
       if (parent || sits(l.kind)) part.on = parent ? parent.id : FRAME_ID;
       out.push(part);
       walk(l.children, part, ax, ay);
@@ -93,8 +93,8 @@ export function placedItems(layers: Layer[], depthOf: (part: SignPart) => number
       const ax = ox + l.box.x, ay = oy + l.box.y;
       if (isItemKind(l.kind)) { if (parent) out.push({ item: itemOf(l, ax, ay), part: parent, z }); continue; }
       if (!isPartKind(l.kind)) { walk(l.children, parent, ax, ay, z); continue; }
-      const { type, ...options } = l.spec as { type?: string } & Record<string, string | boolean>;
-      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), items: [] };
+      const { type, stack, ...options } = l.spec as { type?: string; stack?: SignPart['stack'] } & Record<string, string | boolean>;
+      const part: SignPart = { id: l.id, kind: l.kind as SignPart['kind'], type: String(type ?? ''), ...(Object.keys(options).length ? { options } : {}), ...(stack ? { stack } : {}), items: [] };
       // 이 구성 요소의 자식은 그 두께만큼 더 앞에 (자식 구성 요소·그 내용 객체). 자기 글자(밀어내기)는 z 에서 시작해 두께만큼 솟는다
       walk(l.children, part, ax, ay, z + (parent ? depthOf(parent) : 0));
     }
@@ -110,6 +110,7 @@ export function sameParts(a: SignPart[], b: SignPart[]): boolean {
   const canon = (ps: SignPart[]) => JSON.stringify([...ps].sort((x, y) => x.id.localeCompare(y.id)).map((p) => ({
     id: p.id, kind: p.kind, type: p.type, on: p.on && p.on !== FRAME_ID ? p.on : undefined,
     options: Object.keys(p.options ?? {}).length ? Object.fromEntries(Object.entries(p.options!).sort()) : undefined,
+    stack: p.stack ?? undefined, // 재료 층 (2026-10-21)
     items: p.items.map((it) => ({ id: it.id, kind: it.kind, text: it.text ?? undefined, count: it.count || undefined, x: it.x, y: it.y, h: it.h, w: it.w || undefined, image: it.image })),
   })));
   return canon(a) === canon(b);
@@ -189,7 +190,7 @@ export function mergeParts(layers: Layer[], parts: SignPart[]): Layer[] {
   const parentListOf = (on: string | undefined): Layer[] | null => { if (!on || on === FRAME_ID) return pruned; const f = find(pruned, on); return f && isPartKind(f.layer.kind) ? f.layer.children : null; };
   for (const p of parts) {
     const f = find(pruned, p.id);
-    const spec = { type: p.type, ...(p.options ?? {}) };
+    const spec = { type: p.type, ...(p.options ?? {}), ...(p.stack ? { stack: p.stack } : {}) };
     if (!f) { (parentListOf(p.on) ?? pruned).push({ id: p.id, kind: p.kind, spec, box: { ...FILL }, children: [] }); continue; }
     f.layer.spec = spec;
     const wantParent = !p.on || p.on === FRAME_ID ? null : p.on;

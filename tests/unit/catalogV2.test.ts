@@ -74,12 +74,12 @@ describe('간판', () => {
   });
 });
 
-describe('스카시: 두께 · 재질 · 도색 컬러코드', () => {
-  for (const [id, th] of [['ch-rubber', ['10T', '20T', '30T', '50T']], ['sc-titan', ['1.2T', '10T', '20T']], ['ch-scashi', ['3T', '5T', '8T', '10T']]] as const) {
+describe('스카시: 재료 층(두께·면판) + 도색 컬러코드 (2026-10-21 두께·고무 면판은 재료 층으로)', () => {
+  for (const [id, mats, opt] of [['ch-rubber', ['iron', 'rubber'], ['paintSystem']], ['sc-titan', ['iron', 'rubber', 'titan'], ['material', 'paintSystem']], ['ch-scashi', ['acrylic'], ['material', 'paintSystem']]] as const) {
     it(id, () => {
       const o = obj({ productId: id });
-      expect(keys(o).filter((k) => ['thickness', 'material', 'paintSystem'].includes(k))).toEqual(['thickness', 'material', 'paintSystem']); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
-      expect(values(o, 'thickness')).toEqual(th);
+      expect(keys(o).filter((k) => ['thickness', 'material', 'paintSystem'].includes(k))).toEqual([...opt]); // 도색 객체: 코드·광택은 색상 체계를 고른 뒤 (2026-10-16)
+      expect(partsOf(o)[0].stack!.map((l) => l.material)).toEqual([...mats]);
     });
   }
 });

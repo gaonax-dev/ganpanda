@@ -268,3 +268,5 @@ export function optionValue(f: OptionField, opts: Options): OptionValue {
   if (v !== undefined) return v;
   return f.kind === 'select' ? f.values![0].id : f.kind === 'toggle' ? false : '';
 }
+/** 도색 객체 필드 묶음 (재료 층 마감의 컬러 피커용, 2026-10-21 core/stack.ts) */
+export const paintFields = paint;

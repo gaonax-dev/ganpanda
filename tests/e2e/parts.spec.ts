@@ -36,7 +36,8 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
   const sc = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="scashi"]') });
-  await expect(sc.getByTestId('part-option-thickness')).toBeVisible();
+  await expect(sc.getByTestId('part-stack')).toBeVisible(); // 두께·면판은 재료 층 (2026-10-21)
+  await expect(sc.getByTestId('stack-layer')).toHaveCount(2); // 철판 + 고무
   await sc.getByTestId('add-item-image').click();
   await sc.getByTestId('item-image-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await makePhoto(page) });
   await expect(sc.getByTestId('item-image-name')).toContainText('logo.png');
@@ -181,7 +182,7 @@ test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께
   await expect(page.getByTestId('depth-mm')).toHaveCount(0);
   await page.getByTestId('object-settings').locator('[data-testid="quick-part"][data-kind="scashi"]').click(); // 스카시 탭
   await expect(page.getByTestId('part-card')).toHaveCount(1); // 스카시 분류는 스카시 카드 하나로 시작 (사인물 자체가 스카시)
-  await expect(page.getByTestId('part-card').getByTestId('part-option-thickness')).toBeVisible();
+  await expect(page.getByTestId('part-card').getByTestId('part-stack')).toBeVisible(); // 두께는 재료 층 (2026-10-21)
   await expect(page.getByTestId('option-thickness')).toHaveCount(0); // 몸통 쪽 두께와 겹치지 않음
 });
 
@@ -220,4 +221,44 @@ test('시트 = UV 출력 / 재질 시트, 컷팅은 옵션(돔보컷팅·커팅,
   await expect(page.locator('.line').filter({ hasText: 'UV 출력 돔보컷팅 완컷' })).toHaveCount(1);
   await page.getByTestId('open-quote-sheet').click();
   await expect(page.getByTestId('quote-sheet')).toContainText('“UV 출력 돔보컷팅 완컷 보조시트 + 재질 시트 반사 커팅 완컷”');
+});
+
+test('스카시 재료 층: 고무 스카시 = 철판 + 고무 묶음, 철판을 빼면 고무만(견적 줄에 "철판 없음"), 앞면에 시트를 더하면 시트 줄, 면판 더하기·기본으로 (2026-10-21)', async ({ page, request }) => {
+  // 2026-10-21 사용자: "스카시 선택하면 고무를 선택했다 하고 여기에 기본은 얇은 철판인데 어떤 경우는 고무만 사용하잖아. 나는 이때 결합된 상태로 제공하고 필요한 상태를 추가하고 싶은 거야 시트나 페인트를"
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'scashi');
+  await openObjectSettings(page);
+  const dlg = page.getByTestId('object-settings');
+  await dlg.getByTestId('width-mm').fill('3000');
+  await dlg.getByTestId('height-mm').fill('600');
+  await dlg.locator('[data-testid="quick-part"][data-kind="scashi"]').click(); // 스카시 탭
+  const sc = dlg.getByTestId('part-card').filter({ has: page.locator('[data-kind="scashi"]') });
+  await sc.getByTestId('add-item-text').click();
+  await sc.getByTestId('item-text').fill('간판다');
+  const layers = sc.getByTestId('stack-layer');
+  await expect(layers).toHaveCount(2);
+  await expect(layers.first()).toHaveAttribute('data-material', 'rubber'); // 위가 앞(고무), 아래가 뒤(철판)
+  await expect(layers.last()).toHaveAttribute('data-material', 'iron');
+  await expect(sc.getByTestId('part-stack')).toContainText('21.5T');
+  const depth = () => page.evaluate(() => { const a = (window as unknown as { __ganpanda: { selected: { parts: { stack: { thickness: number }[] }[] } } }).__ganpanda; return a.selected.parts[0].stack.reduce((t, l) => t + l.thickness, 0); });
+  const quoteLabels = () => page.evaluate(() => { const q = (window as unknown as { __ganpanda: { quote: { lines?: { label: string }[] } | { label: string }[] } }).__ganpanda.quote; return (Array.isArray(q) ? q : q.lines ?? []).map((l) => l.label).join(' | '); });
+  // 철판 빼기 → 고무만, 두께 20, 견적 줄에 (철판 없음)
+  await layers.last().getByTestId('layer-delete').click();
+  await expect(layers).toHaveCount(1);
+  expect(await depth()).toBe(20);
+  await expect.poll(quoteLabels).toContain('철판 없음');
+  // 앞면 시트 → 시트 줄
+  await layers.first().getByTestId('layer-face').selectOption('sheet:sh-cut');
+  await expect.poll(quoteLabels).toContain('앞면 시트');
+  // 앞에 면판 더하기 → 2층, 기본으로 → 철판 + 고무
+  await sc.getByTestId('stack-add-top').click();
+  await expect(layers).toHaveCount(2);
+  await expect(layers.first()).toHaveAttribute('data-material', 'alu');
+  await sc.getByTestId('stack-reset').click();
+  await expect(layers).toHaveCount(2);
+  await expect(layers.last()).toHaveAttribute('data-material', 'iron');
+  expect(await depth()).toBe(21.5);
 });

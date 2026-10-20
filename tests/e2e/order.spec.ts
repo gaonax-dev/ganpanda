@@ -89,7 +89,7 @@ test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조�
   await page.getByTestId('object-settings').getByTestId('quick-add').click();
   await page.getByTestId('add-part-scashi').click();
   await page.getByTestId('part-type').selectOption('sc-titan'); // 스카시 탭 (카드 하나)
-  for (const k of ['thickness', 'material']) await expect(page.getByTestId('part-card').getByTestId(`part-option-${k}`)).toBeVisible(); // 스카시 탭
+  await expect(page.getByTestId('part-card').getByTestId('part-stack')).toBeVisible(); // 스카시 탭 — 두께·면판은 재료 층 (2026-10-21)
   await expect(page.getByTestId('part-card').getByTestId('part-option-paint-color')).toBeVisible(); // 도색은 컬러 피커 (2026-10-17)
   await page.getByTestId('close-object-settings').click();
   // 분류 9개 (2026-10-15 분류 재정리): 라이트패널 분류

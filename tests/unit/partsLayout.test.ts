@@ -51,7 +51,7 @@ describe('3D·사진 합성 사양 (renderSpecOf)', () => {
     expect(s.letterItems).toEqual([
       expect.objectContaining({ text: '바로바로', x: -750, y: 50, heightMm: 300, lighting: 'front', depthMm: 80 }),
       expect.objectContaining({ text: '정육점', x: 900, y: -100, heightMm: 150, lighting: 'front' }),
-      expect.objectContaining({ text: 'SINCE', x: 0, y: 175, heightMm: 50, lighting: 'none', depthMm: 20 }),
+      expect.objectContaining({ text: 'SINCE', x: 0, y: 175, heightMm: 50, lighting: 'none', depthMm: 21.5 }), // 고무 20T + 철판 밑판 1.5T (재료 층, 2026-10-21)
     ]);
   });
   it('그림·시트 객체는 상자 앞면에 그린다 (가로·세로도 자리 비율로)', () => {

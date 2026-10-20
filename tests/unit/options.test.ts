@@ -25,10 +25,12 @@ describe('주문 사양 옵션 스키마', () => {
     expect(rubber.map((g) => g.title)).toEqual(['시공 보조 부속품']);
     expect(rubber[0].fields.map((f) => f.key)).toEqual(['paperTemplate', 'acrylicGuide', 'frontSheetAttached']);
     const partKeys = (id: string) => partOptionFields(partsOf(obj({ productId: id }))[0]).map((f) => f.key);
-    expect(partKeys('ch-rubber')).toEqual(['thickness', 'material', 'paintSystem']); // 두께·재질·도색
+    // 두께·면판은 재료 층(core/stack.ts, 2026-10-21) — 옵션엔 도색(맨 위 층 앞면)·티타늄 마감·아크릴 종류만
+    expect(partKeys('ch-rubber')).toEqual(['paintSystem']);
     expect(partKeys('sc-titan')).toContain('finish');
-    expect(partKeys('ch-scashi')).toEqual(expect.arrayContaining(['thickness', 'script']));
-    expect(describeOptions(obj({ productId: 'ch-rubber', options: { thickness: '30T' } }))).toContain('30T'); // 옛 값은 구성 요소로 요약
+    expect(partKeys('ch-scashi')).toEqual(expect.arrayContaining(['material', 'script', 'paintSystem']));
+    expect(partKeys('ch-scashi')).not.toContain('thickness');
+    expect(describeOptions(obj({ productId: 'ch-rubber', options: { thickness: '30T' } })).join(' ')).toContain('고무 30T'); // 옛 값은 구성 요소(재료 층)로 요약
   });
   it('시트: 코팅 + 종류별 + 컷팅(컷팅·컷 방식·완컷이면 보조시트) — 2026-10-16 컷팅은 옵션', () => {
     expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['coating', 'base', 'ink', 'cut', 'cutMode', 'transferTape']);

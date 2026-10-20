@@ -15,6 +15,9 @@
   import { layersOf } from '../core/layers';
   import { commitLayers } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
+  import { STACK_MATERIALS, addLayer, defaultStack, finishOption, removeLayer, setFinish, stackDepth, updateLayer } from '../core/stack';
+  import { sheetsForPicker } from '../core/catalog';
+  import type { Finish, MaterialLayer } from '../core/model';
   import { charCountOf } from '../core/quote';
   import FrontEditor from './FrontEditor.svelte';
   import ColorField from './ColorField.svelte';
@@ -30,6 +33,15 @@
   const addPart = (kind: SignPart['kind'], type?: string) => edit((ps) => ps.push(newPart(kind, type)));
   const setPart = (i: number, patch: Partial<SignPart>) => edit((ps) => Object.assign(ps[i], patch));
   const setPartOption = (i: number, f: OptionField, v: string | boolean) => edit((ps) => { ps[i].options = { ...(ps[i].options ?? {}), [f.key]: v }; });
+  /** 재료 층 (2026-10-21 "결합된 상태로 제공하고 필요한 상태를 추가" — 철판 빼기, 면판·시트·도색 더하기) */
+  const setStack = (i: number, stack: MaterialLayer[]) => edit((ps) => { ps[i].stack = stack; });
+  function setLayerFinish(i: number, l: MaterialLayer, w: 'face' | 'side', v: string) {
+    const stack = parts[i].stack!;
+    let f: Finish | null = null;
+    if (v === 'paint') f = { kind: 'paint', ref: finishOption(l, w) === 'paint' ? l[w]!.ref : w === 'face' && l.id === stack[stack.length - 1].id ? 'paint' : `${l.id}.${w}` }; // 맨 위 층 앞면은 옛 도색 접두사 그대로
+    else if (v.startsWith('sheet:')) f = { kind: 'sheet', ref: v.slice(6) };
+    setStack(i, setFinish(stack, l.id, w, f));
+  }
   const delPart = (i: number) => edit((ps) => {
     const gone = ps[i].id;
     ps.splice(i, 1);
@@ -107,6 +119,39 @@
         {/if}
         {#if !ro}<button class="icon del" data-testid="part-delete" title="구성 요소 지우기" onclick={() => delPart(i)}>✕</button>{/if}
       </div>
+      {#if p.stack}
+        <!-- 재료 층 (2026-10-21): 뒤(맨 아래 줄)에서 앞(맨 위 줄)으로 — 밑판 철판 + 고무 … 층을 빼고 더하고, 층마다 앞면·옆면 마감(도색·시트) -->
+        <div class="stack" data-testid="part-stack">
+          <div class="stack-head"><b>재료 층</b><small>두께 합 {Math.round(stackDepth(p.stack) * 10) / 10}T · 아래가 뒤(벽 쪽), 위가 앞</small>
+            {#if !ro}<button class="btn small" data-testid="stack-reset" title="종류의 기본 묶음으로" onclick={() => setStack(i, defaultStack(p.type))}>기본으로</button>{/if}</div>
+          {#each [...p.stack].reverse() as l (l.id)}
+            <div class="layer" data-testid="stack-layer" data-role={l.role ?? ''} data-material={l.material}>
+              <select data-testid="layer-material" value={l.material} disabled={ro} onchange={(e) => setStack(i, updateLayer(p.stack!, l.id, { material: e.currentTarget.value }))}>
+                {#each STACK_MATERIALS as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+              </select>
+              <label class="t"><input type="number" data-testid="layer-thickness" min="0" step="0.5" value={l.thickness} disabled={ro} onchange={(e) => setStack(i, updateLayer(p.stack!, l.id, { thickness: Math.max(0, Number(e.currentTarget.value) || 0) }))} />T</label>
+              <label class="fin">앞면
+                <select data-testid="layer-face" value={finishOption(l, 'face')} disabled={ro} onchange={(e) => setLayerFinish(i, l, 'face', e.currentTarget.value)}>
+                  <option value="none">마감 없음</option><option value="paint">도색</option>
+                  {#each sheetsForPicker() as sh (sh.id)}<option value="sheet:{sh.id}">{sh.name}</option>{/each}
+                </select>
+              </label>
+              <label class="fin">옆면
+                <select data-testid="layer-side" value={finishOption(l, 'side')} disabled={ro} onchange={(e) => setLayerFinish(i, l, 'side', e.currentTarget.value)}>
+                  <option value="none">마감 없음</option><option value="paint">도색</option>
+                </select>
+              </label>
+              {#if !ro}<button class="icon del" data-testid="layer-delete" title="이 층 빼기 (예: 철판 없이 고무만)" disabled={p.stack.length <= 1} onclick={() => setStack(i, removeLayer(p.stack!, l.id))}>✕</button>{/if}
+            </div>
+          {/each}
+          {#if !ro}
+            <div class="row">
+              <button class="btn small" data-testid="stack-add-top" title="맨 앞에 면판 더하기" onclick={() => setStack(i, addLayer(p.stack!, { material: 'alu', thickness: 1, role: 'face' }, 'top'))}>+ 앞에 면판</button>
+              <button class="btn small" data-testid="stack-add-bottom" title="맨 뒤에 밑판 더하기" onclick={() => setStack(i, addLayer(p.stack!, { material: 'iron', thickness: 1.5, role: 'base' }, 'bottom'))}>+ 뒤에 밑판</button>
+            </div>
+          {/if}
+        </div>
+      {/if}
       <div class="opts">
         {#each partOptionFields(p) as f (f.key + (f.paint?.part ?? ''))}
           {@const v = optionValue(f, p.options ?? {})}
@@ -186,6 +231,16 @@
   .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .head .del { margin-left: auto; }
   .opts { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0; }
+  .stack { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; padding: 6px 8px; border: 1px dashed var(--line); border-radius: 8px; }
+  .stack-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .stack-head small { color: var(--muted); flex: 1; }
+  .layer { display: flex; align-items: center; gap: 6px; font-size: 12px; flex-wrap: wrap; }
+  .layer select { min-width: 0; width: auto; }
+  .layer > select { flex: 0 1 150px; }
+  .layer .t { display: flex; align-items: center; gap: 2px; }
+  .layer .t input { width: 56px; text-align: right; }
+  .layer .fin { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+  .stack .row { display: flex; gap: 6px; }
   .opt { display: flex; flex-direction: row; align-items: center; font-size: 12px; gap: 6px; } /* 가로 한 줄 (2026-10-18) */
   .opt > select, .opt > input { min-width: 0; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 4px; }

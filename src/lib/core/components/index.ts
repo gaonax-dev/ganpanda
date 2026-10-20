@@ -1,5 +1,6 @@
 // 구성 요소 레지스트리 (레이어 구조 0단계, 2026-10-18). 새 종류: 모듈을 만들고 여기 한 줄 — 코어·UI·3D 는 종류 이름으로 분기하지 않는다
 import type { SignPart } from '../model';
+import { paintHex } from '../materials';
 import type { Component } from './types';
 import { channel } from './channel';
 import { scashi } from './scashi';
@@ -19,3 +20,8 @@ export function componentOf(kind: SignPart['kind'] | string): Component {
   return c;
 }
 export const componentKinds = (): SignPart['kind'][] => COMPONENTS.map((c) => c.kind);
+/** 앞면·옆면 색(hex): 재료 층이 있으면 그 마감, 아니면 종류의 도색 키 (2D·3D 가 같은 자리를 본다, 2026-10-21) */
+export function surfaceOf(part: SignPart): { face: string | null; side: string | null; faceSheet?: string } {
+  const c = componentOf(part.kind);
+  return c.surface?.(part) ?? { face: paintHex(part.options, c.paint.face), side: paintHex(part.options, c.paint.side) };
+}

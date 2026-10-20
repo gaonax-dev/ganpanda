@@ -73,7 +73,7 @@ export function partsOf(o: SignObject): SignPart[] {
   const withLight = (ps: SignPart[]) => { const ll = legacyLight(o, ps); return ll ? [...ps, ll] : ps; };
   if (id && SCASHI_SET.has(id)) {
     // 스카시 분류: 사인물 자체가 스카시 → 스카시 구성 요소 하나 (옵션·글자 그대로)
-    out.push({ id: 'legacy-scashi', kind: 'scashi', type: id, options: pick(opts, ['thickness', 'material', 'paintSystem', 'paintCode', 'paintGloss', 'finish', 'script']), items: textItem(o.heightMm, 'legacy-scashi-text') });
+    out.push(normalizePart({ id: 'legacy-scashi', kind: 'scashi', type: id, options: pick(opts, ['thickness', 'material', 'paintSystem', 'paintCode', 'paintGloss', 'finish', 'script']), items: textItem(o.heightMm, 'legacy-scashi-text') })); // 옛 두께·재질 → 재료 층 (2026-10-21)
     return out;
   }
   const legacyChannel = isChannelProduct(id);

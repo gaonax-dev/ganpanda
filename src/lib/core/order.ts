@@ -1,5 +1,6 @@
 // 주문 (2026-10-14): 프로젝트 주문 정보 + 사인물 사양 + 파일 → 주문서·JSON
 import { partLabel, partsOf, signTextOf } from './parts';
+import { finishLabel, stackMaterialLabel } from './stack';
 import { partSupplierLabel } from './terms';
 
 /** 구성 요소의 공급사 용어 (연결된 공급사가 있고 이름이 다를 때) */
@@ -30,7 +31,7 @@ export interface OrderInfo {
 export interface OrderItem {
   id: string;
   /** 조합형 구성 요소 (2026-10-16) */
-  parts?: { kind: string; type: string; label: string; /** 연결 공급사 id · 그 공급사의 용어 (2026-10-19) */ supplier?: string; supplier_label?: string; on?: string; options: Record<string, string | boolean>; items: Omit<import('./model').PartItem, 'id'>[] }[];
+  parts?: { kind: string; type: string; label: string; /** 연결 공급사 id · 그 공급사의 용어 (2026-10-19) */ supplier?: string; supplier_label?: string; on?: string; /** 재료 층 (2026-10-21): 뒤→앞, 마감은 앞면·옆면 */ stack?: { material: string; thickness_mm: number; role?: string; face?: string; side?: string }[]; options: Record<string, string | boolean>; items: Omit<import('./model').PartItem, 'id'>[] }[];
   name: string;
   category: string;
   type: string;
@@ -83,7 +84,7 @@ export function orderJson(args: {
       options: effectiveOptions(o),
       option_summary: describeOptions(o, { defaults: true }),
       // 조합형 구성 요소 (2026-10-16): 종류·이름·옵션(기본값 포함)·글자·그림
-      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...supplierFields(p, prices), ...(p.on ? { on: p.on } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
+      ...(partsOf(o).length ? { parts: partsOf(o).map((p) => ({ kind: p.kind, type: p.type, label: partLabel(p), ...supplierFields(p, prices), ...(p.on ? { on: p.on } : {}), ...(p.stack ? { stack: p.stack.map((l) => ({ material: stackMaterialLabel(l.material), thickness_mm: l.thickness, ...(l.role ? { role: l.role } : {}), ...(finishLabel(l, 'face', p.options) ? { face: finishLabel(l, 'face', p.options)! } : {}), ...(finishLabel(l, 'side', p.options) ? { side: finishLabel(l, 'side', p.options)! } : {}) })) } : {}), options: effectivePartOptions(p), items: p.items.map(({ id: _id, ...it }) => it) })) } : {}),
       ...(sz ? { size: { width_mm: Math.round(sz.w), height_mm: Math.round(sz.h), ...(o.depthMm ? { depth_mm: Math.round(o.depthMm) } : {}), estimated: sz.estimated } } : {}),
       ...(signTextOf(o) ? { text: signTextOf(o) } : {}), // 문구가 없으면 구성내역 (2026-10-16)
       ...(src ? { design_file: `${src.name} (${o.design!.page + 1}쪽)` } : {}),
