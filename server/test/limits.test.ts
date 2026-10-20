@@ -25,10 +25,10 @@ beforeEach(async () => {
 });
 
 describe('요금제 표 (2026-10-17 → 2026-10-21 "무료사용 100mb로 … 동시접속은 2인으로 … 다른 요금제도 1.5배로 … 맴버가입수이다")', () => {
-  it('무료 100MB·멤버 2명·제안 월 3건·브랜딩, 베이직 5GB·멤버 3명·3만원, 프로 20GB·멤버 8명·6만원. 옛 starter 는 베이직으로', () => {
+  it('무료 100MB·멤버 2명·제안 월 3건·브랜딩, 베이직 5GB·멤버 5명·3만원, 프로 20GB·멤버 10명·6만원 (2026-10-21 "베이직 5명 프로 10명"). 옛 starter 는 베이직으로', () => {
     expect(PLANS.free).toMatchObject({ storageBytes: 100 * MB, members: 2, proposalsPerMonth: 3, branding: true, priceKrw: 0 });
-    expect(PLANS.basic).toMatchObject({ storageBytes: 5 * 1024 * MB, members: 3, proposalsPerMonth: null, branding: false, priceKrw: 30000 });
-    expect(PLANS.pro).toMatchObject({ storageBytes: 20 * 1024 * MB, members: 8, proposalsPerMonth: null, branding: false, priceKrw: 60000 });
+    expect(PLANS.basic).toMatchObject({ storageBytes: 5 * 1024 * MB, members: 5, proposalsPerMonth: null, branding: false, priceKrw: 30000 });
+    expect(PLANS.pro).toMatchObject({ storageBytes: 20 * 1024 * MB, members: 10, proposalsPerMonth: null, branding: false, priceKrw: 60000 });
     expect(planOf('starter')).toBe(PLANS.basic);
     expect(planOf('없는요금제')).toBe(PLANS.free);
   });
@@ -93,7 +93,7 @@ describe('동시 접속은 막지 않는다 — 한도는 멤버 수 (2026-10-21
 describe('멤버 한도 (설정의 팀 멤버, 소유자 제외 — 무료 2명)', () => {
   const add = (email: string) => api('/api/me/team', { method: 'POST', body: JSON.stringify({ email }), headers: { 'content-type': 'application/json', authorization: `Bearer ${owner}` } });
   const member = async () => { const e = `mem-${crypto.randomUUID().slice(0, 8)}@example.com`; await login(e); return e; };
-  it('무료는 2명까지, 3번째는 403 member_limit — 이미 있는 멤버를 다시 보내면(설정 바꾸기) 괜찮다. 베이직은 3명', async () => {
+  it('무료는 2명까지, 3번째는 403 member_limit — 이미 있는 멤버를 다시 보내면(설정 바꾸기) 괜찮다. 베이직은 5명', async () => {
     const [a, b, c] = [await member(), await member(), await member()];
     expect((await add(a)).status).toBe(201);
     expect((await add(b)).status).toBe(201);
@@ -106,6 +106,8 @@ describe('멤버 한도 (설정의 팀 멤버, 소유자 제외 — 무료 2명)
     expect(me.limits.members).toBe(2);
     await env.DB.prepare('UPDATE accounts SET plan = ? WHERE id = ?').bind('basic', ownerId).run();
     expect((await add(c)).status).toBe(201);
+    expect((await add(await member())).status).toBe(201);
+    expect((await add(await member())).status).toBe(201);
     expect((await add(await member())).status).toBe(403);
   });
 });
@@ -167,7 +169,7 @@ describe('개발 모드 요금제 바꾸기 (PUT /api/me/plan)', () => {
     expect(r.status).toBe(200);
     const me = await (await get('/api/me', owner)).json<{ account: { plan: string }; limits: { members: number } }>();
     expect(me.account.plan).toBe('pro');
-    expect(me.limits.members).toBe(8);
+    expect(me.limits.members).toBe(10);
     expect((await api('/api/me/plan', { method: 'PUT', body: JSON.stringify({ plan: 'vip' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${owner}` } })).status).toBe(400);
   });
 });

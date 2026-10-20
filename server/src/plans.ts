@@ -1,6 +1,6 @@
 // 요금제 (기준표, 2026-10-17 개편). 결제는 미구현 — accounts.plan 은 관리자가 바꾼다.
 // 멤버 = 설정에서 소유자가 추가한 팀 멤버 수(소유자 제외). 2026-10-21 사용자: "동시접속이라고 했는데 맴버가입수이다" — 동시 접속 좌석 제한은 없앴다.
-// 무료 2명, 다른 요금제는 옛 좌석 수의 1.5배(베이직 2→3, 프로 5→7.5 를 올려 8). 무료 용량 500MB → 100MB.
+// 무료 2명, 베이직 5명, 프로 10명(2026-10-21 "베이직 5명 프로 10명" — 같은 날의 1.5배 3·8명을 대체). 무료 용량 500MB → 100MB.
 // 무료는 제안 링크 월 건수와 제안 페이지 브랜딩으로 구분한다.
 export interface Plan {
   name: string;
@@ -18,8 +18,8 @@ const GB = 1024 * MB;
 
 export const PLANS = {
   free: { name: '무료', storageBytes: 100 * MB, members: 2, proposalsPerMonth: 3, branding: true, priceKrw: 0 },
-  basic: { name: '베이직', storageBytes: 5 * GB, members: 3, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
-  pro: { name: '프로', storageBytes: 20 * GB, members: 8, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
+  basic: { name: '베이직', storageBytes: 5 * GB, members: 5, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
+  pro: { name: '프로', storageBytes: 20 * GB, members: 10, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
 } as const satisfies Record<string, Plan>;
 
 export type PlanId = keyof typeof PLANS;
