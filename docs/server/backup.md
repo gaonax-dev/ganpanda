@@ -21,18 +21,27 @@ Cloudflare 자체 보호도 있다: D1 은 최근 30일 시점 복원(Time Trave
 ```
 cd server
 npx wrangler r2 bucket create ganpanda-backup
-npx wrangler secret put ADMIN_TOKEN        # 운영자 복원 API 비밀값 (길고 무작위로)
+openssl rand -hex 32 | tee ~/.ganpanda-admin-token | npx wrangler secret put ADMIN_TOKEN && chmod 600 ~/.ganpanda-admin-token   # 운영자 API 비밀값 — 대화형 입력이 안 되는 셸에서도
 npm run deploy
 ```
+
+## 백업 확인
+Wrangler 에는 R2 목록 명령이 없다(`r2 object` 는 get·put·delete 만) → 운영자 API 로 본다. 토큰은 `~/.ganpanda-admin-token`.
+```
+curl -s -X POST https://sync.ganpanda.co.kr/api/admin/backups \
+  -H "authorization: Bearer $(cat ~/.ganpanda-admin-token)" -H 'content-type: application/json' \
+  -d '{"prefix":"d1/"}'
+```
+`prefix` 예: `d1/` (D1), `rooms/<프로젝트>/` (그 프로젝트 버전), 비우면 전체. 응답 `{objects:[{key, size, uploaded, kind?}], cursor}` — `cursor` 가 있으면 `{"cursor":"..."}` 를 더해 다음. 대시보드(R2 → ganpanda-backup)에서도 볼 수 있다.
 
 ## 복원 절차
 
 ### 프로젝트 하나 (문서가 망가졌거나 잃어버림)
-1. 백업 파일 고르기: `npx wrangler r2 object list ganpanda-backup --prefix rooms/<프로젝트>/` (날짜별)
+1. 백업 파일 고르기: 위 "백업 확인"에서 `prefix` 를 `rooms/<프로젝트>/` 로 (날짜별)
 2. 되돌리기:
 ```
 curl -X POST https://sync.ganpanda.co.kr/api/admin/restore \
-  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -H "authorization: Bearer $(cat ~/.ganpanda-admin-token)" -H 'content-type: application/json' \
   -d '{"project":"<프로젝트>","key":"rooms/<프로젝트>/<날짜>.bin","mode":"revert"}'
 ```
    - `revert`: 지금 내용(사진·사인물·말풍선·디자인 소스·설정)을 백업 내용으로 바꾼다. **대화는 남긴다.** 접속 중인 사람에게도 바로 반영. 설정 `restored` 에 누가·언제·어느 파일로.
@@ -42,7 +51,7 @@ curl -X POST https://sync.ganpanda.co.kr/api/admin/restore \
 ### 사진 (사진 버킷에서 파일이 사라짐)
 ```
 curl -X POST https://sync.ganpanda.co.kr/api/admin/restore-assets \
-  -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' -d '{}'
+  -H "authorization: Bearer $(cat ~/.ganpanda-admin-token)" -H 'content-type: application/json' -d '{}'
 ```
 응답 `{copied, cursor}` — `cursor` 가 null 이 아니면 `{"cursor":"..."}` 로 다시 부른다(한 번에 300개). 사진 버킷에 없는 것만 복사.
 
@@ -50,7 +59,7 @@ curl -X POST https://sync.ganpanda.co.kr/api/admin/restore-assets \
 - **30일 안**: Cloudflare Time Travel 이 가장 쉽다 — `npx wrangler d1 time-travel info ganpanda`, `npx wrangler d1 time-travel restore ganpanda --timestamp <ISO 시각>`.
 - **백업 파일로**: 
 ```
-npx wrangler r2 object get ganpanda-backup/d1/<날짜>.json.gz --file d1.json.gz
+npx wrangler r2 object get ganpanda-backup/d1/<날짜>.json.gz --remote --file d1.json.gz
 node scripts/d1-restore.ts d1.json.gz > restore.sql      # 표마다 INSERT OR REPLACE
 npx wrangler d1 execute ganpanda --remote --file restore.sql
 ```

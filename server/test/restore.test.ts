@@ -14,6 +14,14 @@ describe('운영자 복원 (ADMIN_TOKEN)', () => {
     expect((await admin('/api/admin/restore', {}, 'wrong')).status).toBe(401);
   });
 
+  it('백업 목록 보기 — prefix 로 (wrangler 에 r2 목록 명령이 없어서, 2026-10-21)', async () => {
+    await env.BACKUP.put('d1/2026-01-02.json.gz', 'x');
+    const r = await admin('/api/admin/backups', { prefix: 'd1/' });
+    expect(r.status).toBe(200);
+    const j = await r.json<{ objects: { key: string; size: number; uploaded: string }[]; cursor: string | null }>();
+    expect(j.objects.some((o) => o.key === 'd1/2026-01-02.json.gz' && o.size === 1)).toBe(true);
+  });
+
   it('잃어버린 문서: 백업을 빈 방에 그대로 합친다(merge) — 다른 프로젝트 자리로도', async () => {
     const s = await login(`rs-${crypto.randomUUID().slice(0, 8)}@example.com`);
     const p = await createProject(s);

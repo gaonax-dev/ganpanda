@@ -10,6 +10,13 @@ export async function handleAdmin(req: Request, env: Env, pathname: string): Pro
   if (req.headers.get('authorization') !== `Bearer ${token}`) return text('unauthorized', 401);
   if (req.method !== 'POST') return text('method', 405);
 
+  // 백업 목록 (2026-10-21 — wrangler 에 r2 목록 명령이 없다): prefix 예 d1/ · rooms/<프로젝트>/, cursor 로 다음
+  if (pathname === '/api/admin/backups') {
+    const body = await readJson<{ prefix?: string; cursor?: string }>(req).catch(() => null);
+    const list = await env.BACKUP.list({ prefix: body?.prefix || undefined, cursor: body?.cursor || undefined, limit: 500, include: ['customMetadata'] });
+    return json({ objects: list.objects.map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded.toISOString(), ...(o.customMetadata?.kind ? { kind: o.customMetadata.kind } : {}) })), cursor: list.truncated ? list.cursor : null });
+  }
+
   // 프로젝트 문서 복원: key = 백업 파일(rooms/<id>/<날짜>.bin 등), mode = merge(잃어버린·빈 방에 그대로 합침) | revert(지금 내용을 백업 내용으로 바꿈, 대화는 남김)
   if (pathname === '/api/admin/restore') {
     const body = await readJson<{ project?: string; key?: string; mode?: string }>(req);

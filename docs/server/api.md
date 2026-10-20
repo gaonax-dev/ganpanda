@@ -92,6 +92,7 @@
 |---|---|---|---|
 | POST | `/api/admin/restore` `{project, key, mode: merge\|revert}` (Bearer ADMIN_TOKEN) | 백업 파일로 프로젝트 문서 복원 — merge = 그대로 합침, revert = 내용 바꿈(대화 유지) | `{ok}` / 400 / 401 / 404 |
 | POST | `/api/admin/restore-assets` `{cursor?}` (Bearer ADMIN_TOKEN) | 백업에만 있는 사진을 사진 버킷으로 (300개씩) | `{copied, cursor}` |
+| POST | `/api/admin/backups` `{prefix?, cursor?}` (Bearer ADMIN_TOKEN) | 백업 목록 (500개씩) — wrangler 에 R2 목록 명령이 없어서 | `{objects:[{key, size, uploaded, kind?}], cursor}` |
 
 ## 버전 기록 (2026-10-21, 유료 — 무료 402) → [backup.md](backup.md)
 | 메서드 | 경로 | 설명 | 응답 |
