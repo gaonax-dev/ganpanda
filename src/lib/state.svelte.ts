@@ -739,7 +739,7 @@ class AppState {
    */
   async beatPresence() {
     if (!SERVER_URL || !this.account || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
-    try { this.sessionConflict = (await sendPresence()).others > 0; }
+    try { const r = await sendPresence(); this.sessionConflict = r.others + 1 > (r.allowed ?? 1); } // 기기 2대까지는 함께 (2026-10-21)
     catch (e) {
       if (e instanceof AuthError && e.status === 401) {
         this.sessionConflict = false;

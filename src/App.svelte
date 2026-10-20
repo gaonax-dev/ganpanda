@@ -168,7 +168,7 @@
       {#if app.sessionConflict}
         <!-- 같은 아이디 동시 사용 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지") -->
         <div class="banner warn" data-testid="session-conflict">
-          같은 아이디가 지금 다른 기기에서도 사용 중입니다. 어느 쪽을 로그아웃할까요?
+          같은 아이디를 지금 3대 이상의 기기에서 쓰고 있습니다(2대까지 함께 쓸 수 있습니다). 어느 쪽을 로그아웃할까요?
           <button class="btn small primary" data-testid="conflict-logout-others" onclick={() => app.logoutOtherDevices()}>다른 곳 로그아웃</button>
           <button class="btn small" data-testid="conflict-logout-here" onclick={() => app.logout()}>여기서 로그아웃</button>
         </div>

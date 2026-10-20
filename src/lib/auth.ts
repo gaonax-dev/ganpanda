@@ -95,7 +95,7 @@ export function deviceId(): string {
   } catch { return 'no-storage'; }
 }
 /** 사용 중 신호 — 지금 다른 기기에서도 이 아이디를 쓰는 곳의 수 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록") */
-export const sendPresence = () => call<{ others: number }>('/api/me/presence', { method: 'POST', body: JSON.stringify({ device: deviceId() }) });
+export const sendPresence = () => call<{ others: number; /** 함께 쓸 수 있는 기기 수 (2026-10-21: 2) */ allowed?: number }>('/api/me/presence', { method: 'POST', body: JSON.stringify({ device: deviceId() }) });
 /** [다른 곳 로그아웃] — 이 기기 말고 이 아이디의 다른 세션을 모두 끊는다 */
 export const logoutOthers = () => call<{ ok: boolean }>('/api/me/logout-others', { method: 'POST', body: JSON.stringify({ device: deviceId() }) });
 

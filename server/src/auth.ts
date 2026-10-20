@@ -1,5 +1,6 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
 import { PLANS } from './plans';
+import { DEVICES_ALLOWED } from './account';
 import { regionsOf } from './requests';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { hashPassword, validPassword, verifyPassword } from './password';
@@ -188,7 +189,7 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     const body = await readJson<{ device?: string }>(req);
     const device = typeof body?.device === 'string' ? body.device.slice(0, 64) : '';
     if (!device) return text('bad device', 400);
-    return json({ others: await env.ACCOUNT.getByName(me.id).beat(device, me.sessionHash) });
+    return json({ others: await env.ACCOUNT.getByName(me.id).beat(device, me.sessionHash), allowed: DEVICES_ALLOWED });
   }
   if (pathname === '/api/me/logout-others' && req.method === 'POST') {
     const body = await readJson<{ device?: string }>(req);

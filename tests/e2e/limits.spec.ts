@@ -36,32 +36,39 @@ test('멤버 한도: 무료는 설정에서 멤버 2명까지, 3번째는 요금
   await expect(page.getByTestId('member-error')).toContainText('2명까지');
 });
 
-test('같은 아이디를 두 기기에서 동시에 쓰면 어느 쪽을 로그아웃할지 묻고, [다른 곳 로그아웃]이면 다른 기기는 로그아웃된다 (2026-10-21)', async ({ page, request, browser }) => {
-  // 2026-10-21 사용자: "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지"
+test('같은 아이디는 기기 2대까지 함께 쓰고, 3번째 기기가 쓰면 어느 쪽을 로그아웃할지 묻는다 — [다른 곳 로그아웃]이면 나머지 기기는 로그아웃 (2026-10-21)', async ({ page, request, browser }) => {
+  // 2026-10-21 사용자: "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지" → "아이디 같이 사용되는거 2개까지는 허용"
   const { session } = await openOwnedProject(page, request);
   const email = (await (await request.get(`${SERVER}/api/me`, { headers: { authorization: `Bearer ${session}` } })).json()).account.email as string;
   const beat = (p: import('@playwright/test').Page) => p.evaluate(() => (window as unknown as { __ganpanda: { beatPresence(): Promise<void> } }).__ganpanda.beatPresence());
+  const device = async (name: string) => {
+    const s = await apiLogin(request, email);
+    const ctx = await browser.newContext();
+    const p = await ctx.newPage();
+    await p.goto('/');
+    await p.evaluate(({ s, name }) => { localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', name); }, { s, name });
+    await p.goto('/');
+    await expect(p.getByTestId('account-menu')).toBeVisible();
+    return { p, ctx };
+  };
   await beat(page);
-  await expect(page.getByTestId('session-conflict')).toHaveCount(0); // 혼자 쓰면 아무 일 없음
-  // 다른 기기(다른 브라우저)에서 같은 아이디로 로그인
-  const s2 = await apiLogin(request, email);
-  const ctx = await browser.newContext();
-  const other = await ctx.newPage();
-  await other.goto('/');
-  await other.evaluate((s) => { localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', '다른기기'); }, s2);
-  await other.goto('/');
-  await expect(other.getByTestId('session-conflict')).toBeVisible();
+  await expect(page.getByTestId('session-conflict')).toHaveCount(0);
+  // 2번째 기기 — 허용, 아무것도 묻지 않는다
+  const second = await device('둘째');
+  await beat(second.p); await beat(page);
+  await expect(second.p.getByTestId('session-conflict')).toHaveCount(0);
+  await expect(page.getByTestId('session-conflict')).toHaveCount(0);
+  // 3번째 기기 → 모두에게 물음
+  const third = await device('셋째');
+  await expect(third.p.getByTestId('session-conflict')).toBeVisible();
   await beat(page);
   await expect(page.getByTestId('session-conflict')).toBeVisible();
-  // 다른 기기에서 [다른 곳 로그아웃] → 이쪽은 다음 신호에서 로그아웃
-  await other.getByTestId('conflict-logout-others').click();
-  await expect(other.getByTestId('session-conflict')).toHaveCount(0);
-  await beat(page);
+  await third.p.getByTestId('conflict-logout-others').click();
+  await expect(third.p.getByTestId('session-conflict')).toHaveCount(0);
+  await beat(page); await beat(second.p);
   await expect(page.getByTestId('notice')).toContainText('다른 곳에서 로그아웃');
-  await expect(page.getByTestId('session-conflict')).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem('ganpanda.session'))).toBeNull();
-  // 남은 기기는 로그인 그대로
-  await other.reload();
-  await expect(other.getByTestId('account-menu')).toBeVisible();
-  await ctx.close();
+  await expect(second.p.getByTestId('notice')).toContainText('다른 곳에서 로그아웃');
+  await third.p.reload();
+  await expect(third.p.getByTestId('account-menu')).toBeVisible();
+  await second.ctx.close(); await third.ctx.close();
 });

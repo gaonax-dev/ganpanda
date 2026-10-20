@@ -114,18 +114,18 @@ describe('멤버 한도 (설정의 팀 멤버, 소유자 제외 — 무료 2명)
 
 describe('같은 아이디 동시 사용 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지")', () => {
   const beat = (session: string, device: string) => api('/api/me/presence', { method: 'POST', body: JSON.stringify({ device }), headers: { 'content-type': 'application/json', authorization: `Bearer ${session}` } });
-  it('다른 기기가 지금 쓰고 있으면 others 로 알려 주고, [다른 곳 로그아웃]하면 그 기기 세션이 끊긴다. 같은 기기의 탭은 동시 사용이 아니다', async () => {
+  it('기기 2대까지는 함께 써도 된다(allowed 2) — 3번째 기기가 쓰면 others 2 로 알리고, [다른 곳 로그아웃]하면 다른 기기 세션이 끊긴다. 같은 기기의 탭은 하나 (2026-10-21 "아이디 같이 사용되는거 2개까지는 허용")', async () => {
     const email = `same-${crypto.randomUUID().slice(0, 8)}@example.com`;
-    const s1 = await login(email), s2 = await login(email);
-    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 });
-    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 }); // 같은 기기 다른 탭
-    expect(await (await beat(s2, 'laptop')).json()).toEqual({ others: 1 });
-    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 1 });
-    const r = await api('/api/me/logout-others', { method: 'POST', body: JSON.stringify({ device: 'phone' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${s1}` } });
+    const s1 = await login(email), s2 = await login(email), s3 = await login(email);
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0, allowed: 2 });
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0, allowed: 2 }); // 같은 기기 다른 탭
+    expect(await (await beat(s2, 'laptop')).json()).toEqual({ others: 1, allowed: 2 }); // 2대 — 허용
+    expect(await (await beat(s3, 'tablet')).json()).toEqual({ others: 2, allowed: 2 }); // 3대째
+    const r = await api('/api/me/logout-others', { method: 'POST', body: JSON.stringify({ device: 'tablet' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${s3}` } });
     expect(r.status).toBe(200);
-    expect((await get('/api/me', s2)).status).toBe(401);
+    expect((await get('/api/me', s1)).status).toBe(401);
     expect((await beat(s2, 'laptop')).status).toBe(401);
-    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 });
+    expect(await (await beat(s3, 'tablet')).json()).toEqual({ others: 0, allowed: 2 });
   });
 });
 

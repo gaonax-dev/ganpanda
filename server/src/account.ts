@@ -8,6 +8,8 @@ import { DurableObject } from 'cloudflare:workers';
 export const SEAT_TTL = 90_000;
 /** 사용 중 신호는 30초마다 — 70초 넘게 없으면 그 기기는 쓰지 않는 것 */
 export const PRESENCE_TTL = 70_000;
+/** 같은 아이디를 함께 쓸 수 있는 기기 수 (2026-10-21 "아이디 같이 사용되는거 2개까지는 허용") — 넘으면 앱이 로그아웃을 묻는다 */
+export const DEVICES_ALLOWED = 2;
 
 export interface SeatResult { ok: boolean; used: number; limit: number }
 
