@@ -491,3 +491,19 @@ test('말풍선 창에도 녹음: 사인물 말풍선에서 녹음하면 그 사
   await prec.click();
   await expect.poll(async () => (await msgs()).filter((m) => m.objectId === pinId && m.kind === 'chat' && m.attachments?.some((x) => x.type.startsWith('audio/'))).length, { timeout: 15_000 }).toBe(1);
 });
+
+test('두 손가락 조작 중에는 원근(3D)으로 겹친 그림을 잠시 숨겼다가 손을 떼면 다시 (2026-10-21 "모바일에서 핀치줌중에 페이지 열수 없음 크레시가 난다")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  // 2D 무대의 원근 그림 층(.warp) 하나를 확인용으로 둔다
+  await page.evaluate(() => { const w = document.createElement('div'); w.className = 'warp'; w.setAttribute('data-probe', '1'); w.style.cssText = 'position:absolute;width:10px;height:10px'; document.querySelector('[data-testid="board-canvas"] .world')!.appendChild(w); });
+  const shown = () => page.evaluate(() => getComputedStyle(document.querySelector('[data-probe="1"]')!).display);
+  expect(await shown()).not.toBe('none');
+  await touch(page, 'pointerdown', 1, 150, 650);
+  await touch(page, 'pointerdown', 2, 250, 650);
+  expect(await shown()).toBe('none');
+  await touch(page, 'pointermove', 1, 140, 650);
+  await touch(page, 'pointerup', 1, 140, 650);
+  await touch(page, 'pointerup', 2, 250, 650);
+  expect(await shown()).not.toBe('none');
+});

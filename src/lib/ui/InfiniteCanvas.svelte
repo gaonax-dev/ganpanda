@@ -189,6 +189,7 @@
 <div
   class="ic"
   class:panning={panKey !== null || drag !== null || pinching}
+  class:pinching
   bind:this={el}
   data-testid={testid}
   role="application"
@@ -222,6 +223,8 @@
     background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.2px);
     user-select: none;
   }
+  /* 두 손가락 조작 중에는 원근(matrix3d)으로 겹친 그림을 잠시 숨긴다 — 3D 층은 확대 배율마다 큰 그림으로 다시 그려져 휴대폰 메모리가 넘쳤다 (2026-10-21 "핀치줌중에 페이지 열수 없음 크레시") */
+  .ic.pinching :global(.warp) { display: none; }
   /* 이동 중에는 사진·도형이 포인터를 가로채지 않게 */
   .ic.panning :global(*) { pointer-events: none; }
   .world {

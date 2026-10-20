@@ -65,3 +65,12 @@ export function roundedInQuad(quad: Pt[], corner: number, seg = 6): Pt[] {
   try { H = rectToQuad(w, h, quad); } catch { return quad; }
   return roundedRect(w, h, corner, seg).map((p) => applyHomography(H, p));
 }
+
+/**
+ * 원근(matrix3d)으로 겹치는 그림 상자의 크기 제한 (2026-10-21 "모바일에서 핀치줌중에 페이지 열수 없음 크레시가 난다"):
+ * 3D 변환 층은 브라우저가 상자 크기 × 확대 배율의 그림 한 장으로 그리므로, 사인물 mm·디자인 원본 px 그대로면 휴대폰 메모리가 넘친다 → 긴 변 max px 안(비율 유지)
+ */
+export function capBox(w: number, h: number, max = 1024): { w: number; h: number } {
+  const s = Math.min(1, max / Math.max(w, h, 1));
+  return { w: w * s, h: h * s };
+}

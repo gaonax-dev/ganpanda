@@ -6,7 +6,7 @@
   import { midpoints, zonesOf } from '../core/zone';
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
-  import { cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
+  import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
   import { bodyLook, frameLook } from '../core/render';
@@ -521,7 +521,7 @@
       {/each}
       {#each objects.filter((o) => o.design) as o (o.id)}
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
-        {@const c = o.design!.crop}
+        {@const c = capBox(o.design!.crop.w, o.design!.crop.h)}<!-- 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) -->
         <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()}>
             <DesignFace design={o.design!} w={c.w} h={c.h} />
@@ -531,8 +531,9 @@
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
       {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
-        {@const pw = o.widthMm! * 0.5}
-        {@const ph = o.heightMm! * 0.5}
+        {@const pb = capBox(o.widthMm! * 0.5, o.heightMm! * 0.5)}<!-- 3D 층 크기 제한 (2026-10-21 휴대폰 크래시) -->
+        {@const pw = pb.w}
+        {@const ph = pb.h}
         <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
             <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>

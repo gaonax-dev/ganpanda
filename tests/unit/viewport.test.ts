@@ -22,7 +22,7 @@ describe('무한 캔버스 뷰포트', () => {
   });
 
   it('확대 배율은 한계를 넘지 않는다', () => {
-    expect(zoomAt(v0, { x: 0, y: 0 }, 1e6).zoom).toBe(40);
+    expect(zoomAt(v0, { x: 0, y: 0 }, 1e6).zoom).toBe(12); // 40 → 12 (2026-10-21 휴대폰 크래시)
     expect(zoomAt(v0, { x: 0, y: 0 }, 1e-6).zoom).toBe(0.02);
   });
 
@@ -85,5 +85,19 @@ describe('두 손가락: 화면 이동이 가장 먼저, 그다음 확대·축�
     const r = twoFinger(v, st, [A, B], [{ x: 50, y: 300 }, { x: 350, y: 300 }]); // 200 → 300
     expect(r.st.zooming).toBe(true);
     expect(r.v.zoom).toBeCloseTo(1.5, 5);
+  });
+});
+
+describe('휴대폰 메모리 (2026-10-21 "모바일에서 핀치줌중에 페이지 열수 없음 크레시가 난다")', async () => {
+  const { zoomAt, ZOOM_MAX } = await import('../../src/lib/core/viewport');
+  const { capBox } = await import('../../src/lib/core/perspective');
+  it('최대 확대 12배 — 3D 로 겹친 그림이 확대만큼 큰 그림으로 그려져 메모리가 넘쳤다', () => {
+    expect(ZOOM_MAX).toBe(12);
+    expect(zoomAt({ x: 0, y: 0, zoom: 10 }, { x: 0, y: 0 }, 5).zoom).toBe(12);
+  });
+  it('원근으로 겹치는 그림 상자는 긴 변 1024px 안 (비율 유지)', () => {
+    expect(capBox(3200, 300)).toEqual({ w: 1024, h: 96 });
+    expect(capBox(500, 400)).toEqual({ w: 500, h: 400 });
+    expect(capBox(2000, 6000)).toEqual({ w: 2000 * (1024 / 6000), h: 1024 });
   });
 });

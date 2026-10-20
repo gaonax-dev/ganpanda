@@ -4,7 +4,7 @@ export interface XY { x: number; y: number }
 export interface Rect { x: number; y: number; w: number; h: number }
 
 export const ZOOM_MIN = 0.02;
-export const ZOOM_MAX = 40;
+export const ZOOM_MAX = 12; // 40 → 12 (2026-10-21 "모바일에서 핀치줌중에 페이지 열수 없음 크레시": 원근으로 겹친 3D 그림이 확대만큼 큰 그림으로 그려져 휴대폰 메모리가 넘쳤다)
 
 export const toScreen = (v: Viewport, p: XY): XY => ({ x: p.x * v.zoom + v.x, y: p.y * v.zoom + v.y });
 export const toWorld = (v: Viewport, p: XY): XY => ({ x: (p.x - v.x) / v.zoom, y: (p.y - v.y) / v.zoom });
