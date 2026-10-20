@@ -18,7 +18,7 @@ describe('운영자 복원 (ADMIN_TOKEN)', () => {
     const s = await login(`rs-${crypto.randomUUID().slice(0, 8)}@example.com`);
     const p = await createProject(s);
     await env.ROOM.getByName(p.id).addPin('ph', 1, 2, '나');
-    await runBackup(env, Date.now());
+    await runBackup(env as unknown as Env, Date.now());
     const empty = await createProject(s, '복원 자리');
     const r = await admin('/api/admin/restore', { project: empty.id, key: `rooms/${p.id}/${dayKey(Date.now())}.bin`, mode: 'merge' });
     expect(r.status).toBe(200);
@@ -30,7 +30,7 @@ describe('운영자 복원 (ADMIN_TOKEN)', () => {
     const p = await createProject(s);
     const room = env.ROOM.getByName(p.id);
     await room.addPin('before', 1, 1, '나');
-    await runBackup(env, Date.now());
+    await runBackup(env as unknown as Env, Date.now());
     await room.addPin('after', 2, 2, '나');
     await room.addMessage('project', '나', '백업 뒤 대화', 'chat');
     const r = await admin('/api/admin/restore', { project: p.id, key: `rooms/${p.id}/${dayKey(Date.now())}.bin`, mode: 'revert' });

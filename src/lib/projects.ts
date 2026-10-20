@@ -49,6 +49,17 @@ export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/
 export const checkAccess = (room: string, invite: string | null) =>
   call<{ role: Role; project: { id: string; name: string }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
+/** 버전 기록 (2026-10-21 백업 3단계, 유료 — 무료는 402 plan_required): auto = 매시간 자동(그날 마지막), manual = 직접 저장, before = 되돌리기 직전 */
+export interface VersionInfo { key: string; kind: 'auto' | 'manual' | 'before'; at: number; label?: string; by?: string }
+const inviteQ = (invite: string | null) => (invite ? `?invite=${invite}` : '');
+export const listVersions = (room: string, invite: string | null) => call<{ versions: VersionInfo[] }>(`/api/projects/${room}/versions${inviteQ(invite)}`).then((r) => r.versions);
+export const saveVersion = (room: string, invite: string | null, label: string) =>
+  call<{ version: VersionInfo }>(`/api/projects/${room}/versions${inviteQ(invite)}`, { method: 'POST', body: JSON.stringify({ label }) }).then((r) => r.version);
+export const restoreVersion = (room: string, invite: string | null, key: string) =>
+  call<{ ok: boolean }>(`/api/projects/${room}/versions/restore${inviteQ(invite)}`, { method: 'POST', body: JSON.stringify({ key }) });
+export const copyVersion = (room: string, invite: string | null, key: string) =>
+  call<{ project: { id: string; name: string } }>(`/api/projects/${room}/versions/copy${inviteQ(invite)}`, { method: 'POST', body: JSON.stringify({ key }) }).then((r) => r.project);
+
 export const listInvites = (room: string) => call<{ invites: InviteInfo[] }>(`/api/projects/${room}/invites`).then((r) => r.invites);
 /** kind 'proposal' = 제안 보내기 링크 (무료 요금제는 월 건수 한도 → 402 proposal_limit) */
 export const createInvite = (room: string, role: 'viewer' | 'editor', kind?: 'proposal') =>

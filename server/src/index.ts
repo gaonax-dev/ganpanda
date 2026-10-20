@@ -5,6 +5,7 @@ import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
 import { handleAdmin } from './admin';
+import { handleVersions } from './versions';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleProjects, resolveAccess, type Role } from './projects';
@@ -246,6 +247,7 @@ export default {
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));
+    if (/^\/api\/projects\/[^/]+\/versions/.test(pathname)) return withCors(await handleVersions(req, env, pathname, url)); // 사용자 버전 기록 (2026-10-21)
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
 
     // 방 접속·대화 API: ?session= / ?invite= 로 자격 전달 (브라우저 WebSocket 은 헤더를 못 넣는다)

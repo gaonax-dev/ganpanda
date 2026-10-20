@@ -12,6 +12,7 @@
   import Home from './lib/ui/Home.svelte';
   import AccessDenied from './lib/ui/AccessDenied.svelte';
   import InviteDialog from './lib/ui/InviteDialog.svelte';
+  import VersionsDialog from './lib/ui/VersionsDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
   import QuickBar from './lib/ui/QuickBar.svelte';
   import { recording } from './lib/recording.svelte';
@@ -83,6 +84,7 @@
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
+      {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title="버전 기록 — 이전 상태로 되돌리기 (유료)" onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
       {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
@@ -224,6 +226,7 @@
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
+{#if app.versionsOpen && app.room}<VersionsDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
 {#if app.orderOpen}<OrderDialog />{/if}

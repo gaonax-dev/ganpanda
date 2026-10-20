@@ -18,7 +18,7 @@ describe('매시간 백업', () => {
     const p = await createProject(s, '백업 매장');
     await env.ROOM.getByName(p.id).addPin('photo-1', 10, 20, '나');
     const now = Date.now();
-    await runBackup(env, now);
+    await runBackup(env as unknown as Env, now);
     const day = dayKey(now);
     const d1 = await env.BACKUP.get(`d1/${day}.json.gz`);
     expect(d1).not.toBeNull();
@@ -32,10 +32,10 @@ describe('매시간 백업', () => {
     expect([...doc.getMap<Y.Map<unknown>>('pins').values()].map((m) => m.get('photoId'))).toEqual(['photo-1']);
     const first = (await env.BACKUP.head(`rooms/${p.id}/${day}.bin`))!.uploaded.getTime();
     await new Promise((r) => setTimeout(r, 20));
-    await runBackup(env, now + 1000);
+    await runBackup(env as unknown as Env, now + 1000);
     expect((await env.BACKUP.head(`rooms/${p.id}/${day}.bin`))!.uploaded.getTime()).toBe(first); // 안 바뀜 → 그대로
     await env.ROOM.getByName(p.id).addPin('photo-2', 1, 1, '나');
-    await runBackup(env, now + 2000);
+    await runBackup(env as unknown as Env, now + 2000);
     const again = new Y.Doc();
     Y.applyUpdate(again, new Uint8Array(await (await env.BACKUP.get(`rooms/${p.id}/${day}.bin`))!.arrayBuffer()));
     expect(again.getMap('pins').size).toBe(2);
@@ -51,7 +51,7 @@ describe('매시간 백업', () => {
     // 백업 전에 올라온 사진
     const old = 'a'.repeat(32);
     await env.ASSETS.put(old, new Uint8Array([1, 2, 3]), { httpMetadata: { contentType: 'image/png' } });
-    await runBackup(env, Date.now());
+    await runBackup(env as unknown as Env, Date.now());
     const copied = await env.BACKUP.get(old);
     expect(copied && new Uint8Array(await copied.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
     expect(copied!.httpMetadata?.contentType).toBe('image/png');
@@ -61,7 +61,7 @@ describe('매시간 백업', () => {
     await env.BACKUP.put('d1/2000-01-01.json.gz', 'x');
     await env.BACKUP.put('rooms/old-project/2000-01-01.bin', 'x');
     await env.BACKUP.put('rooms/old-project/m-946684800000.bin', 'x', { customMetadata: { kind: 'manual' } });
-    await runBackup(env, Date.now() + 2 * 86400000); // 정리는 하루 한 번 — 앞 테스트가 오늘 정리했으므로 이틀 뒤로
+    await runBackup(env as unknown as Env, Date.now() + 2 * 86400000); // 정리는 하루 한 번 — 앞 테스트가 오늘 정리했으므로 이틀 뒤로
     expect(await env.BACKUP.head('d1/2000-01-01.json.gz')).toBeNull();
     expect(await env.BACKUP.head('rooms/old-project/2000-01-01.bin')).toBeNull();
     expect(await env.BACKUP.head('rooms/old-project/m-946684800000.bin')).not.toBeNull();

@@ -159,6 +159,17 @@ class AppState {
   /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
   proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
+  /** 버전 기록 창 (2026-10-21 백업 3단계) */
+  versionsOpen = $state(false);
+  private openedAt = Date.now();
+  private restoreSeen = 0;
+  /** 누가 버전으로 되돌렸으면(설정 restored 가 이 화면을 연 뒤에 바뀜) 함께 보는 모두에게 안내 */
+  private detectRestore() {
+    const r = this.project.settings().restored;
+    if (!r || r.at <= this.openedAt || r.at === this.restoreSeen) return;
+    this.restoreSeen = r.at;
+    this.notice = `${r.by}님이 이전 버전으로 되돌렸습니다 (${new Date(r.at).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}).`;
+  }
   /** 같은 아이디를 지금 다른 기기에서도 쓰는 중 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지") */
   sessionConflict = $state(false);
   /** 화면 상단 알림 (용량 초과 등) */
@@ -704,6 +715,7 @@ class AppState {
     }
     this.seen = (parse(load(`ganpanda.seen.${room}`)) as SeenMap | null) ?? {};
     this.project.onChange(() => this.detectNewMessages());
+    this.project.onChange(() => this.detectRestore());
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);

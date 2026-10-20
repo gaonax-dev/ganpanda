@@ -14,7 +14,7 @@ export interface ProjectRow { id: string; owner_id: string; name: string; create
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
-const newRoomId = () => randomToken().slice(0, 16);
+export const newRoomId = () => randomToken().slice(0, 16);
 const inviteUrl = (env: Env, projectId: string, token: string) =>
   `${env.APP_URL.replace(/\/+$/, '')}/?room=${projectId}&invite=${token}`;
 /** 공개 형태: 그룹·상태(대기/진행중/완료)·정산(계약·받은 금액) 포함 (2026-10-15) */

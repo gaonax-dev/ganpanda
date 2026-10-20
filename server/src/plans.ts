@@ -7,6 +7,9 @@ export interface Plan {
   storageBytes: number;
   /** 팀 멤버 수 한도 (소유자 제외) */
   members: number;
+  /** 사용자 버전 기록·되돌리기 (2026-10-21): 보이는 기간(일, 0 = 없음), 직접 저장한 버전은 기간과 무관하게 계속 */
+  versionDays: number;
+  manualForever: boolean;
   /** 한 달 제안 링크 건수. null = 무제한 */
   proposalsPerMonth: number | null;
   /** 제안 페이지에 "간판다로 만든 제안" 표시 */
@@ -17,9 +20,9 @@ const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
 export const PLANS = {
-  free: { name: '무료', storageBytes: 100 * MB, members: 2, proposalsPerMonth: 3, branding: true, priceKrw: 0 },
-  basic: { name: '베이직', storageBytes: 5 * GB, members: 5, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
-  pro: { name: '프로', storageBytes: 20 * GB, members: 10, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
+  free: { name: '무료', storageBytes: 100 * MB, members: 2, versionDays: 0, manualForever: false, proposalsPerMonth: 3, branding: true, priceKrw: 0 },
+  basic: { name: '베이직', storageBytes: 5 * GB, members: 5, versionDays: 7, manualForever: false, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
+  pro: { name: '프로', storageBytes: 20 * GB, members: 10, versionDays: 30, manualForever: true, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
 } as const satisfies Record<string, Plan>;
 
 export type PlanId = keyof typeof PLANS;

@@ -92,3 +92,12 @@
 |---|---|---|---|
 | POST | `/api/admin/restore` `{project, key, mode: merge\|revert}` (Bearer ADMIN_TOKEN) | 백업 파일로 프로젝트 문서 복원 — merge = 그대로 합침, revert = 내용 바꿈(대화 유지) | `{ok}` / 400 / 401 / 404 |
 | POST | `/api/admin/restore-assets` `{cursor?}` (Bearer ADMIN_TOKEN) | 백업에만 있는 사진을 사진 버킷으로 (300개씩) | `{copied, cursor}` |
+
+## 버전 기록 (2026-10-21, 유료 — 무료 402) → [backup.md](backup.md)
+| 메서드 | 경로 | 설명 | 응답 |
+|---|---|---|---|
+| GET | `/api/projects/:id/versions` (`?invite=`) | 보이는 기간 안의 버전 (편집 권한) | `{versions:[{key, kind: auto\|manual\|before, at, label?, by?}]}` / 402 / 403 |
+| POST | `/api/projects/:id/versions` `{label?}` | 지금 상태 저장 | 201 `{version}` |
+| POST | `/api/projects/:id/versions/restore` `{key}` | 되돌리기 (직전 상태를 before 로 남김, 대화 유지) | `{ok}` / 403 기간 밖 / 404 |
+| POST | `/api/projects/:id/versions/copy` `{key}` | 그 버전으로 새 프로젝트 (소유자) | 201 `{project}` |
+
