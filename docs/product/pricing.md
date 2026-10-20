@@ -30,6 +30,15 @@
 - **저장 용량**: 에셋 업로드·다운로드는 `?project=<id>` + 자격(세션 또는 초대)이 필요합니다(viewer 도 대화 첨부를 위해 업로드 가능). 사용량은 **프로젝트 소유 계정**의 `account_assets`에 쌓이고 같은 에셋은 한 번만 셉니다. 초과 시 `413 {error:'storage_limit', limitBytes, usedBytes}`.
 - **제안 페이지 표시**: `/api/projects/:id/access` 가 소유자 요금제의 `branding` 을 돌려주고, 무료면 제안 페이지 맨 아래에 "간판다로 만든 제안 · 간판집이라면 무료로 시작하세요"(`proposal-branding`, ganpanda.co.kr 링크).
 
+## 구독 정지 (2026-10-21, 결제 미구현 — 결제를 붙일 때 이대로)
+사용자: "구독이 정지시 정책은?" → "7일은 다음 구독에 합산되나?" → "그렇게 정하고 결정 기록에 남겨줘".
+- **결제 실패 → 7일 유예**: 모든 기능을 그대로 쓰고, 소유자 화면에 결제 안내.
+- **유예는 다음 구독에 합산하지 않는다**: 유예 중에 결제하면 **다음 결제일은 원래 날짜 그대로**(유예로 쓴 날은 이번 구독 기간 안). 매달 결제를 늦춰 기간을 늘리는 쓰임을 막는다.
+- **7일 안에 결제가 없으면 무료로 전환**, 그 7일은 청구하지 않는다. 데이터(프로젝트·사진·사인물·대화)는 지우지 않고, 고객에게 보낸 제안 링크도 계속 열린다. 무료 한도를 넘은 저장 용량은 새 업로드만 막는다(지금 코드 동작과 같음).
+- **다시 구독하면 그날이 새 결제일**, 즉시 복원.
+- **간판다 쪽 장애로 못 쓴 기간**은 유예와 별개의 보상으로 다음 구독에 더해 준다(보상 정책은 따로 정함).
+- 미정: 무료 한도(2명)를 넘는 멤버를 보기 전용으로 바꿀지(지금은 계속 편집 가능 — 새로 추가만 막음), 오래 결제하지 않은 계정의 데이터를 정리할지(권장: 자동 삭제 없음).
+
 ## 구현 방식
 - 같은 아이디 동시 사용: 계정마다 Durable Object `Account`의 `presence(device, session, updated_at)` — `beat`·`dropOthers`·`leave`, 70초(`PRESENCE_TTL`) 넘은 신호는 쓰지 않는 기기 → [../server/internals.md](../server/internals.md). (옛 좌석 `seats` 표는 남아 있지만 쓰지 않는다.)
 - 사용량: `GET /api/me` 의 `usage {storageBytes, members, proposals}` · `limits {storageBytes, members, proposalsPerMonth}`(null = 무제한). 설정 "계정 · 구독"과 계정 메뉴에 표시(`usage-storage`, `usage-members`, `usage-proposals`).
