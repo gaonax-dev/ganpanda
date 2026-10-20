@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeGrid } from './core/arrange';
+import { arrangeGrid, homeOf } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -910,8 +910,12 @@ class AppState {
     const photos = this.photos.map((p) => ({ x: (p.x - o.x) / k, y: (p.y - o.y) / k, w: p.width / k, h: (p.width * (p.h / p.w)) / k, imgW: p.w, imgH: p.h }));
     const idx = new Map(this.photos.map((p, i) => [p.id, i]));
     const cards = this.flatCards.map(({ o, w, h }) => {
-      const xs = o.quad.map((q) => q[0]), ys = o.quad.map((q) => q[1]);
-      return { id: o.id, w, h, photo: o.quad.length ? idx.get(o.photoId) ?? null : null, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+      // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21 — 사선 사진에서 먼저 그리면 카드가 사선 사진 아래로 갔다)
+      const inst = [o, ...this.objects.filter((x) => x.sameAs === o.id)].filter((x) => x.quad.length === 4 && idx.has(x.photoId));
+      const home = inst.length ? homeOf(inst.map((x) => ({ photoId: x.photoId, quad: x.quad.map((q) => [q[0], q[1]] as [number, number]) }))) : null;
+      if (!home) return { id: o.id, w, h, photo: null, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
+      const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
     const at = arrangeGrid(cards, photos, gap, 100 / k);
     this.editBoundary();

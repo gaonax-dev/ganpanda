@@ -27,8 +27,12 @@ function spanOf(lines: number[], a: number, b: number): [number, number] {
  * 큰 사인물부터 셀을 차지하고, 이미 찬 셀과 겹치는 사인물(판 위 글자 등)은 자기 행 범위 바로 아래 새 행에 같은 열로
  */
 export function gridOf(items: { id: string; box: Box }[], imgW: number, imgH: number, tol = 0.03): Map<string, Span> {
-  const xs = axisLines(items.flatMap((i) => [i.box.x0, i.box.x1]), imgW * tol);
-  const ys = axisLines(items.flatMap((i) => [i.box.y0, i.box.y1]), imgH * tol);
+  // 허용 오차 = 사진 크기의 tol 과 사인물 크기 중앙값의 25% 중 작은 값 (2026-10-21 핀볼: 큰 사진의 작은 사인물이 한 축선으로 뭉쳐 세로로 쌓였다)
+  const median = (v: number[]) => { const a = [...v].sort((p, q) => p - q); return a.length ? a[Math.floor((a.length - 1) / 2)] : 0; };
+  const tx = Math.min(imgW * tol, 0.25 * median(items.map((i) => i.box.x1 - i.box.x0)) || imgW * tol);
+  const ty = Math.min(imgH * tol, 0.25 * median(items.map((i) => i.box.y1 - i.box.y0)) || imgH * tol);
+  const xs = axisLines(items.flatMap((i) => [i.box.x0, i.box.x1]), tx);
+  const ys = axisLines(items.flatMap((i) => [i.box.y0, i.box.y1]), ty);
   // 행 키(실수): 새 행을 사이에 끼워 넣을 수 있게
   const raw = items.map((i) => { const [c0, c1] = spanOf(xs, i.box.x0, i.box.x1), [r0, r1] = spanOf(ys, i.box.y0, i.box.y1); return { id: i.id, c0, c1, rows: Array.from({ length: r1 - r0 }, (_, k) => r0 + k), area: (i.box.x1 - i.box.x0) * (i.box.y1 - i.box.y0) }; });
   const used = new Set<string>();
@@ -54,6 +58,24 @@ export function gridOf(items: { id: string; box: Box }[], imgW: number, imgH: nu
     out.set(it.id, { r0: Math.min(...rs), r1: Math.max(...rs) + 1, c0: Math.min(...cs), c1: Math.max(...cs) + 1 });
   }
   return out;
+}
+
+/** 외곽선(사진 px) 네 모서리가 직각에서 벗어난 최대 각(°) — 작을수록 정면에서 찍힌 것 */
+export function cornerSkew(q: [number, number][]): number {
+  if (q.length !== 4) return 90;
+  return Math.max(...q.map((p, i) => {
+    const a = q[(i + 3) % 4], b = q[(i + 1) % 4], u = [a[0] - p[0], a[1] - p[1]], v = [b[0] - p[0], b[1] - p[1]];
+    const c = (u[0] * v[0] + u[1] * v[1]) / ((Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1])) || 1);
+    return Math.abs((Math.acos(Math.max(-1, Math.min(1, c))) * 180) / Math.PI - 90);
+  }));
+}
+/**
+ * 연결된 사인물(원본 + ⇄ 연결 영역들)의 카드 기준 = 가장 정면인 것 (2026-10-21 사용자: "사인물 정면뷰 카드정렬 문제점과 해결방안" → "1,2만 해줘"):
+ * 네 모서리가 직각에 가까운 것(1° 차이 안이면 같다고 보고) → 사진에서 더 크게(넓게) 보이는 것
+ */
+export function homeOf<T extends { quad: [number, number][] }>(instances: T[]): T {
+  const area = (q: [number, number][]) => Math.abs(q.reduce((t, p, i) => t + p[0] * q[(i + 1) % q.length][1] - q[(i + 1) % q.length][0] * p[1], 0)) / 2;
+  return [...instances].sort((a, b) => { const d = cornerSkew(a.quad) - cornerSkew(b.quad); return Math.abs(d) > 1 ? d : area(b.quad) - area(a.quad); })[0];
 }
 
 /** 보드의 사진 배치(왼쪽 위 x·y, 폭·높이) → 행·열: 위 끝이 높이의 절반 안이면 같은 행, 왼쪽 끝이 폭의 절반 안이면 같은 열 */

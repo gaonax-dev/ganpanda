@@ -101,3 +101,27 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   await expect(page.getByTestId('flat-outline')).toHaveCount(0);
   await expect(page.getByTestId('flat-rearrange')).toHaveCount(0);
 });
+
+test('연결된 사인물(⇄)의 카드는 가장 정면에서 찍힌 사진 아래로 — 사선 사진에서 먼저 그렸어도 (2026-10-21 핀볼 "사인물 정면뷰 카드정렬 문제점")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await loadSample(page);
+  await expect(page.getByTestId('photo-zone')).toHaveCount(2);
+  await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string; x: number }[]; project: { addObject(o: unknown): string; linkObject(id: string, to: string): void }; arrangeFlatCards(): void; editBoundary(): void } }).__ganpanda;
+    const [p1, p2] = [...a.photos].sort((x, y) => x.x - y.x);
+    // 첫 사진(사선)에서 먼저 그린 원본 — 비뚤어진 외곽선
+    const m = a.project.addObject({ photoId: p1.id, name: '문시트', shape: 'rect', quad: [[300, 300], [420, 330], [420, 600], [300, 640]], sheetIds: [], widthMm: 870, heightMm: 2010 });
+    // 둘째 사진(정면)의 같은 사인물 — 바른 직사각형
+    const c = a.project.addObject({ photoId: p2.id, name: '문시트 정면', shape: 'rect', quad: [[900, 300], [1100, 300], [1100, 760], [900, 760]], sheetIds: [] });
+    a.project.linkObject(c, m);
+    a.editBoundary();
+    a.arrangeFlatCards();
+  });
+  await page.getByTestId('zoom-fit').click();
+  await page.waitForTimeout(300);
+  const zones = await page.getByTestId('photo-zone').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.x, r.x + r.width]; }).sort((p, q) => p[0] - q[0]));
+  const card = (await page.getByTestId('board-card').boundingBox())!;
+  expect(card.x).toBeGreaterThanOrEqual(zones[1][0] - 2); // 둘째(정면) 사진 아래
+  expect(card.x).toBeLessThan(zones[1][1]);
+});
