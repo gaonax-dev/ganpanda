@@ -4,8 +4,8 @@ import { SERVER_URL } from './sync';
 export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean }
 /** 요금제 이름 (옛 starter 는 베이직) */
 export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
-/** seats = 동시 작업 인원(직원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) — 2026-10-17 */
-export interface Usage { limits: { storageBytes: number; seats: number; proposalsPerMonth: number | null }; usage: { storageBytes: number; seats: number; proposals: number } }
+/** members = 팀 멤버 수(소유자 제외, 2026-10-21 — 전엔 동시 작업 인원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) */
+export interface Usage { limits: { storageBytes: number; members: number; proposalsPerMonth: number | null }; usage: { storageBytes: number; members: number; proposals: number } }
 export type Me = { account: Account; prices: unknown; /** 색 라이브러리 (2026-10-17) */ colors?: unknown; /** 세트 라이브러리 (2026-10-19) */ sets?: unknown; /** 요청판: 요청 받기·지역 (2026-10-17) */ requestSettings?: { receive: boolean; regions: string[] } } & Usage;
 /** 계정 기본 단가표 저장 */
 export const savePrices = (prices: unknown) => call<{ prices: unknown }>('/api/me/prices', { method: 'PUT', body: JSON.stringify({ prices }) });
@@ -82,9 +82,22 @@ export const updateName = (name: string) =>
   call<{ account: Account }>('/api/me', { method: 'PATCH', body: JSON.stringify({ name }) }).then((r) => r.account);
 
 export async function logout() {
-  try { await call('/api/auth/logout', { method: 'POST' }); } catch { /* 이미 만료 */ }
+  try { await call('/api/auth/logout', { method: 'POST', body: JSON.stringify({ device: deviceId() }) }); } catch { /* 이미 만료 */ }
   saveSession(null);
 }
+
+/** 이 기기(브라우저) ID — 같은 아이디를 다른 기기에서 동시에 쓰는지 가리는 데 (같은 기기의 탭들은 하나) */
+export function deviceId(): string {
+  try {
+    let d = localStorage.getItem('ganpanda.device');
+    if (!d) { d = crypto.randomUUID(); localStorage.setItem('ganpanda.device', d); }
+    return d;
+  } catch { return 'no-storage'; }
+}
+/** 사용 중 신호 — 지금 다른 기기에서도 이 아이디를 쓰는 곳의 수 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록") */
+export const sendPresence = () => call<{ others: number }>('/api/me/presence', { method: 'POST', body: JSON.stringify({ device: deviceId() }) });
+/** [다른 곳 로그아웃] — 이 기기 말고 이 아이디의 다른 세션을 모두 끊는다 */
+export const logoutOthers = () => call<{ ok: boolean }>('/api/me/logout-others', { method: 'POST', body: JSON.stringify({ device: deviceId() }) });
 
 /** 사람이 읽는 오류 문구. kind 에 따라 같은 상태 코드도 뜻이 다르다 */
 export function describeAuthError(e: unknown, kind: 'link' | 'login' | 'signup' | 'password' = 'link'): string {

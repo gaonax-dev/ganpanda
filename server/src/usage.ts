@@ -1,4 +1,4 @@
-// 계정 사용량 (저장 용량·좌석·이번 달 제안 건수) 과 한도
+// 계정 사용량 (저장 용량·팀 멤버 수·이번 달 제안 건수) 과 한도
 import { planOf } from './plans';
 
 export async function storageUsed(env: Env, accountId: string): Promise<number> {
@@ -16,8 +16,14 @@ export async function proposalsThisMonth(env: Env, accountId: string): Promise<n
   return Number(r?.n ?? 0);
 }
 
+/** 설정의 팀 멤버 수 (소유자 제외) — 2026-10-21 요금제 한도 */
+export async function membersOf(env: Env, accountId: string): Promise<number> {
+  const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM team_members WHERE owner_id = ?').bind(accountId).first<{ n: number }>();
+  return Number(r?.n ?? 0);
+}
+
 export async function usageOf(env: Env, accountId: string, plan: string) {
   const p = planOf(plan);
-  const [storageBytes, seats, proposals] = await Promise.all([storageUsed(env, accountId), env.ACCOUNT.getByName(accountId).usedSeats(), proposalsThisMonth(env, accountId)]);
-  return { limits: { storageBytes: p.storageBytes, seats: p.seats, proposalsPerMonth: p.proposalsPerMonth }, usage: { storageBytes, seats, proposals } };
+  const [storageBytes, members, proposals] = await Promise.all([storageUsed(env, accountId), membersOf(env, accountId), proposalsThisMonth(env, accountId)]);
+  return { limits: { storageBytes: p.storageBytes, members: p.members, proposalsPerMonth: p.proposalsPerMonth }, usage: { storageBytes, members, proposals } };
 }

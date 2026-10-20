@@ -22,11 +22,10 @@
 - 새 접속자에게는 살아 있는 소켓의 상태만 보냅니다.
 - 상태 JSON 은 4KB(`MAX_STATE`)까지만 받습니다.
 
-## 좌석 (Account DO, `server/src/account.ts`)
-- 계정 ID로 `getByName`. SQLite `seats(sid, person, updated_at)`. `acquire(person, sid, limit)`: 이미 앉은 사람은 한도와 무관하게 허용, 아니면 `COUNT(DISTINCT person) < limit`일 때만.
-- Room 은 소켓 메시지가 올 때 30초(`SEAT_RENEW`)마다 `renew`, 닫히면 `release`. Account 는 90초(`SEAT_TTL`) 넘은 좌석을 정리합니다.
-- **viewer(고객) 소켓은 좌석을 받지 않습니다**(2026-10-17): `index.ts` 가 `acquire` 를 건너뛰고 `x-owner` 를 주지 않으므로 Room 도 갱신·반납하지 않습니다. 좌석은 세션(소유자·멤버)과 editor 초대만.
-- Worker 가 접속 시 `x-sid`·`x-owner`·`x-role` 헤더로 Room 에 넘깁니다.
+## 같은 아이디 동시 사용 (Account DO, `server/src/account.ts`, 2026-10-21)
+- 계정 ID로 `getByName`. SQLite `presence(device, session, updated_at)`. `beat(device, session)`: 70초(`PRESENCE_TTL`) 넘은 신호를 지우고 이 기기를 갱신한 뒤, **다른 기기** 수를 돌려준다(같은 기기의 탭은 하나). `dropOthers(device)`: 다른 기기 신호를 지움, `leave(device)`: 로그아웃한 기기 신호를 지움.
+- `POST /api/me/logout-others` 는 `dropOthers` 뒤 D1 `sessions` 에서 이 세션 말고 그 계정의 세션을 모두 지운다 → 다른 기기는 다음 신호에서 401.
+- (옛) 좌석 `seats(sid, person, updated_at)`·`acquire/renew/release` 는 2026-10-21 요금제 한도가 멤버 수로 바뀌어 쓰지 않는다 — `index.ts` 가 더 이상 좌석을 받지 않고 Room 에 `x-owner` 를 주지 않는다.
 
 ## 테스트 환경
 - `@cloudflare/vitest-plugin`(이전 이름 `vitest-pool-workers`)으로 실제 Workers 런타임에서 실행합니다.

@@ -31,7 +31,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, saveSession, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -159,7 +159,8 @@ class AppState {
   /** 제안 페이지 모드 (고객용 화면). ?proposal=1 로 열거나 제작자가 미리보기 */
   proposalMode = $state(false);
   /** 동시접속 한도에 막혀 연결 대기 중 */
-  seatLimit = $state<{ used: number; limit: number } | null>(null);
+  /** 같은 아이디를 지금 다른 기기에서도 쓰는 중 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지") */
+  sessionConflict = $state(false);
   /** 화면 상단 알림 (용량 초과 등) */
   notice = $state('');
   /** 새 배포가 있음 (오래 열어 둔 탭) → 새로고침 안내 */
@@ -411,6 +412,7 @@ class AppState {
 
   private applyMe(me: Awaited<ReturnType<typeof fetchMe>>) {
     this.applyAccount(me?.account ?? null);
+    if (me?.account) { this.startPresence(); void this.beatPresence(); }
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
     const colors = validColorLibrary(me?.colors);
@@ -691,8 +693,6 @@ class AppState {
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
         setAssetScope({ project: room, session: useSession ? session : null, invite: useSession ? null : this.invite });
-        if (a.seats.used >= a.seats.limit) this.seatLimit = a.seats;
-        this.watchSeats(room);
       } catch (e) {
         const code = e instanceof AuthError ? e.status : 0;
         this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 ? code : 0 };
@@ -720,19 +720,32 @@ class AppState {
   }
 
   /** 표시 이름: 계정 이름 > 기기에 정한 이름 > 이메일 앞부분 */
-  /** 연결이 안 될 때 좌석 한도 때문인지 3초마다 확인. 연결되면 안내를 지운다 */
-  private watchSeats(room: string) {
-    const tick = async () => {
-      if (this.sync === 'online') { this.seatLimit = null; return; }
-      if (this.sync === 'offline' || this.seatLimit) {
-        try {
-          const a = await checkAccess(room, this.invite);
-          this.seatLimit = a.seats.used >= a.seats.limit ? a.seats : null;
-        } catch { /* 서버 응답 없음 */ }
+  /**
+   * 같은 아이디 동시 사용 (2026-10-21): 로그인해 있고 화면이 보이는 동안 30초마다(그리고 다시 보일 때) 사용 중 신호를 보낸다.
+   * 다른 기기에서도 지금 쓰고 있으면 [다른 곳 로그아웃]/[여기서 로그아웃]을 묻고, 다른 곳에서 이쪽을 로그아웃시켰으면(401) 안내하고 로그아웃.
+   * 동시에 쓰지 않으면(다른 기기 신호가 70초 넘게 없음) 아무 일 없이 로그인이 유지된다
+   */
+  async beatPresence() {
+    if (!SERVER_URL || !this.account || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+    try { this.sessionConflict = (await sendPresence()).others > 0; }
+    catch (e) {
+      if (e instanceof AuthError && e.status === 401) {
+        this.sessionConflict = false;
+        saveSession(null);
+        this.account = null;
+        this.notice = '같은 아이디로 다른 곳에서 로그아웃을 선택해 여기서는 로그아웃되었습니다.';
       }
-    };
-    setInterval(tick, 3000);
+    }
   }
+  private presenceStarted = false;
+  private startPresence() {
+    if (this.presenceStarted || typeof window === 'undefined') return;
+    this.presenceStarted = true;
+    setInterval(() => void this.beatPresence(), 30_000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void this.beatPresence(); });
+  }
+  /** [다른 곳 로그아웃] */
+  async logoutOtherDevices() { await apiLogoutOthers(); this.sessionConflict = false; }
 
   /** 선택한 사인물의 대화를 봤다고 기록 (ObjectPanel 이 열려 있을 때 호출) */
   markSeen(objectId: string) {
@@ -1171,6 +1184,7 @@ class AppState {
   async logout() {
     await apiLogout();
     this.account = null;
+    this.sessionConflict = false;
     if (this.room) location.href = '/';
   }
 

@@ -34,8 +34,12 @@
     const em = memberEmail.trim();
     if (!em) return;
     memberError = '';
-    try { await addTeamMember(em, false); memberEmail = ''; await loadTeam(); }
-    catch { memberError = '그 이메일로 가입한 계정이 없습니다. 먼저 로그인해 계정을 만들게 해 주세요.'; }
+    try { await addTeamMember(em, false); memberEmail = ''; await loadTeam(); app.refreshMe(); }
+    catch (e) {
+      // 요금제 멤버 한도 (2026-10-21): 403 member_limit
+      const limit = (() => { try { const j = JSON.parse(e instanceof Error ? e.message : ''); return j?.error === 'member_limit' ? j.limit as number : null; } catch { return null; } })();
+      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다. 더 필요하면 요금제를 올려 주세요.` : '그 이메일로 가입한 계정이 없습니다. 먼저 로그인해 계정을 만들게 해 주세요.';
+    }
   }
 
   /** 키 입력 대기 중인 동작 */
@@ -94,7 +98,7 @@
           {#if app.usage}
             <p class="row"><span>저장 용량</span><span data-testid="usage-storage">{formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</span></p>
             <div class="bar"><i style:width="{Math.min(100, (app.usage.usage.storageBytes / Math.max(1, app.usage.limits.storageBytes)) * 100)}%"></i></div>
-            <p class="row"><span>동시 작업 인원 <small>(직원 · 고객 열람은 세지 않음)</small></span><span data-testid="usage-seats">{app.usage.usage.seats} / {app.usage.limits.seats}명</span></p>
+            <p class="row"><span>멤버 <small>(아래 멤버 목록, 소유자 제외 — 동시 접속 인원은 제한 없음)</small></span><span data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span></p>
             <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
         </section>

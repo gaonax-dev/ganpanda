@@ -74,12 +74,11 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     if (typeof r === 'number') return text('no access', r);
     const owner = await env.DB.prepare('SELECT plan FROM accounts WHERE id = ?').bind(r.project.owner_id).first<{ plan: string }>();
     const plan = planOf(owner?.plan ?? 'free');
-    const seats = { used: await env.ACCOUNT.getByName(r.project.owner_id).usedSeats(), limit: plan.seats };
     // 정산 보기(이익율): 오너, 또는 오너 팀에서 "정산 보기"를 켠 멤버가 편집 초대로 들어온 경우 (2026-10-16)
     const billing = r.role === 'owner' || (r.role === 'editor' && !!r.account && !!(await teamAccess(env, r.project.owner_id, r.account))?.canBilling);
     // branding: 소유자 요금제가 무료면 제안 페이지에 "간판다로 만든 제안" (2026-10-17)
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, seats, billing, branding: plan.branding, ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, billing, branding: plan.branding, ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
   }
 
   const me = await authenticate(req, env);

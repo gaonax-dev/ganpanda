@@ -143,7 +143,7 @@
               <small>{app.account.email} · {PLAN_LABEL[app.account.plan] ?? app.account.plan}</small>
               {#if app.usage}
                 <small data-testid="usage-storage">저장 용량 {formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</small>
-                <small data-testid="usage-seats">동시 작업 {app.usage.usage.seats} / {app.usage.limits.seats}명</small>
+                <small data-testid="usage-members">멤버 {app.usage.usage.members} / {app.usage.limits.members}명</small>
                 <small data-testid="usage-proposals">이번 달 제안 {app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건' : ` / ${app.usage.limits.proposalsPerMonth}건`}</small>
               {/if}
               <label>표시 이름
@@ -163,9 +163,12 @@
   <main>
     <!-- 알림 영역: 본문 위에 떠 있는 겹층 — 나타나고 사라져도 다른 요소가 밀리지 않는다 (2026-10-18 사용자: "동시접속 안내 … 화면이 재정렬되고 사라지면 다시 제위치로 간다. 이건 문제다") -->
     <div class="banners">
-      {#if app.seatLimit && app.sync !== 'online'}
-        <div class="banner warn" data-testid="seat-limit">
-          동시 작업 인원 한도({app.seatLimit.limit}명)에 도달해 연결을 기다리고 있습니다. 현재 {app.seatLimit.used}명 작업 중 — 자리가 나면 자동으로 연결됩니다. 직원이 함께 작업하려면 요금제를 올려 주세요. (고객 열람은 인원에 들지 않습니다)
+      {#if app.sessionConflict}
+        <!-- 같은 아이디 동시 사용 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지") -->
+        <div class="banner warn" data-testid="session-conflict">
+          같은 아이디가 지금 다른 기기에서도 사용 중입니다. 어느 쪽을 로그아웃할까요?
+          <button class="btn small primary" data-testid="conflict-logout-others" onclick={() => app.logoutOtherDevices()}>다른 곳 로그아웃</button>
+          <button class="btn small" data-testid="conflict-logout-here" onclick={() => app.logout()}>여기서 로그아웃</button>
         </div>
       {/if}
       {#if app.updateAvailable}

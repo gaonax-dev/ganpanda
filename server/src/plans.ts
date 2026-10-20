@@ -1,11 +1,12 @@
 // 요금제 (기준표, 2026-10-17 개편). 결제는 미구현 — accounts.plan 은 관리자가 바꾼다.
-// 좌석 = 동시에 작업하는 사람(소유자·직원). 고객(viewer 초대) 열람은 세지 않는다 — 제안 링크가 퍼지는 길을 막지 않기 위해.
+// 멤버 = 설정에서 소유자가 추가한 팀 멤버 수(소유자 제외). 2026-10-21 사용자: "동시접속이라고 했는데 맴버가입수이다" — 동시 접속 좌석 제한은 없앴다.
+// 무료 2명, 다른 요금제는 옛 좌석 수의 1.5배(베이직 2→3, 프로 5→7.5 를 올려 8). 무료 용량 500MB → 100MB.
 // 무료는 제안 링크 월 건수와 제안 페이지 브랜딩으로 구분한다.
 export interface Plan {
   name: string;
   storageBytes: number;
-  /** 동시 작업 인원 (소유자 포함, 직원 = editor 초대·세션) */
-  seats: number;
+  /** 팀 멤버 수 한도 (소유자 제외) */
+  members: number;
   /** 한 달 제안 링크 건수. null = 무제한 */
   proposalsPerMonth: number | null;
   /** 제안 페이지에 "간판다로 만든 제안" 표시 */
@@ -16,9 +17,9 @@ const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
 export const PLANS = {
-  free: { name: '무료', storageBytes: 500 * MB, seats: 1, proposalsPerMonth: 3, branding: true, priceKrw: 0 },
-  basic: { name: '베이직', storageBytes: 5 * GB, seats: 2, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
-  pro: { name: '프로', storageBytes: 20 * GB, seats: 5, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
+  free: { name: '무료', storageBytes: 100 * MB, members: 2, proposalsPerMonth: 3, branding: true, priceKrw: 0 },
+  basic: { name: '베이직', storageBytes: 5 * GB, members: 3, proposalsPerMonth: null, branding: false, priceKrw: 30000 },
+  pro: { name: '프로', storageBytes: 20 * GB, members: 8, proposalsPerMonth: null, branding: false, priceKrw: 60000 },
 } as const satisfies Record<string, Plan>;
 
 export type PlanId = keyof typeof PLANS;

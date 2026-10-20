@@ -24,11 +24,11 @@ beforeEach(async () => {
   TestClient.defaultAuth = {};
 });
 
-describe('요금제 표 (2026-10-17)', () => {
-  it('무료 500MB·1명·제안 월 3건·브랜딩, 베이직 5GB·2명·3만원, 프로 20GB·5명·6만원. 옛 starter 는 베이직으로', () => {
-    expect(PLANS.free).toMatchObject({ storageBytes: 500 * MB, seats: 1, proposalsPerMonth: 3, branding: true, priceKrw: 0 });
-    expect(PLANS.basic).toMatchObject({ storageBytes: 5 * 1024 * MB, seats: 2, proposalsPerMonth: null, branding: false, priceKrw: 30000 });
-    expect(PLANS.pro).toMatchObject({ storageBytes: 20 * 1024 * MB, seats: 5, proposalsPerMonth: null, branding: false, priceKrw: 60000 });
+describe('요금제 표 (2026-10-17 → 2026-10-21 "무료사용 100mb로 … 동시접속은 2인으로 … 다른 요금제도 1.5배로 … 맴버가입수이다")', () => {
+  it('무료 100MB·멤버 2명·제안 월 3건·브랜딩, 베이직 5GB·멤버 3명·3만원, 프로 20GB·멤버 8명·6만원. 옛 starter 는 베이직으로', () => {
+    expect(PLANS.free).toMatchObject({ storageBytes: 100 * MB, members: 2, proposalsPerMonth: 3, branding: true, priceKrw: 0 });
+    expect(PLANS.basic).toMatchObject({ storageBytes: 5 * 1024 * MB, members: 3, proposalsPerMonth: null, branding: false, priceKrw: 30000 });
+    expect(PLANS.pro).toMatchObject({ storageBytes: 20 * 1024 * MB, members: 8, proposalsPerMonth: null, branding: false, priceKrw: 60000 });
     expect(planOf('starter')).toBe(PLANS.basic);
     expect(planOf('없는요금제')).toBe(PLANS.free);
   });
@@ -43,7 +43,7 @@ describe('저장 용량', () => {
     expect((await put(id, a, `project=${project.id}&session=${owner}`)).status).toBe(201); // 중복
     const me = await (await get('/api/me', owner)).json<{ usage: { storageBytes: number }; limits: { storageBytes: number } }>();
     expect(me.usage.storageBytes).toBe(1000);
-    expect(me.limits.storageBytes).toBe(500 * MB);
+    expect(me.limits.storageBytes).toBe(100 * MB);
   });
 
   it('editor·viewer 초대로도 올릴 수 있고(첨부 용), 소유자 계정 용량에 쌓인다', async () => {
@@ -59,11 +59,11 @@ describe('저장 용량', () => {
 
   it('한도를 넘으면 413 과 함께 한도·사용량을 알려 준다', async () => {
     await env.DB.prepare('INSERT INTO account_assets (account_id, asset_id, size, created_at) VALUES (?, ?, ?, ?)')
-      .bind(ownerId, 'f'.repeat(32), 500 * MB - 100, Date.now()).run();
+      .bind(ownerId, 'f'.repeat(32), 100 * MB - 100, Date.now()).run();
     const a = png(4, 200);
     const r = await put(await idOf(a), a, `project=${project.id}&session=${owner}`);
     expect(r.status).toBe(413);
-    expect(await r.json()).toMatchObject({ error: 'storage_limit', limitBytes: 500 * MB, usedBytes: 500 * MB - 100 });
+    expect(await r.json()).toMatchObject({ error: 'storage_limit', limitBytes: 100 * MB, usedBytes: 100 * MB - 100 });
   });
 
   it('다운로드도 프로젝트 자격이 필요하다 (viewer 가능)', async () => {
@@ -78,52 +78,52 @@ describe('저장 용량', () => {
   });
 });
 
-describe('동시접속 좌석 (계정 합계, 직원만 — 고객 열람은 세지 않음 2026-10-17)', () => {
+describe('동시 접속은 막지 않는다 — 한도는 멤버 수 (2026-10-21 "동시접속이라고 했는데 맴버가입수이다")', () => {
   const ws = (room: string, q: string) => exports.default.fetch(`http://sync/api/rooms/${room}?${q}`, { headers: { Upgrade: 'websocket' } });
-
-  it('viewer(고객) 초대는 몇 명이 열어도 좌석을 쓰지 않는다', async () => {
-    const inv = await createInvite(owner, project.id, 'viewer');
-    const o = await ws(project.id, `session=${owner}`);
-    expect(o.status).toBe(101); o.webSocket!.accept();
-    const guests = [];
-    for (let i = 0; i < 5; i++) { const g = await ws(project.id, `invite=${inv.token}&guest=g${i}`); expect(g.status).toBe(101); g.webSocket!.accept(); guests.push(g); }
-    const me = await (await get('/api/me', owner)).json<{ usage: { seats: number }; limits: { seats: number } }>();
-    expect(me.usage.seats).toBe(1);
-    expect(me.limits.seats).toBe(1);
-    [o, ...guests].forEach((r) => r.webSocket!.close());
-  });
-
-  it('무료 1명: 소유자가 앉아 있으면 editor(직원) 초대는 429. 소유자가 나가면 들어올 수 있다', async () => {
+  it('무료여도 소유자와 editor 초대 여러 명이 함께 접속한다', async () => {
     const inv = await createInvite(owner, project.id, 'editor');
     const o = await ws(project.id, `session=${owner}`);
     expect(o.status).toBe(101); o.webSocket!.accept();
-    const e1 = await ws(project.id, `invite=${inv.token}&guest=e1`);
-    expect(e1.status).toBe(429);
-    expect(await e1.json()).toMatchObject({ error: 'seat_limit', limit: 1, used: 1 });
-    o.webSocket!.close(1000, 'bye');
-    await new Promise((r) => setTimeout(r, 100));
-    const e1b = await ws(project.id, `invite=${inv.token}&guest=e1`);
-    expect(e1b.status).toBe(101); e1b.webSocket!.accept();
-    e1b.webSocket!.close();
+    const eds = [];
+    for (let i = 0; i < 3; i++) { const e = await ws(project.id, `invite=${inv.token}&guest=e${i}`); expect(e.status).toBe(101); e.webSocket!.accept(); eds.push(e); }
+    [o, ...eds].forEach((r) => r.webSocket!.close());
   });
+});
 
-  it('같은 사람(같은 guest ID / 같은 계정)의 탭 여러 개는 1석', async () => {
-    const tabs = [];
-    for (let i = 0; i < 3; i++) { const r = await ws(project.id, `session=${owner}`); expect(r.status).toBe(101); r.webSocket!.accept(); tabs.push(r); }
-    const me = await (await get('/api/me', owner)).json<{ usage: { seats: number } }>();
-    expect(me.usage.seats).toBe(1);
-    tabs.forEach((r) => r.webSocket!.close());
-  });
-
-  it('좌석은 계정의 모든 프로젝트를 합쳐 센다 (베이직 2명)', async () => {
+describe('멤버 한도 (설정의 팀 멤버, 소유자 제외 — 무료 2명)', () => {
+  const add = (email: string) => api('/api/me/team', { method: 'POST', body: JSON.stringify({ email }), headers: { 'content-type': 'application/json', authorization: `Bearer ${owner}` } });
+  const member = async () => { const e = `mem-${crypto.randomUUID().slice(0, 8)}@example.com`; await login(e); return e; };
+  it('무료는 2명까지, 3번째는 403 member_limit — 이미 있는 멤버를 다시 보내면(설정 바꾸기) 괜찮다. 베이직은 3명', async () => {
+    const [a, b, c] = [await member(), await member(), await member()];
+    expect((await add(a)).status).toBe(201);
+    expect((await add(b)).status).toBe(201);
+    const r = await add(c);
+    expect(r.status).toBe(403);
+    expect(await r.json()).toMatchObject({ error: 'member_limit', limit: 2, used: 2 });
+    expect((await add(a)).status).toBe(201);
+    const me = await (await get('/api/me', owner)).json<{ usage: { members: number }; limits: { members: number } }>();
+    expect(me.usage.members).toBe(2);
+    expect(me.limits.members).toBe(2);
     await env.DB.prepare('UPDATE accounts SET plan = ? WHERE id = ?').bind('basic', ownerId).run();
-    const p2 = await createProject(owner);
-    const inv1 = await createInvite(owner, project.id, 'editor');
-    const inv2 = await createInvite(owner, p2.id, 'editor');
-    const a = await ws(project.id, `invite=${inv1.token}&guest=a`); expect(a.status).toBe(101); a.webSocket!.accept();
-    const b = await ws(p2.id, `invite=${inv2.token}&guest=b`); expect(b.status).toBe(101); b.webSocket!.accept();
-    expect((await ws(p2.id, `invite=${inv2.token}&guest=c`)).status).toBe(429);
-    [a, b].forEach((r) => r.webSocket!.close());
+    expect((await add(c)).status).toBe(201);
+    expect((await add(await member())).status).toBe(403);
+  });
+});
+
+describe('같은 아이디 동시 사용 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지")', () => {
+  const beat = (session: string, device: string) => api('/api/me/presence', { method: 'POST', body: JSON.stringify({ device }), headers: { 'content-type': 'application/json', authorization: `Bearer ${session}` } });
+  it('다른 기기가 지금 쓰고 있으면 others 로 알려 주고, [다른 곳 로그아웃]하면 그 기기 세션이 끊긴다. 같은 기기의 탭은 동시 사용이 아니다', async () => {
+    const email = `same-${crypto.randomUUID().slice(0, 8)}@example.com`;
+    const s1 = await login(email), s2 = await login(email);
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 });
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 }); // 같은 기기 다른 탭
+    expect(await (await beat(s2, 'laptop')).json()).toEqual({ others: 1 });
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 1 });
+    const r = await api('/api/me/logout-others', { method: 'POST', body: JSON.stringify({ device: 'phone' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${s1}` } });
+    expect(r.status).toBe(200);
+    expect((await get('/api/me', s2)).status).toBe(401);
+    expect((await beat(s2, 'laptop')).status).toBe(401);
+    expect(await (await beat(s1, 'phone')).json()).toEqual({ others: 0 });
   });
 });
 
@@ -154,9 +154,8 @@ describe('제안 링크 월 한도 (무료 3건)', () => {
 
   it('프로젝트 접근 응답에 소유자 요금제의 브랜딩 여부가 온다 (제안 페이지 하단 표시용)', async () => {
     const inv = await createInvite(owner, project.id, 'viewer');
-    const a = await (await api(`/api/projects/${project.id}/access?invite=${inv.token}`)).json<{ branding: boolean; seats: { limit: number } }>();
+    const a = await (await api(`/api/projects/${project.id}/access?invite=${inv.token}`)).json<{ branding: boolean }>();
     expect(a.branding).toBe(true);
-    expect(a.seats.limit).toBe(1);
     await env.DB.prepare('UPDATE accounts SET plan = ? WHERE id = ?').bind('pro', ownerId).run();
     expect((await (await api(`/api/projects/${project.id}/access?invite=${inv.token}`)).json<{ branding: boolean }>()).branding).toBe(false);
   });
@@ -166,9 +165,9 @@ describe('개발 모드 요금제 바꾸기 (PUT /api/me/plan)', () => {
   it('AUTH_DEV_LINK=1 에서만 내 요금제를 바꾼다 (E2E 용)', async () => {
     const r = await api('/api/me/plan', { method: 'PUT', body: JSON.stringify({ plan: 'pro' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${owner}` } });
     expect(r.status).toBe(200);
-    const me = await (await get('/api/me', owner)).json<{ account: { plan: string }; limits: { seats: number } }>();
+    const me = await (await get('/api/me', owner)).json<{ account: { plan: string }; limits: { members: number } }>();
     expect(me.account.plan).toBe('pro');
-    expect(me.limits.seats).toBe(5);
+    expect(me.limits.members).toBe(8);
     expect((await api('/api/me/plan', { method: 'PUT', body: JSON.stringify({ plan: 'vip' }), headers: { 'content-type': 'application/json', authorization: `Bearer ${owner}` } })).status).toBe(400);
   });
 });

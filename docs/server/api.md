@@ -11,7 +11,7 @@
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
 | GET | `/api/health` | 상태 확인 | `{ "ok": true }` |
-| GET (WebSocket) | `/api/rooms/:room` (또는 `/ws`) `?session=`\|`?invite=&guest=` | 프로젝트 실시간 동기화 (y-websocket 호환) | 101 / 400 방 이름 / 401·403·404 권한 / **429 `{error:'seat_limit', used, limit}`** 동시 작업 인원 한도(viewer 는 좌석 없음, 2026-10-17) / 426 |
+| GET (WebSocket) | `/api/rooms/:room` (또는 `/ws`) `?session=`\|`?invite=&guest=` | 프로젝트 실시간 동기화 (y-websocket 호환) | 101 / 400 방 이름 / 401·403·404 권한 (동시 접속 제한 없음 — 2026-10-21) |
 | PUT | `/api/assets/:id` `?project=&session\|invite` | 에셋 업로드 (viewer 포함 — 대화 첨부용). 사용량은 프로젝트 소유 계정에 | 201 / 400 ID·해시 / 401·403 권한 / 413 25MB 초과 또는 **`{error:'storage_limit', limitBytes, usedBytes, sizeBytes}`** / 415 |
 | GET, HEAD | `/api/assets/:id` `?project=&session\|invite` | 에셋 다운로드·존재 확인 (viewer 포함, 소유 계정에 등록된 에셋만) | 200 / 403 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
@@ -53,8 +53,10 @@
 | POST | `/api/me/team` `{email, canBilling?}` | 멤버 추가 (가입된 계정만, 자기 자신 불가) | 201 `{member}` / 400 / 404 |
 | PATCH / DELETE | `/api/me/team/:accountId` `{canBilling}` | 정산 보기 허용 / 멤버 제거 | 200 / 204 / 404 |
 | PUT | `/api/me/plan` `{plan: free\|basic\|pro}` | **개발 모드 전용**(`AUTH_DEV_LINK=1`, E2E 에서 소유자+직원 동시 작업용). 운영은 404 — 결제 미구현, 관리자가 D1 에서 바꿈 | `{account}` / 400 / 404 |
+| POST | `/api/me/presence` `{device}` | 같은 아이디 동시 사용 신호(30초마다, 2026-10-21) | `{others}` 지금 쓰는 다른 기기 수 / 400 / 401 |
+| POST | `/api/me/logout-others` `{device}` | [다른 곳 로그아웃] — 이 세션 말고 이 계정 세션 모두 삭제 | `{ok}` / 400 / 401 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
-| GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 좌석 현황 + 정산 보기(오너, 또는 정산 보기 켠 팀 멤버의 편집 초대 — 이익율 표시, 2026-10-16) | `{role, project, seats:{used, limit}, billing, branding}` / 401 / 403 / 404 |
+| GET | `/api/projects/:id/access` (`?invite=`) | 내 역할 확인 + 정산 보기(오너, 또는 정산 보기 켠 팀 멤버의 편집 초대 — 이익율 표시, 2026-10-16) | `{role, project, billing, branding}` / 401 / 403 / 404 |
 | POST | `/api/rooms/:id/messages` (`?invite=` 또는 세션) `{objectId, author, text, kind, attachments?}` | 대화·코멘트 추가 (viewer 용, 서버가 문서에 기록). 첨부는 최대 5개, 에셋 ID 32자·허용 형식만. 글이 없으면 첨부 필수 | 201 / 400 / 401 / 403 |
 | POST | `/api/rooms/:id/pins` (`?invite=` 또는 세션) `{photoId, x, y, author}` | 위치 코멘트(핀) 추가 (viewer 용) | 201 `{pin}` / 400 / 401 / 403 |
 | POST | `/api/rooms/:id/approvals` (`?invite=` 또는 세션) `{by, hash, snapshot, proposalId?}` | **제안 승인** 기록 (viewer 포함). Room DO 가 `settings.approvals` 에 추가하고 `kind:'approval'` 메시지를 남긴다. 스냅샷 200KB 한도. 요청판 프로젝트면 요청을 `approved` 로 | 201 `{approval}` / 400 / 401 / 403 / 413 |

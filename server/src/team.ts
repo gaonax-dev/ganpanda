@@ -2,6 +2,8 @@
 // 2026-10-15 사용자: "멤버 관리는 설정에서 하고 프로젝트별·그룹별 관리는 하지 않는다"
 import { authenticate, normalizeEmail, type Account } from './auth';
 import { json, readJson, text } from './http';
+import { planOf } from './plans';
+import { membersOf } from './usage';
 
 export interface TeamRow { owner_id: string; account_id: string; can_billing: number; created_at: number }
 
@@ -32,6 +34,12 @@ export async function handleTeam(req: Request, env: Env, pathname: string): Prom
     const acc = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
     if (!acc) return text('account not found', 404);
     if (acc.id === me.id) return text('owner', 400);
+    // 요금제 멤버 한도 (2026-10-21) — 이미 있는 멤버를 다시 보내는 것(정산 보기 바꾸기)은 세지 않는다
+    const exists = await env.DB.prepare('SELECT 1 FROM team_members WHERE owner_id = ? AND account_id = ?').bind(me.id, acc.id).first();
+    if (!exists) {
+      const used = await membersOf(env, me.id), limit = planOf(me.plan).members;
+      if (used >= limit) return json({ error: 'member_limit', used, limit }, 403);
+    }
     const row: TeamRow = { owner_id: me.id, account_id: acc.id, can_billing: body?.canBilling ? 1 : 0, created_at: Date.now() };
     await env.DB.prepare('INSERT OR REPLACE INTO team_members (owner_id, account_id, can_billing, created_at) VALUES (?, ?, ?, ?)').bind(row.owner_id, row.account_id, row.can_billing, row.created_at).run();
     return json({ member: pubMember({ ...row, email: acc.email, name: acc.name }) }, 201);

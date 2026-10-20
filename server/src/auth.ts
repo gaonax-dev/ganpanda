@@ -178,7 +178,26 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
 
   if (pathname === '/api/auth/logout' && req.method === 'POST') {
     await env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(me.sessionHash).run();
+    const body = await readJson<{ device?: string }>(req).catch(() => null);
+    if (typeof body?.device === 'string' && body.device) await env.ACCOUNT.getByName(me.id).leave(body.device.slice(0, 64));
     return new Response(null, { status: 204 });
+  }
+  // 같은 아이디 동시 사용 (2026-10-21 "동시에 같은 아이디로 작동시 로그아웃 선택하도록 동시에 사용하지 않으면 로그인 유지"):
+  // 기기마다 30초 신호 → 지금 다른 기기에서도 쓰고 있으면 others > 0 (앱이 [다른 곳 로그아웃]/[여기서 로그아웃]을 묻는다). 동시에 쓰지 않으면 아무 일 없음
+  if (pathname === '/api/me/presence' && req.method === 'POST') {
+    const body = await readJson<{ device?: string }>(req);
+    const device = typeof body?.device === 'string' ? body.device.slice(0, 64) : '';
+    if (!device) return text('bad device', 400);
+    return json({ others: await env.ACCOUNT.getByName(me.id).beat(device, me.sessionHash) });
+  }
+  if (pathname === '/api/me/logout-others' && req.method === 'POST') {
+    const body = await readJson<{ device?: string }>(req);
+    const device = typeof body?.device === 'string' ? body.device.slice(0, 64) : '';
+    if (!device) return text('bad device', 400);
+    await env.ACCOUNT.getByName(me.id).dropOthers(device);
+    // 이 세션 말고 이 계정의 세션을 모두 끊는다 — 다른 기기는 다음 요청에서 401 → 로그아웃
+    await env.DB.prepare('DELETE FROM sessions WHERE account_id = ? AND token_hash != ?').bind(me.id, me.sessionHash).run();
+    return json({ ok: true });
   }
   if (pathname === '/api/me' && req.method === 'GET') {
     return json({ account: publicAccount(me), prices: me.prices ? JSON.parse(me.prices) : null, colors: me.colors ? JSON.parse(me.colors) : null, sets: me.sets ? JSON.parse(me.sets) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
