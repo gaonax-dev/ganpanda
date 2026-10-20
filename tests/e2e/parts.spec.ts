@@ -262,3 +262,36 @@ test('스카시 재료 층: 고무 스카시 = 철판 + 고무 묶음, 철판을
   await expect(layers.last()).toHaveAttribute('data-material', 'iron');
   expect(await depth()).toBe(21.5);
 });
+
+test('UV 후렉스 출력: 몸통에 배경색, [+ 출력 글자]·[+ 출력 그림]은 출력 구성 요소(몸통 출력에 포함 — 컷팅 옵션·견적 줄 없음)로, 2D 사진 위에 글자가 보인다 (2026-10-21)', async ({ page, request }) => {
+  // 2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  await openObjectSettings(page);
+  const dlg = page.getByTestId('object-settings');
+  await dlg.getByTestId('product-select').selectOption('board-flex');
+  await dlg.getByTestId('width-mm').fill('3000');
+  await dlg.getByTestId('height-mm').fill('600');
+  await expect(dlg.getByTestId('option-face-color')).toContainText('배경색');
+  await dlg.getByTestId('add-print-text').click();
+  const card = dlg.getByTestId('part-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByTestId('part-spec')).toContainText('출력 (몸통 출력에 포함)');
+  await expect(card.getByTestId('part-option-cut')).toHaveCount(0); // 시트 옵션 없음
+  await card.getByTestId('item-text').fill('바로바로정육점');
+  // 두 번째 글자·그림도 같은 출력 구성 요소에
+  await dlg.locator('[data-testid="quick-part"][data-kind="sheet"]').waitFor();
+  await dlg.getByTestId('quick-body').click();
+  await dlg.getByTestId('add-print-image').click();
+  await expect(dlg.getByTestId('part-card')).toHaveCount(1);
+  await expect(dlg.getByTestId('part-item')).toHaveCount(2);
+  // 견적: 후렉스 몸통 줄만 (출력은 포함)
+  const labels = await page.evaluate(() => { const q = (window as unknown as { __ganpanda: { quote: { lines?: { label: string }[] } | { label: string }[] } }).__ganpanda.quote; return (Array.isArray(q) ? q : q.lines ?? []).map((l) => l.label); });
+  expect(labels.some((l) => l.includes('후렉스'))).toBe(true);
+  expect(labels.some((l) => l.includes('출력'))).toBe(false);
+  await page.getByTestId('close-object-settings').click();
+  await expect(page.getByTestId('photo-zone').getByText('바로바로정육점').first()).toBeVisible(); // 2D 사진 위 출력 글자
+});

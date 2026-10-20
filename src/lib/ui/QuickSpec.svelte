@@ -8,7 +8,7 @@
   import type { SignObject, SignPart } from '../core/model';
   import { categoryOf, productById } from '../core/catalog';
   import { NAMED_COLORS, paintLabel as paintOf } from '../core/materials';
-  import { commitParts, newPart, partKindsFor, partsOf } from '../core/parts';
+  import { addPrintItem, commitParts, newPart, partKindsFor, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import { quoteObject, won } from '../core/quote';
 
@@ -46,6 +46,8 @@
       update(commitParts(obj, ps));
       onPick(`part:${np.id}`);
     };
+    // 후렉스·천갈이: 출력 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션")
+    if (obj.productId === 'board-flex' || obj.productId === 'board-reface') for (const k of ['text', 'image'] as const) out.push({ id: `add-print-${k}`, label: k === 'text' ? '+ 출력 글자' : '+ 출력 그림', run: () => { const r = addPrintItem(obj, k); update(r.patch); onPick(`part:${r.partId}`); } });
     if (kinds.includes('channel')) out.push({ id: 'add-part-channel', label: '+ 채널', run: addPart('channel') });
     if (kinds.includes('scashi')) out.push({ id: 'add-part-scashi', label: '+ 스카시', run: addPart('scashi') });
     if (kinds.includes('sheet')) { out.push({ id: 'add-part-sheet-uv', label: '+ UV 출력', run: addPart('sheet', 'sh-print') }); out.push({ id: 'add-part-sheet-cut', label: '+ 재질 시트', run: addPart('sheet', 'sh-cut') }); }

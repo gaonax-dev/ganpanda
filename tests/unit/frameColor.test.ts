@@ -20,8 +20,8 @@ describe('프레임이 있는 종류에는 프레임 색, 인쇄물 면은 출�
     expect(has(obj({ productId: 'frame-wood', options: { wood: '도색' } }), 'framePaintSystem')).toBe(true);
     expect(has(obj({ productId: 'frame-wood' }), 'framePaintSystem')).toBe(false); // 원목·월넛은 나무 그대로
   });
-  it('후렉스의 face 는 "출력면 색 (인쇄물 임시)", 갈바는 도색(몸통 = 프레임)', () => {
-    expect(label(obj({ productId: 'board-flex' }), 'faceSystem')).toBe('출력면 색 (인쇄물 임시)');
+  it('후렉스의 face 는 "배경색"(출력 바탕, 2026-10-21 — 프레임 색과 구분은 그대로), 갈바는 도색(몸통 = 프레임)', () => {
+    expect(label(obj({ productId: 'board-flex' }), 'faceSystem')).toBe('배경색');
     expect(label(obj({ productId: 'board-flex' }), 'framePaintSystem')).toBe('프레임 색 (알루미늄)');
     expect(has(obj({ productId: 'board-galva' }), 'faceSystem')).toBe(false);
     expect(has(obj({ productId: 'board-galva' }), 'paintSystem')).toBe(true);

@@ -105,6 +105,18 @@ export function commitParts(o: Pick<SignObject, 'options' | 'layers' | 'parts'>,
   const layers = keep ? mergeParts(o.layers!, parts) : fromParts(parts);
   return { parts: orderLike(toParts(layers), parts), layers, options, sheetIds: [] }; // 시트 분류는 시트 구성 요소로 분류가 유지된다 (categoryOf). layers = 트리, parts 는 그 거울(숨긴 것 제외, 편집 전 순서 유지)
 }
+/**
+ * 출력 글자·그림 (2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"): 후렉스·천갈이처럼 몸통이 곧 출력면인 종류에 글자·그림을 넣는다.
+ * 출력 = UV 출력 시트 구성 요소(프레임 면, `options.included = true` — 몸통 출력에 포함이라 컷팅 옵션·견적 줄 없음). 하나만 두고 객체를 더한다
+ */
+export function addPrintItem(o: Pick<SignObject, 'options' | 'layers' | 'parts' | 'productId' | 'sheetIds'>, kind: 'text' | 'image'): { patch: ReturnType<typeof commitParts>; partId: string; itemId: string } {
+  const ps: SignPart[] = JSON.parse(JSON.stringify(partsOf(o as SignObject)));
+  let part = ps.find((p) => p.kind === 'sheet' && p.options?.included === true);
+  if (!part) { part = { ...newPart('sheet', 'sh-print'), options: { included: true } }; ps.push(part); }
+  const it = newItem(kind);
+  part.items.push(it);
+  return { patch: commitParts(o, ps), partId: part.id, itemId: it.id };
+}
 /** 레이어 패널 편집 저장: 트리를 쓰고 거울(parts)을 다시 만든다 */
 export function commitLayers(o: Pick<SignObject, 'options'>, layers: Layer[]): Pick<SignObject, 'parts' | 'layers' | 'options' | 'sheetIds'> {
   const options = Object.fromEntries(Object.entries(o.options ?? {}).filter(([k]) => !LEGACY_PART_KEYS.includes(k)));

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { CATEGORY_GROUPS, SHEETS, sheetsForPicker, categoryOf, productsOf, signParts, isChannelProduct, CHANNEL_OPTIONS, thickPresetsFor, thicknessFieldOf } from '../core/catalog';
-  import { commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
+  import { addPrintItem, commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import FrontEditor from './FrontEditor.svelte';
   import LayerPanel from './LayerPanel.svelte';
@@ -135,6 +135,14 @@
               <option value={p.id}>{p.name}</option>
             {/each}
           </select>
+        {/if}
+        {#if (bodyId === 'board-flex' || bodyId === 'board-reface') && !ro}
+          <!-- 출력 글자·그림 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션"): 배경색은 아래 옵션, 글자·그림은 출력 구성 요소(몸통 출력에 포함) -->
+          <div class="row" data-testid="print-items">
+            <span class="hint">출력 내용</span>
+            <button class="btn small" data-testid="add-print-text" onclick={() => { const r = addPrintItem(obj, 'text'); update(r.patch); tab = `part:${r.partId}`; }}>+ 출력 글자</button>
+            <button class="btn small" data-testid="add-print-image" onclick={() => { const r = addPrintItem(obj, 'image'); update(r.patch); tab = `part:${r.partId}`; }}>+ 출력 그림</button>
+          </div>
         {/if}
         {#if thick}
           <!-- 두께는 소재에 (2026-10-16 사용자: "사인물 가로세로만 표시하고 두께는 소재에 붙이는게 맞을 거 같은데"). 판재는 빠른 선택 3~30T -->

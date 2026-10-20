@@ -17,7 +17,10 @@ const normalize = (p: SignPart): SignPart => {
   return { ...p, options: { ...rest, ...(halfCut === true && rest.cutMode === undefined ? { cutMode: '반컷' } : {}) } };
 };
 /** 구성내역 (2026-10-16 사용자: "문구가 없으면 구성내역을 문자에 넣는다. uv출력 돔보컷팅 완컷") */
+/** 출력 (몸통 출력에 포함): 후렉스·천갈이의 글자·그림 자리 (2026-10-21 parts.ts addPrintItem) */
+const included = (p: SignPart) => p.options?.included === true;
 function spec(p: SignPart): string {
+  if (included(p)) return '출력 (몸통 출력에 포함)';
   const op = normalize(p).options ?? {};
   const cut = (op.cut as string | undefined) ?? (p.type === 'sh-print' ? '돔보컷팅' : '커팅');
   const on = cut !== '컷팅 없음';
@@ -36,10 +39,10 @@ export const sheet: Component = {
   normalize,
   typeLabel: (p) => typeLabel(p.type),
   spec,
-  chip: (p) => ({ text: spec(p), color: null }),
-  optionFields: (part) => { const opts = part.options ?? {}; return [...SHEET_COMMON_OPTIONS, ...(SHEET_OPTIONS[part.type] ?? [])].filter((f) => !f.when || f.when(opts, {} as SignObject)); },
+  chip: (p) => ({ text: included(p) ? '출력' : spec(p), color: null }),
+  optionFields: (part) => { if (included(part)) return []; const opts = part.options ?? {}; return [...SHEET_COMMON_OPTIONS, ...(SHEET_OPTIONS[part.type] ?? [])].filter((f) => !f.when || f.when(opts, {} as SignObject)); },
   specKeys: SHEET_SPEC_KEYS,
-  host: (p) => `${spec(p)} 위`,
+  host: (p) => (included(p) ? '출력 위' : `${spec(p)} 위`),
   depthMm: () => 0,
   lighting: () => 'none',
   paint: { face: 'sheet', side: 'sheet' },
@@ -47,7 +50,7 @@ export const sheet: Component = {
   price: (p, ctx) => {
     const { o, prices } = ctx;
     const sh = sheetById(p.type);
-    if (!sh) return;
+    if (!sh || included(p)) return; // 출력은 몸통(후렉스) 단가에 포함
     const label = `${o.name} · ${spec(p).replace(typeLabel(p.type), ctx.term(`sheet:${p.type}`, typeLabel(p.type)))}`, unit = prices.sheets[p.type] ?? 0; // 종류 이름만 공급사 용어로, 재질·컷팅은 그대로
     const sizedItems = p.items.filter((it) => it.w && it.h);
     if (!sizedItems.length && !ctx.sized) { ctx.need(label, '치수 필요'); return; }

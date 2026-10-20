@@ -47,7 +47,7 @@ const material = (key: string, label: string, ids: string[], paintPrefix: string
 ];
 const SIDES = sel('sides', '면', ['단면', '양면']);
 /** 출력면(후렉스·패브릭·현수막 등 인쇄물)의 임시 색 — 디자인이 정해지기 전 보드·3D 에 보이는 색. 프레임 색(framePaint)과 구분 (2026-10-17) */
-const PRINT_FACE = '출력면 색 (인쇄물 임시)';
+const PRINT_FACE = '배경색'; // 출력 바탕색 — 인쇄물이 정해지기 전 임시 색 (2026-10-21 "uv후렉스출력에 배경색 글자 그림 옵션": 글자·그림은 출력 구성 요소 — parts.ts addPrintItem)
 /** 정면에서 보이는 프레임 테두리 두께 (mm, 비우면 종류 기본 — 2026-10-17 사용자: "후렉스 프레임 정면에서 보이는 두께는 1cm. 라이트 박스는 테두리 두께로 따로 지정할 수도 있다") */
 const frameWidth = (defaultMm: number) => txt('frameWidth', '테두리 두께 (mm)', `기본 ${defaultMm}`);
 /** LED 색: 값은 이름 그대로, 표시에 색온도 (2026-10-17 빠른 설정 "후광 4000K") */
