@@ -97,6 +97,10 @@ class AppState {
   readonly requestsEnabled = import.meta.env.VITE_REQUESTS !== '0';
   /** 소비자 견적 요청 모드 (/estimate, 2026-10-21): 로그인 없이 기기에만 두는 보드 — 사진·사각/타원·치수·메모 → [견적 요청] */
   readonly consumer = typeof location !== 'undefined' && location.pathname === '/estimate';
+  /** 다른 페이지 안에 넣어 보여 주는 보드 (?embed=1, 2026-10-22 요청 페이지의 "요청한 그대로") — 상단 바 없음 */
+  readonly embed = typeof location !== 'undefined' && new URLSearchParams(location.search).get('embed') === '1';
+  /** 가게 사장 화면은 청록 (2026-10-22 "소비자용 페이지와 사업자용 컬러를 차이주고 싶은데 … 기존 노란색 말고 다른색으로"): /estimate, 요청 페이지, 그 안의 보드(?c=1) */
+  readonly consumerTheme = typeof location !== 'undefined' && (location.pathname === '/estimate' || /^\/r\//.test(location.pathname) || new URLSearchParams(location.search).get('c') === '1');
   estimateOpen = $state(false);
   /** 초대 토큰 (이 방에 초대 링크로 들어온 경우) */
   readonly invite: string | null;

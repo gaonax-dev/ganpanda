@@ -4,7 +4,7 @@ import { AuthError, loadSession } from './auth';
 import type { RequestSign } from './core/requestSigns';
 
 export interface RequestPhoto { n: number; type: string }
-export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved' | 'cancelled'; createdAt: number; /** 일반 주문(사업자 없음)·취소 시각 (2026-10-22) */ general?: boolean; cancelledAt?: number; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null; /** 사업자등록증 사본 메타 (2026-10-21) — 파일은 제안을 보낸 간판사만 */ bizDoc?: { type: string; size: number } | null; /** 번호·대표자명·개업일 진위확인을 통과함 (2026-10-21) */ bizVerified?: boolean; ownerName?: string | null }
+export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved' | 'cancelled'; createdAt: number; /** 일반 주문(사업자 없음)·취소 시각 (2026-10-22) */ general?: boolean; cancelledAt?: number; /** 보드 복제 요청 프로젝트와 사진 에셋 id (2026-10-22) — 없으면 옛 요청(사진 따로) */ snapshot?: { project: string; photos: string[] }; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null; /** 사업자등록증 사본 메타 (2026-10-21) — 파일은 제안을 보낸 간판사만 */ bizDoc?: { type: string; size: number } | null; /** 번호·대표자명·개업일 진위확인을 통과함 (2026-10-21) */ bizVerified?: boolean; ownerName?: string | null }
 /** 간판사 목록의 한 줄: 제안을 보낸(요금이 발생한) 요청에만 연락처가 온다 */
 export interface ShopRequest extends RequestInfo { responded: boolean; projectId?: string; phone?: string; email?: string }
 export interface CustomerRequestView { request: RequestInfo & { approvedShop?: string; approvedAt?: number }; responses: { shop: string; /** 서버 기준 경로 — SERVER_URL 을 붙여 연다 */ proposalPath: string; createdAt: number }[] }
@@ -23,8 +23,8 @@ async function call<T>(path: string, init: RequestInit = {}, auth = true): Promi
 
 // ---------- 고객 (로그인 없음) ----------
 /** 요청 올리기 — 로그인 필수 (2026-10-21, 카카오 기본) */
-export const createRequest = (body: { storeId?: string; general?: boolean; store: string; region: string; text: string; phone: string; email?: string; ref?: string; signs?: RequestSign[]; address?: string; bizNo?: string; ownerName?: string; startDate?: string; /** 사본을 이어서 올린다 (검증 요소 대신) */ bizDocPending?: boolean }) =>
-  call<{ id: string; key: string; url: string }>('/api/requests', { method: 'POST', body: JSON.stringify(body) });
+export const createRequest = (body: { fromProject?: string; storeId?: string; general?: boolean; store: string; region: string; text: string; phone: string; email?: string; ref?: string; signs?: RequestSign[]; address?: string; bizNo?: string; ownerName?: string; startDate?: string; /** 사본을 이어서 올린다 (검증 요소 대신) */ bizDocPending?: boolean }) =>
+  call<{ id: string; key: string; url: string; snapshotProject?: string }>('/api/requests', { method: 'POST', body: JSON.stringify(body) });
 /** 내 요청 목록 (요청한 계정) */
 export interface MyRequest extends RequestInfo { responses: number }
 export const listMyRequests = () => call<{ requests: MyRequest[] }>('/api/requests/mine').then((r) => r.requests);
@@ -56,9 +56,14 @@ export const addStore = (b: { bizNo: string; ownerName: string; startDate: strin
 export const uploadStoreDoc = (id: string, file: File) => call<{ ok: true }>(`/api/me/stores/${id}/doc`, { method: 'PUT', body: file, headers: { 'content-type': file.type } });
 export const deleteStore = (id: string) => call<{ ok: true }>(`/api/me/stores/${id}`, { method: 'DELETE' });
 
+/** 요청 프로젝트(보드 복제)의 사진 주소 — 세션으로 (img 태그) */
+export const snapshotPhotoUrl = (project: string, assetId: string) => `${SERVER_URL}/api/assets/${assetId}?project=${encodeURIComponent(project)}&session=${encodeURIComponent(loadSession() ?? '')}`;
+
 // ---------- 간판사 ----------
 export const listRequests = () => call<{ requests: ShopRequest[] }>('/api/requests').then((r) => r.requests);
-export const respondRequest = (id: string) => call<{ project: { id: string; name: string; requestId: string } }>(`/api/requests/${id}/respond`, { method: 'POST', body: '{}' }).then((r) => r.project);
+/** 제안 만들기 (2026-10-22 "복제해서 자기 프로젝트로 가져오는건 옵션으로"): copy = 요청 그대로, photos = 사진만, blank = 빈 프로젝트 */
+export type RespondMode = 'copy' | 'photos' | 'blank';
+export const respondRequest = (id: string, mode: RespondMode = 'copy') => call<{ project: { id: string; name: string; requestId: string } }>(`/api/requests/${id}/respond`, { method: 'POST', body: JSON.stringify({ mode }) }).then((r) => r.project);
 export const setRequestSettings = (s: RequestSettings) => call<{ requestSettings: RequestSettings }>('/api/me/request-settings', { method: 'PUT', body: JSON.stringify(s) }).then((r) => r.requestSettings);
 /** 간판사 세션으로 보는 사진 주소 (img 태그는 헤더를 못 넣으므로 ?session=) */
 export const shopPhotoUrl = (id: string, n: number) => `${SERVER_URL}/api/requests/${id}/photos/${n}?session=${encodeURIComponent(loadSession() ?? '')}`;

@@ -178,7 +178,7 @@
   .voice-row .who { font-weight: 600; } .voice-row .t { color: var(--muted); }
   .voices .none { margin: 0; font-size: 12px; color: var(--muted); }
   .voice-row .vdel { margin-left: auto; opacity: 0.6; } .voice-row .vdel:hover { opacity: 1; }
-  .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #1a1500; font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
+  .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   /* 내용 높이만큼만 (화면 높이를 넘으면 안에서 스크롤) — 전엔 위아래 전체로 떠 있어 내용 아래 빈 자리가 그 밑의 정면도 카드를 덮었다 (2026-10-19 젠 프로젝트 점검: "정면도들이 이동시 블로킹") */
   .panel {
     position: absolute; top: 12px; right: 12px; max-height: calc(100% - 24px); width: 330px; z-index: 5;

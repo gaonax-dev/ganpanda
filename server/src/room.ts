@@ -142,6 +142,38 @@ export class Room extends DurableObject<Env> {
   /** 지금 문서 전체 (Yjs 상태) — 복원 확인·버전 저장용 */
   async exportState(): Promise<Uint8Array> { return Y.encodeStateAsUpdate(this.doc); }
 
+  /**
+   * 다른 방의 문서에서 고른 map 만 복제 (2026-10-22 요청 = 보드 복제, 간판집 [그대로·사진만]). settings 는 dropSettings 키를 빼고.
+   * 대화(messages)는 안 가져온다. 들어온 값 안의 assetId 들을 돌려준다 — 새 소유 계정에 에셋 등록용
+   */
+  async cloneFrom(update: Uint8Array, maps: string[], dropSettings: string[] = []): Promise<{ assets: string[]; photoAssets: string[] }> {
+    const old = new Y.Doc();
+    Y.applyUpdate(old, update);
+    const assets = new Set<string>(), photoAssets: string[] = [];
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { if (k === 'assetId' && typeof x === 'string') assets.add(x); else walk(x); }
+    };
+    const clone = (v: unknown): unknown => {
+      if (v instanceof Y.Map) { const m = new Y.Map<unknown>(); for (const [k, x] of v.entries()) m.set(k, clone(x)); return m; }
+      if (v instanceof Y.Array || v instanceof Y.Text) return v.toJSON();
+      return v === undefined ? v : JSON.parse(JSON.stringify(v));
+    };
+    this.doc.transact(() => {
+      for (const name of maps) {
+        const src = old.getMap<unknown>(name), cur = this.doc.getMap<unknown>(name);
+        for (const [k, v] of src.entries()) {
+          if (name === 'settings' && dropSettings.includes(k)) continue;
+          cur.set(k, clone(v));
+          const j = v instanceof Y.Map ? v.toJSON() : v;
+          walk(j);
+          if (name === 'photos' && j && typeof j === 'object' && typeof (j as { assetId?: unknown }).assetId === 'string') photoAssets.push((j as { assetId: string }).assetId);
+        }
+      }
+    });
+    return { assets: [...assets], photoAssets };
+  }
+
   /** 백업을 그대로 합친다(merge) — 잃어버린·빈 방, 새 프로젝트로 꺼내기 (2026-10-21) */
   async seedFrom(update: Uint8Array) { Y.applyUpdate(this.doc, update); }
 

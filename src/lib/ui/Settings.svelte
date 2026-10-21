@@ -316,7 +316,7 @@
   h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; }
   tr { border-bottom: 1px solid var(--line); }
-  tr.editing { background: rgba(255, 204, 0, 0.06); }
+  tr.editing { background: color-mix(in srgb, var(--accent) 6%, transparent); }
   td { padding: 7px 4px; font-size: 13px; vertical-align: middle; }
   td.name { width: 38%; }
   td.keys { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; min-height: 36px; }

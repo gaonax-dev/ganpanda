@@ -20,6 +20,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await page.reload();
   await expect(page.getByTestId('consumer-gate')).toHaveCount(0);
   await expect(page.getByTestId('consumer-badge')).toContainText('참고 금액');
+  // 가게 사장 화면은 청록 (2026-10-22 "소비자용 페이지와 사업자용 컬러를 차이주고 싶은데")
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#2dd4bf');
   await expect(page.getByTestId('estimate-button')).toBeDisabled(); // 사진 먼저
   await expect(page.getByTestId('proposal-button')).toHaveCount(0);
   await expect(page.getByTestId('invite-button')).toHaveCount(0);
@@ -105,6 +107,11 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await mine.click();
   await expect(page).toHaveURL(/\/r\/[A-Za-z0-9_-]{16}$/);
   await expect(page.getByTestId('request-page')).toContainText(store);
+  // 요청한 그대로의 보드 (2026-10-22 "그 상태를 요청페이지로 복제") — 사진을 다시 올리지 않고 서버가 복제
+  const board = page.frameLocator('[data-testid="request-board"]');
+  await expect(board.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(board.getByTestId('sign-shape')).toHaveCount(1);
+  await expect(board.getByTestId('top-nav')).toBeHidden();
 
   // 간판사: 요청 받기 + 지역 → 받은 요청에 사인물 수 → 제안 만들기 → 사진과 사인물(치수)이 들어온 프로젝트
   const shopCtx = await browser.newContext();
@@ -123,6 +130,9 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
+  await expect(item.getByTestId('request-respond-options')).toContainText('사진만'); // 가져오기 방식 고르기 (2026-10-22)
+  await expect(item.getByTestId('request-respond-blank')).toBeVisible();
+  expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 간판집은 노랑
   await expect(item.getByTestId('request-biz')).toContainText('확인'); // 사본에서 읽은 번호·대표자·개업일로 진위확인 → ✓ 사업자 확인
   await expect(item.getByTestId('request-address')).toContainText('경안로 1');
   await expect(item).toContainText('경기 광주시'); // 주소에서 뽑은 지역

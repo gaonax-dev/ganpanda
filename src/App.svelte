@@ -91,11 +91,13 @@
   ];
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
+  // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
+  $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme); });
 </script>
 
 <div class="shell">
   <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->
-  <nav class="top" class:hidden={(app.proposalMode && !app.canEdit) || !!app.page || (app.consumer && app.authReady && !app.account)} data-testid="top-nav">
+  <nav class="top" class:hidden={(app.proposalMode && !app.canEdit) || !!app.page || app.embed || (app.consumer && app.authReady && !app.account)} data-testid="top-nav">
     <a class="logo" href="/" data-testid="go-projects">간판다</a>
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>

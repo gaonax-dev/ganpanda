@@ -5,7 +5,7 @@ import { json, randomToken, readJson, sha256hex, text } from './http';
 import { planOf } from './plans';
 import { businessOf } from './business';
 import { proposalsThisMonth } from './usage';
-import { recordResponse } from './requests';
+import { recordResponse, shopCanSee, type RequestRow } from './requests';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
@@ -60,6 +60,13 @@ export async function resolveAccess(req: Request, env: Env, projectId: string, i
   const project = await getProject(env, projectId);
   if (!project) return 404;
   const account = await authenticate(req, env);
+  // 요청 프로젝트(보드 복제, 2026-10-22): 누구에게나 읽기 전용 — 가게 사장(소유)과 그 요청을 볼 수 있는 간판집만
+  if (project.kind === 'request') {
+    if (!account) return 401;
+    if (account.id === project.owner_id) return { role: 'viewer', project, account };
+    const r = await env.DB.prepare('SELECT * FROM requests WHERE snapshot_project = ?').bind(project.id).first<RequestRow>();
+    return r && (await shopCanSee(env, account, r)) ? { role: 'viewer', project, account } : 403;
+  }
   if (account && account.id === project.owner_id) return { role: 'owner', project, account };
   if (inviteToken) {
     const inv = await inviteByToken(env, inviteToken);
@@ -101,7 +108,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
 
   if (pathname === '/api/projects') {
     if (req.method === 'GET') {
-      const rows = await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND (kind IS NULL OR kind <> 'estimate') ORDER BY created_at DESC, id").bind(me.id).all<ProjectRow>(); // 견적 초안은 목록에 안 보인다
+      const rows = await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND (kind IS NULL OR kind NOT IN ('estimate', 'request')) ORDER BY created_at DESC, id").bind(me.id).all<ProjectRow>(); // 견적 초안은 목록에 안 보인다
       return json({ projects: rows.results.map((p) => pub(p, 'owner')) });
     }
     if (req.method === 'POST') {

@@ -136,8 +136,9 @@
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
-      const r = await createRequest({ ...(chosen ? { storeId: chosen.id } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
-      for (let i = 0; i < photoOrder.length; i++) {
+      // 보드를 서버에서 복제한다 — 사진을 다시 올리지 않는다 (2026-10-22 "이미 서버에 이미지가 있는데 이중으로 작동한다")
+      const r = await createRequest({ ...(app.room ? { fromProject: app.room } : {}), ...(chosen ? { storeId: chosen.id } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
+      for (let i = 0; !r.snapshotProject && i < photoOrder.length; i++) { // 복제가 안 된 경우(옛 서버)만 사진을 따로 올린다
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
         if (!url) throw new Error('사진을 읽을 수 없습니다. 보드에서 사진이 보이는지 확인해 주세요.');
@@ -303,7 +304,7 @@
   .doc { position: relative; overflow: hidden; border-radius: 8px; border: 1px solid var(--line); background: #fff; min-height: 180px; }
   .doc img { width: 100%; display: block; }
   .pdf { padding: 20px 8px; color: #333; font-size: 12px; word-break: break-all; }
-  .beam { position: absolute; left: 0; right: 0; height: 36px; background: linear-gradient(to bottom, transparent, rgba(255, 204, 0, 0.55), transparent); animation: beam 1.1s ease-in-out infinite alternate; }
+  .beam { position: absolute; left: 0; right: 0; height: 36px; background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent); animation: beam 1.1s ease-in-out infinite alternate; }
   @keyframes beam { from { top: -36px; } to { top: 100%; } }
   .fields { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
   .fields li { display: flex; flex-direction: column; gap: 2px; color: var(--muted); }

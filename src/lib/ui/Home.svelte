@@ -7,7 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
-  import { bizDocUrl, listMyRequests, type MyRequest } from '../requests';
+  import { bizDocUrl, listMyRequests, snapshotPhotoUrl, type MyRequest, type RespondMode } from '../requests';
   import { SERVER_URL } from '../sync';
   // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
   let health = $state<{ ok: boolean; mail?: { detail: string } } | null>(null);
@@ -43,10 +43,10 @@
   /** 내가 보낸 견적 요청 (가게 사장, 2026-10-21 로그인 요청): 키 없이 세션으로 연다 */
   let myRequests = $state<MyRequest[]>([]);
   let responding = $state('');
-  async function respond(r: ShopRequest) {
+  async function respond(r: ShopRequest, mode: RespondMode = 'copy') {
     if (responding) return;
     responding = r.id;
-    try { const p = await respondRequest(r.id); location.href = `/?room=${p.id}`; }
+    try { const p = await respondRequest(r.id, mode); location.href = `/?room=${p.id}`; }
     catch (e) { app.notice = e instanceof Error ? e.message : String(e); responding = ''; }
   }
   async function reload() {
@@ -246,7 +246,7 @@
         <p class="hint"><button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>
         {#each requests as r (r.id)}
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
-            <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
+            <div class="rphotos">{#if r.snapshot}{#each r.snapshot.photos as a (a)}<img src={snapshotPhotoUrl(r.snapshot.project, a)} alt="" />{/each}{:else}{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}{/if}</div>
             <div class="rbody">
               <b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz" title="번호·대표자명·개업일이 국세청 등록 정보와 일치">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="번호만 국세청 상태조회로 확인 (사본 참고)">✓ 번호 확인</span>{/if} {#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
               {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
@@ -263,7 +263,17 @@
               {:else if r.projectId}
                 <a class="btn small" data-testid="request-open" href="/?room={r.projectId}">프로젝트 열기</a>
               {:else}
+                {#if r.snapshot}
+                  <!-- 가져오기 방식 (2026-10-22 "복제해서 자기 프로젝트로 가져오는건 옵션으로 보통 새로 만들경우도 있어서") -->
+                  <a class="btn small" data-testid="request-board-view" href="/?room={r.snapshot.project}" target="_blank" rel="noopener">요청 보드 보기</a>
+                  <span class="respond" data-testid="request-respond-options">제안 만들기:
+                    <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r, 'copy')} title="사진·사인물·치수 그대로 내 프로젝트로">그대로 가져오기</button>
+                    <button class="btn small" data-testid="request-respond-photos" disabled={responding === r.id} onclick={() => respond(r, 'photos')} title="사진만 가져와 새로 그리기">사진만</button>
+                    <button class="btn small" data-testid="request-respond-blank" disabled={responding === r.id} onclick={() => respond(r, 'blank')} title="빈 프로젝트 — 현장 사진으로 새로">새로 만들기</button>
+                  </span>
+                {:else}
                 <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r)}>제안 만들기</button>
+                {/if}
               {/if}
             </div>
           </div>
@@ -543,7 +553,7 @@
   /* 프로젝트 카드 */
   .pcard { width: 200px; min-height: 86px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); text-decoration: none; user-select: none; }
   .pcard:hover { border-color: var(--accent); }
-  .pcard.sel { outline: 2px solid var(--accent); outline-offset: 1px; background: rgba(255, 204, 0, 0.08); }
+  .pcard.sel { outline: 2px solid var(--accent); outline-offset: 1px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .pcard b { font-size: 14px; }
   .pcard small, .gcard small { color: var(--muted); font-size: 11px; }
   .status[data-status='ongoing'] { color: var(--accent); }
@@ -608,7 +618,7 @@
   .dialog .ok { color: var(--ok); }
   .dialog header .btn { margin-left: auto; margin-right: 8px; }
   .pcard { position: relative; }
-  tr.sel td { background: rgba(255, 204, 0, 0.08); }
+  tr.sel td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .landing { text-align: center; margin-top: 60px; }
   .who { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 18px 0 10px; }
   .who .big { display: flex; flex-direction: column; gap: 4px; align-items: center; padding: 16px 22px; min-width: 240px; text-decoration: none; font-size: 15px; font-weight: 700; }
@@ -617,4 +627,5 @@
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
   .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
   .tag.off { color: var(--danger); border-color: var(--danger); }
+  .respond { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 </style>

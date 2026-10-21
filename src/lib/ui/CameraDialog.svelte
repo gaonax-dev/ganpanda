@@ -178,7 +178,7 @@
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, size, size);
     ctx.drawImage(img, loupeAt[0] - half, loupeAt[1] - half, half * 2, half * 2, 0, 0, size, size);
-    ctx.strokeStyle = 'rgba(255,204,0,0.9)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'color-mix(in srgb, var(--accent) 90%, transparent)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2, size); ctx.moveTo(0, size / 2); ctx.lineTo(size, size / 2); ctx.stroke();
   }
   function toggleZ() {

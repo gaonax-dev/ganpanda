@@ -171,9 +171,9 @@
   .label { position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; white-space: nowrap; color: var(--muted); font-size: 13px; padding-bottom: 4px; display: flex; gap: 8px; align-items: center; }
   .label button { background: var(--hover); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
   .crop rect { fill: rgba(47,139,255,0.15); stroke: var(--blue); }
-  .crop.sel rect { fill: rgba(255,204,0,0.18); stroke: var(--accent); }
+  .crop.sel rect { fill: color-mix(in srgb, var(--accent) 18%, transparent); stroke: var(--accent); }
   .crop text { fill: #fff; stroke: rgba(0,0,0,0.75); paint-order: stroke; font-weight: 600; pointer-events: none; }
-  .draft { fill: rgba(255,204,0,0.12); stroke: var(--accent); pointer-events: none; }
+  .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
   .empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); padding-right: 300px; pointer-events: none; }
   .empty > * { pointer-events: auto; }
   .empty p { color: var(--text); margin: 0; }

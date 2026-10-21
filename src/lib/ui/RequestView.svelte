@@ -3,6 +3,7 @@
      진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
   import { cancelRequest, customerPhotoUrl, getRequest, type CustomerRequestView } from '../requests';
+  import { loadSession } from '../auth';
   import { SERVER_URL } from '../sync';
   import { requestSteps } from '../core/estimateRequest';
   import { formatBizNo } from '../core/business';
@@ -70,16 +71,23 @@
       {/each}
     {/if}
 
+    {#if r.snapshot}
+      <!-- 요청한 그대로의 보드 (2026-10-22 "그 상태를 요청페이지로 복제") — 읽기 전용 요청 프로젝트를 넣어 보여 준다 -->
+      <h2>요청한 그대로 <a class="open" data-testid="request-board-open" href="/?room={r.snapshot.project}&c=1" target="_blank" rel="noopener">크게 보기 ↗</a></h2>
+      {#if loadSession()}
+        <iframe class="board" data-testid="request-board" title="요청한 보드" src="/?room={r.snapshot.project}&embed=1&c=1"></iframe>
+      {:else}<p class="hint">요청한 계정으로 로그인하면 요청한 보드가 그대로 보입니다.</p>{/if}
+    {/if}
     <h2>요청 내용</h2>
     <section class="card summary" data-testid="request-summary">
       <dl>
         <dt>사인물</dt><dd>{signs.length}개 <small>(치수 입력 {measured}개)</small></dd>
-        <dt>사진</dt><dd>{r.photos.length}장</dd>
+        <dt>사진</dt><dd>{r.snapshot ? r.snapshot.photos.length : r.photos.length}장</dd>
         <dt>지역</dt><dd>{r.region}</dd>
         {#if r.text}<dt>요청</dt><dd>{r.text}</dd>{/if}
       </dl>
       {#if signs.length}<ul class="signs">{#each signs as s, i (i)}<li><b>{s.name}</b>{#if s.widthMm && s.heightMm}<small>{s.widthMm.toLocaleString()}×{s.heightMm.toLocaleString()}mm</small>{:else}<small class="warn">치수 없음</small>{/if}</li>{/each}</ul>{/if}
-      {#if r.photos.length}<div class="photos">{#each r.photos as p (p.n)}<img src={customerPhotoUrl(id, key, p.n)} alt="" />{/each}</div>{/if}
+      {#if !r.snapshot && r.photos.length}<div class="photos">{#each r.photos as p (p.n)}<img src={customerPhotoUrl(id, key, p.n)} alt="" />{/each}</div>{/if}
     </section>
 
     {#if r.status === 'open'}
@@ -110,15 +118,15 @@
   .steps li[data-state='done'] i { background: var(--ok); border-color: var(--ok); }
   .steps li[data-state='done']::before, .steps li[data-state='now']::before { background: var(--ok); }
   .steps li[data-state='now'] { color: var(--accent); font-weight: 700; }
-  .steps li[data-state='now'] i { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255, 204, 0, 0.2); }
+  .steps li[data-state='now'] i { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
   .steps li[data-state='cancelled'] { text-decoration: line-through; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; line-height: 1.6; }
   .status { position: relative; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-  .status[data-status='open'] { border-color: rgba(255, 204, 0, 0.5); }
+  .status[data-status='open'] { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
   .status[data-status='approved'] { border-color: rgba(60, 200, 120, 0.6); }
   .status .btn { text-decoration: none; }
   .pulse { position: absolute; top: 14px; right: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-out infinite; }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.6); } 100% { box-shadow: 0 0 0 12px rgba(255, 204, 0, 0); } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent); } }
   h2 { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
   .proposal { display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: var(--text); }
   .proposal small { display: block; color: var(--muted); font-size: 12px; }
@@ -130,6 +138,8 @@
   .signs { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .signs li { background: var(--input); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font-size: 12px; display: flex; gap: 6px; }
   .signs small { color: var(--muted); }
+  .board { width: 100%; height: min(70vh, 560px); border: 1px solid var(--line); border-radius: 14px; background: var(--canvas); }
+  h2 .open { float: right; font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 600; }
   .photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
   .photos img { height: 110px; border-radius: 8px; }
   .btn.danger { align-self: flex-start; color: var(--danger); border-color: var(--danger); background: none; }

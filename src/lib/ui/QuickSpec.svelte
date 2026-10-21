@@ -91,7 +91,7 @@
   .quickspec { display: flex; flex-direction: column; gap: 6px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--input, rgba(255,255,255,0.04)); color: var(--text); font-size: 12px; cursor: pointer; }
-  .chip.on { border-color: var(--accent); color: var(--accent); background: rgba(255, 204, 0, 0.08); }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .chip.add { padding: 2px 9px; font-size: 14px; font-weight: 700; color: var(--muted); }
   .chip.note { max-width: 180px; }
   .chip small { color: var(--muted); font-size: 10px; }

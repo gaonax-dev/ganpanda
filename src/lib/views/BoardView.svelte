@@ -534,7 +534,7 @@
   .cursor { position: absolute; transform-origin: 0 0; pointer-events: none; display: flex; align-items: flex-start; gap: 2px; z-index: 3; }
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
-  .draft { position: absolute; border: 1px dashed var(--accent); background: rgba(255, 204, 0, 0.08); pointer-events: none; }
+  .draft { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
   .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; display: flex; align-items: center; gap: 8px; }
   .flat-label .arrange { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; }
   .flat-label .arrange .gap { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
@@ -543,8 +543,8 @@
   .flat-handle.move.on { outline: 2px solid #fff; }
   .flat-label .scale { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; }
   .flat-label .scale .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
-  .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid #1a1500; cursor: nwse-resize; z-index: 3; }
-  .flat-handle.move { width: 18px; height: 18px; cursor: move; display: grid; place-items: center; font-size: 12px; line-height: 1; color: #1a1500; }
+  .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid var(--accent-ink); cursor: nwse-resize; z-index: 3; }
+  .flat-handle.move { width: 18px; height: 18px; cursor: move; display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--accent-ink); }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;
     color: var(--muted); pointer-events: none;

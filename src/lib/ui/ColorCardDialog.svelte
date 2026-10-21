@@ -169,7 +169,7 @@
   .swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .sw { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); cursor: pointer; padding: 0; }
   .sw.extra { width: 20px; height: 20px; }
-  .sw.on { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.35); }
+  .sw.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
   .sw.none { background: var(--input); color: var(--muted); font-size: 11px; display: grid; place-items: center; }
   .sw.pick { background: var(--input); display: grid; place-items: center; font-size: 13px; position: relative; overflow: hidden; }
   .sw.pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
@@ -199,7 +199,7 @@
   .tags .suggest { flex-basis: 100%; }
   .tagbox { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--input, rgba(255,255,255,0.04)); }
   .tagbox input { flex: 1 1 80px; min-width: 60px; background: none; border: 0; outline: none; color: var(--text); }
-  .tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 999px; background: rgba(255,204,0,0.15); color: var(--accent); font-size: 11px; }
+  .tag { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-size: 11px; }
   .tag button { background: none; border: 0; color: inherit; cursor: pointer; font-size: 10px; padding: 0; }
   .suggest { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
   .suggest button { background: rgba(255,255,255,0.05); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer; }

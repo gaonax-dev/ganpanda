@@ -68,7 +68,7 @@
   {#if badge}
     <g transform="translate({geom.cx + geom.w / 2 - 2 * u} {geom.cy - geom.h / 2 + 2 * u})" pointer-events="none">
       <circle r={7 * u} fill="var(--accent)" />
-      <text data-testid="{testid}-unread" font-size={9 * u} text-anchor="middle" dy={3 * u} fill="#1a1500" font-weight="800">{badge}</text>
+      <text data-testid="{testid}-unread" font-size={9 * u} text-anchor="middle" dy={3 * u} fill="var(--accent-ink)" font-weight="800">{badge}</text>
     </g>
   {/if}
   <!-- 꼭지 손잡이: 보이지 않는 터치 영역만 (점은 없앰, 2026-10-18). 끌면 꼭지만 -->

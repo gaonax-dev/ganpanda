@@ -85,7 +85,7 @@
   .bubbles { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 2; }
   .bubbles :global(.bubble) { pointer-events: auto; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
-  .standalone .face { background: #e8e4d8; outline: 1px dashed rgba(255, 204, 0, 0.7); }
+  .standalone .face { background: #e8e4d8; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); }
   .sel .face { outline: 2px solid var(--accent); }
   .multi .face { outline: 2px dashed var(--accent); }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -93,9 +93,9 @@
   .design { position: absolute; inset: 0; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
-  .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
+  .badge.settings { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
   .badge.unsized { color: var(--warn); border-color: var(--warn); }
-  .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
+  .badge.design { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
   .label { position: absolute; left: 0; top: 100%; margin-top: 4px; transform-origin: 0 0; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); white-space: nowrap; pointer-events: none; }
   .label b { font-size: 12px; }
   .muted { color: var(--muted); }

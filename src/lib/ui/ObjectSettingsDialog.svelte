@@ -293,7 +293,7 @@
     background: var(--input); border: 1px solid var(--line); color: var(--muted); border-radius: 14px;
     padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
   }
-  .chips button.on { border-color: var(--accent); color: var(--accent); background: rgba(255, 204, 0, 0.08); }
+  .chips button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .warning { margin-top: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
   .warning b { color: var(--warn); }
   .warning p { margin: 4px 0 8px; }

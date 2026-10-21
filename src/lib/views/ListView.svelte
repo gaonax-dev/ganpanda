@@ -437,8 +437,8 @@
   .bubbles :global(.bubble) { pointer-events: auto; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
-  .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
-  .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
+  .badge.settings { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+  .badge.design { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .spec .place { pointer-events: auto; }
   .dim { color: var(--dim); font-size: 11px; }

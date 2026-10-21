@@ -272,6 +272,7 @@ export default {
       const authed = withSessionParam(req, url);
       const access = await resolveAccess(authed, env, name, url.searchParams.get('invite'));
       if (typeof access === 'number') return withCors(text('no access', access));
+      if (access.project.kind === 'request' && room[2]) return withCors(text('read only', 403)); // 요청 프로젝트에는 대화·말풍선·승인 없음 (간판집끼리 섞이지 않게)
       if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
       if (room[2] === '/pins') return withCors(await postPin(req, env, name));
       if (room[2] === '/approvals') return withCors(await postApproval(req, env, name));

@@ -8,6 +8,8 @@ import { scanBizDoc } from './docScan';
 import { regionMatches, regionOfAddress } from './region';
 import { isOperator, operatorEmails } from './operator';
 import { getStore, storeDocKey } from './stores';
+import { cloneRoom } from './snapshot';
+import { newRoomId, type ProjectRow } from './projects';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -34,10 +36,13 @@ export interface RequestRow {
   owner_name?: string | null; start_date?: string | null; biz_verified?: number;
   /** 고른 사업자(stores), 일반 주문(사업자 없음), 재요청이면 앞 요청, 취소 시각 (2026-10-22) */
   store_id?: string | null; general?: number; prev_id?: string | null; cancelled_at?: number | null;
+  /** 보드 복제 요청 프로젝트와 그 사진 에셋 id JSON (2026-10-22) */
+  snapshot_project?: string | null; snapshot_photos?: string | null;
 }
 const bizDocOf = (r: RequestRow): { type: string; size: number } | null => { try { return r.biz_doc ? (JSON.parse(r.biz_doc) as { type: string; size: number }) : null; } catch { return null; } };
 const bizDocKey = (id: string) => `requests/${id}/biz-doc`;
 const DOC_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const snapshotPhotos = (r: RequestRow): string[] => { try { return JSON.parse(r.snapshot_photos || '[]') as string[]; } catch { return []; } };
 const signsOf = (r: RequestRow): RequestSign[] => { try { return validateRequestSigns(JSON.parse(r.signs || '[]')) ?? []; } catch { return []; } };
 interface PhotoMeta { n: number; type: string; size: number }
 const photosOf = (r: RequestRow): PhotoMeta[] => { try { return JSON.parse(r.photos) as PhotoMeta[]; } catch { return []; } };
@@ -51,7 +56,7 @@ const getRequest = (env: Env, id: string) => env.DB.prepare('SELECT * FROM reque
 
 /** 간판사가 이 요청을 볼 수 있나: 요청 받기 + 지역 일치(열린 요청), 또는 이미 답한 요청 */
 /** 운영자 (2026-10-21 "받을 간판 가게가 없다. 일정 기간 수동으로 처리"): OPERATOR_EMAILS 의 계정은 지역에 상관없이 모든 열린 요청을 받고 알림 메일도 받는다 (operator.ts) */
-async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean> {
+export async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean> {
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;
   if (r.status === 'open' && isOperator(env, me.email)) return true;
@@ -90,7 +95,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), ...(r.snapshot_project ? { snapshot: { project: r.snapshot_project, photos: snapshotPhotos(r) } } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -129,7 +134,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   if (pathname === '/api/requests' && req.method === 'POST') {
     const me = await authenticate(req, env);
     if (!me) return json({ error: 'login_required' }, 401);
-    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean; storeId?: string; general?: boolean }>(req);
+    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean; storeId?: string; general?: boolean; fromProject?: string }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
     const address0 = typeof b?.address === 'string' ? b.address.trim() : '';
     const region = (typeof b?.region === 'string' && b.region.trim() ? b.region.trim() : regionOfAddress(address0)).slice(0, REGION_MAX); // 지역이 없으면 주소에서 (2026-10-21)
@@ -143,6 +148,9 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const st = typeof b?.storeId === 'string' ? await getStore(env, b.storeId) : null;
     if (b?.storeId !== undefined && (!st || st.account_id !== me.id || !st.verified)) return json({ error: 'bad_store' }, 400);
     const general = !st && b?.general === true; // 일반 주문 (사업자 없음, 2026-10-22)
+    // 보드 복제 (2026-10-22): 내 견적 초안 방만
+    const draft = typeof b?.fromProject === 'string' ? await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(b.fromProject).first<ProjectRow>() : null;
+    if (b?.fromProject !== undefined && (!draft || draft.owner_id !== me.id || draft.kind !== 'estimate')) return json({ error: 'bad_project' }, 400);
     // 주소(선택)·사업자번호(선택, 2026-10-21 "둘다 작성"): 번호만 국세청 상태조회 → 폐업은 거절, 미등록 거절, 조회 불가면 확인 없이 받는다
     const address = typeof b?.address === 'string' && b.address.trim() ? b.address.trim().slice(0, 200) : st?.address ?? '';
     const bizNo = st ? st.b_no : typeof b?.bizNo === 'string' ? b.bizNo.replace(/\D/g, '') : '';
@@ -185,9 +193,18 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     }
     await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id, address, biz_no, biz_status, owner_name, start_date, biz_verified, store_id, general, prev_id, biz_doc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id, row.address, row.biz_no, row.biz_status, row.owner_name, row.start_date, row.biz_verified, row.store_id, row.general, row.prev_id, row.biz_doc ?? null).run();
+    // 요청 프로젝트 = 견적 초안 방의 읽기 전용 복제: 사진은 다시 올리지 않는다 (이미 이 계정의 에셋)
+    let snapshotProject: string | undefined;
+    if (draft) {
+      snapshotProject = newRoomId();
+      await env.DB.prepare("INSERT INTO projects (id, owner_id, name, created_at, kind) VALUES (?, ?, ?, ?, 'request')").bind(snapshotProject, me.id, `${store} 요청서`.slice(0, 60), Date.now()).run();
+      const c = await cloneRoom(env, draft, { id: snapshotProject, owner_id: me.id }, ['photos', 'objects', 'sources', 'settings'], ['estimateDraft', 'estimateRequest', 'estimateIdentity', 'estimatePrev', 'restored']);
+      await env.DB.prepare('UPDATE requests SET snapshot_project = ?, snapshot_photos = ? WHERE id = ?').bind(snapshotProject, JSON.stringify(c.photoAssets), id).run();
+      row.snapshot_project = snapshotProject; row.snapshot_photos = JSON.stringify(c.photoAssets);
+    }
     const pageUrl = `${appUrl(env)}/r/${id}?key=${key}`;
     await notify(env, row, pageUrl);
-    return json({ id, key, url: pageUrl }, 201);
+    return json({ id, key, url: pageUrl, ...(snapshotProject ? { snapshotProject } : {}) }, 201);
   }
 
   // ---- 간판사: 받은 요청 목록 GET /api/requests ----
@@ -302,6 +319,12 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (existing) return json({ project: { id: existing.id, name: existing.name, createdAt: existing.created_at, role: 'owner', requestId: r.id } });
     const id = randomToken().slice(0, 16), name = `${r.store} 요청`.slice(0, 60), now = Date.now();
     await env.DB.prepare('INSERT INTO projects (id, owner_id, name, created_at, request_id) VALUES (?, ?, ?, ?, ?)').bind(id, me.id, name, now, r.id).run();
+    // 가져오기 방식 (2026-10-22 "복제해서 자기 프로젝트로 가져오는건 옵션으로 보통 새로 만들경우도 있어서"): copy = 사진·사인물째(기본), photos = 사진만, blank = 빈 프로젝트
+    const mode = (await readJson<{ mode?: string }>(req))?.mode;
+    if (r.snapshot_project && mode !== 'blank') {
+      const snap = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(r.snapshot_project).first<ProjectRow>();
+      if (snap) await cloneRoom(env, snap, { id, owner_id: me.id }, mode === 'photos' ? ['photos'] : ['photos', 'objects', 'sources']);
+    }
     return json({ project: { id, name, createdAt: now, role: 'owner', requestId: r.id } }, 201);
   }
 

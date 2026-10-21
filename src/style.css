@@ -7,6 +7,9 @@
   font-family: 'Pretendard', 'Apple SD Gothic Neo', system-ui, sans-serif;
   color: var(--text); background: var(--bg); color-scheme: dark;
 }
+/* 가게 사장(소비자) 화면 — 노란색(간판집) 대신 청록 (2026-10-22 "소비자용 페이지와 사업자용 컬러를 차이주고 싶은데") */
+:root.consumer { --accent: #2dd4bf; --accent-ink: #032b26; }
+
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }
 /* 트랙패드 가로 스와이프가 브라우저 뒤로·앞으로 가기로 번지지 않게 — 루트와 모든 스크롤 영역(패널·도구 막대·창)에서 스크롤 연쇄 차단

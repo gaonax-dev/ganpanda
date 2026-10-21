@@ -105,13 +105,13 @@
   .spec { display: flex; flex-direction: column; gap: 6px; }
   .row { display: flex; gap: 6px; }
   .row input { flex: 1; min-width: 0; font-size: 13px; }
-  .confirm { border: 1px solid rgba(255, 204, 0, 0.5); background: rgba(255, 204, 0, 0.06); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .confirm { border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
   .confirm p { margin: 0 0 4px; color: var(--muted); }
   label.item { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; color: var(--text); }
   label.item input { width: auto; margin: 0; }
   .acts { display: flex; gap: 6px; margin-top: 4px; }
   label.item.share { color: var(--muted); margin-top: 4px; }
-  .ask { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255, 204, 0, 0.4); }
+  .ask { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent); }
   .ask p { margin: 0; color: var(--text); }
   .ask small { color: var(--muted); }
   .term { color: var(--muted); margin-left: 4px; }
