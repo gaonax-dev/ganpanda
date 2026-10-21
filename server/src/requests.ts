@@ -18,6 +18,8 @@ export interface RequestRow {
   photos: string; status: 'open' | 'approved'; created_at: number; approved_at: number | null; approved_by: string | null;
   /** 소비자가 그린 사인물 JSON (2026-10-21). 옛 행은 없음 */
   signs?: string;
+  /** 요청한 계정 (2026-10-21 로그인 필수). 옛 행은 null */
+  account_id?: string | null;
 }
 const signsOf = (r: RequestRow): RequestSign[] => { try { return validateRequestSigns(JSON.parse(r.signs || '[]')) ?? []; } catch { return []; } };
 interface PhotoMeta { n: number; type: string; size: number }
@@ -39,6 +41,13 @@ async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean
 }
 async function customerKeyOk(r: RequestRow, key: string | null): Promise<boolean> {
   return !!key && (await sha256hex(key)) === r.key_hash;
+}
+/** 고객: 키 또는 요청한 계정의 세션 (2026-10-21 로그인 요청 — 키 없이도 내 요청을 연다) */
+async function customerOk(env: Env, req: Request, url: URL, r: RequestRow, key: string | null): Promise<boolean> {
+  if (await customerKeyOk(r, key)) return true;
+  if (!r.account_id) return false;
+  const me = await authenticate(withSessionParam(req, url), env);
+  return !!me && me.id === r.account_id;
 }
 
 /** 요청 알림 메일 (운영: Email Sending). 로컬·테스트는 EMAIL 이 없어 건너뜀. 실패해도 요청은 만들어진다 */
@@ -76,8 +85,18 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ requestSettings: { receive: body.receive, regions } });
   }
 
-  // ---- 요청 올리기: POST /api/requests (로그인 없음) ----
+  // ---- 내 요청 목록: GET /api/requests/mine (요청한 계정, 2026-10-21) ----
+  if (pathname === '/api/requests/mine' && req.method === 'GET') {
+    const me = await authenticate(req, env);
+    if (!me) return text('unauthorized', 401);
+    const rows = (await env.DB.prepare('SELECT r.*, (SELECT COUNT(*) FROM request_responses rr WHERE rr.request_id = r.id) AS responses FROM requests r WHERE r.account_id = ? ORDER BY r.created_at DESC LIMIT 50').bind(me.id).all<RequestRow & { responses: number }>()).results;
+    return json({ requests: rows.map((r) => ({ ...pubRequest(r), responses: Number(r.responses) })) });
+  }
+
+  // ---- 요청 올리기: POST /api/requests (로그인 필수 — 2026-10-21 "인증이 되야": 카카오 기본) ----
   if (pathname === '/api/requests' && req.method === 'POST') {
+    const me = await authenticate(req, env);
+    if (!me) return json({ error: 'login_required' }, 401);
     const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
     const region = typeof b?.region === 'string' ? b.region.trim().slice(0, REGION_MAX) : '';
@@ -92,10 +111,10 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const id = randomToken().slice(0, 16), key = randomToken();
     const row: RequestRow = {
       id, key_hash: await sha256hex(key), store, region, text: typeof b?.text === 'string' ? b.text.trim().slice(0, TEXT_MAX) : '', phone, email,
-      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs),
+      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs), account_id: me.id,
     };
-    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs).run();
+    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id).run();
     const pageUrl = `${appUrl(env)}/r/${id}?key=${key}`;
     await notify(env, row, pageUrl);
     return json({ id, key, url: pageUrl }, 201);
@@ -129,7 +148,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
 
   // ---- 사진 올리기: PUT /api/requests/:id/photos?key= (고객) ----
   if (m[2] === 'photos' && m[3] === undefined && req.method === 'PUT') {
-    if (!(await customerKeyOk(r, key))) return text('forbidden', 403);
+    if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
     const type = (req.headers.get('content-type') ?? '').split(';')[0].trim();
     if (!PHOTO_TYPES.has(type)) return text('unsupported type', 415);
     const photos = photosOf(r);
@@ -145,7 +164,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
 
   // ---- 사진 받기: GET /api/requests/:id/photos/:n (고객 키 또는 간판사 세션·?session=) ----
   if (m[2] === 'photos' && m[3] !== undefined && (req.method === 'GET' || req.method === 'HEAD')) {
-    let ok = await customerKeyOk(r, key);
+    let ok = await customerOk(env, req, url, r, key);
     if (!ok) {
       const me = await authenticate(withSessionParam(req, url), env);
       if (!me) return text('unauthorized', 401);
@@ -173,7 +192,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
 
   // ---- 고객 요청 페이지: GET /api/requests/:id?key= ----
   if (!m[2] && !m[4] && req.method === 'GET') {
-    if (!(await customerKeyOk(r, key))) return text('forbidden', 403);
+    if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
     const rows = await env.DB.prepare('SELECT rr.proposal_url, rr.created_at, a.name, a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ? ORDER BY rr.created_at')
       .bind(r.id).all<{ proposal_url: string; created_at: number; name: string; email: string }>();
     const shopName = (a: { name: string; email: string }) => a.name || a.email.split('@')[0];

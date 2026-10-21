@@ -5,7 +5,11 @@
   import { assetUrl } from '../assets';
   import { createRequest, uploadRequestPhoto } from '../requests';
   import { serializeRequestSigns } from '../core/requestSigns';
-  import { AuthError } from '../auth';
+  import { AuthError, fetchProviders, socialStartUrl, type SocialProvider } from '../auth';
+  // 로그인 필수 (2026-10-21 "카카오톡으로 로그인하게해줘 인증이되야 할거 같아"): 카카오가 기본, 다른 방법은 로그인 창
+  let providers = $state<SocialProvider[]>([]);
+  $effect(() => { fetchProviders().then((p) => (providers = p)); });
+  $effect(() => { if (app.account && !email) email = app.account.email.includes('@noemail.') ? '' : app.account.email; });
 
   let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
   let busy = $state(''), error = $state(''), done = $state<{ url: string } | null>(null), copied = $state(false);
@@ -45,7 +49,13 @@
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="견적 요청" data-testid="estimate-dialog">
     <header><h2>간판 견적 요청</h2><button class="icon" data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
-    {#if done}
+    {#if !app.account}
+      <div class="gate" data-testid="estimate-login">
+        <p>견적 요청을 보내려면 <b>로그인</b>이 필요합니다. 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다. 그린 내용은 이 기기에 그대로 남습니다.</p>
+        {#if providers.includes('kakao')}<a class="btn kakao" data-testid="estimate-login-kakao" href={socialStartUrl('kakao', '/estimate')}>카카오로 시작</a>{/if}
+        <button class="btn" data-testid="estimate-login-other" onclick={() => { app.estimateOpen = false; app.loginOpen = true; }}>다른 방법으로 로그인</button>
+      </div>
+    {:else if done}
       <p class="ok" data-testid="estimate-done">요청을 보냈습니다. 이 지역 간판집들이 보고 제안을 보내면 아래 주소에서 비교할 수 있습니다. <b>주소를 꼭 저장해 두세요.</b></p>
       <div class="link"><input data-testid="estimate-done-link" readonly value={done.url} /><button class="btn small" data-testid="estimate-copy" onclick={copy}>{copied ? '복사됨' : '복사'}</button></div>
       <footer><a class="btn primary" href={done.url} data-testid="estimate-open">내 요청 페이지 열기</a><button class="btn" onclick={close}>닫기</button></footer>
@@ -79,6 +89,10 @@
   .ok { margin: 0; font-size: 13px; line-height: 1.5; }
   .link { display: flex; gap: 6px; }
   .err { color: var(--danger); font-size: 12px; margin: 0; }
+  .gate { display: flex; flex-direction: column; gap: 10px; }
+  .gate p { margin: 0; font-size: 13px; line-height: 1.5; }
+  .gate .btn { justify-content: center; text-decoration: none; font-weight: 700; }
+  .kakao { background: #fee500; color: #191919; border-color: #fee500; }
   .hint { color: var(--muted); font-size: 11px; }
   footer { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-top: 4px; }
 </style>

@@ -7,17 +7,30 @@ const png = (seed: number, size = 64) => { const b = new Uint8Array(size); b.set
 /** 전화번호당 열린 요청 3건 한도가 있으므로 기본 번호는 매번 다르게 */
 const randPhone = () => `010${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
 const body = (o: Partial<Record<string, string>> = {}) => ({ store: '바로바로 정육점', region: '경기 광주시', text: '전면 간판 교체', phone: randPhone(), ref: 'promo-kim', ...o });
-const create = (o: Partial<Record<string, string>> = {}) => json('/api/requests', body(o));
+/** 고객 세션 (2026-10-21 로그인 필수 — 카카오 기본) */
+let customer = '';
+const create = (o: Partial<Record<string, unknown>> = {}, session = customer) => json('/api/requests', body(o as Partial<Record<string, string>>), session);
 const putPhoto = (id: string, key: string, bytes: Uint8Array, type = 'image/png') => api(`/api/requests/${id}/photos?key=${key}`, { method: 'PUT', body: bytes, headers: { 'content-type': type } });
 const setSettings = (session: string, receive: boolean, regions: string[]) => json('/api/me/request-settings', { receive, regions }, session, 'PUT');
 
 let shop = '';
 beforeEach(async () => {
   shop = await login(`shop-${crypto.randomUUID().slice(0, 8)}@example.com`);
+  customer = await login(`cust-${crypto.randomUUID().slice(0, 8)}@example.com`);
   await setSettings(shop, true, ['경기 광주시', '성남시 분당구']);
 });
 
-describe('요청 올리기 (로그인 없음)', () => {
+describe('요청 올리기 (로그인한 고객)', () => {
+  it('로그인 없이는 401 login_required; 요청에 계정이 붙어 키 없이 세션으로도 내 요청을 본다, /mine 에 목록 (2026-10-21)', async () => {
+    expect((await create({}, '')).status).toBe(401);
+    const { id, key } = await (await create()).json<{ id: string; key: string }>();
+    expect((await get(`/api/requests/${id}`, customer)).status).toBe(200); // 키 없이 세션
+    expect((await get(`/api/requests/${id}`, shop)).status).toBe(403); // 남의 세션은 안 됨
+    expect((await get(`/api/requests/${id}?key=${key}`)).status).toBe(200); // 키는 그대로
+    const mine = await (await get('/api/requests/mine', customer)).json<{ requests: { id: string; responses: number }[] }>();
+    expect(mine.requests.map((r) => r.id)).toContain(id);
+    expect(mine.requests.find((r) => r.id === id)!.responses).toBe(0);
+  });
   it('가게·지역·내용·전화로 요청을 만들면 id 와 고객 키·요청 페이지 주소를 준다. 홍보자 코드는 저장', async () => {
     const r = await create({ phone: '010-1234-5678' });
     expect(r.status).toBe(201);
@@ -30,12 +43,12 @@ describe('요청 올리기 (로그인 없음)', () => {
   });
   it('소비자가 그린 사인물(signs)을 함께 실으면 고객 페이지·간판사 목록에 그대로 온다; 틀린 모양은 400 (2026-10-21)', async () => {
     const signs = [{ photo: 0, name: '전면 간판', shape: 'rect', quad: [[100, 100], [900, 100], [900, 300], [100, 300]], widthMm: 4000, heightMm: 1000, productId: 'board-flex', memo: '야간 조명' }];
-    const r = await create({ signs } as unknown as Record<string, string>);
+    const r = await create({ signs });
     expect(r.status).toBe(201);
     const { id, key } = await r.json<{ id: string; key: string }>();
     const view = await (await get(`/api/requests/${id}?key=${encodeURIComponent(key)}`)).json<{ request: { signs: unknown[] } }>();
     expect(view.request.signs).toEqual(signs);
-    expect((await create({ signs: [{ photo: 0, name: 'x', shape: 'rect', quad: [] }] } as unknown as Record<string, string>)).status).toBe(400);
+    expect((await create({ signs: [{ photo: 0, name: 'x', shape: 'rect', quad: [] }] })).status).toBe(400);
   });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);

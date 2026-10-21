@@ -7,6 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
+  import { listMyRequests, type MyRequest } from '../requests';
   import { measureLabel } from '../core/measureSummary';
   import { groupDday, projectDday } from '../core/dday';
   import type { ProjectDetails } from '../projects';
@@ -32,6 +33,8 @@
 
   /** 받은 요청 (요청판, 2026-10-17): 요청 받기를 켰거나 답한 요청이 있을 때 */
   let requests = $state<ShopRequest[]>([]);
+  /** 내가 보낸 견적 요청 (가게 사장, 2026-10-21 로그인 요청): 키 없이 세션으로 연다 */
+  let myRequests = $state<MyRequest[]>([]);
   let responding = $state('');
   async function respond(r: ShopRequest) {
     if (responding) return;
@@ -43,6 +46,7 @@
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
       if (app.requestsEnabled) listRequests().then((rs) => (requests = rs)).catch(() => (requests = []));
+      if (app.requestsEnabled) listMyRequests().then((rs) => (myRequests = rs)).catch(() => (myRequests = []));
       const next: Record<string, GroupView> = {};
       await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
       views = next;
@@ -209,6 +213,17 @@
   {#if !app.authReady}
     <p class="hint">확인 중…</p>
   {:else if app.account}
+    {#if app.requestsEnabled && myRequests.length}
+      <section class="requests" data-testid="my-request-list">
+        <h1>내 견적 요청 <small><a href="/estimate">새 요청</a></small></h1>
+        {#each myRequests as r (r.id)}
+          <a class="rcard mine" data-testid="my-request-item" data-status={r.status} href="/r/{r.id}">
+            <b>{r.store}</b><span class="muted">{r.region} · {date(r.createdAt)} · 사인물 {r.signs?.length ?? 0}개</span>
+            <span class="resp" data-testid="my-request-responses">{r.status === 'approved' ? '승인됨' : r.responses ? `제안 ${r.responses}건` : '제안 기다리는 중'}</span>
+          </a>
+        {/each}
+      </section>
+    {/if}
     {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive)}
       <section class="requests" data-testid="request-list">
         <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>설정</button></small></h1>
@@ -454,6 +469,8 @@
 <style>
   .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+  .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
+  .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
   .rphotos { display: flex; gap: 4px; flex-shrink: 0; }
   .rphotos img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; }

@@ -1,4 +1,4 @@
-<!-- 고객의 내 요청 페이지 — /r/<id>?key= (2026-10-17 요청판): 요청 내용·사진·상태, 받은 제안 목록 → 제안 링크 -->
+<!-- 고객의 내 요청 페이지 — /r/<id>?key= 또는 로그인 세션(요청한 계정, 2026-10-21): 요청 내용·사진·상태, 받은 제안 목록 → 제안 링크 -->
 <script lang="ts">
   import { customerPhotoUrl, getRequest, type CustomerRequestView } from '../requests';
   import { SERVER_URL } from '../sync';
@@ -10,7 +10,7 @@
   let error = $state('');
   async function load() {
     try { view = await getRequest(id, key); error = ''; }
-    catch { error = '요청을 찾을 수 없거나 주소가 올바르지 않습니다.'; }
+    catch { error = key ? '요청을 찾을 수 없거나 주소가 올바르지 않습니다.' : '이 요청을 보려면 요청한 계정으로 로그인하거나, 받은 주소(?key=)로 열어 주세요.'; }
   }
   $effect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); });
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });

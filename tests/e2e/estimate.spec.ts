@@ -1,6 +1,6 @@
 // 소비자 견적 요청 (2026-10-21 "시작(로그인전) 사업자 소비자 구분해서 소비자는 간판견적을 보고 견적 요청하는 방식 … 도형그리기 사이즈 그리고 메모로 견적을 요청하게" → "켜는 걸로 진행")
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { apiLogin, dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각·치수로 참고 견적을 보고 요청 → 간판사 홈에 사인물째 들어와 제안', async ({ page, request, browser }) => {
   const store = `떡집 ${Math.random().toString(36).slice(2, 7)}`;
@@ -33,9 +33,19 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page.getByTestId('quote-panel')).not.toContainText('이익율'); // 원가·이익은 안 보임
   await page.getByTestId('view-board').click();
 
-  // 견적 요청
+  // 견적 요청: 로그인이 먼저 (2026-10-21 "인증이 되야") — 카카오 단추(next=/estimate) 또는 다른 방법
   await page.getByTestId('estimate-button').click();
-  const dlg = page.getByTestId('estimate-dialog');
+  let dlg = page.getByTestId('estimate-dialog');
+  await expect(dlg.getByTestId('estimate-login')).toBeVisible();
+  await expect(dlg.getByTestId('estimate-login-kakao')).toHaveAttribute('href', /\/api\/auth\/kakao\/start\?next=%2Festimate/);
+  await dlg.getByTestId('estimate-close').click();
+  // (카카오 대신) 세션을 넣고 다시 열면 그린 내용은 기기에 남아 있다
+  const custSession = await apiLogin(request);
+  await page.evaluate((s) => localStorage.setItem('ganpanda.session', s), custSession);
+  await page.reload();
+  await expect(page.getByTestId('sign-shape')).toHaveCount(1);
+  await page.getByTestId('estimate-button').click();
+  dlg = page.getByTestId('estimate-dialog');
   await expect(dlg.getByTestId('estimate-summary')).toContainText('사진 1장 · 사인물 1개 (치수 입력 1개)');
   await dlg.getByTestId('est-store').fill(store);
   await dlg.getByTestId('est-region').fill('경기 광주시');
@@ -44,6 +54,14 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
   expect(link).toMatch(/\/r\/[A-Za-z0-9_-]{16}\?key=/);
+  // 홈에 "내 견적 요청" → 키 없이 세션으로 요청 페이지
+  await page.goto('/');
+  const mine = page.getByTestId('my-request-item').filter({ hasText: store });
+  await expect(mine).toBeVisible();
+  await expect(mine.getByTestId('my-request-responses')).toContainText('기다리는 중');
+  await mine.click();
+  await expect(page).toHaveURL(/\/r\/[A-Za-z0-9_-]{16}$/);
+  await expect(page.getByTestId('request-page')).toContainText(store);
 
   // 간판사: 요청 받기 + 지역 → 받은 요청에 사인물 수 → 제안 만들기 → 사진과 사인물(치수)이 들어온 프로젝트
   const shopCtx = await browser.newContext();

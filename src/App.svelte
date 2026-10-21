@@ -26,7 +26,6 @@
   import OrderDialog from './lib/ui/OrderDialog.svelte';
   import Loading from './lib/ui/Loading.svelte';
   import ProposalView from './lib/ui/ProposalView.svelte';
-  import RequestForm from './lib/ui/RequestForm.svelte';
   import RequestView from './lib/ui/RequestView.svelte';
   import EstimateRequestDialog from './lib/ui/EstimateRequestDialog.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
@@ -199,9 +198,7 @@
         <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
       {/if}
     </div>
-    {#if app.page === 'request'}
-      <div class="proposal">{#if app.requestsEnabled}<RequestForm />{:else}<p class="soon" data-testid="request-soon">간판 견적 요청은 준비 중입니다. <a href="/">간판다 홈으로</a></p>{/if}</div>
-    {:else if app.page === 'request-view'}
+    {#if app.page === 'request-view'}
       <div class="proposal"><RequestView /></div>
     {:else if !app.room}
       <Home />

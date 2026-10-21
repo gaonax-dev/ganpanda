@@ -22,13 +22,18 @@ async function call<T>(path: string, init: RequestInit = {}, auth = true): Promi
 }
 
 // ---------- 고객 (로그인 없음) ----------
+/** 요청 올리기 — 로그인 필수 (2026-10-21, 카카오 기본) */
 export const createRequest = (body: { store: string; region: string; text: string; phone: string; email?: string; ref?: string; signs?: RequestSign[] }) =>
-  call<{ id: string; key: string; url: string }>('/api/requests', { method: 'POST', body: JSON.stringify(body) }, false);
+  call<{ id: string; key: string; url: string }>('/api/requests', { method: 'POST', body: JSON.stringify(body) });
+/** 내 요청 목록 (요청한 계정) */
+export interface MyRequest extends RequestInfo { responses: number }
+export const listMyRequests = () => call<{ requests: MyRequest[] }>('/api/requests/mine').then((r) => r.requests);
 export const uploadRequestPhoto = (id: string, key: string, file: File) =>
   call<{ n: number }>(`/api/requests/${id}/photos?key=${encodeURIComponent(key)}`, { method: 'PUT', body: file, headers: { 'content-type': file.type } }, false);
-export const getRequest = (id: string, key: string) => call<CustomerRequestView>(`/api/requests/${id}?key=${encodeURIComponent(key)}`, {}, false);
-/** 고객 키로 보는 사진 주소 */
-export const customerPhotoUrl = (id: string, key: string, n: number) => `${SERVER_URL}/api/requests/${id}/photos/${n}?key=${encodeURIComponent(key)}`;
+/** 고객 요청 페이지: 키가 있으면 키로, 없으면 로그인 세션으로(요청한 계정) */
+export const getRequest = (id: string, key: string) => call<CustomerRequestView>(`/api/requests/${id}${key ? `?key=${encodeURIComponent(key)}` : ''}`);
+/** 고객이 보는 사진 주소: 키 또는 세션 */
+export const customerPhotoUrl = (id: string, key: string, n: number) => `${SERVER_URL}/api/requests/${id}/photos/${n}?${key ? `key=${encodeURIComponent(key)}` : `session=${encodeURIComponent(loadSession() ?? '')}`}`;
 
 // ---------- 간판사 ----------
 export const listRequests = () => call<{ requests: ShopRequest[] }>('/api/requests').then((r) => r.requests);

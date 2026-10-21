@@ -360,7 +360,8 @@ class AppState {
     this.watchSizes();
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
-    this.page = url.pathname === '/request' ? 'request' : /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
+    if (url.pathname === '/request') location.replace(`/estimate${url.search}`); // 옛 요청 폼 → 소비자 보드 (2026-10-21)
+    this.page = /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
     this.room = this.consumer ? 'estimate' : url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
     const inviteParam = url.searchParams.get('invite');

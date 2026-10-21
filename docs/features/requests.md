@@ -7,6 +7,7 @@
 1차 구현됨 (2026-10-17), **2026-10-21 켬** — 사용자: "시작(로그인전) 사업자 소비자 구분해서 소비자는 간판견적을 보고 견적 요청하는 방식 … 현재 사업자 버전의 도형그리기 사이즈 그리고 메모로 견적을 요청하게" → "켜는 걸로 진행해줘". 2026-10-17 의 "숨김·독립 웹" 결정은 대체됨(→ [../product/decisions.md](../product/decisions.md)). 끄려면 빌드 `VITE_REQUESTS=0`.
 
 ## 소비자 견적 요청 모드 (`/estimate`, 2026-10-21)
+- **로그인 필수**(2026-10-21 사용자: "카카오톡으로 로그인하게해줘 인증이되야 할거 같아"): [견적 요청]을 누르면 로그인 전이면 **카카오로 시작**(`estimate-login-kakao`, `next=/estimate` — 그린 내용은 기기에 남아 돌아와서 이어짐) 또는 [다른 방법으로 로그인](로그인 창). 서버 `POST /api/requests` 는 세션 없으면 401 `login_required`, 요청에 `account_id` 를 붙인다(`0023_request_account.sql`). 요청한 계정은 **키 없이도** 세션으로 요청 페이지·사진을 보고(`customerOk`), 홈에 **"내 견적 요청"**(`my-request-list`, `GET /api/requests/mine`: 제안 수·승인 여부) 이 뜬다. 옛 `/request` 폼은 없애고 `/estimate` 로 보낸다.
 - **시작 화면 분기**(`Home.svelte` `landing`): [간판집입니다 → 로그인](`landing-shop`) / [가게 사장입니다 → 견적 요청](`landing-consumer` → `/estimate`).
 - **`/estimate`** = 로그인 없이 **기기에만 두는 보드**(`app.consumer`, 방 `estimate`, IndexedDB 만, 서버 방·동기화 없음, 에셋도 올리지 않음 `setAssetsLocalOnly`). 사업자 보드와 같은 도구에서 **말풍선·존만 뺌**. 단가는 예시표(`mergePrices(null)`)로 **자동 계산** → 리스트 뷰 견적에 "참고 금액"(`quote-reference`), 상단 배지 `consumer-badge`. 버전·초대·제안 단추 대신 **[견적 요청]**(`estimate-button`, 사진이 있어야 켜짐).
 - **[견적 요청]**(`EstimateRequestDialog.svelte`, `estimate-dialog`): 가게 이름·지역·전화(필수), 이메일·요청 내용(선택). 보내면 `POST /api/requests` 에 **그린 사인물**(`signs`: 요청 사진 번호 `photo`, 이름, 모양, 영역 `quad`(사진 px), 둥글기, 가로·세로 mm, 종류 `productId`, 메모 — `core/requestSigns.ts serializeRequestSigns`, 연결 영역 제외, 50개까지)을 싣고, 보드의 사진을 왼쪽부터 번호대로 `PUT /photos`(3장까지). 끝나면 요청 페이지 주소(`estimate-done-link`, 기기 `ganpanda.myRequests` 에도 기억).
@@ -21,7 +22,7 @@
 | 가입 간판사 | 설정에서 "요청 받기" + 지역. 홈 "받은 요청"에서 [제안 만들기] → 프로젝트 → 제안 링크 | **제안 링크를 만들 때** 요금제의 제안 건수(무료 월 3건, 베이직·프로 무제한). 제안을 보내야 고객 연락처가 보임 |
 
 ## 흐름
-1. **요청 올리기** `/request` (`RequestForm.svelte`, `request-form`): 가게 이름(`req-store`), 지역(`req-region`, 시/군/구까지 — 간판사 지역과 글자 그대로 맞춤, 공백 무시), 원하는 내용(`req-text`), 전화(`req-phone`, 숫자만 9~11자리), 이메일 선택(`req-email`), 사진 1~3장(`req-photos`, 필수). `?ref=` 는 숨겨 저장. 보내면(`req-submit`) `POST /api/requests` → 사진 `PUT /api/requests/:id/photos?key=` → **내 요청 페이지 주소**(`req-done-link`, `/r/<id>?key=<키>`)를 보여 주고 "저장해 두세요", 이메일을 넣었으면 메일로도 보냄.
+1. ~~**요청 올리기** `/request` (`RequestForm.svelte`)~~ → 2026-10-21부터 `/estimate` 소비자 보드(위). 옛 설명: 가게 이름(`req-store`), 지역(`req-region`, 시/군/구까지 — 간판사 지역과 글자 그대로 맞춤, 공백 무시), 원하는 내용(`req-text`), 전화(`req-phone`, 숫자만 9~11자리), 이메일 선택(`req-email`), 사진 1~3장(`req-photos`, 필수). `?ref=` 는 숨겨 저장. 보내면(`req-submit`) `POST /api/requests` → 사진 `PUT /api/requests/:id/photos?key=` → **내 요청 페이지 주소**(`req-done-link`, `/r/<id>?key=<키>`)를 보여 주고 "저장해 두세요", 이메일을 넣었으면 메일로도 보냄.
    - 같은 전화번호의 열린 요청이 3건이면 `429 request_limit` → "이미 3건의 요청이 진행 중입니다".
 2. **간판사 알림**: 요청이 오면 그 지역의 "요청 받기" 간판사들에게 이메일(운영: Email Sending, 로컬: 건너뜀). 홈 **받은 요청**(`request-list`, `request-item`)에도 보임: 가게·지역·내용·날짜·사진. 연락처는 **제안을 보낸 요청에만**(`request-phone`).
 3. **제안 만들기**(`request-respond`): `POST /api/requests/:id/respond` → 요청 사진이 들어갈 프로젝트(`projects.request_id`)가 생기고 그 방으로 이동. 앱은 방에 들어가 **문서에 사진이 없으면 요청 사진을 가져와 올립니다**(`importRequestPhotos`: 소유자 용량에 쌓임). 이미 만든 프로젝트가 있으면 그 방으로.
