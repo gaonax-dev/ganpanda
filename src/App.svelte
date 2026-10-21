@@ -95,6 +95,8 @@
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
   // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
   $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
+  // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
+  $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode); });
   // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
   $effect(() => { document.documentElement.classList.toggle('outsource', app.outsourceParam || (app.access.status === 'ok' && !!app.access.outsource)); });
 </script>

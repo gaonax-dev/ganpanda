@@ -11,6 +11,8 @@
 :root.consumer { --accent: #2dd4bf; --accent-ink: #032b26; }
 /* 외주(B2B) — 간판집이 다른 업체에 맡기는 프로젝트·요청은 핫핑크 (2026-10-22 "외주 리스트에서 프로젝트를 열면 기본컬러 핫핑크") */
 :root.outsource { --accent: #ff3d9a; --accent-ink: #2b0016; }
+/* 견적 제안 화면(제안 링크, 미리보기 포함) — 파랑 (2026-10-22 "견적제안은 블루컬러로"). 뒤에 두어 다른 색보다 앞선다 */
+:root.proposal { --accent: #3b82f6; --accent-ink: #ffffff; }
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }

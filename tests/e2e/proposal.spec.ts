@@ -44,6 +44,8 @@ test('제안 보내기: 실사 이미지 만들고 링크 발급 → 고객이 �
   const guest = await openInvited(browser, `http://localhost:5199/?room=${room}&invite=${token}&proposal=1`, '홍길동');
   const pg = guest.getByTestId('proposal-page');
   await expect(pg).toContainText('한울상사');
+  // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
+  expect(await guest.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6');
   await expect(pg.getByTestId('proposal-note-view')).toContainText('야간 모습');
   await expect(pg.getByTestId('proposal-render')).toHaveCount(1, { timeout: 15_000 });
   const daySrc = await pg.getByTestId('proposal-render').getAttribute('src');
