@@ -74,6 +74,6 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await expect(item.getByTestId('request-b2b')).toHaveText('B2B');
   await item.click();
   await expect(shop.getByTestId('request-bar').getByTestId('request-b2b')).toBeVisible({ timeout: 15_000 });
-  expect(await accent(shop)).toBe('#ffcc00'); // 받는 간판집 화면은 노랑
+  expect(await accent(shop)).toBe('#3b82f6'); // 받는 간판집의 실측 보기(요청 보드)는 파랑 (2026-10-22)
   await ctx.close();
 });

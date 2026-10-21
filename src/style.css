@@ -13,6 +13,8 @@
 :root.outsource { --accent: #ff3d9a; --accent-ink: #2b0016; }
 /* 견적 제안 화면(제안 링크, 미리보기 포함) — 파랑 (2026-10-22 "견적제안은 블루컬러로"). 뒤에 두어 다른 색보다 앞선다 */
 :root.proposal { --accent: #3b82f6; --accent-ink: #ffffff; }
+/* 실측 보기(간판집이 받은 요청 보드, ?request=) — 파랑. [내 프로젝트로 가져오기] 하면 노랑 간판집 프로젝트로 (2026-10-22) */
+:root.survey { --accent: #3b82f6; --accent-ink: #ffffff; }
 
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; height: 100%; overflow: hidden; }

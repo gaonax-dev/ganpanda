@@ -148,6 +148,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await item.getByTestId('request-view').click();
   await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('request-respond')).toHaveText('내 프로젝트로 가져오기');
+  expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6'); // 실측 보기 = 파랑
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1);
   await expect(shop.getByTestId('request-address')).toContainText('경안로 1');
@@ -157,6 +158,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(shop).not.toHaveURL(/request=/, { timeout: 15_000 }); // 요청 보드("…요청서")에서 내 프로젝트로 넘어갈 때까지 — 이름이 비슷해 앞 화면에서 통과하던 경쟁
   await expect(shop.getByTestId('request-bar')).toHaveCount(0);
   await expect(shop.getByTestId('project-title')).toHaveText(`${store} 요청`);
+  expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 가져온 내 프로젝트 = 노랑
+  await expect(shop.getByTestId('request-propose')).toHaveText('가게 사장님께 제안 보내기'); // 다음 할 일: 제안 (2026-10-22)
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1, { timeout: 15_000 });
   await shop.getByTestId('sign-shape').first().click();

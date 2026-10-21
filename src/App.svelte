@@ -97,6 +97,8 @@
   $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
   // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
   $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode); });
+  // 실측 보기(받은 요청 보드)는 파랑 — 가져온 내 프로젝트는 노랑 (2026-10-22 "프로젝트가져오기 버튼을 사용하면 노랑색으로 변경하고 소비자 초대해 제안한다")
+  $effect(() => { document.documentElement.classList.toggle('survey', !!app.requestView); });
   // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
   $effect(() => { document.documentElement.classList.toggle('outsource', app.outsourceParam || (app.access.status === 'ok' && !!app.access.outsource)); });
 </script>
@@ -198,6 +200,10 @@
     </div>
   </nav>
   {#if app.requestView && app.room && app.access.status === 'ok'}<RequestBar />{/if}
+  {#if app.access.status === 'ok' && app.access.requestId && app.role === 'owner' && !app.settings.proposal && !app.proposalMode}
+    <!-- 요청에서 가져온 프로젝트: 가게 사장님께 제안 (제안 링크 = 초대, 요청 페이지에 도착) -->
+    <div class="banner next" data-testid="request-next">요청에서 가져온 프로젝트입니다. 견적을 정리한 뒤 <b>가게 사장님께 제안</b>을 보내면 요청 페이지에 바로 도착합니다. <button class="btn small primary" data-testid="request-propose" onclick={() => (app.proposalOpen = true)}>가게 사장님께 제안 보내기</button></div>
+  {/if}
   <main>
     <!-- 알림 영역: 본문 위에 떠 있는 겹층 — 나타나고 사라져도 다른 요소가 밀리지 않는다 (2026-10-18 사용자: "동시접속 안내 … 화면이 재정렬되고 사라지면 다시 제위치로 간다. 이건 문제다") -->
     <div class="banners">
@@ -370,4 +376,5 @@
   .reqs.hot { color: var(--text); border-color: var(--accent); }
   .reqs.hot b { background: var(--accent); color: var(--accent-ink); }
   .b2b { font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+  .banner.next { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; }
 </style>
