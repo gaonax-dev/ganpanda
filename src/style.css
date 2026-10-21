@@ -37,6 +37,11 @@ code { font-size: 11px; }
 @media (max-width: 720px) {
   .grid2 { grid-template-columns: 1fr; }
 }
+/* 터치 기기: 입력칸 글자 16px 미만이면 iOS 사파리가 포커스할 때 페이지를 확대한다 → 16px 로 막는다 (2026-10-21 "입력기 사용으로 화면이 줌인").
+   그래도 확대되면(날짜 입력기·핀치) 입력을 마칠 때 되돌린다 — src/lib/pageZoom.ts */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type=range]):not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px !important; }
+}
 
 /* 선택 시 외곽선·손잡이·매니퓰레이터 둘레에 연파랑 채움 + 검은 테의 큰 상자가 줌 따라 그려지던 문제 (2026-10-18 캡처) = WebKit(아이폰) 포커스 링.
    role="button" tabindex="-1" 인 SVG 조작 요소는 터치하면 포커스를 받는데, 프로그램용 포커스(-1)라 링을 그릴 이유가 없다 */
