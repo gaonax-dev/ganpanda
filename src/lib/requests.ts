@@ -4,7 +4,7 @@ import { AuthError, loadSession } from './auth';
 import type { RequestSign } from './core/requestSigns';
 
 export interface RequestPhoto { n: number; type: string }
-export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved'; createdAt: number; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null }
+export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved'; createdAt: number; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null; /** 사업자등록증 사본 메타 (2026-10-21) — 파일은 제안을 보낸 간판사만 */ bizDoc?: { type: string; size: number } | null }
 /** 간판사 목록의 한 줄: 제안을 보낸(요금이 발생한) 요청에만 연락처가 온다 */
 export interface ShopRequest extends RequestInfo { responded: boolean; projectId?: string; phone?: string; email?: string }
 export interface CustomerRequestView { request: RequestInfo & { approvedShop?: string; approvedAt?: number }; responses: { shop: string; /** 서버 기준 경로 — SERVER_URL 을 붙여 연다 */ proposalPath: string; createdAt: number }[] }
@@ -28,6 +28,17 @@ export const createRequest = (body: { store: string; region: string; text: strin
 /** 내 요청 목록 (요청한 계정) */
 export interface MyRequest extends RequestInfo { responses: number }
 export const listMyRequests = () => call<{ requests: MyRequest[] }>('/api/requests/mine').then((r) => r.requests);
+/** 사업자등록증 사본 읽기 (2026-10-21 "분석 실패하면 수동입력"): 번호·상호·주소 등, 못 읽으면 null */
+export interface BizDocFields { bizNo?: string; name?: string; owner?: string; address?: string; startDate?: string }
+export async function scanBizDoc(file: File): Promise<BizDocFields | null> {
+  try { return (await call<{ fields: BizDocFields }>('/api/requests/doc-scan', { method: 'POST', body: file, headers: { 'content-type': file.type } })).fields; }
+  catch (e) { if (e instanceof AuthError && e.status === 404) return null; throw e; }
+}
+/** 사업자등록증 사본 올리기 (고객, 2026-10-21) */
+export const uploadRequestBizDoc = (id: string, key: string, file: File) =>
+  call<{ ok: true }>(`/api/requests/${id}/biz-doc?key=${encodeURIComponent(key)}`, { method: 'PUT', body: file, headers: { 'content-type': file.type } });
+/** 간판사(제안 보낸 뒤)가 여는 사본 주소 */
+export const bizDocUrl = (id: string) => `${SERVER_URL}/api/requests/${id}/biz-doc?session=${encodeURIComponent(loadSession() ?? '')}`;
 export const uploadRequestPhoto = (id: string, key: string, file: File) =>
   call<{ n: number }>(`/api/requests/${id}/photos?key=${encodeURIComponent(key)}`, { method: 'PUT', body: file, headers: { 'content-type': file.type } }, false);
 /** 고객 요청 페이지: 키가 있으면 키로, 없으면 로그인 세션으로(요청한 계정) */

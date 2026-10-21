@@ -30,6 +30,8 @@
   // 계정·세션·프로젝트·초대 (관계 조회) — 좌석 계산은 Account DO (1-2c)
   "d1_databases": [{ "binding": "DB", "database_name": "ganpanda", "database_id": "071b8dc9-e526-4da1-aabc-f8143771169d", "migrations_dir": "migrations" }],
   // 매직링크 이메일 (도메인 ganpanda.co.kr 을 Email Sending 에 온보딩해야 발송됨)
+  // 사업자등록증 사본 읽기 (2026-10-21, 비전 모델). 로컬은 .dev.vars DOC_SCAN=fake
+  "ai": { "binding": "AI" },
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
     // 매직링크가 가리키는 앱 주소

@@ -4,6 +4,7 @@ import { authenticate, type Account } from './auth';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { validateRequestSigns, type RequestSign } from './requestSigns';
 import { configured as ntsConfigured, fetchStatuses, validBizNo } from './business';
+import { scanBizDoc } from './docScan';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -23,7 +24,12 @@ export interface RequestRow {
   account_id?: string | null;
   /** 가게 주소·사업자번호(선택, 2026-10-21)와 국세청 상태(active/suspended, 확인 안 됨 = null) */
   address?: string; biz_no?: string | null; biz_status?: string | null;
+  /** 사업자등록증 사본 메타 JSON {type,size} (2026-10-21) */
+  biz_doc?: string | null;
 }
+const bizDocOf = (r: RequestRow): { type: string; size: number } | null => { try { return r.biz_doc ? (JSON.parse(r.biz_doc) as { type: string; size: number }) : null; } catch { return null; } };
+const bizDocKey = (id: string) => `requests/${id}/biz-doc`;
+const DOC_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const signsOf = (r: RequestRow): RequestSign[] => { try { return validateRequestSigns(JSON.parse(r.signs || '[]')) ?? []; } catch { return []; } };
 interface PhotoMeta { n: number; type: string; size: number }
 const photosOf = (r: RequestRow): PhotoMeta[] => { try { return JSON.parse(r.photos) as PhotoMeta[]; } catch { return []; } };
@@ -73,7 +79,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r) });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -86,6 +92,18 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const regions = [...new Set(body.regions.map((g) => g.trim().slice(0, REGION_MAX)).filter(Boolean))].slice(0, 20);
     await env.DB.prepare('UPDATE accounts SET receive_requests = ?, regions = ? WHERE id = ?').bind(body.receive ? 1 : 0, regions.join(','), me.id).run();
     return json({ requestSettings: { receive: body.receive, regions } });
+  }
+
+  // ---- 사업자등록증 읽기: POST /api/requests/doc-scan (로그인, 그림 바이트) → 번호·상호·주소… 못 읽으면 404 scan_failed → 직접 입력 (2026-10-21) ----
+  if (pathname === '/api/requests/doc-scan' && req.method === 'POST') {
+    const me = await authenticate(req, env);
+    if (!me) return text('unauthorized', 401);
+    const type = (req.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (!DOC_TYPES.has(type)) return text('unsupported type', 415);
+    const bytes = await req.arrayBuffer();
+    if (!bytes.byteLength || bytes.byteLength > MAX_PHOTO_BYTES) return text('bad size', 413);
+    const fields = await scanBizDoc(env, bytes, type);
+    return fields ? json({ fields }) : json({ error: 'scan_failed' }, 404);
   }
 
   // ---- 내 요청 목록: GET /api/requests/mine (요청한 계정, 2026-10-21) ----
@@ -155,7 +173,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ requests });
   }
 
-  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos)(?:\/(\d+))?|\/(respond))?$/);
+  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond))?$/);
   if (!m) return text('not found', 404);
   const r = await getRequest(env, m[1]);
   if (!r) return text('request not found', 404);
@@ -175,6 +193,35 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     photos.push({ n, type, size: bytes.byteLength });
     await env.DB.prepare('UPDATE requests SET photos = ? WHERE id = ?').bind(JSON.stringify(photos), r.id).run();
     return json({ n }, 201);
+  }
+
+  // ---- 사업자등록증 사본: PUT(고객) / GET(고객 또는 제안을 보낸 간판사 — 연락처와 같은 기준) (2026-10-21) ----
+  if (m[2] === 'biz-doc' && m[3] === undefined) {
+    if (req.method === 'PUT') {
+      if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
+      const type = (req.headers.get('content-type') ?? '').split(';')[0].trim();
+      if (!DOC_TYPES.has(type)) return text('unsupported type', 415);
+      const bytes = await req.arrayBuffer();
+      if (!bytes.byteLength || bytes.byteLength > MAX_PHOTO_BYTES) return text('bad size', 413);
+      await env.ASSETS.put(bizDocKey(r.id), bytes, { httpMetadata: { contentType: type } });
+      await env.DB.prepare('UPDATE requests SET biz_doc = ? WHERE id = ?').bind(JSON.stringify({ type, size: bytes.byteLength }), r.id).run();
+      return json({ ok: true });
+    }
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      let ok = await customerOk(env, req, url, r, key);
+      if (!ok) {
+        const me = await authenticate(withSessionParam(req, url), env);
+        if (!me) return text('unauthorized', 401);
+        ok = !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(r.id, me.id).first()); // 제안을 보낸 간판사만
+      }
+      if (!ok) return text('forbidden', 403);
+      const meta = bizDocOf(r);
+      if (!meta) return text('not found', 404);
+      const obj = await env.ASSETS.get(bizDocKey(r.id));
+      if (!obj) return text('not found', 404);
+      return new Response(req.method === 'HEAD' ? null : obj.body, { headers: { 'content-type': meta.type, 'cache-control': 'private, no-store', 'content-disposition': 'inline; filename="business-registration"' } });
+    }
+    return text('method not allowed', 405);
   }
 
   // ---- 사진 받기: GET /api/requests/:id/photos/:n (고객 키 또는 간판사 세션·?session=) ----

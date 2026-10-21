@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import { api, createProject, get, json, login } from './helpers';
 import { setNtsFetch } from '../src/business';
+import { parseScan, setDocScanner } from '../src/docScan';
 
 const png = (seed: number, size = 64) => { const b = new Uint8Array(size); b.set([137, 80, 78, 71, seed & 255]); return b; };
 /** 전화번호당 열린 요청 3건 한도가 있으므로 기본 번호는 매번 다르게 */
@@ -61,6 +62,31 @@ describe('요청 올리기 (로그인한 고객)', () => {
     expect(await (await create({ bizNo: '2208162517' })).json()).toEqual({ error: 'biz_closed' });
     expect(await (await create({ bizNo: '2208162518' })).json()).toEqual({ error: 'bad_biz_no' });
     setNtsFetch(null);
+  });
+  it('사업자등록증 사본: 읽기(doc-scan)는 번호·상호·주소를 돌려주고 못 읽으면 404 scan_failed; 사본 파일은 고객과 제안을 보낸 간판사만 (2026-10-21)', async () => {
+    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+    setDocScanner(async () => ({ bizNo: '2208162517', name: '간판다 카페', address: '서울 송파구' }));
+    const scan = await api('/api/requests/doc-scan', { method: 'POST', body: png, headers: { 'content-type': 'image/png', authorization: `Bearer ${customer}` } });
+    expect(await scan.json()).toEqual({ fields: { bizNo: '2208162517', name: '간판다 카페', address: '서울 송파구' } });
+    setDocScanner(async () => null);
+    expect((await api('/api/requests/doc-scan', { method: 'POST', body: png, headers: { 'content-type': 'image/png', authorization: `Bearer ${customer}` } })).status).toBe(404);
+    expect((await api('/api/requests/doc-scan', { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status).toBe(401);
+    setDocScanner(null);
+    // 사본 올리기 → 메타, 읽기 권한
+    const { id, key } = await (await create()).json<{ id: string; key: string }>();
+    expect((await api(`/api/requests/${id}/biz-doc?key=${key}`, { method: 'PUT', body: png, headers: { 'content-type': 'image/png' } })).status).toBe(200);
+    const v = await (await get(`/api/requests/${id}`, customer)).json<{ request: { bizDoc: { type: string; size: number } } }>();
+    expect(v.request.bizDoc).toEqual({ type: 'image/png', size: 7 });
+    expect((await get(`/api/requests/${id}/biz-doc`, customer)).status).toBe(200); // 고객 세션
+    expect((await get(`/api/requests/${id}/biz-doc`, shop)).status).toBe(403); // 아직 제안 안 보낸 간판사
+    const p = await (await json(`/api/requests/${id}/respond`, {}, shop)).json<{ project: { id: string } }>();
+    await json(`/api/projects/${p.project.id}/invites`, { role: 'viewer', kind: 'proposal' }, shop); // 제안 링크 = 응답 기록
+    expect((await get(`/api/requests/${id}/biz-doc`, shop)).status).toBe(200);
+  });
+  it('모델 답에서 JSON 을 뽑고 번호는 검증 자릿수가 맞을 때만', () => {
+    expect(parseScan('여기 있습니다: {"bizNo":"220-81-62517","name":" 간판다 ","owner":"홍길동","address":"서울","startDate":"2020.01.05"} 끝')).toEqual({ bizNo: '2208162517', name: '간판다', owner: '홍길동', address: '서울', startDate: '2020-01-05' });
+    expect(parseScan('{"bizNo":"220-81-62518","name":""}')).toBeNull();
+    expect(parseScan('못 읽음')).toBeNull();
   });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);

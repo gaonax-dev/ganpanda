@@ -7,7 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
-  import { listMyRequests, type MyRequest } from '../requests';
+  import { bizDocUrl, listMyRequests, type MyRequest } from '../requests';
   import { measureLabel } from '../core/measureSummary';
   import { groupDday, projectDday } from '../core/dday';
   import type { ProjectDetails } from '../projects';
@@ -233,6 +233,7 @@
             <div class="rbody">
               <b>{r.store}</b> {#if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="국세청 사업자등록 상태조회로 확인된 사업자">✓ 사업자 확인</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
               {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
+              {#if r.bizDoc}<p class="muted" data-testid="request-bizdoc">📄 사업자등록증 사본 {#if r.responded}<a href={bizDocUrl(r.id)} target="_blank" rel="noopener" data-testid="request-bizdoc-open">열기</a>{:else}<span>— 제안을 보내면 열립니다</span>{/if}</p>{/if}
               {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}
               {#if r.text}<p>{r.text}</p>{/if}
               {#if r.responded}

@@ -68,3 +68,6 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - Cloudflare 영역에 추가됨. 커스텀 도메인(`routes[].custom_domain`)은 배포 시 DNS 레코드가 자동 생성됩니다.
 - 2026-10-13 네임서버 전파 완료(`titan`/`venus.ns.cloudflare.com`). `ganpanda.co.kr`, `www`, `sync` 모두 동작.
 - **주의**: 인증(1-2) 전까지는 방 ID만 알면 누구나 접속할 수 있으니 주소를 외부에 공유하지 않습니다 → [api.md](api.md)
+
+## 사업자등록증 읽기 (Workers AI, 2026-10-21)
+`server/wrangler.jsonc` 의 `ai: { binding: "AI" }` — 별도 키 없이 계정의 Workers AI 를 쓴다(Workers Paid 에 포함된 무료 할당 안에서 소량). 로컬 `.dev.vars` 는 `DOC_SCAN=fake`. 로컬 `wrangler dev` 에서 바인딩이 있으면 실제로 클라우드 AI 를 부르므로 fake 를 켜 둔다.
