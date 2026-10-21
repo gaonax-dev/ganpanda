@@ -16,10 +16,12 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
+    /** 치수 없는 사인물의 임시 카드 (2026-10-22) */
+    placeholder?: boolean;
     photo?: Photo; zoom: number; selected: boolean;
     /** 다중 선택에 들어 있음(주 선택 아님) */
     multi?: boolean;
@@ -71,7 +73,7 @@
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
-    <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
+    <b>{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
@@ -92,6 +94,7 @@
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
   .badge.settings { color: var(--accent); border-color: rgba(255, 204, 0, 0.5); }
+  .badge.unsized { color: var(--warn); border-color: var(--warn); }
   .badge.design { color: #1a1500; background: var(--accent); border-color: var(--accent); }
   .label { position: absolute; left: 0; top: 100%; margin-top: 4px; transform-origin: 0 0; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); white-space: nowrap; pointer-events: none; }
   .label b { font-size: 12px; }

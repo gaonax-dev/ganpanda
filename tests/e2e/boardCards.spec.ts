@@ -23,7 +23,7 @@ test('사진에 그린 사인물에 치수를 직접 입력하면 사진 아래�
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
-  await expect(page.getByTestId('board-card')).toHaveCount(0); // 치수 전에는 없음
+  await expect(page.getByTestId('card-unsized')).toHaveCount(1); // 치수 전에는 임시 카드 (2026-10-22)
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
   await page.getByTestId('width-mm').fill('3000');
@@ -120,17 +120,23 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(pos[1]).toBeGreaterThan(0);
   // 평면 구역 전체 크기 (2026-10-17): [+] 로 1.25배, 카드 폭도 1.25배. 손잡이를 끌면 비율대로
   const before = (await card.boundingBox())!.width;
+  const pctBefore = parseInt(await page.getByTestId('flat-scale-value').innerText()); // 처음 축척은 사진 속 사인물 크기에서 (2026-10-22)
   await page.getByTestId('flat-scale-up').click();
-  await expect(page.getByTestId('flat-scale-value')).toHaveText('125%');
+  await expect.poll(async () => parseInt(await page.getByTestId('flat-scale-value').innerText()) / pctBefore).toBeCloseTo(1.25, 1);
   await expect.poll(async () => (await card.boundingBox())!.width / before).toBeCloseTo(1.25, 1);
+  const mbBeforeScale = (await page.getByTestId('flat-move').boundingBox())!;
   const hb = (await page.getByTestId('flat-handle').boundingBox())!;
   await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
   await page.mouse.down();
   await page.mouse.move(hb.x + hb.width / 2 - 60, hb.y + hb.height / 2, { steps: 4 });
   await page.mouse.up();
-  const scale = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale);
-  expect(scale).toBeLessThan(0.125);
-  expect(scale).toBeGreaterThan(0.02);
+  const scale = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale)!;
+  expect(scale).toBeLessThan((pctBefore / 100) * 0.1 * 1.25);
+  expect(scale).toBeGreaterThan(0.001);
+  // 손잡이로 줄여도 ✥(왼쪽 위)는 제자리 (2026-10-22 "피봇에 메인 컨트롤러 위치하게")
+  const mbAfter = (await page.getByTestId('flat-move').boundingBox())!;
+  expect(Math.abs(mbAfter.x - mbBeforeScale.x)).toBeLessThan(3);
+  expect(Math.abs(mbAfter.y - mbBeforeScale.y)).toBeLessThan(3);
   // 왼쪽 위 손잡이로 평면 구역 전체 이동 (2026-10-17): 설정 flatOffset, 카드가 같이 움직이고 mm 배치는 그대로
   const posBefore = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master);
   const cb = (await card.boundingBox())!;

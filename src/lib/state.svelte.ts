@@ -22,7 +22,7 @@ import { materializeRequestSigns } from './core/requestSigns';
 import { estimateProject } from './projects';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
-import { clampFlatScale, flatOrigin } from './core/boardCards';
+import { autoFlatScale, clampFlatScale, flatOrigin, placeholderSize } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
 import type { Business } from './core/business';
@@ -995,9 +995,19 @@ class AppState {
   /** 사진 없는 사인물(보드 직접 생성) */
   standalone = $derived(this.objects.filter((o) => !o.photoId));
   /** 평면도(전개도) 카드: 치수(입력 또는 추정)가 있는 원본 사인물 — 리스트 뷰와 보드 평면 구역이 같은 목록·같은 배치를 쓴다 */
-  flatCards = $derived.by(() => this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ o, ...s }] : []; }));
-  /** 보드 평면 구역 축척 (px/mm) — 프로젝트 설정, 모두에게 같음 */
-  flatScale = $derived(clampFlatScale(this.settings.flatScale));
+  /** 평면 카드: 치수(입력·추정)가 있으면 그 크기, 없으면 임시 크기(placeholder — 2026-10-22 "사이즈를 넣지 않으면 카드로 나오지 않는다"). 임시 카드는 견적·PDF·SVG 에 안 들어간다 */
+  flatCards = $derived.by(() => this.signs.map((o) => { const s = this.sizeOf(o); return s ? { o, ...s, placeholder: false } : { o, ...placeholderSize(o.quad as [number, number][]), estimated: false, placeholder: true }; }));
+  /** 보드 평면 구역 축척 (px/mm) — 프로젝트 설정, 모두에게 같음. 설정이 없으면 사진 속 사인물과 같은 크기로 (autoFlatScale, 2026-10-22) */
+  flatScale = $derived.by(() => {
+    if (Number.isFinite(this.settings.flatScale)) return clampFlatScale(this.settings.flatScale);
+    return autoFlatScale(this.flatCards.map(({ o, w, placeholder }) => {
+      const p = this.photos.find((x) => x.id === o.photoId);
+      if (!p || o.quad.length !== 4 || !p.w) return { mm: w, px: 0, placeholder };
+      const [tl, tr, br, bl] = o.quad;
+      const len = (a: number[], b: number[]) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+      return { mm: w, px: ((len(tl, tr) + len(bl, br)) / 2) * (p.width / p.w), placeholder };
+    }));
+  });
   /** 보드 평면 구역 이동 (보드 px) — 프로젝트 설정 */
   flatOffset = $derived(this.settings.flatOffset && Number.isFinite(this.settings.flatOffset.x) && Number.isFinite(this.settings.flatOffset.y) ? this.settings.flatOffset : { x: 0, y: 0 });
   /** 카드 간격 mm (설정 flatGap, 0~3000, 기본 600) */

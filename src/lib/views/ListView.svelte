@@ -36,7 +36,9 @@
   let fitted = false;
 
   /** 치수가 확정(입력 또는 추정)된 사인물만 전개도에 배치 — 보드의 평면 구역과 같은 목록·배치 (app.flatCards/flatPlaced) */
-  const sized = $derived(app.flatCards);
+  const sized = $derived(app.flatCards); // 치수 없는 사인물도 임시 크기로 카드가 된다 (2026-10-22)
+  /** 내보내기(PDF·SVG)는 치수 있는 것만 */
+  const exportable = $derived(sized.filter((c) => !c.placeholder));
   const pending = $derived(app.signs.filter((o) => !app.sizeOf(o)));
   const placed = $derived(app.flatPlaced);
   // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
@@ -153,7 +155,7 @@
     let skipped = 0;
     const toDataUrl = async (u: string): Promise<string | undefined> => { try { const d = await imageDataUrl(await (await fetch(u)).blob()); if (!d) skipped++; return d; } catch { skipped++; return undefined; } };
     const cards: SvgCard[] = [];
-    for (const { o, w, h, estimated } of sized) {
+    for (const { o, w, h, estimated } of exportable) {
       const p = placed.get(o.id)!;
       const parts = signParts(o);
       const prod = productById(parts.bodyId), chan = CHANNEL_OPTIONS.find((c) => c.id === parts.channelId)?.label;
@@ -216,7 +218,7 @@
 <div class="list-view">
   <InfiniteCanvas bind:this={canvas} bind:viewport testid="list-canvas" onfit={fit} onbackgrounddown={() => { app.selectedId = null; }}>
     <!-- 사양 카드의 버튼·셀렉터는 카드 드래그와 무관 -->
-    {#each sized as { o, w, h, estimated } (o.id)}
+    {#each sized as { o, w, h, estimated, placeholder } (o.id)}
       {@const pos = drag?.base[o.id] ? { x: drag.base[o.id].x + drag.ddx, y: drag.base[o.id].y + drag.ddy } : placed.get(o.id)!}
       {@const photo = app.photos.find((p) => p.id === o.photoId)}
       {@const parts = signParts(o)}
@@ -268,7 +270,7 @@
           <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{o.name}</b>
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
           <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
-          <span class="price">{won(amount)}</span>
+          {#if placeholder}<span class="price unsized" data-testid="list-unsized">치수 없음</span>{:else}<span class="price">{won(amount)}</span>{/if}
           {#if app.canEdit && app.photos.length}
             <!-- 사진 보드에 올리기: 사진이 하나면 바로, 여럿이면 고른다 (같은 사인물로 연결) -->
             {#if app.photos.length === 1}
@@ -299,7 +301,7 @@
       {#if app.canEdit}<button data-testid="tab-prices" onclick={() => (app.pricesOpen = true)}>단가</button>{/if}
       <button data-testid="tab-order" onclick={() => (app.orderOpen = true)}>주문</button>
       <button data-testid="tab-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서</button>
-      <button data-testid="tab-pdf" disabled={!sized.length} onclick={exportPdf}>PDF</button>
+      <button data-testid="tab-pdf" disabled={!exportable.length} onclick={exportPdf}>PDF</button>
       <button title="전개도 맞춤" onclick={fit}>⤢</button>
     </nav>
   {/if}
@@ -316,9 +318,9 @@
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
         {/if}
-        <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!sized.length} onclick={exportPdf}>PDF</button>
+        <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!exportable.length} onclick={exportPdf}>PDF</button>
         <span class="svgwrap">
-          <button class="btn small" data-testid="export-svg" title="일러스트레이터용 SVG 내려받기 (비율·윤곽선 옵션)" disabled={!sized.length} onclick={() => (svgPanel = !svgPanel)}>SVG</button>
+          <button class="btn small" data-testid="export-svg" title="일러스트레이터용 SVG 내려받기 (비율·윤곽선 옵션)" disabled={!exportable.length} onclick={() => (svgPanel = !svgPanel)}>SVG</button>
           {#if svgPanel}
             <div class="svgopts" data-testid="svg-options">
               <b>SVG 내려받기 <small>(일러스트레이터)</small></b>
@@ -464,6 +466,7 @@
   .line small { display: block; color: var(--muted); }
   .line b { white-space: nowrap; }
   .line.zero b { color: var(--muted); }
+  .price.unsized { color: var(--warn); }
   .pending { margin-top: 10px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--warn); }
   .link { background: none; border: 0; color: var(--blue); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
   .quote footer { padding: 12px 14px; border-top: 1px solid var(--line); }

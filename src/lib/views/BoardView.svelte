@@ -4,7 +4,7 @@
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
-  import { boardToList, clampFlatScale, flatBounds, flatOrigin, listToBoard, mmFromBoardRect, scaleFromHandle } from '../core/boardCards';
+  import { boardToList, clampFlatScale, flatBounds, flatOrigin, listToBoard, mmFromBoardRect, offsetKeepingPivot, scaleFromHandle } from '../core/boardCards';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
@@ -217,7 +217,12 @@
   /** 평면 구역 전체 크기 (2026-10-17 사용자: "평면도 전체 사이즈 조절 가능하게"): 프로젝트 설정 flatScale. [−][+] 또는 오른쪽 아래 손잡이 끌기 */
   const k = $derived(app.flatScale);
   const bounds = $derived(flatBounds(origin, app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h })), k));
-  const setScale = (v: number) => app.updateSettings({ flatScale: Math.round(clampFlatScale(v) * 1000) / 1000 });
+  const flatCardsPlaced = () => app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h }));
+  /** 축척 바꾸기 — ✥(카드 묶음 왼쪽 위)가 피봇: 그 자리가 안 움직이게 flatOffset 도 같이 (2026-10-22 "피봇에 메인 컨트롤러 위치하게") */
+  const setScale = (v: number, kOld = k, baseOffset = app.flatOffset, cards = flatCardsPlaced()) => {
+    const kNew = Math.round(clampFlatScale(v) * 10000) / 10000;
+    app.updateSettings({ flatScale: kNew, flatOffset: offsetKeepingPivot(baseOffset, cards, kOld, kNew) });
+  };
   /** 왼쪽 위 손잡이: 평면 구역 전체 이동 (2026-10-17 사용자: "왼쪽 상단에도 버튼이 있으면 좋겠다. 이건 이동") → 설정 flatOffset */
   function moveDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
@@ -238,8 +243,9 @@
   function handleDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
-    const cards = app.flatCards.map(({ o, w, h }) => ({ ...app.flatPlaced.get(o.id)!, w, h }));
-    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(origin, cards, w.x)); };
+    const cards = flatCardsPlaced();
+    const pivot = { x: bounds!.x, y: bounds!.y }, kBase = k, baseOffset = { ...app.flatOffset }; // 끄는 동안 피봇은 고정
+    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(pivot, cards, w.x), kBase, baseOffset, cards); };
     const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); app.editBoundary(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
@@ -445,11 +451,11 @@
         <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={handleDown}></div>
       {/if}
     {/if}
-    {#each app.flatCards as { o, w, h } (o.id)}
+    {#each app.flatCards as { o, w, h, placeholder } (o.id)}
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
