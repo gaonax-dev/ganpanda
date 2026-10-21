@@ -1,7 +1,7 @@
 // 계정 API 클라이언트 (1-2a): 이메일 매직링크 → 세션 Bearer 토큰 (localStorage 'ganpanda.session')
 import { SERVER_URL } from './sync';
 
-export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean }
+export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean; /** 운영자 (OPERATOR_EMAILS, 2026-10-22) — 홈에 운영 배너 */ operator?: boolean }
 /** 요금제 이름 (옛 starter 는 베이직) */
 export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
 /** members = 팀 멤버 수(소유자 제외, 2026-10-21 — 전엔 동시 작업 인원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) */

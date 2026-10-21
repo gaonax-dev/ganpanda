@@ -8,6 +8,10 @@
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
   import { bizDocUrl, listMyRequests, type MyRequest } from '../requests';
+  import { SERVER_URL } from '../sync';
+  // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
+  let health = $state<{ ok: boolean; mail?: { detail: string } } | null>(null);
+  $effect(() => { if (app.account?.operator && SERVER_URL) fetch(`${SERVER_URL}/api/health`, { cache: 'no-store' }).then(async (r) => (health = (await r.json()) as typeof health)).catch(() => (health = { ok: false, mail: { detail: '서버 헬스 응답 없음' } })); });
   import { measureLabel } from '../core/measureSummary';
   import { groupDday, projectDday } from '../core/dday';
   import type { ProjectDetails } from '../projects';
@@ -213,6 +217,9 @@
   {#if !app.authReady}
     <p class="hint">확인 중…</p>
   {:else if app.account}
+    {#if app.account?.operator && health && !health.ok}
+      <p class="ops-warn" data-testid="ops-health-warning">⚠ 운영 점검: {health.mail?.detail ?? '서버 헬스 이상'} — 로그인 메일·요청 알림이 안 갈 수 있습니다.</p>
+    {/if}
     {#if app.requestsEnabled && myRequests.length}
       <section class="requests" data-testid="my-request-list">
         <h1>내 견적 요청 <small><a href="/estimate">새 요청</a></small></h1>
@@ -471,6 +478,7 @@
 <style>
   .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+  .ops-warn { background: rgba(255, 80, 80, 0.12); border: 1px solid rgba(255, 80, 80, 0.6); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 12px; }
   .rcard .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
   .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }

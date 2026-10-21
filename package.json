@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test",
     "check": "svelte-check",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy && node scripts/smoke.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

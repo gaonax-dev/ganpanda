@@ -9,6 +9,7 @@ import { handleVersions } from './versions';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleBusiness, recheckBusinesses } from './business';
+import { checkMailDns } from './mailDns';
 import { handleProjects, resolveAccess, type Role } from './projects';
 import { handleGroups } from './groups';
 import { handleTeam } from './team';
@@ -236,7 +237,10 @@ export default {
     const url = new URL(req.url);
     const { pathname } = url;
 
-    if (pathname === '/api/health') return withCors(Response.json({ ok: true }));
+    if (pathname === '/api/health') { // 메일 DNS 가 위험하면 503 — 외부 모니터가 알린다 (2026-10-22)
+      const mail = await checkMailDns();
+      return withCors(Response.json({ ok: !mail.danger, mail }, { status: mail.danger ? 503 : 200, headers: { 'cache-control': 'no-store' } }));
+    }
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname === '/api/me/colors') return withCors(await handleColors(req, env));

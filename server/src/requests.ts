@@ -6,6 +6,7 @@ import { validateRequestSigns, type RequestSign } from './requestSigns';
 import { configured as ntsConfigured, fetchStatuses, validBizNo, validateBusiness } from './business';
 import { scanBizDoc } from './docScan';
 import { regionMatches, regionOfAddress } from './region';
+import { isOperator, operatorEmails } from './operator';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -45,9 +46,7 @@ const appUrl = (env: Env) => env.APP_URL.replace(/\/+$/, '');
 const getRequest = (env: Env, id: string) => env.DB.prepare('SELECT * FROM requests WHERE id = ?').bind(id).first<RequestRow>();
 
 /** 간판사가 이 요청을 볼 수 있나: 요청 받기 + 지역 일치(열린 요청), 또는 이미 답한 요청 */
-/** 운영자 (2026-10-21 "받을 간판 가게가 없다. 일정 기간 수동으로 처리"): OPERATOR_EMAILS 의 계정은 지역에 상관없이 모든 열린 요청을 받고 알림 메일도 받는다 */
-const operatorEmails = (env: Env) => (env.OPERATOR_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-const isOperator = (env: Env, email: string) => operatorEmails(env).includes(email.toLowerCase());
+/** 운영자 (2026-10-21 "받을 간판 가게가 없다. 일정 기간 수동으로 처리"): OPERATOR_EMAILS 의 계정은 지역에 상관없이 모든 열린 요청을 받고 알림 메일도 받는다 (operator.ts) */
 async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean> {
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;

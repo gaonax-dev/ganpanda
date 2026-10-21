@@ -72,3 +72,9 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 
 ## 사업자등록증 읽기 (Workers AI, 2026-10-21)
 `server/wrangler.jsonc` 의 `ai: { binding: "AI" }` — 별도 키 없이 계정의 Workers AI 를 쓴다(Workers Paid 에 포함된 무료 할당 안에서 소량). 로컬 `.dev.vars` 는 `DOC_SCAN=fake`. 로컬 `wrangler dev` 에서 바인딩이 있으면 실제로 클라우드 AI 를 부르므로 fake 를 켜 둔다.
+
+## 장애 감지 (2026-10-22 사용자: "서비스 시작하고 이런 상황이 벌어지면 심각하다")
+- **`GET /api/health`** 가 메일 DNS(SPF·DMARC, `server/src/mailDns.ts`, DoH 조회)를 함께 본다: SPF 없음 + DMARC reject/quarantine = 수신 거부 상태 → **503** `{ok:false, mail:{…}}`. 정상 200.
+- **외부 모니터**(사용자 설정): UptimeRobot·healthchecks.io 같은 무료 서비스에 `https://sync.ganpanda.co.kr/api/health` 를 5분 간격으로 등록 → 503 이면 휴대폰 푸시·문자. 메일이 죽어도 알림은 다른 길로 온다.
+- **운영자 배너**: `OPERATOR_EMAILS` 계정이 홈을 열면 같은 헬스를 읽어 이상이면 빨간 배너(`ops-health-warning`).
+- **스모크**: `npm run deploy` 끝에 `scripts/smoke.mjs` 가 자동으로 돈다(앱 첫 화면·없는 에셋 404·서버 헬스·카카오 공급자). 따로는 `npm run smoke`. 실패하면 종료 코드 1.
