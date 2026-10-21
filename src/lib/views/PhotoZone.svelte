@@ -28,7 +28,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -84,6 +84,9 @@
     onbox?: (id: string, patch: { faceAxis?: SignObject['faceAxis']; boxDir?: SignObject['boxDir'] }) => void;
     onmove: (dx: number, dy: number) => void;
     ondelete: () => void;
+    /** 사진 설정 메뉴 (2026-10-21): 교체 · 이미지 조절 — 없으면 메뉴에 안 보인다 */
+    onreplace?: () => void;
+    onadjust?: () => void;
     onrender?: () => void;
     /** 3D 단계: 사진 위에 겹칠 합성 결과(데이터 URL). 있으면 영역·디자인은 숨기고 편집하지 않는다 */
     overlay?: string;
@@ -426,6 +429,7 @@
 
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
   let confirmsOpen = $state(false);
+  let menuOpen = $state(false); // 사진 설정 메뉴 (2026-10-21)
   let headerDrag: { x: number; y: number } | null = null;
   let headerMoved = false;
   function headerDown(e: PointerEvent) {
@@ -483,8 +487,16 @@
       <!-- 완료한 말풍선 목록 (2026-10-18): 사인물을 가리키지 않는 것도 여기서 다시 연다 -->
       <button class="x" class:set={confirmsOpen} data-testid="photo-confirms" title="완료한 말풍선" onpointerdown={(e) => e.stopPropagation()} onclick={() => (confirmsOpen = !confirmsOpen)}>✓ 완료 {pins.filter((p) => p.resolved).length}</button>
     {/if}
-    {#if editable && !tiny}<button class="x" title="사진 삭제" onpointerdown={(e) => e.stopPropagation()} onclick={ondelete}>✕</button>{/if}
+    <!-- 사진 설정 (2026-10-21 "x 마크 대신 설정버튼으로 사진교체, 이미지 조절, 삭제") -->
+    {#if editable && !tiny}<button class="x" class:set={menuOpen} data-testid="photo-menu" title="사진 설정 — 교체 · 이미지 조절 · 삭제" aria-label="사진 설정" onpointerdown={(e) => e.stopPropagation()} onclick={() => (menuOpen = !menuOpen)}>⚙</button>{/if}
   </div>
+  {#if menuOpen && editable}
+    <div class="confirms menu" data-testid="photo-menu-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
+      {#if onreplace}<button class="citem" data-testid="photo-replace" onclick={() => { menuOpen = false; onreplace(); }}>사진 교체 <span>같은 자리에서 다시 찍은 사진으로 — 영역·원근은 그대로</span></button>{/if}
+      {#if onadjust}<button class="citem" data-testid="photo-adjust" onclick={() => { menuOpen = false; onadjust(); }}>이미지 조절 <span>크롭(여백 더하기도)·밝기</span></button>{/if}
+      <button class="citem danger" data-testid="photo-delete" onclick={() => { menuOpen = false; ondelete(); }}>사진 삭제 <span>사인물·말풍선도 함께</span></button>
+    </div>
+  {/if}
   {#if confirmsOpen && pins.some((p) => p.resolved)}
     <div class="confirms" data-testid="confirm-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
       {#each pins.filter((p) => p.resolved) as p (p.id)}
@@ -827,6 +839,9 @@
   .confirms { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 6; display: flex; flex-direction: column; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); max-width: 360px; }
   .citem { background: none; border: 0; color: var(--text); font: inherit; font-size: 12px; text-align: left; padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
   .citem:hover { background: rgba(255,255,255,0.06); }
+  .menu { left: auto; right: 0; min-width: 220px; }
+  .menu .citem { flex-direction: column; gap: 1px; align-items: flex-start; }
+  .menu .citem.danger { color: #ff8080; }
   .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header {
     position: absolute; left: 0; bottom: 100%; transform-origin: 0 100%; height: 30px;

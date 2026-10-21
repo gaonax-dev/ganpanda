@@ -25,7 +25,12 @@ export interface Photo {
   camera?: CameraSetup;
   /** false = 자동 원근 끔 (원근 창에서 [설정 지우기] — 2026-10-19). 그 뒤로는 사인물 치수가 들어와도 원근을 새로 만들지 않는다 */
   autoCamera?: false;
+  /** 이미지 조절(크롭·밝기)의 기준 원본 (2026-10-21, core/photoEdit.ts). 없으면 조절 안 함 = assetId 가 원본 */
+  source?: PhotoSource;
 }
+
+/** 조절 전 원본 에셋과 지금 적용된 크롭(원본 px, 원본 밖도 가능 = 여백)·밝기(1 = 그대로) */
+export interface PhotoSource { assetId: string; w: number; h: number; crop: { x: number; y: number; w: number; h: number }; brightness: number }
 
 /** 사인물 오브젝트. 영역 좌표는 사진 원본 픽셀 기준 */
 /** 내용 객체 (글자·그림): 간판 중앙 기준 위치(mm, x 오른쪽 +, y 위 +), 높이 h(글자 높이·그림 높이), 그림·시트 면적용 가로 w */

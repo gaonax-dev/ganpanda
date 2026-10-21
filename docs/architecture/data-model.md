@@ -26,6 +26,7 @@
 | `x`, `y`, `width` | 사진 보드(world) 위 위치와 표시 폭 |
 | `zones?` | 작업 존 다각형들 (사진 px) |
 | `camera?` | **카메라 설정** `{x, y, z?, origin, ref?, principal?}` — 축 선 두 쌍·원점·기준 길이 → 벽면 평면 (`core/camera.ts`). 사인물과 무관 → [../features/measurement.md](../features/measurement.md) |
+| `source?` | 이미지 조절(크롭·밝기)의 기준 원본 `{assetId, w, h, crop{x,y,w,h}, brightness}` (2026-10-21, `core/photoEdit.ts`). `assetId` 는 조절을 구운 새 에셋, `source.assetId` 가 원본. 없으면 조절 안 함. 크롭은 원본 px(원본 밖 = 흰 여백) → [../features/photo-board.md](../features/photo-board.md#사진-설정-교체--이미지-조절--삭제-2026-10-21) |
 
 ### SignObject
 | 필드 | 설명 |

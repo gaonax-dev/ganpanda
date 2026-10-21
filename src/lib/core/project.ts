@@ -3,6 +3,8 @@ import * as Y from 'yjs';
 import { isSpecField, specOf } from './link';
 import type { Attachment, DesignSource, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
 
+import { mapObjectPts, mapPhotoPts, mapPinPts, type PtMap } from './photoEdit';
+
 type Fields<T> = Omit<T, 'id'>;
 const uid = () => crypto.randomUUID();
 
@@ -52,6 +54,17 @@ export class Project {
 
   allPhotos(): Photo[] {
     return [...this.photos.values()].map((m) => fromYMap<Photo>(m));
+  }
+
+  /** 사진 px 좌표를 쓰는 모든 것(존·축 선·영역·말풍선)을 한 번에 옮긴다 — 이미지 조절·교체 (2026-10-21, core/photoEdit.ts) */
+  transformPhotoPts(id: string, f: PtMap, photoPatch: Partial<Fields<Photo>> = {}) {
+    const p = this.photo(id);
+    if (!p) return;
+    this.doc.transact(() => {
+      this.updatePhoto(id, { ...mapPhotoPts(p, f), ...photoPatch });
+      for (const o of this.objectsOf(id)) if (o.quad.length) this.updateObject(o.id, mapObjectPts(o, f));
+      for (const pin of this.pinsOf(id)) this.updatePin(pin.id, mapPinPts(pin, f));
+    });
   }
 
   removePhoto(id: string) {

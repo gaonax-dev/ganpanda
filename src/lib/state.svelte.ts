@@ -18,6 +18,8 @@ import type { Calibration } from './core/calibration';
 import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
+import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
+import { prepareUpload } from './photoPrep';
 import { clampFlatScale, flatOrigin } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
@@ -614,6 +616,56 @@ class AppState {
     this.closeCamera();
   }
 
+  // ---------- 사진 설정: 교체 · 이미지 조절 (2026-10-21 "x 마크 대신 설정버튼으로 사진교체, 이미지 조절(크롭(크게도 가능하게),밝기), 삭제") ----------
+  /** 이미지 조절 창이 열린 사진 */
+  adjustPhotoId = $state<string | null>(null);
+  adjustPhoto = $derived(this.adjustPhotoId ? this.photos.find((p) => p.id === this.adjustPhotoId) ?? null : null);
+  photoBusy = $state(false);
+
+  /** 크롭(원본 px, 원본 밖 = 흰 여백)·밝기를 새 그림으로 구워 바꾼다. 좌표(영역·존·축 선·말풍선)는 크롭만큼 옮겨 같은 자리에 */
+  async applyPhotoAdjust(photoId: string, crop: Crop, brightness: number): Promise<boolean> {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p || !this.canEdit || this.photoBusy) return false;
+    const plan = adjustPlan(p, crop, brightness);
+    this.photoBusy = true;
+    try {
+      let assetId = sourceOf(p).assetId; // 원본 그대로면 원본 에셋으로 되돌린다 (새로 굽지 않음)
+      if (plan.source) {
+        const { bakePhoto } = await import('./photoBake');
+        const url = await assetUrl(plan.source.assetId);
+        if (!url) { this.notice = '원본 사진을 아직 받지 못했습니다. 잠시 뒤 다시 해 주세요.'; return false; }
+        assetId = await putAsset(await bakePhoto(url, plan.source));
+      }
+      this.editBoundary();
+      this.project.transformPhotoPts(photoId, shiftBy(plan.shift), { assetId, w: plan.w, h: plan.h, x: plan.x, y: plan.y, width: plan.width, source: plan.source });
+      this.editBoundary();
+      return true;
+    } catch (e) {
+      this.notice = e instanceof StorageLimitError ? `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 조절한 사진을 저장할 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}.` : '이미지 조절에 실패했습니다.';
+      return false;
+    } finally { this.photoBusy = false; }
+  }
+
+  /** 사진 교체: 같은 자리에서 다시 찍은 사진으로. 이름·보드 위치·존·원근·영역은 두고 좌표만 새 px 로(가로 배율), 조절 기록은 지운다 */
+  async replacePhoto(photoId: string, file: File | Blob): Promise<boolean> {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p || !this.canEdit || this.photoBusy) return false;
+    this.photoBusy = true;
+    try {
+      const assetId = await putAsset(await prepareUpload(file));
+      const { w, h } = await imageSize((await assetUrl(assetId))!);
+      const plan = replacePlan(p, assetId, w, h);
+      this.editBoundary();
+      this.project.transformPhotoPts(photoId, plan.map, plan.patch);
+      this.editBoundary();
+      if (plan.aspectDiffers) this.notice = '새 사진의 가로세로 비율이 달라 영역·존이 세로로 어긋날 수 있습니다. 확인해 주세요.';
+      return true;
+    } catch (e) {
+      this.notice = e instanceof StorageLimitError ? `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 사진을 올릴 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}.` : '사진 교체에 실패했습니다.';
+      return false;
+    } finally { this.photoBusy = false; }
+  }
+
   clearCamera(photoId: string) {
     if (!this.canEdit) return;
     this.editBoundary();
@@ -621,6 +673,7 @@ class AppState {
     this.editBoundary();
     if (this.cameraPhotoId === photoId) this.closeCamera();
   }
+
 
   /** 사진의 회색조 (긴 변 1600px 이하로 줄이지 않고 원본 크기 — 좌표가 사진 px 이므로) */
   private async grayOf(assetId: string, w: number, h: number): Promise<{ data: Uint8ClampedArray; width: number; height: number } | null> {

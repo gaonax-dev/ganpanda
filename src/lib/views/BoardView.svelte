@@ -61,6 +61,17 @@
     viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, w, h, 60);
   }
 
+  // 사진 교체 (2026-10-21): 메뉴 [사진 교체] → 파일 고르기 → app.replacePhoto
+  let replaceInput = $state<HTMLInputElement | null>(null);
+  let replacingId: string | null = null;
+  async function onReplaceFile(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const f = input.files?.[0];
+    const id = replacingId;
+    input.value = '';
+    if (f && id) await app.replacePhoto(id, f);
+  }
+
   export async function addPhotos(files: FileList | File[]) {
     let i = 0;
     for (const f of files) {
@@ -395,6 +406,8 @@
         threeD={app.threeDOk(p.id) ? 'ok' : 'none'}
         showWarnings={app.warnMeasure}
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
+        onreplace={app.canEdit ? () => { replacingId = p.id; replaceInput?.click(); } : undefined}
+        onadjust={app.canEdit ? () => (app.adjustPhotoId = p.id) : undefined}
       />
     {/each}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
@@ -474,6 +487,8 @@
       <button class="icon" data-testid="multi-clear" title="선택 해제" onclick={() => app.selectObject(null)}>✕</button>
     </div>
   {/if}
+<!-- 사진 교체 파일 고르기 (2026-10-21, 도구 막대 밖 — 막대 순서 테스트) -->
+<input data-testid="photo-replace-input" type="file" accept="image/*" hidden bind:this={replaceInput} onchange={onReplaceFile} />
 <div class="tools" role="toolbar">
         {#if app.canEdit}
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->

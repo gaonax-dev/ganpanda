@@ -34,6 +34,7 @@
   // 무거운 창(three.js·폰트·렌더링)은 처음 열 때 따로 내려받는다 — 메인 번들을 가볍게 (2026-10-15 사용자: "모바일에서는 무겁다")
   const lazyRender = () => import('./lib/ui/RenderDialog.svelte');
   const lazyCamera = () => import('./lib/ui/CameraDialog.svelte');
+  const lazyPhotoAdjust = () => import('./lib/ui/PhotoAdjustDialog.svelte');
   const lazyLetter3d = () => import('./lib/ui/Letter3DDialog.svelte');
   const lazyProposal = () => import('./lib/ui/ProposalDialog.svelte');
 
@@ -231,6 +232,7 @@
 {#if app.quoteSheetOpen}<QuoteSheet />{/if}
 {#if app.orderOpen}<OrderDialog />{/if}
 {#if app.proposalOpen}{#await lazyProposal()}<Loading text="제안 도구 불러오는 중…" />{:then m}<m.default />{/await}{/if}
+{#if app.adjustPhoto}{#key app.adjustPhoto.id}{#await lazyPhotoAdjust()}<Loading text="이미지 조절 불러오는 중…" />{:then m}<m.default photo={app.adjustPhoto} />{/await}{/key}{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}{#await lazyCamera()}<Loading text="원근 맞추기 불러오는 중…" />{:then m}<m.default photo={app.cameraPhoto} />{/await}{/key}{/if}
 {#if app.objectSettingsOpen && app.selected}{#key app.selected.id}<ObjectSettingsDialog obj={app.selected} />{/key}{/if}
 {#if app.renderPhotoId}{@const rp = app.photos.find((p) => p.id === app.renderPhotoId)}{#if rp}{#key rp.id}{#await lazyRender()}<Loading text="렌더링 불러오는 중…" />{:then m}<m.default photo={rp} />{/await}{/key}{/if}{/if}
