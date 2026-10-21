@@ -385,6 +385,19 @@ export function proposeAxisLines(img: Gray): { x: [Line, Line]; y: [Line, Line] 
   return { x: [L(p.x[0]), L(p.x[1])], y: [L(p.y[0]), L(p.y[1])] };
 }
 
+/**
+ * AI 가 찾은 둘째 선 쌍이 높이(Z)인지 깊이(Y)인지 (2026-10-21 사용자: "원근의 x,z 와 x,y 을 선택이 정면에 가까우면 x,z 가 잘되고 45도에 가까우면 x,y 가 잘 추적하는 것 같아"):
+ * 정면 사진에서는 둘째 쌍이 벽의 수직선(높이 Z)이고, 비스듬한(45°) 사진에서는 깊이로 물러나는 대각선(Y — 차양·바닥선·옆벽)이 잡힌다.
+ * 두 선이 모두 세로에 가까우면(세로에서 VERTICAL_TOL 안) Z, 아니면 Y. 깊이선이 사진에서 세로로 보이는 경우는 드물다
+ */
+export const VERTICAL_TOL = (30 * Math.PI) / 180;
+export function classifySecondAxis(pair: [Line, Line]): '+z' | '+y' {
+  const fromVertical = (l: Line) => { const dx = Math.abs(l.b[0] - l.a[0]), dy = Math.abs(l.b[1] - l.a[1]); return Math.atan2(dx, dy); };
+  return pair.every((l) => fromVertical(l) <= VERTICAL_TOL) ? '+z' : '+y';
+}
+/** AI 제안 선 쌍에 붙일 축: 첫 쌍은 가로 X, 둘째 쌍은 기울기로 Z/Y */
+export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line] }): { first: AxisDir; second: AxisDir } => ({ first: '+x', second: classifySecondAxis(found.y) });
+
 /** 축 선·기준 길이 선의 끝점을 사진 모서리에 붙인다 (법선 방향 탐색) */
 export function snapSetup(img: Gray, setup: CameraSetup, range = 8): CameraSetup {
   const snapLine = (l: Line): Line => { const r = snapEdge(img, l, range); return { a: r.a, b: r.b }; };

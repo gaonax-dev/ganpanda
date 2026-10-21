@@ -400,3 +400,23 @@ describe('실측 사인물로 원근을 잡을 때 화각도 맞춘다 (signCame
     expect(signCameraFit(q, 2000, 600, imgW, imgH)!.focal).toBeUndefined();
   });
 });
+
+describe('AI 둘째 선 쌍의 축 자동 분류 (2026-10-21 "정면에 가까우면 x,z 가 잘되고 45도에 가까우면 x,y 가 잘 추적")', async () => {
+  const { classifySecondAxis, axesForProposal, VERTICAL_TOL } = await import('../../src/lib/core/camera');
+  const L = (a: [number, number], b: [number, number]) => ({ a, b });
+  it('정면 사진: 둘째 쌍이 세로에 가까우면(30° 안) 높이 Z', () => {
+    expect(classifySecondAxis([L([100, 50], [110, 900]), L([1500, 40], [1490, 920])])).toBe('+z');
+    expect(VERTICAL_TOL).toBeCloseTo(Math.PI / 6);
+  });
+  it('45° 사진: 둘째 쌍이 깊이로 물러나는 대각선이면 Y', () => {
+    expect(classifySecondAxis([L([100, 300], [900, 500]), L([100, 800], [900, 650])])).toBe('+y'); // 차양·바닥선처럼 비스듬히 모이는 선
+  });
+  it('하나라도 비스듬하면 Y — 수직선 하나 + 대각선 하나는 같은 축이 아니므로 깊이로 본다', () => {
+    expect(classifySecondAxis([L([100, 50], [105, 900]), L([100, 300], [900, 500])])).toBe('+y');
+  });
+  it('제안 축: 첫 쌍은 X, 둘째 쌍은 분류대로', () => {
+    const x: [ReturnType<typeof L>, ReturnType<typeof L>] = [L([0, 100], [1000, 120]), L([0, 900], [1000, 880])];
+    expect(axesForProposal({ x, y: [L([100, 50], [110, 900]), L([1500, 40], [1490, 920])] })).toEqual({ first: '+x', second: '+z' });
+    expect(axesForProposal({ x, y: [L([100, 300], [900, 500]), L([100, 800], [900, 650])] })).toEqual({ first: '+x', second: '+y' });
+  });
+});

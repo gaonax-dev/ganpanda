@@ -254,7 +254,7 @@
         <section>
           <h3>AI 제안</h3>
           <div class="row">
-            <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} title="가로에 가까운 선 쌍 → X 가로, 세로에 가까운 선 쌍 → Z 높이. 옆 벽(깊이 Y)은 아래 축 선에서 쌍의 축을 바꾸세요" onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
+            <button class="btn small" data-testid="camera-propose" disabled={ro || app.cameraBusy} title="가로에 가까운 선 쌍 → X 가로. 둘째 쌍은 세로에 가까우면 Z 높이(정면 사진), 비스듬하면 Y 깊이(45° 사진)로 자동. 아래 축 선에서 바꿀 수 있습니다" onclick={propose}>{app.cameraBusy ? '분석 중…' : '축 선 자동 제안'}</button>
             <button class="btn small" data-testid="camera-snap" disabled={ro || app.cameraBusy} title="선 끝점을 사진 속 모서리에 붙입니다" onclick={() => app.snapCamera()}>모서리에 붙이기</button>
           </div>
           {#if proposeFailed}<p class="warn" data-testid="camera-propose-failed">뚜렷한 직선을 찾지 못했습니다. 선을 직접 놓으세요.</p>{/if}
