@@ -498,7 +498,8 @@ class AppState {
     this.cameraBusy = true;
     try {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
-      const found = gray && proposeAxisLines(gray);
+      const want = this.cameraDraft.axes?.second[1]; // 창에서 고른 둘째 축이 있으면 그 축의 선을 찾는다 (2026-10-21 "축선을 변경하면 다시 자동으로")
+      const found = gray && proposeAxisLines(gray, want === 'y' || want === 'z' ? { second: want } : {});
       if (!gray || !found) return false;
       // 첫 쌍(가로에 가까운 선)·둘째 쌍(세로에 가까운 선)의 축은 창의 축 선 설정을 따른다(2026-10-18 사용자: "설정에 x, y 설정하고 자동으로 측정하면 x, z로 변경되어 결과가 나온다. 설정의 자동에서 따르게").
       // 설정이 '자동'이면 X 가로·Z 높이 (X·Y 수평, Z 수직 — "실내 실외 구분표시 제거, x와 y는 수평 z가 수직")

@@ -88,3 +88,48 @@ describe('선분 검출 (LSD 식)', () => {
     expect(Math.abs(sol.f - (f * W) / imgW) / ((f * W) / imgW)).toBeLessThan(0.05);
   });
 });
+
+describe('둘째 쌍 = 깊이(Y) 또는 높이(Z) (2026-10-21 "정면에 가까우면 x,z 가 잘되고 45도에 가까우면 x,y 가 잘 추적")', () => {
+  const W = 800, H = 600;
+  const S = truth(0.6, -0.15, [4000, 2000, 10000]); // 비스듬한(~34°) 사진, 바닥이 보인다
+  const small = (q: V3): Pt => { const [u, v] = projectPoint(S, q); return [(u * W) / imgW, (v * H) / imgH]; };
+  /** 벽 + 바닥(깊이로 물러나는 줄무늬 — 타일 줄눈처럼) */
+  const img = (() => {
+    const data = new Uint8ClampedArray(W * H);
+    let seed = 3;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const inside = (pt: Pt, poly: Pt[]) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (yi > pt[1] !== yj > pt[1] && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) c = !c; } return c; };
+    const wall = (x: number, y: number, rw: number, rh: number): Pt[] => [small([x, y, 0]), small([x + rw, y, 0]), small([x + rw, y + rh, 0]), small([x, y + rh, 0])];
+    const floor = (x: number, z0: number, rw: number, z1: number): Pt[] => [small([x, 0, z0]), small([x + rw, 0, z0]), small([x + rw, 0, z1]), small([x, 0, z1])];
+    const shapes: [Pt[], number][] = [
+      [wall(0, 0, 9000, 6000), 200], [wall(0, 3700, 9000, 1000), 235], [wall(600, 4950, 1500, 850), 70], [wall(2700, 4950, 1500, 850), 70], [wall(4000, 0, 1000, 2900), 50],
+      [floor(-3000, 0, 15000, 9500), 150], [floor(1500, 100, 160, 9500), 60], [floor(4500, 100, 160, 9500), 60], [floor(7500, 100, 160, 9500), 60], [floor(-1500, 100, 160, 9500), 60],
+    ];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let v = 120 + (y / H) * 30;
+      for (const [poly, c] of shapes) if (inside([x + 0.5, y + 0.5], poly)) v = c;
+      data[y * W + x] = Math.max(0, Math.min(255, v + (rnd() - 0.5) * 6));
+    }
+    return { data, width: W, height: H };
+  })();
+  const l = (a: Pt, b: Pt): V3 => [a[1] - b[1], b[0] - a[0], a[0] * b[1] - a[1] * b[0]];
+  const x3 = (u: V3, v: V3): V3 => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+  const seg = (s: { a: Pt; b: Pt }): Segment => ({ a: s.a, b: s.b, length: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]), strength: 1 });
+  const vDepth = x3(l(small([1500, 0, 0]), small([1500, 0, 9000])), l(small([7500, 0, 0]), small([7500, 0, 9000])));
+  const vVert = x3(l(small([4000, 0, 0]), small([4000, 2900, 0])), l(small([600, 4950, 0]), small([600, 5800, 0])));
+
+  it('비스듬한 사진(가로 소실점 유한): 둘째 쌍은 바닥의 깊이선(Y) — 두 선이 깊이 소실점을 향한다', () => {
+    const p = proposeAxes(img)!;
+    expect(p).not.toBeNull();
+    expect(p.second).toBe('+y');
+    for (const s of p.y) expect(pointsTo(seg(s), vDepth, 2 * DEG)).toBe(true);
+    // X·Y 두 소실점이 유한 → 초점거리가 풀린다 (8% 안)
+    const sol = solveCamera({ x: [p.x[0], p.x[1]], y: [p.y[0], p.y[1]], axes: { first: '+x', second: '+y' }, origin: small([0, 0, 0]), ref: { axis: 'x', from: small([1000, 0, 0]), to: small([8000, 0, 0]), mm: 7000 } }, W, H)!;
+    expect(Math.abs(sol.f - (f * W) / imgW) / ((f * W) / imgW)).toBeLessThan(0.08);
+  });
+  it('높이(Z)를 고르면 수직선 쌍을 찾는다 (원근 창에서 축을 바꾸고 다시 제안)', () => {
+    const p = proposeAxes(img, { second: 'z' })!;
+    expect(p.second).toBe('+z');
+    for (const s of p.y) expect(pointsTo(seg(s), vVert, 2 * DEG)).toBe(true);
+  });
+});

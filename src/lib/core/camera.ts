@@ -378,11 +378,11 @@ export function calibrationOf(s: CameraSolution): Calibration {
  * 사진에서 가로·세로 축 선 후보: LSD 식 선분 검출 → 소실점 두 개(RANSAC) → 각 소실점을 받치는, 서로 떨어진 긴 선분 두 개.
  * 뚜렷한 직선이 모자라면 null
  */
-export function proposeAxisLines(img: Gray): { x: [Line, Line]; y: [Line, Line] } | null {
-  const p = proposeAxes(img);
+export function proposeAxisLines(img: Gray, opts: { second?: 'y' | 'z' } = {}): { x: [Line, Line]; y: [Line, Line]; second: '+y' | '+z' } | null {
+  const p = proposeAxes(img, opts);
   if (!p) return null;
   const L = (s: { a: Pt; b: Pt }): Line => ({ a: s.a, b: s.b });
-  return { x: [L(p.x[0]), L(p.x[1])], y: [L(p.y[0]), L(p.y[1])] };
+  return { x: [L(p.x[0]), L(p.x[1])], y: [L(p.y[0]), L(p.y[1])], second: p.second };
 }
 
 /**
@@ -395,8 +395,8 @@ export function classifySecondAxis(pair: [Line, Line]): '+z' | '+y' {
   const fromVertical = (l: Line) => { const dx = Math.abs(l.b[0] - l.a[0]), dy = Math.abs(l.b[1] - l.a[1]); return Math.atan2(dx, dy); };
   return pair.every((l) => fromVertical(l) <= VERTICAL_TOL) ? '+z' : '+y';
 }
-/** AI 제안 선 쌍에 붙일 축: 첫 쌍은 가로 X, 둘째 쌍은 기울기로 Z/Y */
-export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line] }): { first: AxisDir; second: AxisDir } => ({ first: '+x', second: classifySecondAxis(found.y) });
+/** AI 제안 선 쌍에 붙일 축: 첫 쌍은 가로 X, 둘째 쌍은 제안이 말한 축(깊이 Y / 높이 Z), 없으면 기울기로 */
+export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line]; second?: '+y' | '+z' }): { first: AxisDir; second: AxisDir } => ({ first: '+x', second: found.second ?? classifySecondAxis(found.y) });
 
 /** 축 선·기준 길이 선의 끝점을 사진 모서리에 붙인다 (법선 방향 탐색) */
 export function snapSetup(img: Gray, setup: CameraSetup, range = 8): CameraSetup {

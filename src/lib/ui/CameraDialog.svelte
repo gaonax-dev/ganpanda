@@ -82,6 +82,8 @@
     const o = which === 'first' ? 'second' : 'first';
     if (next[o][1] === (v as AxisDir)[1]) next[o] = other(v as AxisDir, o);
     set({ axes: next });
+    // AI 가 놓은 선이면 바뀐 축에 맞는 선을 다시 찾는다 (2026-10-21 사용자: "축선을 변경하면 다시 자동으로 잡아주지 않는데 맞아?")
+    if (which === 'second' && draft.auto && !ro) void propose();
   }
   const m = (mm: number) => (mm / 1000).toFixed(2);
   /**

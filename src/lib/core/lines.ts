@@ -188,20 +188,44 @@ export function findVanishingPoint(segs: Segment[], opts: { iterations?: number;
 }
 
 /**
- * 가로·세로 축 선 제안: 선분 검출 → 소실점 1 → 남은 선분에서 소실점 2 → 선분 방향으로 가로/세로 결정 →
+ * 가로·세로 축 선 제안: 선분 검출 → 소실점 1 → 남은 선분에서 소실점 2(·3) → 선분 방향으로 가로/세로 결정 →
  * 각 축에서 서로 멀리 떨어진 긴 선분 두 개. 실패하면 null
+ *
+ * 둘째 쌍 = 높이(Z) 또는 깊이(Y) (2026-10-21 사용자: "정면에 가까우면 x,z 가 잘되고 45도에 가까우면 x,y 가 잘 추적"):
+ * 가로 소실점이 유한하면(비스듬한 사진) 수평면의 다른 축 — 바닥·천장 타일선처럼 깊이로 물러나며 **수평선 근처로 모이는** 선 쌍(Y)을 찾아 쓴다.
+ * 가로·깊이 소실점이 둘 다 유한해야 직교로 초점거리가 풀린다(수직선은 평행해 소실점이 없다). 깊이 쌍이 없거나 정면 사진이면 수직선(Z).
+ * opts.second 로 강제할 수 있다(원근 창에서 축을 고르고 다시 제안할 때)
  */
-export function proposeAxes(img: Gray): { x: [Segment, Segment]; y: [Segment, Segment]; segments: Segment[] } | null {
+export interface AxesProposal { x: [Segment, Segment]; y: [Segment, Segment]; /** 둘째 쌍의 축 */ second: '+y' | '+z'; segments: Segment[] }
+export function proposeAxes(img: Gray, opts: { second?: 'y' | 'z' } = {}): AxesProposal | null {
   const { img: small, k } = downscale(img, 800);
   const segs = detectSegments(small);
   if (segs.length < 4) return null;
-  const v1 = findVanishingPoint(segs);
-  if (!v1 || v1.inliers.length < 2) return null;
-  const rest = segs.filter((s) => !v1.inliers.includes(s));
-  const v2 = findVanishingPoint(rest);
-  if (!v2 || v2.inliers.length < 2) return null;
+  // 소실점 셋까지: 가장 지지도 높은 것부터, 그 지지 선분을 빼고 다음
+  const results: VanishingResult[] = [];
+  let rest = segs;
+  for (let i = 0; i < 3 && rest.length >= 2; i++) {
+    const v = findVanishingPoint(rest);
+    if (!v || v.inliers.length < 2) break;
+    results.push(v);
+    rest = rest.filter((s) => !v.inliers.includes(s));
+  }
+  if (results.length < 2) return null;
   const horizontality = (r: VanishingResult) => r.inliers.reduce((a, s) => a + Math.abs(dirOf(s)[0]) * s.length, 0) / r.score;
-  const [hx, vy] = horizontality(v1) >= horizontality(v2) ? [v1, v2] : [v2, v1];
+  const finite = (r: VanishingResult) => Math.abs(r.v[2]) > 1e-7 * Math.hypot(r.v[0], r.v[1]);
+  const vpOf = (r: VanishingResult): Pt => [r.v[0] / r.v[2], r.v[1] / r.v[2]];
+  // 가로 축은 지지도가 큰 앞의 둘 중에서(셋째는 깊이 후보로만 — 남은 잡선이 가로 축을 가로채지 않게)
+  const hx = horizontality(results[0]) >= horizontality(results[1]) ? results[0] : results[1];
+  const others = results.filter((r) => r !== hx);
+  const vertical = others.reduce<VanishingResult | null>((best, r) => (!best || horizontality(r) < horizontality(best) ? r : best), null);
+  // 깊이 후보: 유한 소실점, 선이 세로가 아니고(가로 성분 ≥ 0.5), 소실점이 수평선(가로 소실점 높이, 없으면 사진 가운데) 근처
+  const oblique = finite(hx) && Math.abs(vpOf(hx)[0] - small.width / 2) < small.width * 4;
+  const horizonY = finite(hx) ? vpOf(hx)[1] : small.height / 2;
+  const depth = others.filter((r) => r !== vertical || others.length === 1).find((r) => finite(r) && horizontality(r) >= 0.5 && Math.abs(vpOf(r)[1] - horizonY) < small.height * 0.6 && r.score >= hx.score * 0.2) ?? null; // 지지도가 가로 축의 1/5 는 돼야 잡선이 아니다
+  const want = opts.second ?? (oblique ? 'y' : 'z');
+  const chosen = want === 'y' ? depth ?? vertical : vertical ?? depth;
+  if (!chosen) return null;
+  const second: '+y' | '+z' = chosen === depth && depth ? '+y' : '+z';
   const pick = (r: VanishingResult, along: 0 | 1, extent: number): [Segment, Segment] | null => {
     const list = [...r.inliers].sort((p, q) => q.length - p.length);
     for (let minSep = extent * 0.3; minSep >= extent * 0.05; minSep /= 2) {
@@ -211,9 +235,10 @@ export function proposeAxes(img: Gray): { x: [Segment, Segment]; y: [Segment, Se
     }
     return null;
   };
-  const xs = pick(hx, 1, small.height), ys = pick(vy, 0, small.width);
+  // 둘째 쌍이 깊이선이면 서로 세로로(위·아래), 수직선이면 가로로(좌·우) 떨어진 두 선
+  const xs = pick(hx, 1, small.height), ys = second === '+y' ? pick(chosen, 1, small.height) ?? pick(chosen, 0, small.width) : pick(chosen, 0, small.width);
   if (!xs || !ys) return null;
   const up = (s: Segment): Segment => ({ ...s, a: [s.a[0] / k, s.a[1] / k], b: [s.b[0] / k, s.b[1] / k], length: s.length / k });
   const sortBy = (pair: [Segment, Segment], i: 0 | 1): [Segment, Segment] => (mid(pair[0])[i] <= mid(pair[1])[i] ? pair : [pair[1], pair[0]]);
-  return { x: sortBy([up(xs[0]), up(xs[1])], 1), y: sortBy([up(ys[0]), up(ys[1])], 0), segments: segs.map(up) };
+  return { x: sortBy([up(xs[0]), up(xs[1])], 1), y: sortBy([up(ys[0]), up(ys[1])], second === '+y' ? 1 : 0), second, segments: segs.map(up) };
 }
