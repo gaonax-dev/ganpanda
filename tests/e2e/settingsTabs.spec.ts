@@ -6,7 +6,7 @@ test('설정은 계정 · 멤버 · 사양 사전 · 표시 · 단축키 탭으�
   await openOwnedProject(page, request);
   await page.getByTestId('open-settings').click();
   const dlg = page.getByTestId('settings');
-  await expect(dlg.locator('[data-testid^="settings-tab-"]')).toHaveText(['계정', '멤버', '사양 사전', '표시', '단축키']);
+  await expect(dlg.locator('[data-testid^="settings-tab-"]')).toHaveText(['계정', '멤버', '사양 사전', '요청 받기', '표시', '단축키']); // 요청 받기 탭은 2026-10-21 "켜는 걸로 진행해줘" 부터
   await expect(dlg.getByTestId('account-section')).toBeVisible();
   await expect(dlg.getByTestId('team-section')).toHaveCount(0);
   await expect(dlg.getByTestId('shortcut-row-toolRect')).toHaveCount(0);
