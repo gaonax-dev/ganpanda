@@ -148,7 +148,7 @@
             <form class="bizform" onsubmit={(e) => { e.preventDefault(); if (bizReady && !bizBusy) verifyBiz(); }}>
               <label>사업자등록번호<input data-testid="biz-no" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} /></label>
               <label>대표자 성명<input data-testid="biz-owner" placeholder="사업자등록증의 성명" bind:value={bizOwner} /></label>
-              <label>개업일자<input data-testid="biz-start" inputmode="numeric" placeholder="2020-01-05" bind:value={bizStart} /></label>
+              <label>개업일자 <small>(등록증의 개업연월일)</small><input data-testid="biz-start" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} bind:value={bizStart} /></label>
               <label>상호 <small>(선택)</small><input data-testid="biz-name" placeholder="간판집 상호" bind:value={bizName} /></label>
               <p class="row"><span class="hint">사업자등록증에 적힌 그대로 넣어 주세요. 확인은 보통 1초 안에 끝납니다.</span><button class="btn small primary" type="submit" data-testid="biz-verify" disabled={!bizReady || bizBusy}>{bizBusy ? '확인 중…' : '확인'}</button></p>
             </form>

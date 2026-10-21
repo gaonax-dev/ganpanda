@@ -51,7 +51,7 @@ test('폐업 상태로 나오면 그대로 알려 준다 (fake: 999 로 시작)'
   const sec = page.getByTestId('business-section');
   await sec.getByTestId('biz-no').fill(bno('999'));
   await sec.getByTestId('biz-owner').fill('홍길동');
-  await sec.getByTestId('biz-start').fill('20200105');
+  await sec.getByTestId('biz-start').fill('2020-01-05'); // 날짜 입력기 (2026-10-21 "날짜입력기 사용해줘")
   await sec.getByTestId('biz-verify').click();
   await expect(sec.getByTestId('biz-verified')).toContainText('폐업');
 });

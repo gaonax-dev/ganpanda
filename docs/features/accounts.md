@@ -52,7 +52,7 @@
 
 ## 사업자 확인 (2026-10-21, `server/src/business.ts` · `src/lib/business.ts` · `core/business.ts`)
 결정: 로그인(사람 = 카카오/이메일) 위에 얹는 "어느 사업체인가" — 숨고·크몽 방식 → [../product/decisions.md](../product/decisions.md).
-- **어디서**: 설정 → **계정** 탭 "사업자 확인"(`business-section`): 사업자등록번호(`biz-no`, 자동 하이픈·검증 자릿수 `isValidBizNo`) · 대표자 성명(`biz-owner`) · 개업일자(`biz-start`, 2020-01-05 / 20200105) · 상호(선택 `biz-name`) → [확인](`biz-verify`). 확인되면 `biz-verified`(상호·번호·대표자·개업일·상태·확인일) + [떼기](`biz-remove`, 확인 창).
+- **어디서**: 설정 → **계정** 탭 "사업자 확인"(`business-section`): 사업자등록번호(`biz-no`, 자동 하이픈·검증 자릿수 `isValidBizNo`) · 대표자 성명(`biz-owner`) · 개업일자(`biz-start`, 날짜 입력기 `type=date` — 2026-10-21 "날짜입력기 사용해줘") · 상호(선택 `biz-name`) → [확인](`biz-verify`). 확인되면 `biz-verified`(상호·번호·대표자·개업일·상태·확인일) + [떼기](`biz-remove`, 확인 창).
 - **서버** `PUT /api/me/business {no, ownerName, startDate, name?}` → 국세청 공공데이터 API **진위확인**(`api.odcloud.kr/api/nts-businessman/v1/validate`, 키 `NTS_API_KEY` = data.go.kr 일반 인증키 Decoding). 응답: 200 `{business}` / 400 `{error: bad_input|mismatch|not_registered}` / 409 `taken`(다른 계정이 쓰는 번호 — 계정 하나 = 사업자 하나, 번호는 계정 사이에 유일) / 502 `nts_unavailable` / 503 `not_configured`. `DELETE` 로 뗀다. `GET /api/me` 에 `business`.
 - **상태**: 국세청 `b_stt_cd` 01 계속(`active`) · 02 휴업(`suspended`) · 03 폐업(`closed`). 폐업·휴업도 저장하고 경고로 보인다. **재조회**: 매시간 cron 에서 `checked_at` 30일 지난 것 100개씩 **상태조회**(`/status`)로 갱신(`recheckBusinesses`).
 - **제안 페이지 배지**: `/api/projects/:id/access` 에 소유자의 `business {name, status}` → 상태가 계속사업자면 제안 페이지 머리에 "✓ 사업자 확인된 간판집 · 상호"(`proposal-business`). 돈이 간판다를 거치지 않는 구조에서 고객이 믿을 근거.
