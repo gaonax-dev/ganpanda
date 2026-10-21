@@ -58,7 +58,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -828,7 +828,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}) };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}) };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };

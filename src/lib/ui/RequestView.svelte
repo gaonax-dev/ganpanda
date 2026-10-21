@@ -2,7 +2,7 @@
      2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "취소만 남기고 환불 재요청 빼줘":
      진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
-  import { cancelRequest, getRequest, type CustomerRequestView } from '../requests';
+  import { cancelRequest, chooseShop, getRequest, type CustomerRequestView } from '../requests';
   import { loadSession } from '../auth';
   import { SERVER_URL } from '../sync';
   import { requestSteps } from '../core/estimateRequest';
@@ -25,6 +25,11 @@
   const steps = $derived(view ? requestSteps(view.request.status, view.responses.length) : []);
   const signs = $derived(r?.signs ?? []);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
+  async function choose(projectId: string, shop: string) {
+    if (busy || !confirm(`${shop}(으)로 확정할까요?\n\n다른 간판집에는 다른 곳과 진행하게 됐다고 알려 드립니다. 마음이 바뀌면 다른 제안에서 다시 바꿀 수 있어요.`)) return;
+    busy = true;
+    try { await chooseShop(id, projectId, key); await load(); } catch { error = '확정하지 못했습니다. 잠시 뒤 다시 해 주세요.'; } finally { busy = false; }
+  }
   async function cancel() {
     if (busy || !confirm('견적 요청을 취소할까요?\n\n요청이 닫혀 더는 새 제안이 오지 않아요. 이미 제안한 간판집은 연락처를 받았으니 필요하면 직접 연락이 올 수 있어요.')) return;
     busy = true;
@@ -67,10 +72,15 @@
     {#if view.responses.length}
       <h2>받은 제안</h2>
       {#each view.responses as p (p.proposalPath)}
-        <a class="card proposal" data-testid="request-proposal" href={SERVER_URL + p.proposalPath}>
-          <span><b>{p.shop}</b><small>{date(p.createdAt)}</small></span>
-          <span class="go">제안 보기 →</span>
-        </a>
+        {@const chosen = r.chosenProject === p.projectId}
+        <div class="card proposal" class:chosen data-testid="request-proposal" data-chosen={chosen || undefined}>
+          <span><b>{p.shop}</b>{#if chosen}<span class="badge ok" data-testid="request-chosen">✓ 확정</span>{/if}<small>{date(p.createdAt)}</small></span>
+          <span class="acts">
+            <a class="go" href={SERVER_URL + p.proposalPath}>제안 보기 →</a>
+            <!-- 확정 (2026-10-22 "소비자가 간판집을 제안 리스트에서 확정을 선택하면 …") — 확정 뒤에도 마음을 바꿀 수 있다 -->
+            {#if !chosen && r.status !== 'cancelled'}<button class="btn small primary" data-testid="request-choose" disabled={busy} onclick={() => choose(p.projectId, p.shop)}>{r.chosenProject ? '이 곳으로 바꾸기' : '확정'}</button>{/if}
+          </span>
+        </div>
       {/each}
     {/if}
 
@@ -134,7 +144,10 @@
   h2 { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
   .proposal { display: flex; justify-content: space-between; align-items: center; text-decoration: none; color: var(--text); }
   .proposal small { display: block; color: var(--muted); font-size: 12px; }
-  .go { color: var(--accent); font-weight: 600; white-space: nowrap; }
+  .go { color: var(--accent); font-weight: 600; white-space: nowrap; text-decoration: none; }
+  .acts { display: inline-flex; align-items: center; gap: 10px; }
+  .proposal.chosen { border-color: rgba(60, 200, 120, 0.7); }
+  .proposal .badge { margin-left: 6px; font-size: 11px; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
   dt { color: var(--muted); }
   dd { margin: 0; }

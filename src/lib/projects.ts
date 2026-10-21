@@ -8,7 +8,7 @@ export type ProjectStatus = 'waiting' | 'ongoing' | 'paused' | 'done';
 /** 정지(paused)는 2026-10-21 추가 — 홈 선택 탭 [진행 · 정지 · 완료] */
 export const STATUS_LABEL: Record<ProjectStatus, string> = { waiting: '대기', ongoing: '진행중', paused: '정지', done: '완료' };
 /** 그룹·상태·정산은 2026-10-15 추가. 계약 금액 = 직접 입력(contractAuto=false) 또는 리스트 뷰 견적 합계(quoteTotal, 자동). 금액은 정산을 볼 수 있는 사람에게만 온다 */
-export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; /** 상태가 된 시각 (2026-10-21) */ statusAt?: number; /** 실측 상태: 사인물 수·미측정 수 (앱이 저장, 2026-10-21) */ signTotal?: number; signUnmeasured?: number; /** 상세 (2026-10-21, 모두 선택) */ contact?: string; address?: string; contractDate?: string | null; startDate?: string | null; dueDate?: string | null; memo?: string; quoteTotal?: number; contractAmount?: number; contractAuto?: boolean; paidAmount?: number; /** 외주 폴더 (2026-10-22) */ outsource?: boolean }
+export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; /** 상태가 된 시각 (2026-10-21) */ statusAt?: number; /** 실측 상태: 사인물 수·미측정 수 (앱이 저장, 2026-10-21) */ signTotal?: number; signUnmeasured?: number; /** 상세 (2026-10-21, 모두 선택) */ contact?: string; address?: string; contractDate?: string | null; startDate?: string | null; dueDate?: string | null; memo?: string; quoteTotal?: number; contractAmount?: number; contractAuto?: boolean; paidAmount?: number; /** 외주 폴더 (2026-10-22) */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean }
 export interface GroupInfo { id: string; name: string; createdAt: number; role: 'owner' | 'member'; canBilling: boolean }
 export interface TeamMember { accountId: string; email: string; name: string; canBilling: boolean; createdAt: number }
 export interface GroupView { group: GroupInfo; projects: ProjectInfo[] }
@@ -52,7 +52,7 @@ export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>
-  call<{ role: Role; project: { id: string; name: string }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 → 제안 페이지 배지 (2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string; /** 외주 프로젝트 (2026-10-22) */ outsource?: boolean }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
+  call<{ role: Role; project: { id: string; name: string }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 → 제안 페이지 배지 (2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string; /** 외주 프로젝트 (2026-10-22) */ outsource?: boolean; /** 다른 간판집 확정 */ lost?: boolean }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
 /** 버전 기록 (2026-10-21 백업 3단계, 유료 — 무료는 402 plan_required): auto = 매시간 자동(그날 마지막), manual = 직접 저장, before = 되돌리기 직전 */
 export interface VersionInfo { key: string; kind: 'auto' | 'manual' | 'before'; at: number; label?: string; by?: string }

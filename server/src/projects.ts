@@ -12,7 +12,7 @@ export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; /** 외주 폴더 (2026-10-22) */ outsource?: number; request_id?: string | null; group_id?: string | null; status?: string; /** 'estimate' = 소비자 견적 요청 초안 (2026-10-22) */ kind?: string | null; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; /** 외주 폴더 (2026-10-22) */ outsource?: number; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost_at?: number | null; request_id?: string | null; group_id?: string | null; status?: string; /** 'estimate' = 소비자 견적 요청 초안 (2026-10-22) */ kind?: string | null; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
@@ -23,7 +23,7 @@ const inviteUrl = (env: Env, projectId: string, token: string) =>
 /** 계약 금액 = 사용자가 입력한 값(contract_override) 또는 리스트 뷰 견적 합계(quote_total, 앱이 저장). contractAuto = 자동 */
 export const pubProject = (p: ProjectRow, role: Role) => ({
   id: p.id, name: p.name, createdAt: p.created_at, role,
-  groupId: p.group_id ?? null, status: p.status ?? 'waiting', ...(p.status_at ? { statusAt: p.status_at } : {}), outsource: !!p.outsource,
+  groupId: p.group_id ?? null, status: p.status ?? 'waiting', ...(p.status_at ? { statusAt: p.status_at } : {}), outsource: !!p.outsource, lost: !!p.lost_at,
   quoteTotal: p.quote_total ?? 0,
   signTotal: p.sign_total ?? 0, signUnmeasured: p.sign_unmeasured ?? 0,
   contact: p.contact ?? '', address: p.address ?? '', contractDate: p.contract_date ?? null, startDate: p.start_date ?? null, dueDate: p.due_date ?? null, memo: p.memo ?? '',
@@ -101,7 +101,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, ...(r.project.outsource ? { outsource: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, ...(r.project.outsource ? { outsource: true } : {}), ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
   }
 
   const me = await authenticate(req, env);

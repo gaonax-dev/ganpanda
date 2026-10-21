@@ -4,10 +4,10 @@ import { AuthError, loadSession } from './auth';
 import type { RequestSign } from './core/requestSigns';
 
 export interface RequestPhoto { n: number; type: string }
-export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved' | 'cancelled'; createdAt: number; /** 일반 주문(사업자 없음)·취소 시각 (2026-10-22) */ general?: boolean; /** 간판집이 보낸 외주 요청 (2026-10-22) */ b2b?: boolean; cancelledAt?: number; /** 보드 복제 요청 프로젝트와 사진 에셋 id (2026-10-22) — 없으면 옛 요청(사진 따로) */ snapshot?: { project: string; photos: string[] }; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null; /** 사업자등록증 사본 메타 (2026-10-21) — 파일은 제안을 보낸 간판사만 */ bizDoc?: { type: string; size: number } | null; /** 번호·대표자명·개업일 진위확인을 통과함 (2026-10-21) */ bizVerified?: boolean; ownerName?: string | null }
+export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved' | 'cancelled'; createdAt: number; /** 일반 주문(사업자 없음)·취소 시각 (2026-10-22) */ general?: boolean; /** 간판집이 보낸 외주 요청 (2026-10-22) */ b2b?: boolean; /** 가게 사장이 고른 간판집 프로젝트 */ chosenProject?: string; cancelledAt?: number; /** 보드 복제 요청 프로젝트와 사진 에셋 id (2026-10-22) — 없으면 옛 요청(사진 따로) */ snapshot?: { project: string; photos: string[] }; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null; /** 사업자등록증 사본 메타 (2026-10-21) — 파일은 제안을 보낸 간판사만 */ bizDoc?: { type: string; size: number } | null; /** 번호·대표자명·개업일 진위확인을 통과함 (2026-10-21) */ bizVerified?: boolean; ownerName?: string | null }
 /** 간판사 목록의 한 줄: 제안을 보낸(요금이 발생한) 요청에만 연락처가 온다 */
 export interface ShopRequest extends RequestInfo { responded: boolean; projectId?: string; phone?: string; email?: string }
-export interface CustomerRequestView { request: RequestInfo & { approvedShop?: string; approvedAt?: number }; responses: { shop: string; /** 서버 기준 경로 — SERVER_URL 을 붙여 연다 */ proposalPath: string; createdAt: number }[] }
+export interface CustomerRequestView { request: RequestInfo & { approvedShop?: string; approvedAt?: number }; responses: { shop: string; /** 서버 기준 경로 — SERVER_URL 을 붙여 연다 */ proposalPath: string; createdAt: number; /** 그 간판집 프로젝트 — 확정할 때 (2026-10-22) */ projectId: string }[] }
 export interface RequestSettings { receive: boolean; regions: string[] }
 
 async function call<T>(path: string, init: RequestInit = {}, auth = true): Promise<T> {
@@ -46,6 +46,8 @@ export const getRequest = (id: string, key: string) => call<CustomerRequestView>
 /** 고객이 보는 사진 주소: 키 또는 세션 */
 export const customerPhotoUrl = (id: string, key: string, n: number) => `${SERVER_URL}/api/requests/${id}/photos/${n}?${key ? `key=${encodeURIComponent(key)}` : `session=${encodeURIComponent(loadSession() ?? '')}`}`;
 
+/** 간판집 확정 (고객, 2026-10-22): 다른 간판집 프로젝트는 "다른 업체 선택" + 정지 */
+export const chooseShop = (id: string, projectId: string, key = '') => call<{ ok: true }>(`/api/requests/${id}/choose${key ? `?key=${encodeURIComponent(key)}` : ''}`, { method: 'POST', body: JSON.stringify({ projectId }) });
 /** 요청 취소 (고객, 2026-10-22): 요청을 닫기만 — 환불·재요청 없음 */
 export const cancelRequest = (id: string, key = '') => call<{ ok: true }>(`/api/requests/${id}/cancel${key ? `?key=${encodeURIComponent(key)}` : ''}`, { method: 'POST', body: '{}' });
 

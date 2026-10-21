@@ -211,7 +211,7 @@
     <b>{p.name}</b>
     <!-- 아래 글자 = 상태 · 실측 숫자(미측정/전체, 다 재면 전체) · D-day (2026-10-21). 속성은 오른쪽 위 ⋯ -->
     <small class="meta" data-testid="project-meta">
-      <span class="status" data-status={p.status}>{m.label}</span>
+      {#if p.lost}<span class="lost" data-testid="project-lost" title="가게 사장님이 다른 간판집을 골랐습니다 — 마음을 바꿀 수 있어 정지로 두었습니다">다른 업체 선택</span>{/if}<span class="status" data-status={p.status}>{m.label}</span>
       {#if m.count}<span class="count" data-testid="project-count" data-measure={m.kind} title={m.title}>{m.count}</span>{/if}
       <span class="dday" data-testid="project-dday" title={d.title} class:late={d.days < 0}>{d.label}</span>
     </small>
@@ -596,4 +596,5 @@
   .consumer-home h1 { margin: 0 0 4px; }
   .consumer-home .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .consumer-home a.btn { text-decoration: none; }
+  .lost { font-size: 11px; color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 0 6px; margin-right: 4px; white-space: nowrap; }
 </style>

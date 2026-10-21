@@ -41,6 +41,8 @@ export interface RequestRow {
   snapshot_project?: string | null; snapshot_photos?: string | null;
   /** 간판집이 다른 업체에 보낸 외주 요청 (2026-10-22) */
   b2b?: number;
+  /** 가게 사장이 고른 간판집 프로젝트 (2026-10-22) */
+  chosen_project?: string | null;
 }
 const bizDocOf = (r: RequestRow): { type: string; size: number } | null => { try { return r.biz_doc ? (JSON.parse(r.biz_doc) as { type: string; size: number }) : null; } catch { return null; } };
 const bizDocKey = (id: string) => `requests/${id}/biz-doc`;
@@ -101,7 +103,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, b2b: !!r.b2b, ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), ...(r.snapshot_project ? { snapshot: { project: r.snapshot_project, photos: snapshotPhotos(r) } } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, b2b: !!r.b2b, ...(r.chosen_project ? { chosenProject: r.chosen_project } : {}), ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), ...(r.snapshot_project ? { snapshot: { project: r.snapshot_project, photos: snapshotPhotos(r) } } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -230,7 +232,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const open = regions.length || operator ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => operator || regions.some((g) => regionMatches(g, r.region))) : [];
     const answered = byReq.size ? (await env.DB.prepare(`SELECT * FROM requests WHERE id IN (${[...byReq.keys()].map(() => '?').join(',')})`).bind(...byReq.keys()).all<RequestRow>()).results : [];
     const all = new Map<string, RequestRow>();
-    for (const r of [...open, ...answered]) if (r.account_id !== me.id) all.set(r.id, r); // 내가 보낸 요청(외주)은 받은 목록에 안 나온다
+    // 내가 보낸 요청(외주)은 받은 목록에 안 나온다. 가게 사장이 확정한 요청도 사라진다 (2026-10-22) — 고른 간판집은 자기 프로젝트에서, 떨어진 간판집은 "다른 업체 선택" 배지로
+    for (const r of [...open, ...answered]) if (r.account_id !== me.id && r.status !== 'approved') all.set(r.id, r);
     const requests = [...all.values()].sort((a, b) => b.created_at - a.created_at).map((r) => {
       const m = byReq.get(r.id);
       // 연락처는 제안 링크를 보낸(요금이 발생한) 요청에만 (숨고식: 제안이 곧 연락처)
@@ -239,7 +242,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ requests });
   }
 
-  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel))?$/);
+  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel|choose))?$/);
   if (!m) return text('not found', 404);
   const r = await getRequest(env, m[1]);
   if (!r) return text('request not found', 404);
@@ -321,6 +324,17 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ ok: true });
   }
 
+  // ---- 확정: POST /api/requests/:id/choose {projectId} (고객, 2026-10-22) — 제안을 보낸 간판집 중 하나 ----
+  if (m[4] === 'choose' && req.method === 'POST') {
+    if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
+    if (r.status === 'cancelled') return json({ error: 'cancelled' }, 409);
+    const b = await readJson<{ projectId?: string }>(req);
+    const rr = typeof b?.projectId === 'string' ? await env.DB.prepare('SELECT account_id, project_id FROM request_responses WHERE request_id = ? AND project_id = ?').bind(r.id, b.projectId).first<{ account_id: string; project_id: string }>() : null;
+    if (!rr) return json({ error: 'bad_project' }, 400);
+    await chooseShop(env, r.id, rr.project_id, rr.account_id);
+    return json({ ok: true });
+  }
+
   // ---- 답하기: POST /api/requests/:id/respond (간판사) → 요청 사진이 들어갈 프로젝트 ----
   if (m[4] === 'respond' && req.method === 'POST') {
     const me = await authenticate(req, env);
@@ -342,11 +356,11 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   // ---- 고객 요청 페이지: GET /api/requests/:id?key= ----
   if (!m[2] && !m[4] && req.method === 'GET') {
     if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
-    const rows = await env.DB.prepare('SELECT rr.proposal_url, rr.created_at, a.name, a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ? ORDER BY rr.created_at')
-      .bind(r.id).all<{ proposal_url: string; created_at: number; name: string; email: string }>();
+    const rows = await env.DB.prepare('SELECT rr.proposal_url, rr.created_at, rr.project_id, a.name, a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ? ORDER BY rr.created_at')
+      .bind(r.id).all<{ proposal_url: string; created_at: number; project_id: string; name: string; email: string }>();
     const shopName = (a: { name: string; email: string }) => a.name || a.email.split('@')[0];
     const approved = r.approved_by ? await env.DB.prepare('SELECT name, email FROM accounts WHERE id = ?').bind(r.approved_by).first<{ name: string; email: string }>() : null;
-    return json({ request: { ...pubRequest(r), ...(approved ? { approvedShop: shopName(approved), approvedAt: r.approved_at } : {}) }, responses: rows.results.map((x) => ({ shop: shopName(x), proposalPath: x.proposal_url, createdAt: x.created_at })) });
+    return json({ request: { ...pubRequest(r), ...(approved ? { approvedShop: shopName(approved), approvedAt: r.approved_at } : {}) }, responses: rows.results.map((x) => ({ shop: shopName(x), proposalPath: x.proposal_url, createdAt: x.created_at, projectId: x.project_id })) });
   }
   return text('not found', 404);
 }
@@ -358,11 +372,32 @@ export async function recordResponse(env: Env, project: { id: string; owner_id: 
     .bind(project.request_id, project.owner_id, project.id, proposalUrl, Date.now()).run();
 }
 
-/** 승인 시 호출 (index.ts): 요청에서 만든 프로젝트의 제안이 승인되면 요청을 승인됨으로 */
+/**
+ * 간판집 확정 (2026-10-22 "소비자가 간판집을 제안 리스트에서 확정을 선택하면 견적요청에서 사라지고 탈락한 업체의 복제된 프로젝트에 배지를 달아 다른 곳에서 진행하게 된것을 알린다.
+ * 다만 변심으로 다시 시작할 수 있음으로 정지 처리 안내한다"): 요청은 승인됨(받은 목록에서 빠짐), 고른 프로젝트는 lost 해제,
+ * 같은 요청의 다른 간판집 프로젝트는 lost_at + 정지(완료가 아니면) + 메일. 다시 다른 곳을 고르면(변심) 그대로 바뀐다
+ */
+export async function chooseShop(env: Env, requestId: string, projectId: string, ownerId: string) {
+  const now = Date.now();
+  const losers = (await env.DB.prepare('SELECT p.id, a.email FROM projects p JOIN accounts a ON a.id = p.owner_id WHERE p.request_id = ? AND p.id <> ? AND p.lost_at IS NULL').bind(requestId, projectId).all<{ id: string; email: string }>()).results;
+  await env.DB.batch([
+    env.DB.prepare("UPDATE requests SET status = 'approved', approved_at = ?, approved_by = ?, chosen_project = ? WHERE id = ?").bind(now, ownerId, projectId, requestId),
+    env.DB.prepare('UPDATE projects SET lost_at = NULL WHERE id = ?').bind(projectId),
+    env.DB.prepare("UPDATE projects SET lost_at = ?, status = CASE WHEN status = 'done' THEN status ELSE 'paused' END, status_at = ? WHERE request_id = ? AND id <> ? AND lost_at IS NULL").bind(now, now, requestId, projectId),
+  ]);
+  if (env.EMAIL) {
+    const r = await getRequest(env, requestId);
+    for (const l of losers) {
+      try { await env.EMAIL.send({ to: l.email, from: FROM, subject: `[간판다] ${r?.store ?? ''} — 다른 간판집으로 정해졌습니다`, text: `${r?.store ?? '가게'} 사장님이 다른 간판집과 진행하기로 했습니다. 마음을 바꿔 다시 연락할 수 있어 프로젝트는 지우지 않고 "정지"로 두었습니다.` }); } catch { /* 무시 */ }
+    }
+  }
+}
+
+/** 승인 시 호출 (index.ts): 요청에서 만든 프로젝트의 제안이 승인되면 그 간판집으로 확정 */
 export async function markApproved(env: Env, projectId: string) {
   const p = await env.DB.prepare('SELECT owner_id, request_id FROM projects WHERE id = ?').bind(projectId).first<{ owner_id: string; request_id: string | null }>();
   if (!p?.request_id) return;
-  await env.DB.prepare("UPDATE requests SET status = 'approved', approved_at = ?, approved_by = ? WHERE id = ?").bind(Date.now(), p.owner_id, p.request_id).run();
+  await chooseShop(env, p.request_id, projectId, p.owner_id);
 }
 
 /** `?session=` 을 Authorization 으로 (img 태그는 헤더를 못 넣는다) */

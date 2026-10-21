@@ -200,7 +200,10 @@
     </div>
   </nav>
   {#if app.requestView && app.room && app.access.status === 'ok'}<RequestBar />{/if}
-  {#if app.access.status === 'ok' && app.access.requestId && app.role === 'owner' && !app.settings.proposal && !app.proposalMode}
+  {#if app.access.status === 'ok' && app.access.lost && !app.proposalMode}
+    <!-- 다른 간판집 확정 (2026-10-22): 변심할 수 있어 지우지 않고 정지 -->
+    <div class="banner lost" data-testid="project-lost-banner">가게 사장님이 <b>다른 간판집과 진행</b>하기로 했습니다. 마음을 바꿔 다시 연락할 수 있어 프로젝트는 지우지 않고 <b>정지</b>로 두었습니다.</div>
+  {:else if app.access.status === 'ok' && app.access.requestId && app.role === 'owner' && !app.settings.proposal && !app.proposalMode}
     <!-- 요청에서 가져온 프로젝트: 가게 사장님께 제안 (제안 링크 = 초대, 요청 페이지에 도착) -->
     <div class="banner next" data-testid="request-next">요청에서 가져온 프로젝트입니다. 견적을 정리한 뒤 <b>가게 사장님께 제안</b>을 보내면 요청 페이지에 바로 도착합니다. <button class="btn small primary" data-testid="request-propose" onclick={() => (app.proposalOpen = true)}>가게 사장님께 제안 보내기</button></div>
   {/if}
@@ -377,4 +380,5 @@
   .reqs.hot b { background: var(--accent); color: var(--accent-ink); }
   .b2b { font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
   .banner.next { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; }
+  .banner.lost { justify-content: flex-start; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
 </style>
