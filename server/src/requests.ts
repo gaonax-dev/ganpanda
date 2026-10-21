@@ -3,7 +3,7 @@
 import { authenticate, type Account } from './auth';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { validateRequestSigns, type RequestSign } from './requestSigns';
-import { configured as ntsConfigured, fetchStatuses, validBizNo } from './business';
+import { configured as ntsConfigured, fetchStatuses, validBizNo, validateBusiness } from './business';
 import { scanBizDoc } from './docScan';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
@@ -26,6 +26,8 @@ export interface RequestRow {
   address?: string; biz_no?: string | null; biz_status?: string | null;
   /** 사업자등록증 사본 메타 JSON {type,size} (2026-10-21) */
   biz_doc?: string | null;
+  /** 사본 없이 직접 넣은 검증 요소와 진위확인 결과 (2026-10-21) */
+  owner_name?: string | null; start_date?: string | null; biz_verified?: number;
 }
 const bizDocOf = (r: RequestRow): { type: string; size: number } | null => { try { return r.biz_doc ? (JSON.parse(r.biz_doc) as { type: string; size: number }) : null; } catch { return null; } };
 const bizDocKey = (id: string) => `requests/${id}/biz-doc`;
@@ -79,7 +81,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r) });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -118,7 +120,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   if (pathname === '/api/requests' && req.method === 'POST') {
     const me = await authenticate(req, env);
     if (!me) return json({ error: 'login_required' }, 401);
-    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string }>(req);
+    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
     const region = typeof b?.region === 'string' ? b.region.trim().slice(0, REGION_MAX) : '';
     const phone = typeof b?.phone === 'string' ? b.phone.replace(/\D/g, '') : '';
@@ -130,13 +132,28 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     // 주소(선택)·사업자번호(선택, 2026-10-21 "둘다 작성"): 번호만 국세청 상태조회 → 폐업은 거절, 미등록 거절, 조회 불가면 확인 없이 받는다
     const address = typeof b?.address === 'string' ? b.address.trim().slice(0, 200) : '';
     const bizNo = typeof b?.bizNo === 'string' ? b.bizNo.replace(/\D/g, '') : '';
-    let bizStatus: string | null = null;
+    let bizStatus: string | null = null, bizVerified = 0;
+    // 검증 요소 (2026-10-21 "사본이 없으면 직접입력 … 필요한 검증 요소만"): 사본을 올리거나(bizDocPending), 번호·대표자명·개업일로 국세청 진위확인
+    const ownerName = typeof b?.ownerName === 'string' ? b.ownerName.trim().slice(0, 40) : '';
+    const startDate = typeof b?.startDate === 'string' ? b.startDate.replace(/\D/g, '') : '';
+    const manual = !!(bizNo && ownerName && /^\d{8}$/.test(startDate));
+    if (!manual && !b?.bizDocPending) return json({ error: 'verification_required' }, 400);
     if (bizNo) {
       if (!validBizNo(bizNo)) return json({ error: 'bad_biz_no' }, 400);
       if (ntsConfigured(env)) {
-        const st = (await fetchStatuses(env, [bizNo]).catch(() => new Map<string, string>())).get(bizNo) ?? null;
-        if (st === 'closed') return json({ error: 'biz_closed' }, 400);
-        bizStatus = st; // active · suspended · null(응답 없음 = 미등록이거나 조회 실패)
+        if (manual) {
+          const v = await validateBusiness(env, { b_no: bizNo, p_nm: ownerName, start_dt: startDate, b_nm: store }).catch(() => null);
+          if (v) {
+            if (!v.registered) return json({ error: 'not_registered' }, 400);
+            if (!v.valid) return json({ error: 'mismatch' }, 400);
+            if (v.status === 'closed') return json({ error: 'biz_closed' }, 400);
+            bizStatus = v.status; bizVerified = 1;
+          }
+        } else {
+          const st = (await fetchStatuses(env, [bizNo]).catch(() => new Map<string, string>())).get(bizNo) ?? null;
+          if (st === 'closed') return json({ error: 'biz_closed' }, 400);
+          bizStatus = st; // active · suspended · null(응답 없음 = 미등록이거나 조회 실패)
+        }
       }
     }
     const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE phone = ? AND status = 'open'").bind(phone).first<{ n: number }>();
@@ -144,10 +161,10 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const id = randomToken().slice(0, 16), key = randomToken();
     const row: RequestRow = {
       id, key_hash: await sha256hex(key), store, region, text: typeof b?.text === 'string' ? b.text.trim().slice(0, TEXT_MAX) : '', phone, email,
-      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs), account_id: me.id, address, biz_no: bizNo || null, biz_status: bizStatus,
+      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs), account_id: me.id, address, biz_no: bizNo || null, biz_status: bizStatus, owner_name: ownerName || null, start_date: startDate || null, biz_verified: bizVerified,
     };
-    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id, address, biz_no, biz_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id, row.address, row.biz_no, row.biz_status).run();
+    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id, address, biz_no, biz_status, owner_name, start_date, biz_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id, row.address, row.biz_no, row.biz_status, row.owner_name, row.start_date, row.biz_verified).run();
     const pageUrl = `${appUrl(env)}/r/${id}?key=${key}`;
     await notify(env, row, pageUrl);
     return json({ id, key, url: pageUrl }, 201);

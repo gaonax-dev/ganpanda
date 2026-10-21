@@ -84,7 +84,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
-  await expect(item.getByTestId('request-biz')).toContainText('사업자 확인'); // 사업자번호 상태조회 배지
+  await expect(item.getByTestId('request-biz')).toContainText('확인'); // 사본에서 읽은 번호·대표자·개업일로 진위확인 → ✓ 사업자 확인
   await expect(item.getByTestId('request-address')).toContainText('경안로 1');
   await expect(item.getByTestId('request-bizdoc')).toContainText('제안을 보내면 열립니다'); // 사본은 제안 뒤
   await expect(item).toContainText('예산 200만 원');
@@ -97,4 +97,28 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(shop.getByTestId('width-mm')).toHaveValue('4000');
   await expect(shop.getByTestId('height-mm')).toHaveValue('700');
   await shopCtx.close();
+});
+
+test('사본 없이도 번호·대표자 성명·개업일자를 넣으면 보낼 수 있다 (국세청 진위확인; 로컬 fake 는 홍길동 = 일치), 틀리면 안내', async ({ page, request }) => {
+  const store = `빵집 ${Math.random().toString(36).slice(2, 7)}`;
+  const session = await apiLogin(request);
+  await page.goto('/');
+  await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, session);
+  await page.goto('/estimate');
+  await uploadPhoto(page);
+  await page.getByTestId('estimate-button').click();
+  const dlg = page.getByTestId('estimate-dialog');
+  await dlg.getByTestId('est-store').fill(store);
+  await dlg.getByTestId('est-region').fill('경기 광주시');
+  await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
+  await expect(dlg.getByTestId('estimate-send')).toBeDisabled();
+  await dlg.getByTestId('est-bizno').fill('2208162517');
+  await dlg.getByTestId('est-owner').fill('김철수');
+  await dlg.getByTestId('est-start').fill('2020-01-05');
+  await expect(dlg.getByTestId('estimate-send')).toBeEnabled();
+  await dlg.getByTestId('estimate-send').click();
+  await expect(dlg.getByTestId('estimate-error')).toContainText('일치하지 않습니다');
+  await dlg.getByTestId('est-owner').fill('홍길동');
+  await dlg.getByTestId('estimate-send').click();
+  await expect(dlg.getByTestId('estimate-done-link')).toHaveValue(/\/r\//, { timeout: 20_000 });
 });

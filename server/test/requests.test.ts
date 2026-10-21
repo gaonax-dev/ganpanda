@@ -8,7 +8,7 @@ import { parseScan, setDocScanner } from '../src/docScan';
 const png = (seed: number, size = 64) => { const b = new Uint8Array(size); b.set([137, 80, 78, 71, seed & 255]); return b; };
 /** 전화번호당 열린 요청 3건 한도가 있으므로 기본 번호는 매번 다르게 */
 const randPhone = () => `010${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
-const body = (o: Partial<Record<string, string>> = {}) => ({ store: '바로바로 정육점', region: '경기 광주시', text: '전면 간판 교체', phone: randPhone(), ref: 'promo-kim', ...o });
+const body = (o: Partial<Record<string, string>> = {}) => ({ store: '바로바로 정육점', region: '경기 광주시', text: '전면 간판 교체', phone: randPhone(), ref: 'promo-kim', bizDocPending: true, ...o });
 /** 고객 세션 (2026-10-21 로그인 필수 — 카카오 기본) */
 let customer = '';
 const create = (o: Partial<Record<string, unknown>> = {}, session = customer) => json('/api/requests', body(o as Partial<Record<string, string>>), session);
@@ -87,6 +87,16 @@ describe('요청 올리기 (로그인한 고객)', () => {
     expect(parseScan('여기 있습니다: {"bizNo":"220-81-62517","name":" 간판다 ","owner":"홍길동","address":"서울","startDate":"2020.01.05"} 끝')).toEqual({ bizNo: '2208162517', name: '간판다', owner: '홍길동', address: '서울', startDate: '2020-01-05' });
     expect(parseScan('{"bizNo":"220-81-62518","name":""}')).toBeNull();
     expect(parseScan('못 읽음')).toBeNull();
+  });
+  it('검증 요소: 사본 없이는 번호·대표자명·개업일로 진위확인(일치 → bizVerified), 불일치 400 mismatch, 둘 다 없으면 400 verification_required (2026-10-21)', async () => {
+    setNtsFetch(async () => new Response(JSON.stringify({ data: [{ valid: '01', status: { b_stt_cd: '01' } }] }), { headers: { 'content-type': 'application/json' } }));
+    const ok = await (await create({ bizDocPending: undefined, bizNo: '220-81-62517', ownerName: '홍길동', startDate: '2020-01-05' } as unknown as Record<string, string>)).json<{ id: string; key: string }>();
+    const v = await (await get(`/api/requests/${ok.id}?key=${ok.key}`)).json<{ request: { bizVerified: boolean; bizStatus: string; ownerName: string } }>();
+    expect(v.request).toMatchObject({ bizVerified: true, bizStatus: 'active', ownerName: '홍길동' });
+    setNtsFetch(async () => new Response(JSON.stringify({ data: [{ valid: '02', status: { b_stt_cd: '01' } }] }), { headers: { 'content-type': 'application/json' } }));
+    expect(await (await create({ bizDocPending: undefined, bizNo: '220-81-62517', ownerName: '김철수', startDate: '2020-01-05' } as unknown as Record<string, string>)).json()).toEqual({ error: 'mismatch' });
+    expect(await (await create({ bizDocPending: undefined } as unknown as Record<string, string>)).json()).toEqual({ error: 'verification_required' });
+    setNtsFetch(null);
   });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);

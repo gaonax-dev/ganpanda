@@ -231,7 +231,7 @@
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
             <div class="rbody">
-              <b>{r.store}</b> {#if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="국세청 사업자등록 상태조회로 확인된 사업자">✓ 사업자 확인</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              <b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz" title="번호·대표자명·개업일이 국세청 등록 정보와 일치">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="번호만 국세청 상태조회로 확인 (사본 참고)">✓ 번호 확인</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
               {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
               {#if r.bizDoc}<p class="muted" data-testid="request-bizdoc">📄 사업자등록증 사본 {#if r.responded}<a href={bizDocUrl(r.id)} target="_blank" rel="noopener" data-testid="request-bizdoc-open">열기</a>{:else}<span>— 제안을 보내면 열립니다</span>{/if}</p>{/if}
               {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}

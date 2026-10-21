@@ -6,7 +6,7 @@
   import { createRequest, scanBizDoc, uploadRequestBizDoc, uploadRequestPhoto } from '../requests';
   import { serializeRequestSigns } from '../core/requestSigns';
   import { AuthError, fetchProviders, socialStartUrl, type SocialProvider } from '../auth';
-  import { formatBizNo, isValidBizNo } from '../core/business';
+  import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
   // 로그인 필수 (2026-10-21 "카카오톡으로 로그인하게해줘 인증이되야 할거 같아"): 카카오가 기본, 다른 방법은 로그인 창
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
@@ -15,6 +15,8 @@
   let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
   // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
   let address = $state(''), bizNo = $state('');
+  // 사본이 없으면 직접 넣는 검증 요소 (2026-10-21 "사본이 없으면 직접입력 필요한 우리가 필요한 검증 요소만 입력"): 번호 + 대표자 성명 + 개업일 → 국세청 진위확인
+  let ownerName = $state(''), startDate = $state('');
   // 사업자등록증 사본 (2026-10-21 "사업자 사본 받아야 겠다" → "사업자등록증 무조건 넣어줘"): **필수**, 그림·PDF 8MB — 제안을 보낸 간판집만 연다
   let bizDoc = $state<File | null>(null);
   let scanState = $state<'' | 'scanning' | 'ok' | 'failed'>('');
@@ -29,6 +31,8 @@
       if (r.bizNo && !bizNo.trim()) bizNo = formatBizNo(r.bizNo);
       if (r.name && !store.trim()) store = r.name;
       if (r.address && !address.trim()) address = r.address;
+      if (r.owner && !ownerName.trim()) ownerName = r.owner;
+      if (r.startDate && !startDate) startDate = r.startDate;
       scanState = 'ok';
     } catch { scanState = 'failed'; }
   }
@@ -38,7 +42,9 @@
   const signs = $derived(serializeRequestSigns(app.photos, app.signs).signs);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
   const bizOk = $derived(!bizNo.trim() || isValidBizNo(bizNo));
-  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && !!bizDoc && bizDoc.size <= 8 * 1024 * 1024 && !busy);
+  const docOk = $derived(!!bizDoc && bizDoc.size <= 8 * 1024 * 1024);
+  const manualOk = $derived(isValidBizNo(bizNo) && !!ownerName.trim() && !!bizStartDate(startDate));
+  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && (docOk || manualOk) && !busy);
   const close = () => (app.estimateOpen = false);
 
   async function send() {
@@ -46,7 +52,7 @@
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
-      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), ...(address.trim() ? { address: address.trim() } : {}), ...(bizNo.trim() ? { bizNo: bizNo.replace(/\D/g, '') } : {}), signs });
+      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), ...(address.trim() ? { address: address.trim() } : {}), ...(bizNo.trim() ? { bizNo: bizNo.replace(/\D/g, '') } : {}), ...(manualOk ? { ownerName: ownerName.trim(), startDate: bizStartDate(startDate)! } : {}), ...(docOk ? { bizDocPending: true } : {}), signs });
       for (let i = 0; i < photoOrder.length; i++) {
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -63,6 +69,9 @@
       if (e instanceof AuthError && e.status === 429) error = '이미 3건의 요청이 진행 중입니다. 받은 제안을 먼저 확인해 주세요.';
       else if (code === 'biz_closed') error = '국세청 기준 폐업한 사업자번호입니다. 번호를 확인하거나 비워 주세요.';
       else if (code === 'bad_biz_no') error = '사업자등록번호 10자리를 확인해 주세요.';
+      else if (code === 'mismatch') error = '국세청 등록 정보와 일치하지 않습니다. 사업자등록증의 대표자 성명·개업일자를 그대로 넣어 주세요.';
+      else if (code === 'not_registered') error = '국세청에 등록되지 않은 사업자등록번호입니다.';
+      else if (code === 'verification_required') error = '사업자등록증 사본을 올리거나, 번호·대표자 성명·개업일자를 넣어 주세요.';
       else error = e instanceof Error ? e.message : String(e);
     } finally { busy = ''; }
   }
@@ -91,8 +100,14 @@
         <label>지역 * <small>(시/군/구까지, 예: 경기 광주시)</small><input data-testid="est-region" bind:value={region} placeholder="경기 광주시" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
         <label>가게 주소 <small>(선택 — 간판집이 현장을 보러 갈 때)</small><input data-testid="est-address" bind:value={address} placeholder="도로명 주소" /></label>
-        <label>사업자등록증 사본 * <small>(그림·PDF — 가게의 사업자인지 확인하는 근거, 제안을 보낸 간판집만 봅니다. 고르면 번호·상호·주소를 자동으로 읽어 채웁니다)</small><input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} />{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{:else if !bizDoc}<small class="hint">사본이 있어야 보낼 수 있습니다</small>{/if}</label>
-        <label>사업자등록번호 <small>(선택 — 넣으면 국세청 확인 배지가 붙어 간판집이 믿고 봅니다)</small><input data-testid="est-bizno" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} />{#if bizNo.trim() && !bizOk}<small class="err">10자리를 확인해 주세요</small>{/if}</label>
+        <label>사업자등록증 사본 <small>(그림·PDF — 제안을 보낸 간판집만 봅니다. 고르면 번호·상호·대표자·주소를 자동으로 읽어 채웁니다)</small><input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} />{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{:else if !bizDoc}<small class="hint">사본이 없으면 아래 번호·대표자 성명·개업일자를 직접 넣어 국세청 확인을 받습니다</small>{/if}</label>
+        <label>사업자등록번호 {docOk ? '' : '*'}<small>(국세청 확인 배지가 붙어 간판집이 믿고 봅니다)</small><input data-testid="est-bizno" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} />{#if bizNo.trim() && !bizOk}<small class="err">10자리를 확인해 주세요</small>{/if}</label>
+        {#if !docOk}
+          <div class="two">
+            <label>대표자 성명 *<input data-testid="est-owner" bind:value={ownerName} placeholder="사업자등록증의 성명" /></label>
+            <label>개업일자 *<input data-testid="est-start" type="date" bind:value={startDate} /></label>
+          </div>
+        {/if}
         <label>이메일 <small>(선택)</small><input data-testid="est-email" type="email" bind:value={email} /></label>
         <label>요청 내용 <small>(선택 — 원하는 것, 예산, 기한)</small><textarea data-testid="est-text" rows="3" bind:value={text}></textarea></label>
         {#if error}<p class="err" data-testid="estimate-error">{error}</p>{/if}
@@ -112,6 +127,7 @@
   h2 { margin: 0; font-size: 16px; }
   .icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
   form { display: flex; flex-direction: column; gap: 8px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   textarea { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; resize: vertical; }
   .sum { margin: 0; font-size: 13px; color: var(--muted); }
   .ok { margin: 0; font-size: 13px; line-height: 1.5; }

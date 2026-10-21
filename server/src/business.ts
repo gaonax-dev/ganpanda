@@ -33,7 +33,7 @@ export function validBizNo(d: string): boolean {
 
 type Validate = { valid: boolean; status: BizStatus | null; registered: boolean };
 /** 진위확인: 번호 + 대표자명 + 개업일 (+상호). 로컬 'fake' 키: 대표자명 '홍길동' 이면 일치, 999 로 시작하면 폐업 */
-async function validate(env: Env, b: { b_no: string; p_nm: string; start_dt: string; b_nm: string }): Promise<Validate | null> {
+export async function validateBusiness(env: Env, b: { b_no: string; p_nm: string; start_dt: string; b_nm: string }): Promise<Validate | null> {
   if (env.NTS_API_KEY === 'fake') return { valid: b.p_nm === '홍길동', status: b.b_no.startsWith('999') ? 'closed' : 'active', registered: true };
   const r = await ntsFetch(`${NTS}/validate?serviceKey=${encodeURIComponent(env.NTS_API_KEY)}&returnType=JSON`, {
     method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' },
@@ -101,7 +101,7 @@ export async function handleBusiness(req: Request, env: Env): Promise<Response> 
   // 다른 계정이 이미 쓰는 번호 (체험·요금은 사업자당 1번)
   const taken = await env.DB.prepare('SELECT account_id FROM businesses WHERE b_no = ?').bind(no).first<{ account_id: string }>();
   if (taken && taken.account_id !== me.id) return json({ error: 'taken' }, 409);
-  const v = await validate(env, { b_no: no, p_nm: ownerName, start_dt: startDate, b_nm: name });
+  const v = await validateBusiness(env, { b_no: no, p_nm: ownerName, start_dt: startDate, b_nm: name });
   if (!v) return json({ error: 'nts_unavailable' }, 502);
   if (!v.registered) return json({ error: 'not_registered' }, 400);
   if (!v.valid) return json({ error: 'mismatch' }, 400);
