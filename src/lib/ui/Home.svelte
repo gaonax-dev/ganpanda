@@ -217,6 +217,7 @@
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
             <div class="rbody">
               <b>{r.store}</b> <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}
               {#if r.text}<p>{r.text}</p>{/if}
               {#if r.responded}
                 <p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 제안을 보냈습니다</span></p>
@@ -343,10 +344,15 @@
       {:else if !projects.length}<p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>{/if}
     </section>
   {:else}
-    <section class="landing">
+    <section class="landing" data-testid="landing">
       <h1>간판다</h1>
-      <p>건물 사진 위에서 사인물을 함께 정하고 견적까지. 제작자는 로그인해 프로젝트를 만들고, 고객은 초대 링크로 들어옵니다.</p>
-      <button class="btn primary" onclick={() => (app.loginOpen = true)}>로그인 · 회원가입</button>
+      <p>건물 사진 위에서 사인물을 함께 정하고 견적까지.</p>
+      <!-- 시작 분기 (2026-10-21 "시작(로그인전) 사업자 소비자 구분"): 간판집은 로그인, 가게 사장은 로그인 없이 견적 요청 -->
+      <div class="who">
+        <button class="btn primary big" data-testid="landing-shop" onclick={() => (app.loginOpen = true)}>간판집입니다<small>로그인 · 회원가입 — 실측·제안·주문서</small></button>
+        <a class="btn big" data-testid="landing-consumer" href="/estimate">가게 사장입니다<small>사진에 간판을 그려 참고 견적을 보고, 동네 간판집에 견적 요청</small></a>
+      </div>
+      <p class="hint">초대 링크로 받은 제안은 로그인 없이 바로 열립니다.</p>
     </section>
   {/if}
 </div>
@@ -557,6 +563,9 @@
   .pcard { position: relative; }
   tr.sel td { background: rgba(255, 204, 0, 0.08); }
   .landing { text-align: center; margin-top: 60px; }
+  .who { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 18px 0 10px; }
+  .who .big { display: flex; flex-direction: column; gap: 4px; align-items: center; padding: 16px 22px; min-width: 240px; text-decoration: none; font-size: 15px; font-weight: 700; }
+  .who .big small { font-weight: 400; font-size: 12px; color: inherit; opacity: 0.8; white-space: normal; max-width: 240px; }
   .landing p { color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
 </style>

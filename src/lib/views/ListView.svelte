@@ -188,6 +188,7 @@
     const w = window.open('', '_blank');
     if (!w) { app.notice = '팝업이 막혀 PDF 창을 열 수 없습니다. 팝업을 허용해 주세요.'; return; }
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>
+  .quote h2 .ref { font-size: 11px; font-weight: 400; color: var(--warn); margin-left: 6px; }
   .svgwrap { position: static; }
   .svgopts { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 2px; z-index: 5; width: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
   .svgopts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -304,15 +305,17 @@
   {/if}
   <aside class="quote" class:hidden={app.compact && quoteMode === 'closed'} class:full={app.compact && quoteMode === 'full'} data-testid="quote-panel" data-mode={app.compact ? quoteMode : 'side'}>
     <header>
-      <h2>견적</h2>
+      <h2>견적{#if app.consumer}<small class="ref" data-testid="quote-reference" title="예시 단가로 계산한 참고 금액 — 간판집마다 다릅니다"> 참고 금액</small>{/if}</h2>
       {#if app.compact}
         <button class="icon" data-testid="quote-size" title={quoteMode === 'full' ? '줄이기' : '크게'} onclick={() => (quoteMode = quoteMode === 'full' ? 'half' : 'full')}>{quoteMode === 'full' ? '⤡' : '⤢'}</button>
         <button class="icon" title="접기" data-testid="quote-close" onclick={() => (quoteMode = 'closed')}>✕</button>
       {/if}
       <span class="actions" class:hidden={app.compact}>
+        {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 단가·주문서가 없다 -->
         {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
+        {/if}
         <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!sized.length} onclick={exportPdf}>PDF</button>
         <span class="svgwrap">
           <button class="btn small" data-testid="export-svg" title="일러스트레이터용 SVG 내려받기 (비율·윤곽선 옵션)" disabled={!sized.length} onclick={() => (svgPanel = !svgPanel)}>SVG</button>

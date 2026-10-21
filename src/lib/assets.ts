@@ -88,6 +88,9 @@ export function onAssetsRecovered(f: () => void) { recovered.push(f); }
 
 /** 에셋 접근 자격: 서버는 프로젝트와 세션/초대로 권한을 검사한다 (state 가 방 진입 후 설정) */
 let scope: { project: string; session?: string | null; invite?: string | null } | null = null;
+/** 기기에만 두는 모드 (2026-10-21 소비자 견적 요청 보드): 서버에 올리지 않는다 — 요청을 보낼 때 사진을 따로 보낸다 */
+let localOnly = false;
+export function setAssetsLocalOnly(v: boolean) { localOnly = v; }
 export function setAssetScope(s: typeof scope) {
   scope = s;
   if (!s) return;
@@ -146,7 +149,7 @@ export async function putAsset(blob: Blob): Promise<string> {
   const id = await hash(blob);
   await localPut(id, blob);
   if (!urls.has(id)) urls.set(id, URL.createObjectURL(blob));
-  if (SERVER_URL) {
+  if (SERVER_URL && !localOnly) {
     pending.set(id, blob);
     rememberPending(id, scope?.project);
     void flushPendingUploads();

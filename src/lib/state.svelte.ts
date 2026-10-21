@@ -17,7 +17,8 @@ import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { autoCameraFrom, calibrationOf, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
-import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
+import { assetUrl, imageSize, putAsset, setAssetsLocalOnly, StorageLimitError } from './assets';
+import { materializeRequestSigns } from './core/requestSigns';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
 import { clampFlatScale, flatOrigin } from './core/boardCards';
@@ -90,7 +91,11 @@ class AppState {
   business = $state<Business | null>(null);
   /** 요청판 화면 켜기 (2026-10-17 사용자: "우선 안보이게 해줘 현재는 간판 실측툴로서 기본기를 단단히 하겠다"). 서버·API 는 그대로, 화면만 숨김.
       켜려면 빌드에 VITE_REQUESTS=1 또는 기기에 localStorage 'ganpanda.requests' = '1' (E2E·내부 확인용) */
-  readonly requestsEnabled = import.meta.env.VITE_REQUESTS === '1' || load('ganpanda.requests') === '1';
+  /** 요청판 (2026-10-17 숨김 → 2026-10-21 "켜는 걸로 진행": 기본 켬. 빌드 VITE_REQUESTS=0 으로만 끈다) */
+  readonly requestsEnabled = import.meta.env.VITE_REQUESTS !== '0';
+  /** 소비자 견적 요청 모드 (/estimate, 2026-10-21): 로그인 없이 기기에만 두는 보드 — 사진·사각/타원·치수·메모 → [견적 요청] */
+  readonly consumer = typeof location !== 'undefined' && location.pathname === '/estimate';
+  estimateOpen = $state(false);
   /** 초대 토큰 (이 방에 초대 링크로 들어온 경우) */
   readonly invite: string | null;
   access = $state<Access>({ status: 'loading' });
@@ -343,9 +348,9 @@ class AppState {
   /** 고객(보기 초대): 사진 보드만, 금액 없음 (2026-10-16 "고객에게 보여지는 것은 사진보드만 보인다." 금액은 제안 링크에서) */
   isCustomer = $derived(this.role === 'viewer');
   /** 원가(공급사 금액)·이익 금액은 오너만 (2026-10-16 "원가와 판매가로 이익율이 확인되어야한다. 오너와 맴버(허가시)에게만보이게") */
-  seesCost = $derived(this.role === 'owner');
+  seesCost = $derived(!this.consumer && (this.role === 'owner'));
   /** 이익율·손해 표시: 오너, 또는 설정의 팀 멤버 중 "정산 보기"를 켠 사람(편집 초대로 들어옴) */
-  seesMargin = $derived(this.role === 'owner' || (this.role === 'editor' && this.access.status === 'ok' && !!this.access.billing));
+  seesMargin = $derived(!this.consumer && (this.role === 'owner' || (this.role === 'editor' && this.access.status === 'ok' && !!this.access.billing))); // 소비자 모드(2026-10-21)는 이익을 안 본다
 
   constructor() {
     onAssetsRecovered(() => { this.assetEpoch++; });
@@ -357,7 +362,7 @@ class AppState {
     const url = new URL(location.href);
     this.page = url.pathname === '/request' ? 'request' : /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
-    this.room = url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
+    this.room = this.consumer ? 'estimate' : url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
@@ -412,16 +417,19 @@ class AppState {
     try {
       await new Promise((r) => setTimeout(r, 800)); // 서버 문서가 먼저 도착하게
       if (this.photos.length) return;
-      const n = await getRequestPhotoCount(requestId);
+      const { count: n, signs } = await getRequestPhotoCount(requestId);
       let right = 0;
+      const photoIds: string[] = [];
       for (let i = 0; i < n; i++) {
         const blob = await fetchRequestPhoto(requestId, i);
         const assetId = await putAsset(blob);
         const { w, h } = await imageSize((await assetUrl(assetId))!);
         const width = 1200;
-        this.project.addPhoto({ name: `요청 사진 ${i + 1}`, assetId, w, h, x: right, y: 0, width });
+        photoIds.push(this.project.addPhoto({ name: `요청 사진 ${i + 1}`, assetId, w, h, x: right, y: 0, width }));
         right += width + 120;
       }
+      // 소비자가 그린 사인물도 그대로 (2026-10-21): 요청 사진 번호 → 가져온 사진 id
+      if (!this.objects.length) for (const o of materializeRequestSigns(signs, photoIds)) this.project.addObject(o);
     } catch (e) {
       this.notice = `요청 사진을 가져오지 못했습니다: ${e instanceof Error ? e.message : e}`;
     } finally { this.importing = false; }
@@ -758,6 +766,16 @@ class AppState {
   /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
   private async initRoom(room: string) {
     let params: Record<string, string> = {};
+    if (this.consumer) {
+      // 소비자 견적 요청 보드: 서버 방 없이 기기에만 (2026-10-21). 단가는 예시값으로 자동 계산 — "참고 금액"
+      this.access = { status: 'ok', role: 'owner', projectName: '간판 견적 요청', billing: false }; // 원가·이익은 간판집 것
+      setAssetScope(null); setAssetsLocalOnly(true);
+      const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
+      await persist.whenSynced;
+      if (!this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(null), quoteMode: 'auto' });
+      this.ready = true;
+      return;
+    }
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);

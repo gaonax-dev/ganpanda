@@ -4,9 +4,14 @@
 가게 사장이 **로그인 없이** 사진과 내용으로 간판 견적을 요청하면, 그 지역에서 **"요청 받기"를 켠 간판사**들에게 전달됩니다. 간판사는 요청에서 바로 프로젝트를 만들어(사진이 들어온 채로) 평소처럼 사인물을 그리고 **제안 링크**로 답합니다. 고객은 요청 페이지에서 받은 제안들을 나란히 보고 하나를 승인합니다. 계약·시공·돈은 고객과 간판사 사이에서 직접 — 간판다는 전달·기록만. 홍보자(아르바이트)는 자기 코드가 붙은 링크로 요청을 데려오고, 그 요청에 제안이 들어온 만큼 수수료를 받습니다(지급은 밖에서, 기록만). 결정 → [../product/decisions.md](../product/decisions.md) 2026-10-17, 과금 → [../product/pricing.md](../product/pricing.md).
 
 ## 상태
-1차 구현됨 (2026-10-17). **화면은 숨김** — 같은 날 사용자: "우선 안보이게 해줘 현재는 간판 실측툴로서 기본기를 단단히 하겠다". 서버·API·DB 는 그대로 살아 있고(`/r/<id>` 고객 페이지도 동작), 설정의 "견적 요청 받기"·홈 "받은 요청"·`/request` 폼만 `app.requestsEnabled` 로 가려 둠. 켜기: 빌드 `VITE_REQUESTS=1`(운영 공개) 또는 기기 localStorage `ganpanda.requests=1`(내부 확인·E2E). 남은 일은 아래.
+1차 구현됨 (2026-10-17), **2026-10-21 켬** — 사용자: "시작(로그인전) 사업자 소비자 구분해서 소비자는 간판견적을 보고 견적 요청하는 방식 … 현재 사업자 버전의 도형그리기 사이즈 그리고 메모로 견적을 요청하게" → "켜는 걸로 진행해줘". 2026-10-17 의 "숨김·독립 웹" 결정은 대체됨(→ [../product/decisions.md](../product/decisions.md)). 끄려면 빌드 `VITE_REQUESTS=0`.
 
-**방향 (2026-10-17)**: 거래 흐름(요청·입찰·분배)은 이 앱이 아니라 **추후 독립된 웹**에서 디자이너·영업·제작이 서로 일을 주고받는 형태로 만든다(사용자: "현재 웹에서 같이 있는것보다는 추후 독립된 웹에서…"). 이 앱은 실측·제안 도구로 남고, 여기의 서버 API·DB(`requests`, `request_responses`, 요청 사진)는 그 웹이 가져다 쓸 수 있는 출발점이다. 앱 안의 화면(`RequestForm`·`RequestView`·설정·홈 목록)은 공개하지 않는다.
+## 소비자 견적 요청 모드 (`/estimate`, 2026-10-21)
+- **시작 화면 분기**(`Home.svelte` `landing`): [간판집입니다 → 로그인](`landing-shop`) / [가게 사장입니다 → 견적 요청](`landing-consumer` → `/estimate`).
+- **`/estimate`** = 로그인 없이 **기기에만 두는 보드**(`app.consumer`, 방 `estimate`, IndexedDB 만, 서버 방·동기화 없음, 에셋도 올리지 않음 `setAssetsLocalOnly`). 사업자 보드와 같은 도구에서 **말풍선·존만 뺌**. 단가는 예시표(`mergePrices(null)`)로 **자동 계산** → 리스트 뷰 견적에 "참고 금액"(`quote-reference`), 상단 배지 `consumer-badge`. 버전·초대·제안 단추 대신 **[견적 요청]**(`estimate-button`, 사진이 있어야 켜짐).
+- **[견적 요청]**(`EstimateRequestDialog.svelte`, `estimate-dialog`): 가게 이름·지역·전화(필수), 이메일·요청 내용(선택). 보내면 `POST /api/requests` 에 **그린 사인물**(`signs`: 요청 사진 번호 `photo`, 이름, 모양, 영역 `quad`(사진 px), 둥글기, 가로·세로 mm, 종류 `productId`, 메모 — `core/requestSigns.ts serializeRequestSigns`, 연결 영역 제외, 50개까지)을 싣고, 보드의 사진을 왼쪽부터 번호대로 `PUT /photos`(3장까지). 끝나면 요청 페이지 주소(`estimate-done-link`, 기기 `ganpanda.myRequests` 에도 기억).
+- **간판사**: 홈 "받은 요청"에 **사인물 수·치수 수**(`request-signs`). [제안 만들기]로 연 프로젝트에 사진과 함께 **사인물이 그대로 그려진다**(`importRequestPhotos` → `materializeRequestSigns`, 문서에 사인물이 없을 때만). 서버 `requests.signs`(JSON, `0022_request_signs.sql`, `server/src/requestSigns.ts` 로 검사 — 앱과 같은 규칙, 틀리면 400).
+- 테스트: `tests/unit/requestSigns.test.ts`, `server/test/requests.test.ts`(signs), `tests/e2e/estimate.spec.ts`.
 
 ## 역할과 돈
 | 역할 | 하는 일 | 돈 |

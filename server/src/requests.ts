@@ -2,6 +2,7 @@
 // 돈은 고객↔간판사 직접. 간판다는 전달·기록만 (docs/product/decisions.md). 간판사 과금은 제안 링크 발급(projects.ts) 에서 요금제 건수로.
 import { authenticate, type Account } from './auth';
 import { json, randomToken, readJson, sha256hex, text } from './http';
+import { validateRequestSigns, type RequestSign } from './requestSigns';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -15,7 +16,10 @@ const FROM = { email: 'login@ganpanda.co.kr', name: '간판다' };
 export interface RequestRow {
   id: string; key_hash: string; store: string; region: string; text: string; phone: string; email: string | null; ref: string | null;
   photos: string; status: 'open' | 'approved'; created_at: number; approved_at: number | null; approved_by: string | null;
+  /** 소비자가 그린 사인물 JSON (2026-10-21). 옛 행은 없음 */
+  signs?: string;
 }
+const signsOf = (r: RequestRow): RequestSign[] => { try { return validateRequestSigns(JSON.parse(r.signs || '[]')) ?? []; } catch { return []; } };
 interface PhotoMeta { n: number; type: string; size: number }
 const photosOf = (r: RequestRow): PhotoMeta[] => { try { return JSON.parse(r.photos) as PhotoMeta[]; } catch { return []; } };
 const photoKey = (id: string, n: number) => `requests/${id}/${n}`;
@@ -57,7 +61,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })) });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r) });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -74,22 +78,24 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
 
   // ---- 요청 올리기: POST /api/requests (로그인 없음) ----
   if (pathname === '/api/requests' && req.method === 'POST') {
-    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string }>(req);
+    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
     const region = typeof b?.region === 'string' ? b.region.trim().slice(0, REGION_MAX) : '';
     const phone = typeof b?.phone === 'string' ? b.phone.replace(/\D/g, '') : '';
     const email = typeof b?.email === 'string' && b.email.trim() ? b.email.trim().toLowerCase() : null;
     if (!store || !region || !/^\d{9,11}$/.test(phone)) return text('bad request', 400);
     if (email && !EMAIL_RE.test(email)) return text('bad email', 400);
+    const signs = b?.signs === undefined ? [] : validateRequestSigns(b.signs); // 소비자가 그린 사인물 (2026-10-21)
+    if (!signs) return text('bad signs', 400);
     const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM requests WHERE phone = ? AND status = 'open'").bind(phone).first<{ n: number }>();
     if (Number(open?.n ?? 0) >= REQUEST_LIMIT_PER_PHONE) return json({ error: 'request_limit', limit: REQUEST_LIMIT_PER_PHONE }, 429);
     const id = randomToken().slice(0, 16), key = randomToken();
     const row: RequestRow = {
       id, key_hash: await sha256hex(key), store, region, text: typeof b?.text === 'string' ? b.text.trim().slice(0, TEXT_MAX) : '', phone, email,
-      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null,
+      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs),
     };
-    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at).run();
+    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs).run();
     const pageUrl = `${appUrl(env)}/r/${id}?key=${key}`;
     await notify(env, row, pageUrl);
     return json({ id, key, url: pageUrl }, 201);

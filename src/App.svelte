@@ -28,6 +28,7 @@
   import ProposalView from './lib/ui/ProposalView.svelte';
   import RequestForm from './lib/ui/RequestForm.svelte';
   import RequestView from './lib/ui/RequestView.svelte';
+  import EstimateRequestDialog from './lib/ui/EstimateRequestDialog.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -95,10 +96,16 @@
     <a class="logo" href="/" data-testid="go-projects">간판다</a>
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
+      {#if app.consumer}
+        <!-- 소비자 견적 요청 모드 (2026-10-21): 사진·사각/타원·치수·메모 → [견적 요청]. 금액은 예시 단가 "참고 금액" -->
+        <span class="role" data-testid="consumer-badge" title="로그인 없이 이 기기에만 저장됩니다. 금액은 참고용 예시 단가입니다">가게 사장 · 참고 금액</span>
+        <button class="btn small primary" data-testid="estimate-button" disabled={!app.photos.length} title={app.photos.length ? '그린 사인물과 사진으로 지역 간판집에 견적 요청' : '사진을 먼저 올려 주세요'} onclick={() => (app.estimateOpen = true)}>견적 요청</button>
+      {:else}
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
       {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title="버전 기록 — 이전 상태로 되돌리기 (유료)" onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
       {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
+      {/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
     {#if app.room && app.access.status === 'ok' && !app.proposalMode && app.view === 'board'}
@@ -235,6 +242,7 @@
   {/each}
 </div>
 {#if app.settingsOpen}<Settings />{/if}
+{#if app.estimateOpen && app.consumer}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}

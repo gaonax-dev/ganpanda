@@ -28,6 +28,15 @@ describe('요청 올리기 (로그인 없음)', () => {
     expect(row).toMatchObject({ phone: '01012345678', ref: 'promo-kim', status: 'open' });
     expect(row!.key_hash).not.toBe(j.key);
   });
+  it('소비자가 그린 사인물(signs)을 함께 실으면 고객 페이지·간판사 목록에 그대로 온다; 틀린 모양은 400 (2026-10-21)', async () => {
+    const signs = [{ photo: 0, name: '전면 간판', shape: 'rect', quad: [[100, 100], [900, 100], [900, 300], [100, 300]], widthMm: 4000, heightMm: 1000, productId: 'board-flex', memo: '야간 조명' }];
+    const r = await create({ signs } as unknown as Record<string, string>);
+    expect(r.status).toBe(201);
+    const { id, key } = await r.json<{ id: string; key: string }>();
+    const view = await (await get(`/api/requests/${id}?key=${encodeURIComponent(key)}`)).json<{ request: { signs: unknown[] } }>();
+    expect(view.request.signs).toEqual(signs);
+    expect((await create({ signs: [{ photo: 0, name: 'x', shape: 'rect', quad: [] }] } as unknown as Record<string, string>)).status).toBe(400);
+  });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);
     expect((await create({ region: ' ' })).status).toBe(400);

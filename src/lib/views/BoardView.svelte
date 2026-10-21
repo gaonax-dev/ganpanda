@@ -10,6 +10,7 @@
   import type { Font } from 'opentype.js';
   import type { StageRenderer } from '../render/scene';
   import { app } from '../state.svelte';
+  import { defaultProductFor } from '../core/catalog';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
   import { displayUrl } from '../photoDisplay';
   import { prepareUpload } from '../photoPrep';
@@ -116,7 +117,8 @@
     const n = app.signs.length + 1;
     app.editBoundary();
     // 원형 도구 = 모서리 50% 둥근 사각형 (이미지 맵핑이 되도록 사각형 기반, 사용자 결정 2026-10-14)
-    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape: shape === 'ellipse' ? 'rect' : shape, quad, sheetIds: [], ...(shape === 'ellipse' ? { corner: 0.5 } : {}) });
+    // 소비자 견적 요청 모드(2026-10-21)는 종류를 모르니 간판(후렉스)으로 시작 — 참고 견적이 바로 나온다
+    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape: shape === 'ellipse' ? 'rect' : shape, quad, sheetIds: [], ...(shape === 'ellipse' ? { corner: 0.5 } : {}), ...(app.consumer ? { productId: defaultProductFor('sign') } : {}) });
     app.editBoundary();
     app.selectedId = id;
     app.tool = 'select';
@@ -493,9 +495,11 @@
         {#if app.canEdit}
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
+          {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트, 받는 사람 지정 가능 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>💬<span class="lbl"> 말풍선</span></button>
           <span class="sep"></span>
           <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
+          {/if}
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>

@@ -1,0 +1,84 @@
+<script lang="ts">
+  // 소비자 견적 요청 보내기 (2026-10-21 "소비자는 간판견적을 보고 견적 요청하는 방식 … 도형그리기 사이즈 그리고 메모로 견적을 요청하게"):
+  // /estimate 보드에서 그린 사진·사인물(영역·치수·종류·메모)을 요청판 요청으로 보낸다 → 지역 간판사 홈 "받은 요청" → 제안 링크 → 고객 요청 페이지
+  import { app } from '../state.svelte';
+  import { assetUrl } from '../assets';
+  import { createRequest, uploadRequestPhoto } from '../requests';
+  import { serializeRequestSigns } from '../core/requestSigns';
+  import { AuthError } from '../auth';
+
+  let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
+  let busy = $state(''), error = $state(''), done = $state<{ url: string } | null>(null), copied = $state(false);
+  const digits = $derived(phone.replace(/\D/g, ''));
+  const photos = $derived(app.photos);
+  const signs = $derived(serializeRequestSigns(app.photos, app.signs).signs);
+  const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
+  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && !busy);
+  const close = () => (app.estimateOpen = false);
+
+  async function send() {
+    if (!canSend) return;
+    error = ''; busy = '보내는 중…';
+    try {
+      const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
+      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), signs });
+      for (let i = 0; i < photoOrder.length; i++) {
+        busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
+        const url = await assetUrl(photoOrder[i].assetId);
+        if (!url) throw new Error('사진을 읽을 수 없습니다');
+        const blob = await (await fetch(url)).blob();
+        await uploadRequestPhoto(r.id, r.key, new File([blob], `${photoOrder[i].name}.jpg`, { type: blob.type || 'image/jpeg' }));
+      }
+      // 내 요청 주소를 기기에 기억 (나중에 다시 열어 제안을 본다)
+      try { const mine = JSON.parse(localStorage.getItem('ganpanda.myRequests') ?? '[]') as string[]; localStorage.setItem('ganpanda.myRequests', JSON.stringify([r.url, ...mine].slice(0, 20))); } catch { /* 저장 못 해도 됨 */ }
+      done = { url: r.url };
+    } catch (e) {
+      if (e instanceof AuthError && e.status === 429) error = '이미 3건의 요청이 진행 중입니다. 받은 제안을 먼저 확인해 주세요.';
+      else error = e instanceof Error ? e.message : String(e);
+    } finally { busy = ''; }
+  }
+  async function copy() { try { await navigator.clipboard.writeText(done!.url); copied = true; setTimeout(() => (copied = false), 1500); } catch { /* 길게 눌러 복사 */ } }
+</script>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); }} />
+
+<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="견적 요청" data-testid="estimate-dialog">
+    <header><h2>간판 견적 요청</h2><button class="icon" data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
+    {#if done}
+      <p class="ok" data-testid="estimate-done">요청을 보냈습니다. 이 지역 간판집들이 보고 제안을 보내면 아래 주소에서 비교할 수 있습니다. <b>주소를 꼭 저장해 두세요.</b></p>
+      <div class="link"><input data-testid="estimate-done-link" readonly value={done.url} /><button class="btn small" data-testid="estimate-copy" onclick={copy}>{copied ? '복사됨' : '복사'}</button></div>
+      <footer><a class="btn primary" href={done.url} data-testid="estimate-open">내 요청 페이지 열기</a><button class="btn" onclick={close}>닫기</button></footer>
+    {:else}
+      <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개){photos.length > 3 ? ' — 사진은 3장까지입니다' : ''}{photos.length === 0 ? ' — 사진을 먼저 올려 주세요' : ''}</p>
+      <form onsubmit={(e) => { e.preventDefault(); send(); }}>
+        <label>가게 이름 *<input data-testid="est-store" bind:value={store} placeholder="예: 바로바로 정육점" /></label>
+        <label>지역 * <small>(시/군/구까지, 예: 경기 광주시)</small><input data-testid="est-region" bind:value={region} placeholder="경기 광주시" /></label>
+        <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
+        <label>이메일 <small>(선택)</small><input data-testid="est-email" type="email" bind:value={email} /></label>
+        <label>요청 내용 <small>(선택 — 원하는 것, 예산, 기한)</small><textarea data-testid="est-text" rows="3" bind:value={text}></textarea></label>
+        {#if error}<p class="err" data-testid="estimate-error">{error}</p>{/if}
+        <footer>
+          <small class="hint">보낸 뒤 간판집이 제안을 보내야 연락처가 그 간판집에 보입니다. 돈은 간판집과 직접.</small>
+          <button class="btn primary" type="submit" data-testid="estimate-send" disabled={!canSend}>{busy || '견적 요청 보내기'}</button>
+        </footer>
+      </form>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: grid; place-items: center; z-index: 60; }
+  .dialog { width: min(480px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  h2 { margin: 0; font-size: 16px; }
+  .icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
+  form { display: flex; flex-direction: column; gap: 8px; }
+  textarea { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; resize: vertical; }
+  .sum { margin: 0; font-size: 13px; color: var(--muted); }
+  .ok { margin: 0; font-size: 13px; line-height: 1.5; }
+  .link { display: flex; gap: 6px; }
+  .err { color: var(--danger); font-size: 12px; margin: 0; }
+  .hint { color: var(--muted); font-size: 11px; }
+  footer { display: flex; align-items: center; gap: 10px; justify-content: space-between; margin-top: 4px; }
+</style>
