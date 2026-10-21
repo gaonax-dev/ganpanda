@@ -11,7 +11,7 @@ export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; request_id?: string | null; group_id?: string | null; status?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; request_id?: string | null; group_id?: string | null; status?: string; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
@@ -25,12 +25,23 @@ export const pubProject = (p: ProjectRow, role: Role) => ({
   groupId: p.group_id ?? null, status: p.status ?? 'waiting', ...(p.status_at ? { statusAt: p.status_at } : {}),
   quoteTotal: p.quote_total ?? 0,
   signTotal: p.sign_total ?? 0, signUnmeasured: p.sign_unmeasured ?? 0,
+  contact: p.contact ?? '', address: p.address ?? '', contractDate: p.contract_date ?? null, startDate: p.start_date ?? null, dueDate: p.due_date ?? null, memo: p.memo ?? '',
   contractAmount: p.contract_override ?? p.quote_total ?? 0, contractAuto: p.contract_override == null,
   paidAmount: p.paid_amount ?? 0,
   ...(p.request_id ? { requestId: p.request_id } : {}),
 });
 const pub = pubProject;
 const STATUSES = new Set(['waiting', 'ongoing', 'paused', 'done']); // paused = 정지 (2026-10-21)
+/** 상세 칸 (2026-10-21): 글은 자르고, 날짜는 YYYY-MM-DD 또는 빈 값(null). 형식이 틀리면 null 을 돌려 400 */
+const DETAIL_TEXT = { contact: 80, address: 200, memo: 2000 } as const;
+const DETAIL_DATE = { contractDate: 'contract_date', startDate: 'start_date', dueDate: 'due_date' } as const;
+function detailSets(body: Record<string, unknown>): Record<string, unknown> | null {
+  const sets: Record<string, unknown> = {};
+  for (const [k, max] of Object.entries(DETAIL_TEXT)) { const v = body[k]; if (v === undefined) continue; if (typeof v !== 'string') return null; sets[k] = v.trim().slice(0, max); }
+  for (const [k, col] of Object.entries(DETAIL_DATE)) { const v = body[k]; if (v === undefined) continue; if (v === null || v === '') { sets[col] = null; continue; } if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null; sets[col] = v; }
+  return sets;
+}
+
 const amount = (v: unknown): number | null | undefined => (v === undefined ? undefined : typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null);
 
 const getProject = (env: Env, id: string) => env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first<ProjectRow>();
@@ -94,11 +105,14 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       return json({ projects: rows.results.map((p) => pub(p, 'owner')) });
     }
     if (req.method === 'POST') {
-      const body = await readJson<{ name?: string }>(req);
+      const body = await readJson<{ name?: string } & Record<string, unknown>>(req);
       const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
       if (!name) return text('bad name', 400);
-      const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name, created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0, quote_total: 0, contract_override: null };
-      await env.DB.prepare('INSERT INTO projects (id, owner_id, name, created_at) VALUES (?, ?, ?, ?)').bind(p.id, p.owner_id, p.name, p.created_at).run();
+      const details = detailSets(body ?? {}); // 연락처·주소·날짜·메모 (2026-10-21, 모두 선택)
+      if (!details) return text('bad details', 400);
+      const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name, created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0, quote_total: 0, contract_override: null, ...details };
+      const cols = ['id', 'owner_id', 'name', 'created_at', ...Object.keys(details)];
+      await env.DB.prepare(`INSERT INTO projects (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).bind(p.id, p.owner_id, p.name, p.created_at, ...Object.keys(details).map((k) => details[k])).run();
       return json({ project: pub(p, 'owner') }, 201);
     }
   }
@@ -144,6 +158,9 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       else if (body.contractAmount !== undefined) { const c = amount(body.contractAmount); if (c === null || c === undefined) return text('bad amount', 400); sets.contract_override = c; }
       if (pd !== undefined) sets.paid_amount = pd;
       if (qt !== undefined) sets.quote_total = qt;
+      const details = detailSets(body as Record<string, unknown>); // 상세 칸 (2026-10-21)
+      if (!details) return text('bad details', 400);
+      Object.assign(sets, details);
       const keys = Object.keys(sets);
       if (keys.length) {
         await env.DB.prepare(`UPDATE projects SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).bind(...keys.map((k) => sets[k]), project.id).run();

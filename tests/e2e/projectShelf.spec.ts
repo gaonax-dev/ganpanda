@@ -54,5 +54,5 @@ test('정지·완료 6개월 지난 프로젝트는 "지난 프로젝트" 아래
   await expect(years.nth(1)).toHaveAttribute('data-year', '2024');
   await years.nth(1).locator('summary').click();
   await expect(years.nth(1).getByTestId('project-item')).toContainText('옛 완료 2024');
-  await expect(years.nth(1).getByTestId('project-item')).toContainText('완료 · 2024.');
+  await expect(years.nth(1).getByTestId('project-item').getByTestId('project-dday')).toHaveText(/^D\+\d+$/); // 날짜는 D-day (2026-10-21)
 });

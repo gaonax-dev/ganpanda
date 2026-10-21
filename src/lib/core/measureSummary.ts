@@ -6,14 +6,12 @@
 export type MeasureKind = 'none' | 'waiting' | 'measuring' | 'measured';
 export interface MeasureInput { status: string; signTotal?: number; signUnmeasured?: number }
 
-/** 카드 글자: 상태 이름 + 실측 수 */
-export function measureLabel(p: MeasureInput, statusLabel: string): { kind: MeasureKind; label: string } {
+/** 카드 글자: 상태 이름은 그대로, 실측은 **숫자만**(2026-10-21 "실측 안내 없이 숫자만") — 미측정/전체, 다 재면 전체 수만 */
+export function measureLabel(p: MeasureInput, statusLabel: string): { kind: MeasureKind; label: string; count: string; title: string } {
   const total = p.signTotal ?? 0, un = Math.min(total, p.signUnmeasured ?? 0), measured = total - un;
-  if (total <= 0) return { kind: 'none', label: statusLabel };
-  const count = un > 0 ? `미측정 ${un}/${total}` : `실측완료 ${total}`;
-  if (p.status === 'waiting') {
-    if (measured === 0) return { kind: 'waiting', label: `${statusLabel} · 사인물 ${total}` };
-    return un > 0 ? { kind: 'measuring', label: `실측중 · ${count}` } : { kind: 'measured', label: `${count}` };
-  }
-  return { kind: un > 0 ? 'measuring' : 'measured', label: `${statusLabel} · ${count}` };
+  if (total <= 0) return { kind: 'none', label: statusLabel, count: '', title: '' };
+  const count = un > 0 ? `${un}/${total}` : `${total}`;
+  const title = un > 0 ? `미측정 ${un} / 사인물 ${total}` : `실측완료 · 사인물 ${total}`;
+  const kind: MeasureKind = un === 0 ? 'measured' : measured === 0 ? 'waiting' : 'measuring';
+  return { kind, label: statusLabel, count, title };
 }

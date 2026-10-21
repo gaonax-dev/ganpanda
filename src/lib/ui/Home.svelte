@@ -6,8 +6,10 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { splitShelf, statusDate } from '../core/projectShelf';
+  import { splitShelf } from '../core/projectShelf';
   import { measureLabel } from '../core/measureSummary';
+  import { groupDday, projectDday } from '../core/dday';
+  import type { ProjectDetails } from '../projects';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
   import { listRequests, respondRequest, shopPhotoUrl, type ShopRequest } from '../requests';
@@ -51,17 +53,42 @@
     else { projects = null; groups = []; views = {}; }
   });
 
+  // 만들기 폼 (2026-10-21 "만들기 입력필드가 포커싱되면 하단에 연락처, 주소, 계약일, 시작일, 완료일, 메모 마지막에 x마크 … 제목빼고 다옵션")
+  let formOpen = $state(false);
+  const emptyDetails = (): Required<ProjectDetails> => ({ contact: '', address: '', contractDate: '', startDate: '', dueDate: '', memo: '' });
+  let newDetails = $state(emptyDetails());
+  function closeForm() { formOpen = false; newDetails = emptyDetails(); }
   async function create() {
     const n = name.trim();
     if (!n || busy) return;
     busy = true;
-    try { const p = await createProject(n); location.href = `/?room=${p.id}`; } finally { busy = false; }
+    try { const p = await createProject(n, newDetails); location.href = `/?room=${p.id}`; } finally { busy = false; }
+  }
+
+  // 상세 내역 (2026-10-21 "카드 하단글자부근 클릭은 상세내역 나머지는 프로젝트 오픈"): 이름·상태·연락처·주소·날짜·메모
+  let details = $state<ProjectInfo | null>(null);
+  let draft = $state<Required<ProjectDetails> & { name: string; status: ProjectStatus }>({ name: '', status: 'waiting', ...emptyDetails() });
+  let detailsBusy = $state(false);
+  function openDetails(p: ProjectInfo) {
+    details = p;
+    draft = { name: p.name, status: p.status, contact: p.contact ?? '', address: p.address ?? '', contractDate: p.contractDate ?? '', startDate: p.startDate ?? '', dueDate: p.dueDate ?? '', memo: p.memo ?? '' };
+  }
+  async function saveDetails() {
+    if (!details || detailsBusy) return;
+    const n = draft.name.trim();
+    if (!n) return;
+    detailsBusy = true;
+    try { await updateProject(details.id, { ...draft, name: n }); details = null; await reload(); } finally { detailsBusy = false; }
+  }
+  /** 카드 아래 글자(상태·숫자·D-day) 클릭 → 상세. 선택 모드에서는 고르기 */
+  function clickMeta(e: MouseEvent, p: ProjectInfo) {
+    if (selectMode) return;
+    e.preventDefault(); e.stopPropagation();
+    openDetails(p);
   }
   const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId));
   // 지난 프로젝트 접기 (2026-10-21 "정지, 완료 해당 일자가 6개월이 지난 프로젝트는 다시 연도별 폴딩"): 정지·완료 6개월 지남 → 접힘, 안에서 연도별
   const shelf = $derived(splitShelf(ungrouped));
-  /** 카드의 날짜: 정지·완료는 그날, 아니면 만든 날 */
-  const cardDate = (p: ProjectInfo) => (p.status === 'paused' || p.status === 'done' ? statusDate(p) : p.createdAt);
 
   // ---------- 선택 모드 ----------
   function toggleSelectMode() { selectMode = !selectMode; selected = new Set(); naming = false; }
@@ -148,11 +175,17 @@
 
 {#snippet card(p: ProjectInfo)}
   {@const m = measureLabel(p, STATUS_LABEL[p.status])}
+  {@const d = projectDday(p)}
   <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} data-measure={m.kind} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
     {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
     <b>{p.name}</b>
-    <!-- 실측 상태 (2026-10-21): 대기 + 치수 입력 → 실측중 · 미측정 u/N, 다 넣으면 실측완료 N -->
-    <small><span class="status" data-status={p.status} data-measure={m.kind}>{m.label}</span> · {date(cardDate(p))}</small>
+    <!-- 아래 글자 = 상태 · 실측 숫자(미측정/전체, 다 재면 전체) · D-day. 여기를 누르면 상세 내역, 나머지는 프로젝트 열기 (2026-10-21) -->
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <small class="meta" data-testid="project-meta" title="상세 내역 보기" onclick={(e) => clickMeta(e, p)}>
+      <span class="status" data-status={p.status}>{m.label}</span>
+      {#if m.count}<span class="count" data-testid="project-count" data-measure={m.kind} title={m.title}>{m.count}</span>{/if}
+      <span class="dday" data-testid="project-dday" title={d.title} class:late={d.days < 0}>{d.label}</span>
+    </small>
   </a>
 {/snippet}
 
@@ -190,10 +223,24 @@
     {/if}
     <section data-testid="project-list">
       <h1>내 프로젝트</h1>
-      <form class="new" onsubmit={(e) => { e.preventDefault(); create(); }}>
-        <input data-testid="new-project-name" placeholder="새 프로젝트 이름 (예: 간판다 카페)" bind:value={name} />
-        <button class="btn primary" data-testid="new-project-submit" type="submit" disabled={busy || !name.trim()}>만들기</button>
-        {#if projects?.length}<button class="btn" type="button" class:on={selectMode} data-testid="select-mode" title="프로젝트를 골라 그룹으로 묶거나 삭제" onclick={toggleSelectMode}>{selectMode ? '◉ 선택 중' : '○ 선택'}</button>{/if}
+      <form class="new" class:open={formOpen} data-testid="new-project-form" onsubmit={(e) => { e.preventDefault(); create(); }}>
+        <div class="row1">
+          <input data-testid="new-project-name" placeholder="새 프로젝트 이름 (예: 간판다 카페)" bind:value={name} onfocus={() => (formOpen = true)} />
+          <button class="btn primary" data-testid="new-project-submit" type="submit" disabled={busy || !name.trim()}>만들기</button>
+          {#if projects?.length}<button class="btn" type="button" class:on={selectMode} data-testid="select-mode" title="프로젝트를 골라 그룹으로 묶거나 삭제" onclick={toggleSelectMode}>{selectMode ? '◉ 선택 중' : '○ 선택'}</button>{/if}
+        </div>
+        {#if formOpen}
+          <!-- 제목 빼고 다 선택 (2026-10-21) -->
+          <div class="more" data-testid="new-project-details">
+            <input data-testid="new-contact" placeholder="연락처" bind:value={newDetails.contact} />
+            <input data-testid="new-address" placeholder="주소" bind:value={newDetails.address} />
+            <label>계약일<input data-testid="new-contract-date" type="date" bind:value={newDetails.contractDate} /></label>
+            <label>시작일<input data-testid="new-start-date" type="date" bind:value={newDetails.startDate} /></label>
+            <label>완료일<input data-testid="new-due-date" type="date" bind:value={newDetails.dueDate} /></label>
+            <input class="memo" data-testid="new-memo" placeholder="메모" bind:value={newDetails.memo} />
+            <button class="icon x" type="button" data-testid="new-project-close" title="접기 (입력한 선택 항목은 지움)" onclick={closeForm}>✕</button>
+          </div>
+        {/if}
       </form>
       {#if selectMode}<p class="hint">카드를 눌러 고르세요. 아래 탭에서 그룹으로 묶거나 삭제합니다.</p>{/if}
 
@@ -207,7 +254,7 @@
               <span class="stack"></span><span class="stack s2"></span>
               <span class="face">
                 <b>{g.name}</b>
-                <small>{v ? `프로젝트 ${v.projects.length}개` : '…'}{g.role === 'member' ? ' · 멤버' : ''}</small>
+                <small>{v ? `프로젝트 ${v.projects.length}개` : '…'}{g.role === 'member' ? ' · 멤버' : ''} · <span class="dday" data-testid="group-dday" title={groupDday(v?.projects ?? [], g.createdAt).title}>{groupDday(v?.projects ?? [], g.createdAt).label}</span></small>
                 {#if t && g.canBilling && v?.projects.length}<small class="sum" data-testid="group-summary">{t.allPaid ? `총 ${won(t.c)}` : `미수 ${won(t.due)}`}</small>{/if}
               </span>
             </button>
@@ -290,6 +337,31 @@
   {/if}
 </div>
 
+{#if details}
+  <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) details = null; }}>
+    <form class="dialog" data-testid="project-details" role="dialog" aria-modal="true" aria-label="프로젝트 상세" onsubmit={(e) => { e.preventDefault(); saveDetails(); }}>
+      <header><h2>프로젝트 상세</h2><button class="icon" type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button></header>
+      <label>이름<input data-testid="details-name" bind:value={draft.name} /></label>
+      <label>상태<select data-testid="details-status" bind:value={draft.status}>{#each Object.entries(STATUS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}</select></label>
+      <label>연락처<input data-testid="details-contact" bind:value={draft.contact} placeholder="010-0000-0000" /></label>
+      <label>주소<input data-testid="details-address" bind:value={draft.address} /></label>
+      <div class="dates">
+        <label>계약일<input data-testid="details-contract-date" type="date" bind:value={draft.contractDate} /></label>
+        <label>시작일<input data-testid="details-start-date" type="date" bind:value={draft.startDate} /></label>
+        <label>완료일<input data-testid="details-due-date" type="date" bind:value={draft.dueDate} /></label>
+      </div>
+      <label>메모<textarea data-testid="details-memo" rows="3" bind:value={draft.memo}></textarea></label>
+      <p class="hint">실측 {measureLabel(details, STATUS_LABEL[details.status]).title || '사인물 없음'} · {projectDday(details).title} · 만든 날 {date(details.createdAt)}</p>
+      <footer>
+        <a class="btn small" href="/?room={details.id}">프로젝트 열기</a>
+        <span class="grow"></span>
+        <button class="btn small" type="button" onclick={() => (details = null)}>취소</button>
+        <button class="btn small primary" type="submit" data-testid="details-save" disabled={detailsBusy || !draft.name.trim()}>저장</button>
+      </footer>
+    </form>
+  </div>
+{/if}
+
 {#if selectMode}
   <div class="bar" data-testid="select-bar">
     <span class="count">{selected.size}개 선택</span>
@@ -334,7 +406,33 @@
   .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
   section { width: min(900px, 100%); }
   h1 { font-size: 22px; margin: 0 0 14px; }
-  .new { display: flex; gap: 8px; margin-bottom: 12px; }
+  .new { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .new .row1 { display: flex; gap: 8px; }
+  /* 만들기 펼침: 제목 빼고 다 선택 (2026-10-21) */
+  .more { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; }
+  .more > input { flex: 1 1 160px; }
+  .more > input.memo { flex: 2 1 260px; }
+  .more label { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+  .more label input { width: auto; }
+  .more .x { margin-left: auto; }
+  /* 카드 아래 글자 */
+  .pcard .meta { display: flex; gap: 6px; align-items: center; cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+  .pcard .meta:hover { background: rgba(255,255,255,0.06); }
+  .count[data-measure='waiting'] { color: var(--muted); }
+  .count[data-measure='measuring'] { color: var(--accent); font-weight: 600; }
+  .count[data-measure='measured'] { color: var(--ok); font-weight: 600; }
+  .dday { font-variant-numeric: tabular-nums; }
+  .dday.late { color: var(--warn); }
+  /* 상세 내역 창 */
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; }
+  .dialog { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dialog header { display: flex; align-items: center; justify-content: space-between; }
+  .dialog h2 { margin: 0; font-size: 15px; }
+  .dialog .dates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .dialog textarea { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; width: 100%; resize: vertical; }
+  .dialog footer { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+  .dialog .grow { flex: 1; }
+  @media (max-width: 720px) { .dialog .dates { grid-template-columns: 1fr; } }
   .hint { color: var(--muted); font-size: 12px; }
   .grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin-top: 10px; }
   /* 프로젝트 카드 */

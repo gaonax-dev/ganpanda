@@ -1,22 +1,19 @@
-// 프로젝트 카드 실측 상태 (2026-10-21)
+// 프로젝트 카드 실측 상태 (2026-10-21 → "실측 안내 없이 숫자만")
 import { describe, expect, it } from 'vitest';
 import { measureLabel } from '../../src/lib/core/measureSummary';
 
-describe('카드 글자', () => {
-  it('사인물이 없으면 상태 이름만', () => {
-    expect(measureLabel({ status: 'waiting' }, '대기')).toEqual({ kind: 'none', label: '대기' });
-    expect(measureLabel({ status: 'waiting', signTotal: 0 }, '대기')).toEqual({ kind: 'none', label: '대기' });
+describe('카드 숫자', () => {
+  it('사인물이 없으면 숫자 없음', () => {
+    expect(measureLabel({ status: 'waiting' }, '대기')).toMatchObject({ kind: 'none', label: '대기', count: '' });
   });
-  it('대기: 치수가 하나도 없으면 대기 · 사인물 N, 하나라도 있으면 실측중 · 미측정 u/N, 다 있으면 실측완료 N', () => {
-    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 3 }, '대기')).toEqual({ kind: 'waiting', label: '대기 · 사인물 3' });
-    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 1 }, '대기')).toEqual({ kind: 'measuring', label: '실측중 · 미측정 1/3' });
-    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 0 }, '대기')).toEqual({ kind: 'measured', label: '실측완료 3' });
+  it('미측정이 있으면 미측정/전체, 다 재면 전체 수만', () => {
+    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 3 }, '대기')).toMatchObject({ kind: 'waiting', count: '3/3' });
+    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 1 }, '대기')).toMatchObject({ kind: 'measuring', count: '1/3' });
+    expect(measureLabel({ status: 'waiting', signTotal: 3, signUnmeasured: 0 }, '대기')).toMatchObject({ kind: 'measured', count: '3', label: '대기' });
+    expect(measureLabel({ status: 'done', signTotal: 2, signUnmeasured: 0 }, '완료').count).toBe('2');
   });
-  it('다른 상태는 상태 이름 뒤에 실측 수', () => {
-    expect(measureLabel({ status: 'ongoing', signTotal: 2, signUnmeasured: 1 }, '진행중').label).toBe('진행중 · 미측정 1/2');
-    expect(measureLabel({ status: 'done', signTotal: 2, signUnmeasured: 0 }, '완료').label).toBe('완료 · 실측완료 2');
-  });
-  it('미측정이 전체보다 크게 들어와도 전체로 자른다', () => {
-    expect(measureLabel({ status: 'waiting', signTotal: 2, signUnmeasured: 5 }, '대기').label).toBe('대기 · 사인물 2');
+  it('설명 글(title)에는 뜻이 있다', () => {
+    expect(measureLabel({ status: 'waiting', signTotal: 2, signUnmeasured: 1 }, '대기').title).toBe('미측정 1 / 사인물 2');
+    expect(measureLabel({ status: 'waiting', signTotal: 2, signUnmeasured: 5 }, '대기').count).toBe('2/2'); // 전체로 자른다
   });
 });

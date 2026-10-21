@@ -38,13 +38,13 @@
 | 메서드 | 경로 | 설명 | 응답 |
 |---|---|---|---|
 | GET | `/api/projects` | 내 프로젝트 (최근 순; `groupId, status, contractAmount, paidAmount` 포함) | `{projects}` |
-| POST | `/api/projects` `{name}` | 프로젝트 생성 (id = 방 이름, 16자) | 201 `{project}` / 400 |
+| POST | `/api/projects` `{name, contact?, address?, contractDate?, startDate?, dueDate?, memo?}` | 프로젝트 생성 (id = 방 이름, 16자) | 201 `{project}` / 400 |
 | PATCH | `/api/projects/:id` `{name}` | 이름 변경 (소유자) | 200 / 403 / 404 |
 | DELETE | `/api/projects/:id` | 삭제 + 초대 폐기 (소유자) | 204 / 403 |
 | GET | `/api/projects/:id/invites` | 초대 목록 (id = 해시 앞 16자). 소유자가 **다시 복사**할 수 있게 폐기 안 된 링크는 `url` 포함(2026-10-17, `invites.token` 원문 저장 — 그 전에 만든 링크는 없음). 제안 링크는 `kind:'proposal'` | `{invites[{id, role, createdAt, revoked, kind?, url?}]}` |
 | POST | `/api/projects/:id/invites` `{role: viewer\|editor, kind?: 'proposal'}` | 초대 링크 생성. `kind: 'proposal'` = 제안 보내기 링크 → 무료 요금제 월 건수 한도 (2026-10-17) | 201 `{token, role, url}` / 400 / **402 `{error:'proposal_limit', used, limit}`** |
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
-| PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|paused\|done, contractAmount?: number\|null, paidAmount?, quoteTotal?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만). 상태가 바뀌면 `statusAt`(시각)을 찍어 돌려준다(2026-10-21; 개발 모드 `AUTH_DEV_LINK=1` 에서만 `statusAt` 입력 허용). `signTotal`·`signUnmeasured`(0 이상 정수)는 앱이 실측 상태용으로 저장(2026-10-21). **주어진 칸만 UPDATE** — 앱이 견적 합계와 실측 수를 같은 순간 따로 보내므로 전체 행 덮어쓰기면 서로 지웠다(2026-10-21). `contractAmount: null` = 자동(견적 합계) 복구. `quoteTotal` 은 앱이 리스트 뷰 견적 합계를 저장 | 200 / 400 / 403 / 404 |
+| PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|paused\|done, contractAmount?: number\|null, paidAmount?, quoteTotal?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만). 상태가 바뀌면 `statusAt`(시각)을 찍어 돌려준다(2026-10-21; 개발 모드 `AUTH_DEV_LINK=1` 에서만 `statusAt` 입력 허용). `signTotal`·`signUnmeasured`(0 이상 정수)는 앱이 실측 상태용으로 저장(2026-10-21). 상세 칸 `contact/address/memo`(글), `contractDate/startDate/dueDate`(`YYYY-MM-DD`, 빈 값·null = 지움, 그 밖은 400)도 같이(2026-10-21). **주어진 칸만 UPDATE** — 앱이 견적 합계와 실측 수를 같은 순간 따로 보내므로 전체 행 덮어쓰기면 서로 지웠다(2026-10-21). `contractAmount: null` = 자동(견적 합계) 복구. `quoteTotal` 은 앱이 리스트 뷰 견적 합계를 저장 | 200 / 400 / 403 / 404 |
 | GET | `/api/groups` | 내 그룹 (오너 것 + 내가 팀 멤버인 오너들의 것: `role`, `canBilling`) | `{groups}` |
 | POST | `/api/groups` `{name, projectIds?}` | 그룹 생성 (+ 내 프로젝트들을 바로 넣기) | 201 `{group}` / 400 |
 | GET | `/api/groups/:id` | 그룹 보기: 프로젝트(상태; `quoteTotal/contractAmount/contractAuto/paidAmount` 는 `canBilling` 인 사람에게만) | `{group, projects}` / 403 |

@@ -37,6 +37,12 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     const sc = await (await json(`/api/projects/${p.id}`, { signTotal: 3, signUnmeasured: 1 }, s, 'PATCH')).json<{ project: { signTotal: number; signUnmeasured: number } }>();
     expect(sc.project).toMatchObject({ signTotal: 3, signUnmeasured: 1 });
     expect((await json(`/api/projects/${p.id}`, { signTotal: -1 }, s, 'PATCH')).status).toBe(400);
+    // 상세 칸 (2026-10-21): 만들 때·고칠 때, 날짜는 YYYY-MM-DD 만, 빈 값은 지움
+    const made = await (await json('/api/projects', { name: '상세 매장', contact: '010-1234-5678', address: '서울 송파구', dueDate: '2026-12-01', memo: '야간 조명' }, s)).json<{ project: Record<string, unknown> }>();
+    expect(made.project).toMatchObject({ contact: '010-1234-5678', address: '서울 송파구', dueDate: '2026-12-01', startDate: null, memo: '야간 조명' });
+    expect((await json('/api/projects', { name: 'x', dueDate: '12/01' }, s)).status).toBe(400);
+    const fixed = await (await json(`/api/projects/${made.project.id}`, { dueDate: '', startDate: '2026-11-01' }, s, 'PATCH')).json<{ project: Record<string, unknown> }>();
+    expect(fixed.project).toMatchObject({ dueDate: null, startDate: '2026-11-01', contact: '010-1234-5678' });
     // 같은 순간의 부분 변경이 서로를 지우지 않는다 (주어진 칸만 UPDATE)
     await Promise.all([json(`/api/projects/${p.id}`, { signTotal: 4, signUnmeasured: 2 }, s, 'PATCH'), json(`/api/projects/${p.id}`, { quoteTotal: 777 }, s, 'PATCH')]);
     const both = (await (await get('/api/projects', s)).json<{ projects: { id: string; signTotal: number; signUnmeasured: number; quoteTotal: number }[] }>()).projects.find((x) => x.id === p.id)!;
