@@ -339,7 +339,8 @@
 
 {#if details}
   <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) details = null; }}>
-    <form class="dialog" data-testid="project-details" role="dialog" aria-modal="true" aria-label="프로젝트 상세" onsubmit={(e) => { e.preventDefault(); saveDetails(); }}>
+    <div class="dialog" data-testid="project-details" role="dialog" aria-modal="true" aria-label="프로젝트 상세">
+    <form class="dform" onsubmit={(e) => { e.preventDefault(); saveDetails(); }}>
       <header><h2>프로젝트 상세</h2><button class="icon" type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button></header>
       <label>이름<input data-testid="details-name" bind:value={draft.name} /></label>
       <label>상태<select data-testid="details-status" bind:value={draft.status}>{#each Object.entries(STATUS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}</select></label>
@@ -359,6 +360,7 @@
         <button class="btn small primary" type="submit" data-testid="details-save" disabled={detailsBusy || !draft.name.trim()}>저장</button>
       </footer>
     </form>
+    </div>
   </div>
 {/if}
 
@@ -426,6 +428,7 @@
   /* 상세 내역 창 */
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; }
   .dialog { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dform { display: flex; flex-direction: column; gap: 8px; }
   .dialog header { display: flex; align-items: center; justify-content: space-between; }
   .dialog h2 { margin: 0; font-size: 15px; }
   .dialog .dates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -445,8 +448,6 @@
   .status[data-status='done'] { color: var(--ok); }
   .status[data-status='waiting'] { color: var(--muted); }
   .status[data-status='paused'] { color: var(--warn); }
-  .status[data-measure='measuring'] { color: var(--accent); }
-  .status[data-measure='measured'] { color: var(--ok); }
   /* 지난 프로젝트 접기 */
   .shelf { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
   .shelf summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
