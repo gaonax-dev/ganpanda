@@ -257,7 +257,6 @@
 {#if app.room && app.access.status === 'loading'}<Loading text="프로젝트 확인 중…" />{:else if app.room && app.access.status === 'ok' && !app.ready}<Loading text="프로젝트 불러오는 중…" />{/if}
 
 <style>
-  .soon { max-width: 560px; margin: 40px auto; padding: 0 16px; color: var(--muted); }
   .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
   .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
   .approval[data-status='changed'] { color: var(--warn); }
