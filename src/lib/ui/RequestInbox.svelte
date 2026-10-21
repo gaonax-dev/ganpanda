@@ -2,7 +2,10 @@
   // 받은 견적 요청 페이지 (/requests, 2026-10-22 사용자: "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"):
   // 헤더의 "견적 요청 N" 을 누르면 여기로. 목록은 이름·사인물 정보만, 누르면 요청 보드(복제), 단추는 [견적 넣기] 하나
   import { app } from '../state.svelte';
-  import { listMyRequests, listRequests, respondRequest, type MyRequest, type ShopRequest } from '../requests';
+  import { listMyRequests, listRequests, respondRequest, shopPhotoUrl, type MyRequest, type ShopRequest } from '../requests';
+  /** 옛 요청(보드 복제 전)은 사진·사인물을 창으로 */
+  let viewing = $state<ShopRequest | null>(null);
+  function view(r: ShopRequest) { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; else viewing = r; }
   let requests = $state<ShopRequest[]>([]);
   /** 보낸 요청 (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 외주(B2B) 요청 */
   let sent = $state<MyRequest[]>([]);
@@ -45,14 +48,16 @@
         {#each requests as r (r.id)}
           <!-- 이름·사인물 정보만, 누르면 요청 그대로의 보드(복제)가 바로 열린다, 단추는 [견적 넣기] 하나 (2026-10-22) -->
           {@const sized = (r.signs ?? []).filter((s) => s.widthMm && s.heightMm)}
-          <div class="rcard" class:open={!!r.snapshot} data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
-            onclick={() => { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }} onkeydown={(e) => { if (e.key === 'Enter' && r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }}>
+          <div class="rcard open" data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
+            onclick={() => view(r)} onkeydown={(e) => { if (e.key === 'Enter') view(r); }}>
             <div class="rbody">
               <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
             </div>
             <div class="ract">
+              <!-- 견적을 넣은 뒤에도 요청 그대로를 다시 본다 (2026-10-22 "견적요청카드에 해당 뷰를 볼수 없다. 현재는 내견적보기만 있다") -->
+              <button class="btn small" data-testid="request-view" onclick={(e) => { e.stopPropagation(); view(r); }}>요청 보기</button>
               {#if r.projectId && r.status !== 'cancelled'}
                 <a class="btn small" data-testid="request-open" href="/?room={r.projectId}" onclick={(e) => e.stopPropagation()}>내 견적 열기</a>
               {:else if r.status !== 'cancelled'}
@@ -65,6 +70,19 @@
         {/each}
   {/if}
 </div>
+
+{#if viewing}
+  {@const v = viewing}
+  <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) viewing = null; }}>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="요청 보기" data-testid="request-view-dialog">
+      <header><h2>{v.store} <small class="muted">{v.region}</small></h2><button class="icon" title="닫기" onclick={() => (viewing = null)}>✕</button></header>
+      {#if v.text}<p>“{v.text}”</p>{/if}
+      {#if v.signs?.length}<ul>{#each v.signs as s, i (i)}<li><b>{s.name}</b> {s.widthMm && s.heightMm ? `${s.widthMm.toLocaleString()}×${s.heightMm.toLocaleString()}mm` : '치수 없음'}{s.memo ? ` — ${s.memo}` : ''}</li>{/each}</ul>{/if}
+      <div class="photos">{#each v.photos as p (p.n)}<img src={shopPhotoUrl(v.id, p.n)} alt="" />{/each}</div>
+      <p class="hint">복제 기능 전에 보낸 요청이라 사진과 사인물 목록으로 보여 줍니다. [견적 넣기]를 누르면 사진·사인물이 내 프로젝트로 들어옵니다.</p>
+    </div>
+  </div>
+{/if}
 
 <style>
   .page { max-width: 760px; margin: 0 auto; padding: 16px 16px 60px; color: var(--text); }
@@ -79,7 +97,15 @@
   .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
   .tag.off { color: var(--danger); border-color: var(--danger); }
-  .ract { margin-left: auto; display: flex; align-items: center; }
+  .ract { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: grid; place-items: center; z-index: 60; }
+  .dialog { width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 40px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .dialog header { display: flex; align-items: center; justify-content: space-between; }
+  .dialog h2 { margin: 0; font-size: 16px; }
+  .dialog .photos { display: flex; flex-direction: column; gap: 8px; }
+  .dialog .photos img { width: 100%; border-radius: 8px; }
+  .dialog ul { margin: 0; padding-left: 18px; font-size: 13px; }
+  .icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
   .tabs { display: flex; gap: 4px; margin: 4px 0 8px; }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-size: 16px; font-weight: 700; padding: 6px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
   .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }

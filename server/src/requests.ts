@@ -77,17 +77,20 @@ async function customerOk(env: Env, req: Request, url: URL, r: RequestRow, key: 
   return !!me && me.id === r.account_id;
 }
 
+/** 알림 메일에서 간판집이 여는 주소 (2026-10-22 "견적요청알림으로 견적요청카드에 해당 뷰를 볼수 없다"): 요청 보드(복제)가 있으면 그 보드, 없으면 받은 요청 페이지 */
+export const shopRequestLink = (env: Pick<Env, 'APP_URL'>, r: Pick<RequestRow, 'id' | 'snapshot_project'>) =>
+  r.snapshot_project ? `${appUrl(env as Env)}/?room=${r.snapshot_project}&request=${r.id}` : `${appUrl(env as Env)}/requests`;
+
 /** 요청 알림 메일 (운영: Email Sending). 로컬·테스트는 EMAIL 이 없어 건너뜀. 실패해도 요청은 만들어진다 */
 async function notify(env: Env, r: RequestRow, url: string) {
   if (!env.EMAIL) return;
   const shops = await env.DB.prepare("SELECT email, regions FROM accounts WHERE receive_requests = 1 AND regions <> ''").all<{ email: string; regions: string }>();
   const hit = shops.results.filter((s) => regionsOf(s).some((g) => regionMatches(g, r.region)));
-  const home = `${appUrl(env)}/`;
   const to = new Set([...hit.map((s) => s.email), ...operatorEmails(env)]); // 운영자는 항상 (지역에 간판집이 없는 동안 수동 처리)
   for (const s of [...to].map((email) => ({ email }))) {
     try {
       await env.EMAIL.send({ to: s.email, from: FROM, subject: `[간판다] ${r.region} 간판 견적 요청 — ${r.store}`,
-        text: `${r.region}에서 간판 견적 요청이 왔습니다.\n\n가게: ${r.store}\n내용: ${r.text || '(없음)'}\n\n간판다 홈의 "받은 요청"에서 사진을 보고 제안을 만드세요: ${home}\n제안 링크를 보내면 고객 연락처가 보입니다.` });
+        text: `${r.region}에서 간판 견적 요청이 왔습니다.\n\n가게: ${r.store}\n내용: ${r.text || '(없음)'}\n\n요청 보기 (사진·사인물 그대로, [견적 넣기]): ${shopRequestLink(env, r)}\n견적을 넣으면 고객 연락처가 보입니다.` });
     } catch { /* 한 곳 실패가 다른 곳을 막지 않게 */ }
   }
   if (r.email) {

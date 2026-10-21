@@ -140,6 +140,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(item.getByTestId('request-biz')).toContainText('확인');
   await expect(item.locator('img')).toHaveCount(0);
   await expect(item.getByTestId('request-respond')).toHaveText('견적 넣기');
+  await expect(item.getByTestId('request-view')).toHaveText('요청 보기'); // 견적 넣은 뒤에도 요청 그대로 (2026-10-22)
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 간판집은 노랑
   // 누르면 요청 그대로의 보드(읽기 전용) + 요청 정보 줄 + [견적 넣기]
   await item.click();

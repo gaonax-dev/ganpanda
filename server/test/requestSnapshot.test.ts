@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import * as Y from 'yjs';
 import { api, get, json, login } from './helpers';
+import { shopRequestLink } from '../src/requests';
 
 const sha = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))].slice(0, 16).map((x) => x.toString(16).padStart(2, '0')).join('');
 const randPhone = () => `010${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`;
@@ -94,5 +95,13 @@ describe('간판집 [제안 만들기] — 그대로 가져오기 · 사진만 �
     const blank = await respond('blank');
     const db = await docOf(blank.project);
     expect(db.getMap('photos').size).toBe(0);
+  });
+});
+
+describe('알림 메일 링크 (2026-10-22 "견적요청알림으로 견적요청카드에 해당 뷰를 볼수 없다")', () => {
+  it('요청 보드가 있으면 그 보드로 바로, 없으면 받은 요청 페이지', () => {
+    const e = { APP_URL: 'https://ganpanda.co.kr' };
+    expect(shopRequestLink(e, { id: 'r1', snapshot_project: 'p1' })).toBe('https://ganpanda.co.kr/?room=p1&request=r1');
+    expect(shopRequestLink(e, { id: 'r1', snapshot_project: null })).toBe('https://ganpanda.co.kr/requests');
   });
 });
