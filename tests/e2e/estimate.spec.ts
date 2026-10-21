@@ -13,7 +13,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page).toHaveURL(/\/estimate$/);
   // 입구 로그인 (2026-10-21 "입구 카카오"): 카카오 단추(next=/estimate) 또는 다른 방법 — 로그인 전엔 보드가 안 열린다
   await expect(page.getByTestId('consumer-gate')).toBeVisible();
-  await expect(page.getByTestId('consumer-login-kakao')).toHaveAttribute('href', /\/api\/auth\/kakao\/start\?next=%2Festimate/);
+  await expect(page.getByTestId('consumer-login-kakao')).toHaveAttribute('href', /\/api\/auth\/kakao\/start\?next=%2Festimate/, { timeout: 15_000 }); // 공급자 목록을 서버에서 받은 뒤 뜬다
   await expect(page.getByTestId('top-nav')).toBeHidden();
   const custSession = await apiLogin(request);
   await page.evaluate((s) => localStorage.setItem('ganpanda.session', s), custSession);
@@ -45,6 +45,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await page.getByTestId('estimate-button').click();
   const dlg = page.getByTestId('estimate-dialog');
   await expect(dlg.getByTestId('estimate-summary')).toContainText('사진 1장 · 사인물 1개 (치수 입력 1개)');
+  await expect(dlg.getByTestId('estimate-advice')).toHaveCount(0); // 다 재면 안내 없음
   await dlg.getByTestId('est-store').fill(store);
   await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 1'); // 지역은 주소에서 (경기 광주시)
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`); // 같은 번호는 열린 요청 3건까지
@@ -108,6 +109,7 @@ test('사본 없이도 번호·대표자 성명·개업일자를 넣으면 보�
   await uploadPhoto(page);
   await page.getByTestId('estimate-button').click();
   const dlg = page.getByTestId('estimate-dialog');
+  await expect(dlg.getByTestId('estimate-advice')).toContainText('사인물이 없습니다'); // 보내기 전 안내 (2026-10-21)
   await dlg.getByTestId('est-store').fill(store);
   await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 2');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);

@@ -42,6 +42,8 @@
   const photos = $derived(app.photos);
   const signs = $derived(serializeRequestSigns(app.photos, app.signs).signs);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
+  // 보내기 전 안내 (2026-10-21 "견적 넣기전에 사인물 수량 확인하고 실사이즈가 없으면 견적 응답이 적을수 있습니다. 안내")
+  const unmeasured = $derived(signs.length - measured);
   const bizOk = $derived(!bizNo.trim() || isValidBizNo(bizNo));
   const docOk = $derived(!!bizDoc && bizDoc.size <= 8 * 1024 * 1024);
   const manualOk = $derived(isValidBizNo(bizNo) && !!ownerName.trim() && !!bizStartDate(startDate));
@@ -98,6 +100,11 @@
       <footer><a class="btn primary" href={done.url} data-testid="estimate-open">내 요청 페이지 열기</a><button class="btn" onclick={close}>닫기</button></footer>
     {:else}
       <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개){photos.length > 3 ? ' — 사진은 3장까지입니다' : ''}{photos.length === 0 ? ' — 사진을 먼저 올려 주세요' : ''}</p>
+      {#if signs.length === 0}
+        <p class="advice" data-testid="estimate-advice">사인물이 없습니다. 사진 위에 간판 자리를 사각으로 그려 주면 간판집이 바로 견적을 낼 수 있습니다. 그대로 보내면 응답이 적을 수 있습니다.</p>
+      {:else if unmeasured > 0}
+        <p class="advice" data-testid="estimate-advice">사인물 {signs.length}개 중 <b>{unmeasured}개는 실제 크기(가로·세로)가 없습니다.</b> 크기가 없으면 간판집이 금액을 잡기 어려워 견적 응답이 적을 수 있습니다. 줄자로 잰 치수를 넣고 보내는 걸 권합니다.</p>
+      {/if}
       <form onsubmit={(e) => { e.preventDefault(); send(); }}>
         <label>가게 이름 *<input data-testid="est-store" bind:value={store} placeholder="예: 바로바로 정육점" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
@@ -135,6 +142,7 @@
   .fname { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 220px; white-space: nowrap; }
   textarea { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; resize: vertical; }
   .sum { margin: 0; font-size: 13px; color: var(--muted); }
+  .advice { margin: 0; font-size: 13px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); }
   .ok { margin: 0; font-size: 13px; line-height: 1.5; }
   .link { display: flex; gap: 6px; }
   .err { color: var(--danger); font-size: 12px; margin: 0; }
