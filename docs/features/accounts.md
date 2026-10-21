@@ -51,5 +51,5 @@
 - 테스트는 `EMAIL.send`를 가짜로 바꿔 메시지 구성과 실패 처리를 검사합니다(`server/test/email.test.ts`).
 
 ## 남은 일
-- 운영 자격 등록(각 콘솔에 리디렉션 URI + `wrangler secret put`) → [../server/deploy.md](../server/deploy.md)
+- 운영 자격 등록: 카카오는 됨(2026-10-21). 구글·애플은 각 콘솔에 리디렉션 URI + `wrangler secret put` → [../server/deploy.md](../server/deploy.md)
 - 매직링크 요청 횟수 제한, 계정 메뉴에서 연결된 공급자 보기
