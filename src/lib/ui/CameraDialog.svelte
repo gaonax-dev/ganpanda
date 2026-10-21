@@ -44,13 +44,16 @@
       return [Rp[0] * cx + Rp[3] * cy + Rp[6] * cz, Rp[1] * cx + Rp[4] * cy + Rp[7] * cz, Rp[2] * cx + Rp[5] * cy + Rp[8] * cz];
     };
     const axes = { x: seg([0, 0, 0], toWall([step, 0, 0])), y: seg([0, 0, 0], toWall([0, step, 0])), z: seg([0, 0, 0], toWall([0, 0, step])) };
-    const c = (x: number, y: number, z: number): [number, number, number] => [x * step, y * step, z * step];
-    const E: [[number, number, number], [number, number, number]][] = [
-      [c(0,0,0), c(1,0,0)], [c(1,0,0), c(1,1,0)], [c(1,1,0), c(0,1,0)], [c(0,1,0), c(0,0,0)],
-      [c(0,0,1), c(1,0,1)], [c(1,0,1), c(1,1,1)], [c(1,1,1), c(0,1,1)], [c(0,1,1), c(0,0,1)],
-      [c(0,0,0), c(0,0,1)], [c(1,0,0), c(1,0,1)], [c(1,1,0), c(1,1,1)], [c(0,1,0), c(0,1,1)],
+    // 작은 큐브(격자 폭의 1/20 = 300mm)를 원점과 격자 모서리 여러 곳에 (2026-10-21 사용자: "현재 큐브가 많이 크다. 1:20정도로" + "여러 위치의 큐브") — 곳곳에서 축이 사진의 선과 맞는지 본다
+    const CUBE = (nx * step) / 20;
+    const E: [number, number, number][][] = [
+      [[0,0,0],[1,0,0]], [[1,0,0],[1,1,0]], [[1,1,0],[0,1,0]], [[0,1,0],[0,0,0]],
+      [[0,0,1],[1,0,1]], [[1,0,1],[1,1,1]], [[1,1,1],[0,1,1]], [[0,1,1],[0,0,1]],
+      [[0,0,0],[0,0,1]], [[1,0,0],[1,0,1]], [[1,1,0],[1,1,1]], [[0,1,0],[0,1,1]],
     ];
-    const cube = E.map(([a, b]) => seg(a, b)).filter((s): s is { a: Pt; b: Pt } => !!s);
+    const spots: [number, number][] = [[0, 0], [nx * step, 0], [0, ny * step], [nx * step, ny * step], [(nx * step) / 2, (ny * step) / 2]];
+    const cube: { a: Pt; b: Pt }[] = [];
+    for (const [ox, oy] of spots) for (const [a, b] of E) { const s = seg([ox + a[0] * CUBE, oy + a[1] * CUBE, a[2] * CUBE], [ox + b[0] * CUBE, oy + b[1] * CUBE, b[2] * CUBE]); if (s) cube.push(s); }
     return { grid, axes, cube };
   });
   const set = (patch: Partial<CameraSetup>) => { app.cameraDraft = { ...draft, ...patch }; };

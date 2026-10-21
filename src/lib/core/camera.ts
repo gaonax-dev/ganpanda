@@ -5,7 +5,7 @@
 // 내부 벽면 프레임(pose·H)은 u 가로, v 위, n 벽 밖(카메라 쪽), 단위 mm.
 import type { Calibration, Gray } from './calibration';
 import { measureQuad, snapEdge } from './calibration';
-import { proposeAxes } from './lines';
+import { analyzeLines, horizontalityOf, pickSeparated, pointsTo, upscaleSeg, type LineAnalysis, type Segment } from './lines';
 import { applyHomography, DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
 
 export interface Line { a: Pt; b: Pt }
@@ -378,11 +378,70 @@ export function calibrationOf(s: CameraSolution): Calibration {
  * 사진에서 가로·세로 축 선 후보: LSD 식 선분 검출 → 소실점 두 개(RANSAC) → 각 소실점을 받치는, 서로 떨어진 긴 선분 두 개.
  * 뚜렷한 직선이 모자라면 null
  */
-export function proposeAxisLines(img: Gray, opts: { second?: 'y' | 'z' } = {}): { x: [Line, Line]; y: [Line, Line]; second: '+y' | '+z' } | null {
-  const p = proposeAxes(img, opts);
-  if (!p) return null;
-  const L = (s: { a: Pt; b: Pt }): Line => ({ a: s.a, b: s.b });
-  return { x: [L(p.x[0]), L(p.x[1])], y: [L(p.y[0]), L(p.y[1])], second: p.second };
+export interface AxisProposal { x: [Line, Line]; y: [Line, Line]; axes: { first: AxisDir; second: AxisDir }; /** 둘째 쌍의 축 (호환) */ second: '+y' | '+z'; /** 선분 일치율 0~1 */ score: number }
+export type AxisWish = { first?: 'x' | 'y' | 'z'; second?: 'x' | 'y' | 'z' };
+
+/**
+ * 축 조합 고르기 (2026-10-21 사용자: "각각의 조합 xz xy yz를 모두 한번씩 적용하고 여러 위치의 큐브와 일치가 많은 걸로 선택할 수 있나?"):
+ * 소실점(셋까지)에 **역할**을 준다 — 세로다운 것 = 높이 Z, 수평면의 둘 중 사진에서 더 가로다운 것 = 가로 X(벽·간판 면), 남은 것 = 깊이 Y.
+ * 그 다음 {X,Z}·{X,Y}·{Y,Z} 조합마다 카메라를 풀고 **세 월드 축 소실점**(지정한 둘 + 직교로 나온 셋째)을 향하는 선분 길이의 비율로 점수를 낸다 —
+ * 사진 여러 곳에 큐브를 놓고 모서리 방향이 사진의 선과 맞는지 세는 것과 같다. 동점(2%p)이면 화각을 푼 조합(두 소실점 유한) → X·Z, X·Y, Y·Z 순.
+ * 정면 사진은 수직선이 평행해 Z 소실점이 없고 X 도 멀어 X·Z 가 기본으로 남고, 비스듬한 사진은 바닥·천장 깊이선이 있으면 X·Y 가 이긴다(사용자 관찰).
+ * wish 로 라벨을 강제할 수 있다(원근 창에서 축을 고르고 다시 제안). 강제에 맞는 조합이 없으면 제한 없이 고른 것을 돌려준다(호출자가 어긋남을 본다)
+ */
+export function rankAxisAssignments(an: LineAnalysis, wish: AxisWish = {}, onCandidate?: (c: { axes: { first: AxisDir; second: AxisDir }; score: number; focalKnown: boolean; f: number; roles: string }) => void): AxisProposal | null {
+  const { small, k, segments, results } = an;
+  const W = small.width, H = small.height, tol = (3 * Math.PI) / 180;
+  const total = segments.reduce((a, s) => a + s.length, 0) || 1;
+  type R = LineAnalysis['results'][number];
+  const L = (s: Segment): Line => ({ a: s.a, b: s.b });
+  const pairOf = (r: R): [Segment, Segment] | null => {
+    const along: 0 | 1 = horizontalityOf(r) >= 0.5 ? 1 : 0; // 가로다운 선은 위·아래로, 세로다운 선은 좌·우로 떨어진 둘
+    return pickSeparated(r, along, along ? H : W) ?? pickSeparated(r, along ? 0 : 1, along ? W : H);
+  };
+  // 역할: 세로다운 소실점(가로 성분 < 0.5, 가장 세로) = Z. 나머지(수평면)는 사진에서 더 가로다운 것 = X(벽·간판 면의 가로 — 바닥이 넓게 보여도 벽의 선이 더 수평하다), 남은 것 = Y 깊이
+  const vertical = results.filter((r) => horizontalityOf(r) < 0.5).sort((a, b) => horizontalityOf(a) - horizontalityOf(b))[0] ?? null;
+  // 수평면 소실점 중 지지도가 가장 큰 것의 1/5 에 못 미치는 것(잡선 몇 개)은 버린다 — 잡선 소실점이 X 를 가로채거나 Y 로 끼어들지 않게
+  const planeAll = results.filter((r) => r !== vertical);
+  const planeMax = Math.max(0, ...planeAll.map((r) => r.score));
+  const plane = planeAll.filter((r) => r.score >= planeMax * 0.2).sort((a, b) => horizontalityOf(b) - horizontalityOf(a));
+  const roles: Partial<Record<'x' | 'y' | 'z', R>> = { x: plane[0], y: plane[1], z: vertical ?? undefined };
+  const COMBOS: [('x' | 'y' | 'z'), ('x' | 'y' | 'z')][] = [['x', 'z'], ['x', 'y'], ['y', 'z']];
+  type Cand = { x: [Segment, Segment]; y: [Segment, Segment]; axes: { first: AxisDir; second: AxisDir }; score: number; pref: number; constrained: boolean; focalKnown: boolean };
+  const cands: Cand[] = [];
+  COMBOS.forEach(([la, lb], pref) => {
+    const r1 = roles[la], r2 = roles[lb];
+    if (!r1 || !r2) return;
+    const pa = pairOf(r1), pb = pairOf(r2);
+    if (!pa || !pb) return;
+    const axes = { first: `+${la}` as AxisDir, second: `+${lb}` as AxisDir };
+    const sol = solveCamera({ x: [L(pa[0]), L(pa[1])], y: [L(pb[0]), L(pb[1])], axes, origin: [W / 2, H / 2], principal: 'center' }, W, H);
+    if (!sol) return;
+    const Rw = sol.worldR;
+    const vps: V3[] = [0, 1, 2].map((c) => { const d: V3 = [Rw[c], Rw[3 + c], Rw[6 + c]]; return [sol.f * d[0] + sol.pp[0] * d[2], sol.f * d[1] + sol.pp[1] * d[2], d[2]]; });
+    let matched = 0;
+    for (const s of segments) if (vps.some((v) => pointsTo(s, v, tol))) matched += s.length;
+    const constrained = (!wish.first || wish.first === la) && (!wish.second || wish.second === lb);
+    const focalKnown = !sol.warnings.some((w) => w.includes('초점거리'));
+    onCandidate?.({ axes, score: matched / total, focalKnown, f: sol.f, roles: `${la}:h${horizontalityOf(r1).toFixed(2)}/s${Math.round(r1.score)} ${lb}:h${horizontalityOf(r2).toFixed(2)}/s${Math.round(r2.score)}` });
+    cands.push({ x: pa, y: pb, axes, score: matched / total, pref, constrained, focalKnown });
+  });
+  if (!cands.length) return null;
+  const pool = cands.some((c) => c.constrained) ? cands.filter((c) => c.constrained) : cands;
+  const eps = 0.02; // 점수 2%p 안이면 동점
+  pool.sort((a, b) => (Math.abs(a.score - b.score) > eps ? b.score - a.score : 0) || Number(b.focalKnown) - Number(a.focalKnown) || a.pref - b.pref); // 동점 → 화각을 푼 조합 → X·Z, X·Y, Y·Z
+  const best = pool[0];
+  const sortBy = (pair: [Segment, Segment], i: 0 | 1): [Segment, Segment] => ((pair[0].a[i] + pair[0].b[i]) / 2 <= (pair[1].a[i] + pair[1].b[i]) / 2 ? pair : [pair[1], pair[0]]);
+  const along = (l: AxisDir): 0 | 1 => (l[1] === 'z' ? 0 : 1);
+  const xs = sortBy([upscaleSeg(best.x[0], k), upscaleSeg(best.x[1], k)], along(best.axes.first));
+  const ys = sortBy([upscaleSeg(best.y[0], k), upscaleSeg(best.y[1], k)], along(best.axes.second));
+  return { x: [L(xs[0]), L(xs[1])], y: [L(ys[0]), L(ys[1])], axes: best.axes, second: best.axes.second[1] === 'y' ? '+y' : '+z', score: best.score };
+}
+
+/** 사진에서 축 선 후보: 선분 검출 → 소실점 → 축 조합 점수(rankAxisAssignments). 뚜렷한 직선이 모자라면 null */
+export function proposeAxisLines(img: Gray, wish: AxisWish = {}): AxisProposal | null {
+  const an = analyzeLines(img);
+  return an ? rankAxisAssignments(an, wish) : null;
 }
 
 /**
@@ -395,21 +454,21 @@ export function classifySecondAxis(pair: [Line, Line]): '+z' | '+y' {
   const fromVertical = (l: Line) => { const dx = Math.abs(l.b[0] - l.a[0]), dy = Math.abs(l.b[1] - l.a[1]); return Math.atan2(dx, dy); };
   return pair.every((l) => fromVertical(l) <= VERTICAL_TOL) ? '+z' : '+y';
 }
-/** AI 제안 선 쌍에 붙일 축: 첫 쌍은 가로 X, 둘째 쌍은 제안이 말한 축(깊이 Y / 높이 Z), 없으면 기울기로 */
-export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line]; second?: '+y' | '+z' }): { first: AxisDir; second: AxisDir } => ({ first: '+x', second: found.second ?? classifySecondAxis(found.y) });
+/** AI 제안에 붙일 축: 조합 점수로 고른 축(axes), 없으면 첫 쌍 X + 둘째 쌍 기울기로 */
+export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line]; axes?: { first: AxisDir; second: AxisDir }; second?: '+y' | '+z' }): { first: AxisDir; second: AxisDir } => found.axes ?? ({ first: '+x', second: found.second ?? classifySecondAxis(found.y) });
 
 /**
  * 제안을 적용할 때의 축 (2026-10-21 사용자: "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면 자동으로 잡아줘"):
  * 지정한 축은 **그대로 지킨다**(2026-10-18 "설정의 자동에서 따르게"). AI 가 요청한 축의 선(깊이 Y)을 못 찾아 다른 축(높이 Z)의 선을 냈으면 fallback = true —
  * 호출자는 둘째 쌍의 선을 바꾸지 않고(라벨과 선이 어긋나면 풀이가 틀린다) 알린다
  */
-export function axesAfterProposal(chosen: { first: AxisDir; second: AxisDir } | undefined, found: { x: [Line, Line]; y: [Line, Line]; second?: '+y' | '+z' }): { axes: { first: AxisDir; second: AxisDir }; fallback: boolean } {
+export function axesAfterProposal(chosen: { first: AxisDir; second: AxisDir } | undefined, found: { x: [Line, Line]; y: [Line, Line]; axes?: { first: AxisDir; second: AxisDir }; second?: '+y' | '+z' }): { axes: { first: AxisDir; second: AxisDir }; fallback: boolean } {
   if (!chosen) return { axes: axesForProposal(found), fallback: false };
-  const got = found.second ?? classifySecondAxis(found.y);
-  return { axes: chosen, fallback: !(chosen.second[1] === got[1] || chosen.second[1] === 'x') };
+  const got = found.axes ?? { first: '+x' as AxisDir, second: found.second ?? classifySecondAxis(found.y) };
+  return { axes: chosen, fallback: chosen.first[1] !== got.first[1] || chosen.second[1] !== got.second[1] };
 }
-/** 지정한 둘째 축을 AI 제안에 요청할 값 */
-export const wantedSecond = (axes: { second: AxisDir } | undefined): { second?: 'y' | 'z' } => (axes && (axes.second[1] === 'y' || axes.second[1] === 'z') ? { second: axes.second[1] } : {});
+/** 지정한 축을 AI 제안에 요청할 값 (라벨만, 부호는 사람 것) */
+export const wantedAxes = (axes: { first: AxisDir; second: AxisDir } | undefined): AxisWish => (axes ? { first: axes.first[1] as 'x' | 'y' | 'z', second: axes.second[1] as 'x' | 'y' | 'z' } : {});
 
 /** 축 선·기준 길이 선의 끝점을 사진 모서리에 붙인다 (법선 방향 탐색) */
 export function snapSetup(img: Gray, setup: CameraSetup, range = 8): CameraSetup {

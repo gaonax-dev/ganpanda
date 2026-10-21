@@ -422,7 +422,7 @@ describe('AI 둘째 선 쌍의 축 자동 분류 (2026-10-21 "정면에 가까�
 });
 
 describe('제안을 적용할 때의 축 (axesAfterProposal, 2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면 자동으로 잡아줘")', async () => {
-  const { axesAfterProposal, wantedSecond } = await import('../../src/lib/core/camera');
+  const { axesAfterProposal, wantedAxes } = await import('../../src/lib/core/camera');
   const L = (a: [number, number], b: [number, number]) => ({ a, b });
   const x: [ReturnType<typeof L>, ReturnType<typeof L>] = [L([0, 100], [1000, 120]), L([0, 900], [1000, 880])];
   const depth = { x, y: [L([100, 300], [900, 500]), L([100, 800], [900, 650])] as [ReturnType<typeof L>, ReturnType<typeof L>], second: '+y' as const };
@@ -432,8 +432,8 @@ describe('제안을 적용할 때의 축 (axesAfterProposal, 2026-10-21 "사람�
   });
   it('사람이 Y 로 바꿔 두었고 AI 가 깊이선을 찾았으면 그대로 Y (부호 포함)', () => {
     expect(axesAfterProposal({ first: '+x', second: '-y' }, depth)).toEqual({ axes: { first: '+x', second: '-y' }, fallback: false });
-    expect(wantedSecond({ second: '-y' })).toEqual({ second: 'y' });
-    expect(wantedSecond(undefined)).toEqual({});
+    expect(wantedAxes({ first: '+x', second: '-y' })).toEqual({ first: 'x', second: 'y' });
+    expect(wantedAxes(undefined)).toEqual({});
   });
   it('Y 를 원했는데 AI 가 수직선밖에 못 찾았으면 축은 그대로 두고 fallback 으로 알린다 (호출자가 둘째 쌍을 안 바꾼다)', () => {
     expect(axesAfterProposal({ first: '+x', second: '+y' }, vert)).toEqual({ axes: { first: '+x', second: '+y' }, fallback: true });

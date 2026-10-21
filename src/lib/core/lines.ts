@@ -196,8 +196,9 @@ export function findVanishingPoint(segs: Segment[], opts: { iterations?: number;
  * 가로·깊이 소실점이 둘 다 유한해야 직교로 초점거리가 풀린다(수직선은 평행해 소실점이 없다). 깊이 쌍이 없거나 정면 사진이면 수직선(Z).
  * opts.second 로 강제할 수 있다(원근 창에서 축을 고르고 다시 제안할 때)
  */
-export interface AxesProposal { x: [Segment, Segment]; y: [Segment, Segment]; /** 둘째 쌍의 축 */ second: '+y' | '+z'; segments: Segment[] }
-export function proposeAxes(img: Gray, opts: { second?: 'y' | 'z' } = {}): AxesProposal | null {
+/** 사진의 선분·소실점 분석 (축 조합 고르기용 — camera.ts rankAxisAssignments). small = 줄인 그림(긴 변 800), k = 줄인 비율 */
+export interface LineAnalysis { small: Gray; k: number; segments: Segment[]; results: VanishingResult[] }
+export function analyzeLines(img: Gray): LineAnalysis | null {
   const { img: small, k } = downscale(img, 800);
   const segs = detectSegments(small);
   if (segs.length < 4) return null;
@@ -211,7 +212,30 @@ export function proposeAxes(img: Gray, opts: { second?: 'y' | 'z' } = {}): AxesP
     rest = rest.filter((s) => !v.inliers.includes(s));
   }
   if (results.length < 2) return null;
-  const horizontality = (r: VanishingResult) => r.inliers.reduce((a, s) => a + Math.abs(dirOf(s)[0]) * s.length, 0) / r.score;
+  return { small, k, segments: segs, results };
+}
+/** 소실점 지지 선분의 가로 성분 (1 = 모두 가로, 0 = 모두 세로) */
+export const horizontalityOf = (r: VanishingResult) => r.inliers.reduce((a, s) => a + Math.abs(dirOf(s)[0]) * s.length, 0) / r.score;
+/** 한 소실점의 지지 선분 중 서로 떨어진 긴 두 개 (along = 떨어짐을 재는 축, extent = 그 축의 길이) */
+export function pickSeparated(r: VanishingResult, along: 0 | 1, extent: number): [Segment, Segment] | null {
+  const list = [...r.inliers].sort((p, q) => q.length - p.length);
+  for (let minSep = extent * 0.3; minSep >= extent * 0.05; minSep /= 2) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      if (Math.abs(mid(list[i])[along] - mid(list[j])[along]) >= minSep) return [list[i], list[j]];
+    }
+  }
+  return null;
+}
+/** 줄인 그림 좌표 → 원본 좌표 */
+export const upscaleSeg = (s: Segment, k: number): Segment => ({ ...s, a: [s.a[0] / k, s.a[1] / k], b: [s.b[0] / k, s.b[1] / k], length: s.length / k });
+export const segMid = mid;
+
+export interface AxesProposal { x: [Segment, Segment]; y: [Segment, Segment]; /** 둘째 쌍의 축 */ second: '+y' | '+z'; segments: Segment[] }
+export function proposeAxes(img: Gray, opts: { second?: 'y' | 'z' } = {}): AxesProposal | null {
+  const an = analyzeLines(img);
+  if (!an) return null;
+  const { small, k, segments: segs, results } = an;
+  const horizontality = horizontalityOf;
   const finite = (r: VanishingResult) => Math.abs(r.v[2]) > 1e-7 * Math.hypot(r.v[0], r.v[1]);
   const vpOf = (r: VanishingResult): Pt => [r.v[0] / r.v[2], r.v[1] / r.v[2]];
   // 가로 축은 지지도가 큰 앞의 둘 중에서(셋째는 깊이 후보로만 — 남은 잡선이 가로 축을 가로채지 않게)
