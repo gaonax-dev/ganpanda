@@ -53,6 +53,8 @@
             <div class="rbody">
               <span class="rhead"><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
+              <!-- 가게 사장 요구사항 (2026-10-22 "요청보기는 제거하고 카드 하단에 소비자 요구사항표시") -->
+              {#if r.text}<p class="need" data-testid="request-need">“{r.text}”</p>{/if}
               {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
             </div>
             <div class="ract">
@@ -91,6 +93,7 @@
   /* 위쪽 줄(가게·배지·지역) 간격 (2026-10-22 "견적요청카드 상단 내용 간격 띄워주고") */
   .rhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; line-height: 1.6; }
   .rhead .tag { margin-left: 0; }
+  .need { margin: 0; padding: 6px 10px; border-left: 3px solid var(--accent); background: var(--input); border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
   .btn.blue { background: #3b82f6; border-color: #3b82f6; color: #fff; font-weight: 700; }
   .rbody p { margin: 0; }
   .muted { color: var(--muted); }
