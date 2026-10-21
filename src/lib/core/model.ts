@@ -208,7 +208,12 @@ export interface ProjectSettings {
   restored?: { by: string; at: number; version: string };
   /** 보드 카드 간격 (mm, 기본 600 — 2026-10-20 "상단 버튼에 카드 간격 + -") — 재정렬·자동 배치에 쓴다 */
   flatGap?: number;
+  /** 소비자 견적 요청 폼의 적던 내용 (견적 초안 방에만; 2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다" — 기기 localStorage 에서 옮김). 보내면 지운다 */
+  estimateDraft?: EstimateDraft;
 }
+
+/** 견적 요청 폼 글 칸 (파일(사본)은 못 남긴다) */
+export interface EstimateDraft { store: string; phone: string; email: string; text: string; address: string; bizNo: string; ownerName: string; startDate: string }
 
 export interface Message {
   id: string;

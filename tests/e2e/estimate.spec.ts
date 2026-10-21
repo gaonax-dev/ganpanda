@@ -55,13 +55,25 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await page.getByTestId('estimate-button').click();
   await expect(page.getByTestId('est-store')).toHaveValue(store);
   await expect(page.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
+  // 다른 기기(같은 계정)에서도 적던 내용이 보인다 — 초안은 계정 초안 방 설정에 (2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다")
+  await dlg.getByTestId('est-text').fill('예산 200만 원');
+  const dev2 = await browser.newContext();
+  const p2 = await dev2.newPage();
+  await p2.goto('/estimate');
+  await p2.evaluate((s) => localStorage.setItem('ganpanda.session', s), custSession);
+  await p2.reload();
+  await expect(p2.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
+  await p2.getByTestId('estimate-button').click();
+  await expect(p2.getByTestId('est-store')).toHaveValue(store);
+  await expect(p2.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
+  await expect(p2.getByTestId('est-text')).toHaveValue('예산 200만 원');
+  await dev2.close();
   // 사업자등록증 사본 → 자동 읽기(로컬 fake: 220-81-62517 · 간판다 카페 · 서울 송파구 …) → 빈 칸이 채워진다, 이후 직접 고친다
   await dlg.getByTestId('est-bizdoc').setInputFiles({ name: '등록증.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]) });
   await expect(dlg.getByTestId('est-scan')).toContainText('읽었습니다');
   await expect(dlg.getByTestId('est-bizno')).toHaveValue('220-81-62517');
   await expect(dlg.getByTestId('est-store')).toHaveValue(store); // 이미 적은 칸은 두고 빈 칸만 채운다
   await expect(dlg.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1'); // 이미 적은 주소는 두고 빈 칸만 채운다
-  await dlg.getByTestId('est-text').fill('예산 200만 원');
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
   expect(link).toMatch(/\/r\/[A-Za-z0-9_-]{16}\?key=/);

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import type { EstimateDraft } from '../core/model';
   // 소비자 견적 요청 보내기 (2026-10-21 "소비자는 간판견적을 보고 견적 요청하는 방식 … 도형그리기 사이즈 그리고 메모로 견적을 요청하게"):
   // /estimate 보드에서 그린 사진·사인물(영역·치수·종류·메모)을 요청판 요청으로 보낸다 → 지역 간판사 홈 "받은 요청" → 제안 링크 → 고객 요청 페이지
   import { app } from '../state.svelte';
@@ -13,16 +15,37 @@
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
   $effect(() => { if (app.account && !email) email = app.account.email.includes('@noemail.') ? '' : app.account.email; });
 
-  // 적던 내용은 기기에 남긴다 (2026-10-21 "사업자등록정보 등록했는데 사라져": 창을 닫거나 카카오 로그인으로 돌아오면 비어 있던 문제). 보내면 지운다. 파일은 못 남긴다
+  // 적던 내용은 남긴다 (2026-10-21 "사업자등록정보 등록했는데 사라져": 창을 닫거나 카카오 로그인으로 돌아오면 비어 있던 문제). 보내면 지운다. 파일은 못 남긴다.
+  // 어디에: **계정의 견적 초안 방 설정**(settings.estimateDraft — 2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다"; 휴대폰에서 적은 것이 PC 에 온다). 기기 localStorage 는 옛 초안 읽기·오프라인 대비용
   const DRAFT_KEY = 'ganpanda.estimateDraft';
-  type Draft = { store: string; phone: string; email: string; text: string; address: string; bizNo: string; ownerName: string; startDate: string };
-  const draft0 = ((): Partial<Draft> => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}') as Partial<Draft>; } catch { return {}; } })();
+  type Draft = EstimateDraft;
+  const localDraft = ((): Partial<Draft> => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}') as Partial<Draft>; } catch { return {}; } })();
+  // svelte-ignore state_referenced_locally
+  const draft0: Partial<Draft> = app.settings.estimateDraft ?? localDraft;
+  let base = JSON.stringify(draft0); // 마지막으로 방과 맞춘 내용 — 이와 다르면 사용자가 고친 것
   let store = $state(draft0.store ?? ''), phone = $state(draft0.phone ?? ''), email = $state(draft0.email ?? ''), text = $state(draft0.text ?? '');
   // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
   let address = $state(draft0.address ?? ''), bizNo = $state(draft0.bizNo ?? '');
   // 사본이 없으면 직접 넣는 검증 요소 (2026-10-21 "사본이 없으면 직접입력 필요한 우리가 필요한 검증 요소만 입력"): 번호 + 대표자 성명 + 개업일 → 국세청 진위확인
   let ownerName = $state(draft0.ownerName ?? ''), startDate = $state(draft0.startDate ?? '');
-  $effect(() => { const d: Draft = { store, phone, email, text, address, bizNo, ownerName, startDate }; try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* 저장 못 해도 됨 */ } });
+  let pushTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const d: Draft = { store, phone, email, text, address, bizNo, ownerName, startDate };
+    const j = JSON.stringify(d);
+    if (j === base) return; // 처음 값·방에서 받은 값 그대로면 쓰지 않는다 (빈 폼이 방의 초안을 덮지 않게)
+    try { localStorage.setItem(DRAFT_KEY, j); } catch { /* 저장 못 해도 됨 */ }
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => { base = j; app.updateSettings({ estimateDraft: d }); }, 400);
+    return () => clearTimeout(pushTimer);
+  });
+  // 방이 나중에 맞춰지면(열자마자 동기화 중) 아직 안 고친 폼에 그 내용을 들인다
+  $effect(() => {
+    const s = app.settings.estimateDraft;
+    if (!s) return;
+    const j = JSON.stringify(s);
+    if (j === base || untrack(() => JSON.stringify({ store, phone, email, text, address, bizNo, ownerName, startDate })) !== base) return;
+    base = j; store = s.store ?? ''; phone = s.phone ?? ''; email = s.email ?? ''; text = s.text ?? ''; address = s.address ?? ''; bizNo = s.bizNo ?? ''; ownerName = s.ownerName ?? ''; startDate = s.startDate ?? '';
+  });
   // 사업자등록증 사본 (2026-10-21 "사업자 사본 받아야 겠다" → "사업자등록증 무조건 넣어줘"): **필수**, 그림·PDF 8MB — 제안을 보낸 간판집만 연다
   let bizDoc = $state<File | null>(null);
   let scanState = $state<'' | 'scanning' | 'ok' | 'failed'>('');
@@ -74,6 +97,8 @@
       // 내 요청 주소를 기기에 기억 (나중에 다시 열어 제안을 본다)
       try { const mine = JSON.parse(localStorage.getItem('ganpanda.myRequests') ?? '[]') as string[]; localStorage.setItem('ganpanda.myRequests', JSON.stringify([r.url, ...mine].slice(0, 20))); } catch { /* 저장 못 해도 됨 */ }
       done = { url: r.url };
+      clearTimeout(pushTimer); base = '';
+      app.updateSettings({ estimateDraft: undefined });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 무시 */ }
     } catch (e) {
       const code = (() => { try { return e instanceof AuthError ? (JSON.parse(e.message) as { error?: string }).error : undefined; } catch { return undefined; } })();
