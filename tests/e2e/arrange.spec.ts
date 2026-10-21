@@ -65,9 +65,10 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   await page.mouse.click(mv.x + mv.width / 2, mv.y + mv.height / 2);
   await expect(page.getByTestId('flat-outline')).toBeVisible();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('600');
-  await page.evaluate(() => (window as unknown as { __ganpanda: { updateSettings(p: unknown): void } }).__ganpanda.updateSettings({ flatOffset: { x: 500, y: 300 } })); // 옮겨 뒀어도
+  await page.evaluate(() => (window as unknown as { __ganpanda: { updateSettings(p: unknown): void } }).__ganpanda.updateSettings({ flatOffset: { x: 500, y: 300 }, flatScale: 0.6 })); // 옮겨 두고 축척을 키워 뒀어도 (2026-10-22 스크린샷: 572% 에서 카드가 흩어졌다)
   await page.getByTestId('flat-rearrange').click();
   expect(await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatOffset?: unknown } } }).__ganpanda.settings.flatOffset)).toEqual({ x: 0, y: 0 }); // ✥ 기본 자리
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale)).toBeLessThan(0.6); // 사진과 같은 비율로
   await page.getByTestId('zoom-fit').click();
   await page.waitForTimeout(300);
   // 화면에서 사인물(사진 위)과 그 카드(사진 아래)를 비교

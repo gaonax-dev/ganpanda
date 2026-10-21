@@ -1044,7 +1044,8 @@ class AppState {
     const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
-    this.updateSettings({ flatOffset: { x: 0, y: 0 } }); // ✥ 를 기본 자리로
+    // ✥ 를 기본 자리로, 축척도 사진과 같은 비율로 (2026-10-22 사용자 스크린샷 "상태가 점점 심각해지고 있어": 저장된 축척 572% 로 그려 카드가 사진의 몇 배로 흩어졌다)
+    this.updateSettings({ flatOffset: { x: 0, y: 0 }, ...(ratios.length ? { flatScale: Math.round(clampFlatScale(1 / s) * 10000) / 10000 } : {}) });
     this.editBoundary();
   }
   /** 카드 간격 바꾸고 그 간격으로 다시 정렬 */

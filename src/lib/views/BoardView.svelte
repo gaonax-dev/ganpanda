@@ -60,6 +60,11 @@
     const { w, h } = canvas.size();
     const x = Math.min(...xs), y = Math.min(...ys) - 60;
     viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, w, h, 60);
+    // 카드 묶음 아래 도구 줄(flat-label)과 하단 도구 막대 자리 — 화면 약 120px 를 더 비워 다시 맞춘다 (2026-10-22)
+    if (withCards && bounds) {
+      const bottom = Math.max(...ys) + 120 / viewport.zoom;
+      viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: bottom - y }, w, h, 60);
+    }
   }
 
   // 사진 교체 (2026-10-21): 메뉴 [사진 교체] → 파일 고르기 → app.replacePhoto
@@ -421,7 +426,8 @@
     {/each}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
-      <div class="flat-label" style:left="{origin.x}px" style:top="{origin.y - 22}px" style:transform="scale({1 / viewport.zoom})" style:transform-origin="0 100%">
+      <!-- 도구 줄은 카드 묶음 바로 아래 (2026-10-22: 사진 아래 고정 거리면 축소했을 때 사진 위로 겹쳤다) -->
+      <div class="flat-label" data-testid="flat-label" style:left="{bounds ? bounds.x : origin.x}px" style:top="{bounds ? bounds.y + bounds.h : origin.y}px" style:transform="scale({1 / viewport.zoom}) translate(0, 14px)" style:transform-origin="0 0">
         평면도 · 끌어서 배치 (리스트와 같은 배치)
         {#if app.canEdit}
           {#if app.flatArrange}
