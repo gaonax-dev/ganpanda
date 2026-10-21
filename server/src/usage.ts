@@ -11,7 +11,7 @@ export const monthStart = (now = Date.now()) => { const d = new Date(now); retur
 
 /** 계정의 모든 프로젝트에서 이번 달 만든 제안 링크 수 */
 export async function proposalsThisMonth(env: Env, accountId: string): Promise<number> {
-  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM invites i JOIN projects p ON p.id = i.project_id WHERE p.owner_id = ? AND i.kind = 'proposal' AND i.refunded_at IS NULL AND i.created_at >= ?")
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM invites i JOIN projects p ON p.id = i.project_id WHERE p.owner_id = ? AND i.kind = 'proposal' AND i.created_at >= ?")
     .bind(accountId, monthStart()).first<{ n: number }>();
   return Number(r?.n ?? 0);
 }

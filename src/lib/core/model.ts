@@ -212,8 +212,6 @@ export interface ProjectSettings {
   estimateDraft?: EstimateDraft;
   /** 보낸 견적 요청 (견적 초안 방, 2026-10-22 "견적이 요청되면 수정이 불가능하다"): 있으면 보드는 잠김 — 취소하면 지운다 */
   estimateRequest?: { id: string; url: string; at: number };
-  /** 취소한 앞 요청 — 다시 보내면 재요청(prevId)으로 그 간판집에 재견적 */
-  estimatePrev?: string;
   /** 고른 신원: 사업자(stores id) 또는 'general'(일반 주문) — 기기 사이 같이 */
   estimateIdentity?: string;
 }

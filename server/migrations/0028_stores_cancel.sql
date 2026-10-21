@@ -20,5 +20,5 @@ ALTER TABLE requests ADD COLUMN store_id TEXT;
 ALTER TABLE requests ADD COLUMN general INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE requests ADD COLUMN prev_id TEXT;
 ALTER TABLE requests ADD COLUMN cancelled_at INTEGER;
--- 요청이 취소되면 그 요청에 보낸 제안 링크는 이번 달 제안 건수에서 빠진다 (환불)
+-- (쓰지 않음 — 2026-10-22 같은 날 "환불 재요청 빼줘"로 환불·재요청을 뺐다. 운영에 이미 적용되어 열은 남는다: requests.prev_id, invites.refunded_at)
 ALTER TABLE invites ADD COLUMN refunded_at INTEGER;

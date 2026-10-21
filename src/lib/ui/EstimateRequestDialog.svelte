@@ -136,8 +136,7 @@
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
-      const prevId = app.settings.estimatePrev;
-      const r = await createRequest({ ...(chosen ? { storeId: chosen.id } : { general: true }), ...(prevId ? { prevId } : {}), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
+      const r = await createRequest({ ...(chosen ? { storeId: chosen.id } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
       for (let i = 0; i < photoOrder.length; i++) {
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -149,7 +148,7 @@
       done = { url: r.url };
       clearTimeout(pushTimer); pending = null; base = '';
       // 보낸 뒤에는 보드를 잠근다 — 취소하면 풀린다 (2026-10-22 "견적이 요청되면 수정이 불가능하다")
-      app.project.updateSettings({ estimateRequest: { id: r.id, url: r.url, at: Date.now() }, estimatePrev: undefined, estimateDraft: undefined });
+      app.project.updateSettings({ estimateRequest: { id: r.id, url: r.url, at: Date.now() }, estimateDraft: undefined });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* 무시 */ }
       step = 'done';
     } catch (e) { error = errorText(e); } finally { busy = ''; }
@@ -262,8 +261,8 @@
         {/if}
         {#if error}<p class="err" data-testid="estimate-error">{error}</p>{/if}
         <footer>
-          <small class="hint">보낸 뒤에는 보드를 고칠 수 없어요 (요청을 취소하면 다시 고칠 수 있어요). 돈은 간판집과 직접.</small>
-          <button class="btn primary" type="submit" data-testid="estimate-send" disabled={!!busy}>{busy || (app.settings.estimatePrev ? '다시 견적 요청 보내기' : '견적 요청 보내기')}</button>
+          <small class="hint">보낸 뒤에는 보드를 고칠 수 없어요 (요청을 취소하면 다시 고쳐 새로 보낼 수 있어요). 돈은 간판집과 직접.</small>
+          <button class="btn primary" type="submit" data-testid="estimate-send" disabled={!!busy}>{busy || '견적 요청 보내기'}</button>
         </footer>
       </form>
     {:else if step === 'done' && done}

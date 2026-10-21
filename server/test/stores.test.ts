@@ -81,11 +81,13 @@ describe('일반 주문 (사업자 없음)', () => {
   });
 });
 
-describe('요청 취소 → 간판집 제안 건수 환불, 재요청 → 그 간판집에 재견적', () => {
-  it('취소하면 status cancelled, 제안을 보낸 간판집의 이번 달 제안 건수에서 빠진다; 재요청(prevId)은 그 간판집 목록에 재견적으로', async () => {
+describe('요청 취소 — 요청을 닫기만 (2026-10-22 "취소만 남기고 환불 재요청 빼줘": 간판집은 이미 연락처를 받았다)', () => {
+  it('취소하면 status cancelled, 제안 건수는 그대로, 간판집 목록에는 취소됨, 더는 제안 못 함; prevId 는 무시', async () => {
     const cust = await login(`cx-${crypto.randomUUID().slice(0, 6)}@example.com`);
     const shop = await login(`sx-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    const late = await login(`sl-${crypto.randomUUID().slice(0, 6)}@example.com`);
     await json('/api/me/request-settings', { receive: true, regions: ['경기 광주시'] }, shop, 'PUT');
+    await json('/api/me/request-settings', { receive: true, regions: ['경기 광주시'] }, late, 'PUT');
     const { id, key } = await (await json('/api/requests', req({ general: true }), cust)).json<{ id: string; key: string }>();
     const { project } = await (await json(`/api/requests/${id}/respond`, {}, shop)).json<{ project: { id: string } }>();
     await json(`/api/projects/${project.id}/invites`, { role: 'viewer', kind: 'proposal' }, shop);
@@ -94,24 +96,19 @@ describe('요청 취소 → 간판집 제안 건수 환불, 재요청 → 그 �
     expect((await json(`/api/requests/${id}/cancel`, {}, shop)).status).toBe(403); // 간판집은 못 취소
     const c = await json(`/api/requests/${id}/cancel?key=${key}`, {}, '');
     expect(c.status).toBe(200);
-    expect(await c.json()).toEqual({ ok: true, refunded: 1 });
-    expect(await used()).toBe(0); // 토큰(제안 건수) 환불
+    expect(await c.json()).toEqual({ ok: true });
+    expect(await used()).toBe(1); // 환불 없음
     const v = await (await get(`/api/requests/${id}`, cust)).json<{ request: { status: string; cancelledAt: number } }>();
     expect(v.request.status).toBe('cancelled');
-    expect((await json(`/api/requests/${id}/cancel`, {}, cust)).status).toBe(409); // 이미 취소
-    // 받은 요청 목록: 취소된 요청은 "취소됨"으로만
-    const before = await (await get('/api/requests', shop)).json<{ requests: { id: string; status: string }[] }>();
-    expect(before.requests.find((r) => r.id === id)!.status).toBe('cancelled');
-    // 재요청: 지역을 안 받는 간판집이어도 앞 요청에 제안했으면 받는다 (재견적)
-    await json('/api/me/request-settings', { receive: false, regions: [] }, shop, 'PUT');
+    expect((await json(`/api/requests/${id}/cancel`, {}, cust)).status).toBe(409);
+    const list = await (await get('/api/requests', shop)).json<{ requests: { id: string; status: string }[] }>();
+    expect(list.requests.find((r) => r.id === id)!.status).toBe('cancelled');
+    expect((await (await get('/api/requests', late)).json<{ requests: { id: string }[] }>()).requests.map((r) => r.id)).not.toContain(id); // 새 간판집에는 안 보임
+    expect((await json(`/api/requests/${id}/respond`, {}, late)).status).toBe(403);
+    // 다시 보내면 그냥 새 요청 (재요청·재견적 없음)
     const re = await json('/api/requests', req({ general: true, prevId: id }), cust);
     expect(re.status).toBe(201);
     const { id: id2 } = await re.json<{ id: string }>();
-    const after = await (await get('/api/requests', shop)).json<{ requests: { id: string; reRequest?: boolean }[] }>();
-    expect(after.requests.find((r) => r.id === id2)).toMatchObject({ reRequest: true });
-    expect((await json(`/api/requests/${id2}/respond`, {}, shop)).status).toBe(201);
-    // 남의 취소 요청을 prevId 로 쓰면 400
-    const other = await login(`cx-${crypto.randomUUID().slice(0, 6)}@example.com`);
-    expect((await json('/api/requests', req({ general: true, prevId: id }), other)).status).toBe(400);
+    expect(await env.DB.prepare('SELECT prev_id FROM requests WHERE id = ?').bind(id2).first()).toEqual({ prev_id: null });
   });
 });

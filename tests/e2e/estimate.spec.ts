@@ -139,7 +139,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shopCtx.close();
 });
 
-test('직접 입력으로 인증(틀리면 안내) → [변경]에서 일반 주문(불이익 안내) → 보내면 잠김 → 요청 페이지에서 취소 → 고쳐서 다시 요청 (2026-10-22)', async ({ page, request }) => {
+test('직접 입력으로 인증(틀리면 안내) → [변경]에서 일반 주문(불이익 안내) → 보내면 잠김 → 요청 페이지에서 취소(닫기만) → 잠금 풀려 새로 요청 (2026-10-22)', async ({ page, request }) => {
   const store = `빵집 ${Math.random().toString(36).slice(2, 7)}`;
   const session = await apiLogin(request);
   await page.goto('/');
@@ -184,5 +184,5 @@ test('직접 입력으로 인증(틀리면 안내) → [변경]에서 일반 주
   await expect(page.getByTestId('estimate-button')).toBeVisible({ timeout: 15_000 }); // 잠금이 풀렸다
   await expect(page.getByTestId('estimate-locked')).toHaveCount(0);
   await page.getByTestId('estimate-button').click();
-  await expect(page.getByTestId('estimate-send')).toHaveText('다시 견적 요청 보내기');
+  await expect(page.getByTestId('estimate-send')).toHaveText('견적 요청 보내기'); // 재요청 없음 — 그냥 새 요청 (2026-10-22 "환불 재요청 빼줘")
 });

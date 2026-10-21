@@ -1,6 +1,6 @@
 <!-- 고객의 내 요청 페이지 — /r/<id>?key= 또는 로그인 세션(요청한 계정, 2026-10-21).
-     2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "견적요청 취소 후 재 요청할수있다":
-     진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소] → [고쳐서 다시 요청] -->
+     2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "취소만 남기고 환불 재요청 빼줘":
+     진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
   import { cancelRequest, customerPhotoUrl, getRequest, type CustomerRequestView } from '../requests';
   import { SERVER_URL } from '../sync';
@@ -23,7 +23,7 @@
   const signs = $derived(r?.signs ?? []);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
   async function cancel() {
-    if (busy || !confirm('견적 요청을 취소할까요?\n\n제안을 보낸 간판집에는 제안 건수를 돌려 드립니다. 고쳐서 다시 요청하면 그 간판집들에도 재견적을 요청해요.')) return;
+    if (busy || !confirm('견적 요청을 취소할까요?\n\n요청이 닫혀 더는 새 제안이 오지 않아요. 이미 제안한 간판집은 연락처를 받았으니 필요하면 직접 연락이 올 수 있어요.')) return;
     busy = true;
     try { await cancelRequest(id, key); await load(); } catch { error = '취소하지 못했습니다. 잠시 뒤 다시 해 주세요.'; } finally { busy = false; }
   }
@@ -35,7 +35,7 @@
   {:else}
     <header class="hero" data-status={r.status}>
       <div class="top">
-        <small>간판 견적 요청 · {date(r.createdAt)}{r.reRequest ? ' · 재요청' : ''}</small>
+        <small>간판 견적 요청 · {date(r.createdAt)}</small>
         {#if r.bizVerified}<span class="badge ok" data-testid="request-badge" data-kind="verified">✓ 사업자 인증</span>
         {:else if r.general}<span class="badge plain" data-testid="request-badge" data-kind="general">일반 주문</span>{/if}
       </div>
@@ -48,8 +48,8 @@
 
     <section class="card status" data-testid="request-status" data-status={r.status}>
       {#if r.status === 'cancelled'}
-        <b>취소한 요청입니다.</b> 제안을 보낸 간판집에는 제안 건수를 돌려 드렸어요. 보드를 고쳐 다시 보내면 그 간판집들에게 간판다가 재견적을 요청합니다.
-        <a class="btn primary" data-testid="request-again" href="/estimate">고쳐서 다시 요청하기</a>
+        <b>취소한 요청입니다.</b> 더는 새 제안이 오지 않아요. 이미 제안한 간판집과는 직접 이야기를 이어 갈 수 있어요.
+        <a class="btn primary" data-testid="request-again" href="/estimate">고쳐서 새로 요청하기</a>
       {:else if r.status === 'approved'}
         ✅ <b>{view.request.approvedShop}</b>의 제안을 골랐습니다. 이후 일정·계약은 그 간판집과 직접 진행하세요.
       {:else if view.responses.length}
@@ -84,7 +84,7 @@
 
     {#if r.status === 'open'}
       <button class="btn danger" data-testid="request-cancel" disabled={busy} onclick={cancel}>{busy ? '취소하는 중…' : '요청 취소'}</button>
-      <p class="fine">보낸 요청은 고칠 수 없어요. 고치려면 취소하고 다시 요청해 주세요.</p>
+      <p class="fine">보낸 요청은 고칠 수 없어요. 고치려면 취소하고 새로 요청해 주세요.</p>
     {/if}
     {#if error}<p class="warn">{error}</p>{/if}
     <p class="fine">계약과 결제는 간판집과 직접 하시고, 간판다는 요청을 전달하고 합의 내용(승인)을 기록합니다.</p>

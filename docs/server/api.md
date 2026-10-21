@@ -68,7 +68,7 @@
 | GET | `/api/requests` | 간판사: 받은 요청 — 요청 받기가 켜진 지역의 열린 요청 + 내가 답한 요청. 제안을 보낸 요청에만 `phone`·`email` | `{requests[{…, responded, projectId?, phone?}]}` / 401 |
 | GET·POST | `/api/me/stores` `{bizNo, ownerName, startDate, name, address}` | 가게 사장의 사업자 (2026-10-22, 여럿): 국세청 진위확인 통과만 저장. 목록은 최근 순 | 200 `{stores}` / 201 `{store}` / 400 mismatch·not_registered·biz_closed·bad_input / 502 nts_unavailable |
 | PUT·DELETE | `/api/me/stores/:id/doc` · `/api/me/stores/:id` | 사업자등록증 사본(그림·PDF 8MB) 붙이기 · 사업자 지우기 | 200 / 404 / 413 / 415 |
-| POST | `/api/requests/:id/cancel?key=` | 고객이 요청 취소 (열린 요청만, 2026-10-22): 그 요청에 보낸 제안 링크는 이번 달 제안 건수에서 빠진다(환불), 간판집에 메일 | 200 `{ok, refunded}` / 403 / 409 not_open |
+| POST | `/api/requests/:id/cancel?key=` | 고객이 요청 취소 (열린 요청만, 2026-10-22): 요청을 닫기만 — 환불·재요청 없음, 제안했던 간판집에 메일 | 200 `{ok}` / 403 / 409 not_open |
 | POST | `/api/requests/:id/respond` | 간판사: 요청에서 프로젝트 만들기(`projects.request_id`, 이름 "<가게> 요청"). 이미 있으면 그것 | 201/200 `{project}` / 401 / 403 / 404 |
 | PUT | `/api/me/request-settings` `{receive, regions[]}` | 요청 받기·지역 (쉼표 구분 저장, 최대 20곳). `GET /api/me` 의 `requestSettings` | `{requestSettings}` / 400 / 401 |
 | GET | `/p/:project/:token` | **제안 링크 랜딩** (OG 메타: 프로젝트 이름, `/p/:project/:token/image.png`) → 앱 `/?room=&invite=&proposal=1` 로 이동. 토큰이 자격 | 200 HTML / 404 |
