@@ -35,6 +35,8 @@
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
     // 매직링크가 가리키는 앱 주소
-    "APP_URL": "https://ganpanda.co.kr"
+    "APP_URL": "https://ganpanda.co.kr",
+    // 운영자: 지역에 상관없이 모든 견적 요청을 받고 알림 메일을 받는다 — 가입 간판집이 생기기 전 수동 처리 (2026-10-21)
+    "OPERATOR_EMAILS": "eshellster@gmail.com"
   }
 }

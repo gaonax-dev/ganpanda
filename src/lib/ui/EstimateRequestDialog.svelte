@@ -101,7 +101,7 @@
         <button class="btn" data-testid="estimate-login-other" onclick={() => { app.estimateOpen = false; app.loginOpen = true; }}>다른 방법으로 로그인</button>
       </div>
     {:else if done}
-      <p class="ok" data-testid="estimate-done">요청을 보냈습니다. 이 지역 간판집들이 보고 제안을 보내면 아래 주소에서 비교할 수 있습니다. <b>주소를 꼭 저장해 두세요.</b></p>
+      <p class="ok" data-testid="estimate-done">요청을 보냈습니다. 이 지역 간판집들이 보고 제안을 보내면 아래 주소에서 비교할 수 있습니다(지역에 가입 간판집이 아직 없으면 간판다가 직접 확인해 연결해 드립니다). <b>주소를 꼭 저장해 두세요.</b></p>
       <div class="link"><input data-testid="estimate-done-link" readonly value={done.url} /><button class="btn small" data-testid="estimate-copy" onclick={copy}>{copied ? '복사됨' : '복사'}</button></div>
       <footer><a class="btn primary" href={done.url} data-testid="estimate-open">내 요청 페이지 열기</a><button class="btn" onclick={close}>닫기</button></footer>
     {:else}

@@ -156,6 +156,15 @@ describe('간판사: 요청 받기 설정과 받은 요청', () => {
     expect(mine.phone).toBeUndefined();
     expect(list.requests.every((r) => r.id === a.id || r.store !== '서울집')).toBe(true);
   });
+  it('운영자(OPERATOR_EMAILS)는 요청 받기 설정 없이도 모든 지역의 열린 요청을 보고 답할 수 있다 (2026-10-21 수동 처리 기간)', async () => {
+    const op = await login('op@example.com');
+    const { id } = await (await create({ region: '제주 서귀포시' })).json<{ id: string }>();
+    const list = await (await get('/api/requests', op)).json<{ requests: { id: string }[] }>();
+    expect(list.requests.map((r) => r.id)).toContain(id);
+    expect((await json(`/api/requests/${id}/respond`, {}, op)).status).toBe(201);
+    const other = await (await get('/api/requests', shop)).json<{ requests: { id: string }[] }>(); // 보통 간판사는 지역이 달라 못 본다
+    expect(other.requests.map((r) => r.id)).not.toContain(id);
+  });
   it('요청 받기를 끄면 목록이 비고, 요청 받기 안 켠 계정에도 빈 목록', async () => {
     await create();
     await setSettings(shop, false, ['경기 광주시']);

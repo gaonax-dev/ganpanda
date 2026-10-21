@@ -45,9 +45,13 @@ const appUrl = (env: Env) => env.APP_URL.replace(/\/+$/, '');
 const getRequest = (env: Env, id: string) => env.DB.prepare('SELECT * FROM requests WHERE id = ?').bind(id).first<RequestRow>();
 
 /** 간판사가 이 요청을 볼 수 있나: 요청 받기 + 지역 일치(열린 요청), 또는 이미 답한 요청 */
+/** 운영자 (2026-10-21 "받을 간판 가게가 없다. 일정 기간 수동으로 처리"): OPERATOR_EMAILS 의 계정은 지역에 상관없이 모든 열린 요청을 받고 알림 메일도 받는다 */
+const operatorEmails = (env: Env) => (env.OPERATOR_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+const isOperator = (env: Env, email: string) => operatorEmails(env).includes(email.toLowerCase());
 async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean> {
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;
+  if (r.status === 'open' && isOperator(env, me.email)) return true;
   if (!me.receive_requests || r.status !== 'open') return false;
   return regionsOf(me).some((g) => regionMatches(g, r.region));
 }
@@ -68,7 +72,8 @@ async function notify(env: Env, r: RequestRow, url: string) {
   const shops = await env.DB.prepare("SELECT email, regions FROM accounts WHERE receive_requests = 1 AND regions <> ''").all<{ email: string; regions: string }>();
   const hit = shops.results.filter((s) => regionsOf(s).some((g) => regionMatches(g, r.region)));
   const home = `${appUrl(env)}/`;
-  for (const s of hit) {
+  const to = new Set([...hit.map((s) => s.email), ...operatorEmails(env)]); // 운영자는 항상 (지역에 간판집이 없는 동안 수동 처리)
+  for (const s of [...to].map((email) => ({ email }))) {
     try {
       await env.EMAIL.send({ to: s.email, from: FROM, subject: `[간판다] ${r.region} 간판 견적 요청 — ${r.store}`,
         text: `${r.region}에서 간판 견적 요청이 왔습니다.\n\n가게: ${r.store}\n내용: ${r.text || '(없음)'}\n\n간판다 홈의 "받은 요청"에서 사진을 보고 제안을 만드세요: ${home}\n제안 링크를 보내면 고객 연락처가 보입니다.` });
@@ -180,7 +185,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
       .bind(me.id).all<{ request_id: string; project_id: string; proposal_url: string | null }>();
     const byReq = new Map(mine.results.map((m) => [m.request_id, m]));
     const regions = me.receive_requests ? regionsOf(me) : [];
-    const open = regions.length ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => regions.some((g) => regionMatches(g, r.region))) : [];
+    const operator = isOperator(env, me.email);
+    const open = regions.length || operator ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => operator || regions.some((g) => regionMatches(g, r.region))) : [];
     const answered = byReq.size ? (await env.DB.prepare(`SELECT * FROM requests WHERE id IN (${[...byReq.keys()].map(() => '?').join(',')})`).bind(...byReq.keys()).all<RequestRow>()).results : [];
     const all = new Map<string, RequestRow>();
     for (const r of [...open, ...answered]) all.set(r.id, r);

@@ -11,7 +11,7 @@ export default defineConfig({
       miniflare: {
         // 테스트에서는 이메일 대신 링크를 응답에 돌려준다
         bindings: {
-          TEST_MIGRATIONS: migrations, AUTH_DEV_LINK: '1', APP_URL: 'http://localhost:5199',
+          TEST_MIGRATIONS: migrations, AUTH_DEV_LINK: '1', APP_URL: 'http://localhost:5199', OPERATOR_EMAILS: 'op@example.com',
           // 운영자 복원 API (2026-10-21 백업 2단계)
           ADMIN_TOKEN: 'test-admin',
           // 소셜 로그인 테스트용 가짜 자격 (외부 호출은 fetchMock 으로 대체)
