@@ -38,8 +38,8 @@ const sideQuad = (page: Page, x: number, y0: number, h: number, out0: number, w:
 }, { x, y0, h, out0, w });
 const listOf = (page: Page) => page.evaluate(() => Object.fromEntries((window as unknown as { __ganpanda: { objects: { name: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.map((o) => [o.name, [o.listX, o.listY]])));
 
-test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 그리드(사인물 축선으로 행·열 셀, 사진 묶음은 사진 배치대로 그 사진 아래) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
-  // 2026-10-20 사용자: "사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록 구성해줘" → "그리드 방식으로 진행해줘"
+test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재정렬] = 사진과 같은 비율(카드 가운데 = 사진 속 사인물 가운데, 사진 묶음은 그 사진 아래, ✥ 는 기본 자리) — 간격 ± 는 그 간격으로 다시, 카드는 자유롭게', async ({ page, request }) => {
+  // 2026-10-22 사용자: "자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다" (2026-10-20 그리드는 대체됨)
   await openOwnedProject(page, request);
   await loadSample(page);
   await setCamera(page);
@@ -65,7 +65,9 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   await page.mouse.click(mv.x + mv.width / 2, mv.y + mv.height / 2);
   await expect(page.getByTestId('flat-outline')).toBeVisible();
   await expect(page.getByTestId('flat-gap-value')).toHaveText('600');
+  await page.evaluate(() => (window as unknown as { __ganpanda: { updateSettings(p: unknown): void } }).__ganpanda.updateSettings({ flatOffset: { x: 500, y: 300 } })); // 옮겨 뒀어도
   await page.getByTestId('flat-rearrange').click();
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatOffset?: unknown } } }).__ganpanda.settings.flatOffset)).toEqual({ x: 0, y: 0 }); // ✥ 기본 자리
   await page.getByTestId('zoom-fit').click();
   await page.waitForTimeout(300);
   // 화면에서 사인물(사진 위)과 그 카드(사진 아래)를 비교

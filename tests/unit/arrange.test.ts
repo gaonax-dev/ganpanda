@@ -1,7 +1,7 @@
 // 사진 보드 카드 정렬 — 그리드 (2026-10-20 사용자: "엑셀의 그리드로 설명하면 구조의 최대 블록을 생성하고 해당 그림의 위치를 다시 그리는데 차지하는 면적에 따라 병합한 위치에 사진을 둘수 있다.
 // 축들이 완성되면 축 덩어리를 나열하고 다시 사진 단위로 배치한다. 사진이 2열이면 정면도 카드 사진그룹도 2열로 배열한다." → "그리드 방식으로 진행해줘")
 import { describe, expect, it } from 'vitest';
-import { arrangeGrid, axisLines, gridOf, homeOf, photoGrid } from '../../src/lib/core/arrange';
+import { arrangeLikePhotos, axisLines, gridOf, homeOf, photoGrid } from '../../src/lib/core/arrange';
 
 describe('axisLines — 가까운 값을 하나의 축선으로', () => {
   it('허용 오차 안의 값은 평균 하나로, 순서대로', () => {
@@ -56,28 +56,31 @@ describe('photoGrid — 보드의 사진 배치를 행·열로', () => {
   });
 });
 
-describe('arrangeGrid — 셀 크기 = 그 칸 카드의 최대 크기, 병합 셀은 가운데, 사진 묶음은 사진 배치 그대로 행·열', () => {
-  const photos = [{ x: 0, y: 0, w: 1200, h: 900, imgW: 1000, imgH: 1000 }, { x: 1300, y: 0, w: 1200, h: 900, imgW: 1000, imgH: 1000 }];
-  it('위 셋 + 아래 병합 하나, 둘째 사진은 오른쪽 열', () => {
-    const c = (id: string, w: number, h: number, photo: number | null, x0: number, y0: number, x1: number, y1: number) => ({ id, w, h, photo, box: { x0, y0, x1, y1 } });
-    const out = arrangeGrid([
-      c('u1', 600, 900, 0, 100, 100, 300, 400), c('u2', 400, 800, 0, 302, 100, 500, 400), c('u3', 600, 900, 0, 498, 100, 700, 400),
-      c('long', 1800, 300, 0, 101, 500, 699, 600),
-      c('p2', 500, 500, 1, 100, 100, 300, 300),
-      c('free', 700, 700, null, 0, 0, 0, 0),
-    ], photos, 100, 0, 0.03);
-    // 열 너비 600·400·600, 간격 100 → 열 x 0·700·1200, 전체 1800. 1행 높이 900
-    expect(out.get('u1')).toEqual({ x: 0, y: 0 });
-    expect(out.get('u2')).toEqual({ x: 700, y: 50 }); // 400×800 은 600? 아님 — 열 너비 400, 행 높이 900 → 세로 가운데
-    expect(out.get('u3')).toEqual({ x: 1200, y: 0 });
-    expect(out.get('long')).toEqual({ x: 0, y: 1000 }); // 세 칸 병합(폭 1800) 가운데 — 딱 맞음
-    expect(out.get('p2')).toEqual({ x: 1800 + 200, y: 0 }); // 둘째 사진 묶음 = 다음 열, 묶음 사이 간격 두 배
-    expect(out.get('free')).toEqual({ x: 0, y: 1300 + 200 });
+describe('arrangeLikePhotos — 사진과 같은 비율 (2026-10-22 "자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게")', () => {
+  const c = (id: string, w: number, h: number, photo: number | null, x0: number, y0: number, x1: number, y1: number) => ({ id, w, h, photo, box: { x0, y0, x1, y1 } });
+  const ph = { x: 0, y: 0, w: 10000, h: 10000, imgW: 1000, imgH: 1000 }; // 1px = 10mm
+  it('카드 가운데 = 사진 속 사인물 가운데, 맨 위는 0, x 는 사진 기준', () => {
+    const out = arrangeLikePhotos([c('a', 2000, 1000, 0, 100, 100, 300, 200), c('b', 1000, 1000, 0, 650, 450, 750, 550)], [ph], 100, 0);
+    expect(out.get('a')).toEqual({ x: 1000, y: 0 }); // 가운데 (2000,1500) − 크기/2 → (1000,1000) → 맨 위 0
+    expect(out.get('b')).toEqual({ x: 6500, y: 3500 });
   });
-  it('묶음은 자기 사진 아래(사진 왼쪽에서 시작) — 앞 묶음이 짧으면 사이가 빈다', () => {
-    const far = [{ x: 0, y: 0, w: 12000, h: 9000, imgW: 1000, imgH: 1000 }, { x: 13000, y: 0, w: 12000, h: 9000, imgW: 1000, imgH: 1000 }];
-    const out = arrangeGrid([{ id: 'a', w: 500, h: 500, photo: 0, box: { x0: 0, y0: 0, x1: 100, y1: 100 } }, { id: 'b', w: 500, h: 500, photo: 1, box: { x0: 0, y0: 0, x1: 100, y1: 100 } }], far, 100, 0);
-    expect(out.get('a')).toEqual({ x: 0, y: 0 });
-    expect(out.get('b')).toEqual({ x: 13000, y: 0 });
+  it('실제 크기가 사진보다 커서 겹치면 큰 카드가 자리, 작은 카드는 덜 움직이는 쪽으로 간격 두고 비킨다 (이름 줄 포함)', () => {
+    const out = arrangeLikePhotos([c('big', 4000, 2000, 0, 100, 100, 300, 200), c('small', 1000, 1000, 0, 320, 120, 380, 180)], [ph], 100, 200);
+    expect(out.get('big')).toEqual({ x: 0, y: 0 });
+    expect(out.get('small')).toEqual({ x: 4100, y: 500 }); // 오른쪽으로 밀림: big 오른쪽 4000 + 간격 100. y 는 원래 자리(1000 − 맨 위 500)
+  });
+  it('사진 묶음은 사진 자리 그대로 — 옆 사진은 그 사진 아래, 아랫줄 사진은 윗줄 아래로, 사진 없는 카드는 맨 아래 한 줄', () => {
+    const photos = [ph, { ...ph, x: 11000 }, { ...ph, y: 11000 }];
+    const out = arrangeLikePhotos([c('a', 1000, 1000, 0, 450, 450, 550, 550), c('b', 1000, 1000, 1, 450, 450, 550, 550), c('d', 1000, 1000, 2, 450, 450, 550, 550), c('free', 500, 500, null, 0, 0, 0, 0)], photos, 100, 0);
+    expect(out.get('a')).toEqual({ x: 4500, y: 0 });
+    expect(out.get('b')).toEqual({ x: 15500, y: 0 });
+    expect(out.get('d')).toEqual({ x: 4500, y: 11000 });
+    expect(out.get('free')).toEqual({ x: 0, y: 12000 + 200 });
+  });
+  it('묶음끼리 겹치면 오른쪽으로 간격 두 배', () => {
+    const photos = [ph, { ...ph, x: 9000 }]; // 사진이 붙어 있고 카드가 넓다 — b 는 원래 9100 에서 a 오른쪽 9500 + 간격 두 배로
+    const out = arrangeLikePhotos([c('a', 9000, 1000, 0, 50, 100, 950, 200), c('b', 2000, 1000, 1, 10, 100, 210, 200)], photos, 100, 0);
+    expect(out.get('a')).toEqual({ x: 500, y: 0 });
+    expect(out.get('b')!.x).toBe(9500 + 200);
   });
 });

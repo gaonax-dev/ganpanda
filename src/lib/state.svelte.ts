@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeGrid, homeOf } from './core/arrange';
+import { arrangeLikePhotos, homeOf } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
@@ -22,7 +22,7 @@ import { materializeRequestSigns } from './core/requestSigns';
 import { estimateProject } from './projects';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
-import { autoFlatScale, clampFlatScale, flatOrigin, placeholderSize } from './core/boardCards';
+import { autoFlatScale, clampFlatScale, placeholderSize } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
 import type { Business } from './core/business';
@@ -1016,15 +1016,22 @@ class AppState {
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
   flatArrange = $state(false);
   /**
-   * 카드 재정렬 — 그리드 (2026-10-20 사용자: "… 사진보드의 사진과 사인물 배치 그리고 카드 정렬을 비교해 최대한 같은 위치로 인식되도록" → "엑셀의 그리드로 … 그리드 방식으로 진행해줘"):
-   * 사진마다 사인물 외곽선 끝을 축선으로 묶어 행·열 셀(병합)을 만들고, 열 너비·행 높이 = 그 칸 카드의 최대 실제 크기, 카드는 병합 셀 가운데.
-   * 사진 묶음은 보드의 사진 배치 그대로 행·열 (core/arrange.ts arrangeGrid). 카드 아래 이름 줄(보드 약 100px)도 행 높이에. 한 번의 ⌘Z
+   * 카드 재정렬 — 사진과 같은 비율 (2026-10-22 사용자: "재정렬 예전에 똑똑하게 잘된거 같은데 자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다"; 2026-10-20 그리드는 대체됨):
+   * 보드 px → mm 는 **실제 벽 축척**(치수 있는 사인물의 mm ÷ 사진 속 폭(보드 px), 중앙값 — 없으면 1/축척)으로 바꿔 사진 배치를 mm 로 옮기고, 카드 가운데 = 사진 속 사인물 가운데(core/arrange.ts arrangeLikePhotos).
+   * 묶음 왼쪽 위는 기본 자리: flatOffset 도 0 으로. 카드 아래 이름 줄(보드 약 100px)도 겹침에. 한 번의 ⌘Z
    */
   arrangeFlatCards(gap = this.flatGap) {
     if (!this.canEdit || !this.flatCards.length) return;
     const k = this.flatScale;
-    const o = flatOrigin(this.photos, 80, this.flatOffset);
-    const photos = this.photos.map((p) => ({ x: (p.x - o.x) / k, y: (p.y - o.y) / k, w: p.width / k, h: (p.width * (p.h / p.w)) / k, imgW: p.w, imgH: p.h }));
+    const ratios = this.flatCards.flatMap(({ o, w, placeholder }) => {
+      const p = this.photos.find((x) => x.id === o.photoId);
+      if (placeholder || !p || o.quad.length !== 4 || !p.w) return [];
+      const [tl, tr, br, bl] = o.quad;
+      const px = ((Math.hypot(tr[0] - tl[0], tr[1] - tl[1]) + Math.hypot(br[0] - bl[0], br[1] - bl[1])) / 2) * (p.width / p.w);
+      return px > 0 ? [w / px] : [];
+    }).sort((a, b) => a - b);
+    const s = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 1 / k; // mm / 보드 px
+    const photos = this.photos.map((p) => ({ x: p.x * s, y: p.y * s, w: p.width * s, h: p.width * (p.h / p.w) * s, imgW: p.w, imgH: p.h }));
     const idx = new Map(this.photos.map((p, i) => [p.id, i]));
     const cards = this.flatCards.map(({ o, w, h }) => {
       // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21 — 사선 사진에서 먼저 그리면 카드가 사선 사진 아래로 갔다)
@@ -1034,9 +1041,10 @@ class AppState {
       const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
       return { id: o.id, w, h, photo: idx.get(home.photoId)!, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
-    const at = arrangeGrid(cards, photos, gap, 100 / k);
+    const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
+    this.updateSettings({ flatOffset: { x: 0, y: 0 } }); // ✥ 를 기본 자리로
     this.editBoundary();
   }
   /** 카드 간격 바꾸고 그 간격으로 다시 정렬 */
