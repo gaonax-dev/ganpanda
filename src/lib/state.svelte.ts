@@ -23,7 +23,7 @@ import { estimateProject } from './projects';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
 import { autoFlatScale, clampFlatScale, placeholderSize } from './core/boardCards';
-import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
+import { fetchRequestPhoto, getRequestPhotoCount, listRequests } from './requests';
 import { formatBytes } from './core/format';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
@@ -99,6 +99,11 @@ class AppState {
   readonly consumer = typeof location !== 'undefined' && location.pathname === '/estimate';
   /** 다른 페이지 안에 넣어 보여 주는 보드 (?embed=1, 2026-10-22 요청 페이지의 "요청한 그대로") — 상단 바 없음 */
   /** 간판집이 받은 요청을 열 때 (?request=<id>, 2026-10-22) — 요청 프로젝트 위에 [견적 넣기] */
+  /** 받은 견적 요청 페이지 (/requests, 2026-10-22 "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게") */
+  readonly inbox = typeof location !== 'undefined' && location.pathname === '/requests';
+  /** 헤더의 "견적 요청 N": 답 안 한 열린 요청 수, 보일지 */
+  requestCount = $state(0);
+  requestInboxShown = $state(false);
   readonly requestView = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('request') : null;
   readonly embed = typeof location !== 'undefined' && new URLSearchParams(location.search).get('embed') === '1';
   /** 가게 사장 화면은 청록 (2026-10-22 "소비자용 페이지와 사업자용 컬러를 차이주고 싶은데 … 기존 노란색 말고 다른색으로"): /estimate, 요청 페이지, 그 안의 보드(?c=1) */
@@ -467,7 +472,19 @@ class AppState {
     else if (me && this.setLibrary.length) void this.persistSets();
     this.requestSettings = me?.requestSettings ?? null;
     this.business = me?.business ?? null;
+    void this.refreshRequestCount();
     if (me) void this.loadSpecRules();
+  }
+  /** 헤더 "견적 요청 N" (2026-10-22): 요청 받기를 켰거나 운영자이거나 받은 요청이 있으면 보인다. 2분마다 다시 */
+  private requestTimer: ReturnType<typeof setInterval> | undefined;
+  async refreshRequestCount() {
+    if (!this.account || this.consumer || !this.requestsEnabled || !SERVER_URL) { this.requestInboxShown = false; return; }
+    try {
+      const rs = await listRequests();
+      this.requestCount = rs.filter((r) => r.status === 'open' && !r.responded).length;
+      this.requestInboxShown = rs.length > 0 || !!this.requestSettings?.receive || !!this.account.operator;
+    } catch { /* 다음에 */ }
+    if (!this.requestTimer) this.requestTimer = setInterval(() => void this.refreshRequestCount(), 120_000);
   }
   private async persistSets() { saveLocalSets(this.setLibrary); if (this.account) { try { await saveSets({ version: 1, sets: this.setLibrary }); } catch { /* 다음에 */ } } }
   async addSet(set: SignSet) { this.setLibrary = [...this.setLibrary.filter((s) => s.id !== set.id), set]; await this.persistSets(); }

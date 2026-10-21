@@ -125,8 +125,12 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shop.getByTestId('req-save').click();
   await expect(shop.getByTestId('req-saved')).toContainText('저장');
   await shop.getByTestId('close-settings').click();
-  await expect(shop.getByTestId('request-count')).not.toHaveText('0'); // 프로젝트 위에 수만 보이고, 누르면 상세 (2026-10-22)
-  await shop.getByTestId('request-toggle').click();
+  // 헤더의 "견적 요청 N" → 받은 요청 페이지 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게")
+  await expect(shop.getByTestId('request-list')).toHaveCount(0); // 홈에는 없다
+  await expect(shop.getByTestId('request-count')).not.toHaveText('0');
+  await shop.getByTestId('request-inbox-link').click();
+  await expect(shop).toHaveURL(/\/requests$/);
+  await expect(shop.getByTestId('request-list')).toBeVisible();
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
   // 목록은 이름·사인물 정보만, 단추는 [견적 넣기] 하나 (2026-10-22 "리스트는 이름 사인물 정보만 표시하고 클릭하면 복제된 페이지 바로보이게 … 견적넣기 버튼만")

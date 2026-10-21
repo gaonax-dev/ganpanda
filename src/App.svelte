@@ -33,6 +33,7 @@
   import EstimateRequestDialog from './lib/ui/EstimateRequestDialog.svelte';
   import EstimateLock from './lib/ui/EstimateLock.svelte';
   import RequestBar from './lib/ui/RequestBar.svelte';
+  import RequestInbox from './lib/ui/RequestInbox.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -151,6 +152,8 @@
       {/each}
     </div>
     <div class="right">
+      <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게") -->
+      {#if app.requestInboxShown && !app.consumer}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">견적 요청 <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="peers">
         {#each app.peers as p (p.name)}
@@ -217,6 +220,8 @@
         <button class="btn" data-testid="consumer-login-other" onclick={() => (app.loginOpen = true)}>다른 방법으로 로그인</button>
         <p class="hint"><a href="/">간판집입니다 → 홈으로</a></p>
       </section>
+    {:else if app.inbox}
+      <RequestInbox />
     {:else if !app.room}
       <Home />
     {:else if app.access.status === 'denied'}
@@ -346,4 +351,8 @@
     .flash { top: 136px; font-size: 14px; } /* 휴대폰: 여러 줄 상단 바 아래 */
     .toast { width: auto; }
   }
+  .reqs { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 3px 4px 3px 10px; white-space: nowrap; }
+  .reqs b { background: var(--input); color: var(--text); border-radius: 999px; padding: 0 7px; font-size: 12px; }
+  .reqs.hot { color: var(--text); border-color: var(--accent); }
+  .reqs.hot b { background: var(--accent); color: var(--accent-ink); }
 </style>

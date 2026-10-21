@@ -7,7 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
-  import { listMyRequests, type MyRequest, type RespondMode } from '../requests';
+  import { listMyRequests, type MyRequest } from '../requests';
   import { SERVER_URL } from '../sync';
   // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
   let health = $state<{ ok: boolean; mail?: { detail: string } } | null>(null);
@@ -17,7 +17,6 @@
   import type { ProjectDetails } from '../projects';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
-  import { listRequests, respondRequest, type ShopRequest } from '../requests';
 
   let projects = $state<ProjectInfo[] | null>(null);
   let groups = $state<GroupInfo[]>([]);
@@ -35,24 +34,11 @@
   /** 클릭해 입력 중인 금액 칸 */
   let editing = $state<{ id: string; field: 'paid' | 'contract' } | null>(null);
 
-  /** 받은 요청 (요청판, 2026-10-17): 요청 받기를 켰거나 답한 요청이 있을 때 */
-  let requests = $state<ShopRequest[]>([]);
-  /** 받은 요청 펼침 (2026-10-22 "프로젝트 위에 견적요청 + 수 표시하고 클릭하면 상세로"): 기본은 접힘, 수만 보인다 */
-  let requestsOpen = $state(false);
-  const openRequests = $derived(requests.filter((r) => r.status === 'open' && !r.responded).length);
   /** 내가 보낸 견적 요청 (가게 사장, 2026-10-21 로그인 요청): 키 없이 세션으로 연다 */
   let myRequests = $state<MyRequest[]>([]);
-  let responding = $state('');
-  async function respond(r: ShopRequest, mode: RespondMode = 'copy') {
-    if (responding) return;
-    responding = r.id;
-    try { const p = await respondRequest(r.id, mode); location.href = `/?room=${p.id}`; }
-    catch (e) { app.notice = e instanceof Error ? e.message : String(e); responding = ''; }
-  }
   async function reload() {
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
-      if (app.requestsEnabled) listRequests().then((rs) => (requests = rs)).catch(() => (requests = []));
       if (app.requestsEnabled) listMyRequests().then((rs) => (myRequests = rs)).catch(() => (myRequests = []));
       const next: Record<string, GroupView> = {};
       await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
@@ -235,39 +221,6 @@
       </section>
     {/if}
     <!-- 운영자는 요청이 없어도 자리를 보인다 (2026-10-22 "받은 요청 페이지가 어디에 있나?") -->
-    {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive || app.account?.operator)}
-      <section class="requests" data-testid="request-list" data-open={requestsOpen}>
-        <button class="rtoggle" data-testid="request-toggle" aria-expanded={requestsOpen} onclick={() => (requestsOpen = !requestsOpen)}>
-          <span class="chev">{requestsOpen ? '▾' : '▸'}</span> 견적 요청 <b class="rcount" data-testid="request-count" class:hot={openRequests > 0}>{requests.length}</b>
-          {#if openRequests}<small>답 안 한 {openRequests}건</small>{/if}
-          <small class="muted">{app.account?.operator ? '모든 지역 (운영자)' : app.requestSettings?.regions.join(', ') || '지역을 설정하세요'}</small>
-        </button>
-        {#if requestsOpen}
-        <p class="hint"><button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>
-        {#each requests as r (r.id)}
-          <!-- 이름·사인물 정보만, 누르면 요청 그대로의 보드(복제)가 바로 열린다, 단추는 [견적 넣기] 하나 (2026-10-22) -->
-          {@const sized = (r.signs ?? []).filter((s) => s.widthMm && s.heightMm)}
-          <div class="rcard" class:open={!!r.snapshot} data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
-            onclick={() => { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }} onkeydown={(e) => { if (e.key === 'Enter' && r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }}>
-            <div class="rbody">
-              <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
-              <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
-              {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
-            </div>
-            <div class="ract">
-              {#if r.projectId && r.status !== 'cancelled'}
-                <a class="btn small" data-testid="request-open" href="/?room={r.projectId}" onclick={(e) => e.stopPropagation()}>내 견적 열기</a>
-              {:else if r.status !== 'cancelled'}
-                <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={(e) => { e.stopPropagation(); respond(r); }}>견적 넣기</button>
-              {/if}
-            </div>
-          </div>
-        {:else}
-          <p class="hint" data-testid="request-empty">{app.account?.operator ? '아직 받은 요청이 없습니다 — 가게 사장이 [가게 사장입니다 → 견적 요청]으로 보내면 모든 지역의 요청이 여기에 나타납니다(운영자).' : '아직 이 지역의 요청이 없습니다.'}</p>
-        {/each}
-        {/if}
-      </section>
-    {/if}
     <section data-testid="project-list">
       <h1>내 프로젝트</h1>
       <form class="new" class:open={formOpen} data-testid="new-project-form" onsubmit={(e) => { e.preventDefault(); create(); }}>
@@ -486,23 +439,10 @@
 <style>
   .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
-  .rtoggle { width: 100%; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 15px; font-weight: 700; color: var(--text); cursor: pointer; text-align: left; margin-bottom: 8px; }
-  .rtoggle .chev { color: var(--muted); font-size: 12px; }
-  .rtoggle .rcount { background: var(--input); border-radius: 999px; padding: 0 9px; font-size: 13px; }
-  .rtoggle .rcount.hot { background: var(--accent); color: #111; }
-  .rtoggle small { font-weight: 400; font-size: 12px; color: var(--muted); }
-  .rtoggle small.muted { margin-left: auto; }
   .ops-warn { background: rgba(255, 80, 80, 0.12); border: 1px solid rgba(255, 80, 80, 0.6); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 12px; }
-  .rcard .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
   .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }
-  .rcard.open { cursor: pointer; }
-  .rcard.open:hover { border-color: var(--accent); }
-  .ract { margin-left: auto; display: flex; align-items: center; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
-  .rbody { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-  .rbody p { margin: 0; }
-  .rbody .muted { color: var(--muted); }
   .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
   section { width: min(900px, 100%); }
   h1 { font-size: 22px; margin: 0 0 14px; }
@@ -610,6 +550,4 @@
   .who .big small { font-weight: 400; font-size: 12px; color: inherit; opacity: 0.8; white-space: normal; max-width: 240px; }
   .landing p { color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
-  .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
-  .tag.off { color: var(--danger); border-color: var(--danger); }
 </style>
