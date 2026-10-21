@@ -50,6 +50,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - **도메인 온보딩(한 번, 완료)**: 대시보드 → Compute & AI → Email Service → Email Sending → Onboard Domain → `ganpanda.co.kr` → Add records and onboard. CLI(`wrangler email sending enable`)는 토큰에 `email_sending:write` 권한이 필요합니다. 온보딩 직후 첫 발송은 502 가 날 수 있고 잠시 뒤 정상(실제 겪음).
 - 로컬 `wrangler dev`는 기본이 시뮬레이션(콘솔 로그, 실제 발송 없음). 실제 발송을 테스트하려면 바인딩에 `remote: true`.
 - 운영 메일 한도·반송 관리 → Cloudflare 문서 Limits / Deliverability.
+- **메일이 안 올 때 점검(2026-10-22)**: `POST /api/auth/email` 이 202 면 서버는 보낸 것 — 그다음은 DNS. `dig TXT ganpanda.co.kr`(SPF) · `dig TXT <selector>._domainkey.ganpanda.co.kr`(DKIM) · `dig TXT _dmarc.ganpanda.co.kr`. 2026-10-22 에 SPF·DKIM 이 없고 DMARC 만 `p=reject` 라 Gmail 이 수신 거부했다 → 대시보드 Email Sending → 도메인 → DNS 레코드를 다시 추가(온보딩 레코드가 사라졌거나 다른 존에 들어간 경우). DMARC 는 레코드가 맞을 때까지 `p=none` 으로 낮춰도 된다.
 
 ## 소셜 로그인 자격 (운영 등록 절차)
 공급자 콘솔에 **리디렉션 URI** `https://sync.ganpanda.co.kr/api/auth/<공급자>/callback`를 등록하고, 아래 비밀값을 `cd server && npx wrangler secret put <이름>`으로 넣습니다(로컬은 `.dev.vars`). xlpop 의 자격을 재사용할 수 있습니다(콘솔에 URI 만 추가).
