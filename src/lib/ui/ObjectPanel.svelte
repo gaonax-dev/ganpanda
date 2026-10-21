@@ -123,8 +123,9 @@
         <div class="row"><button class="btn small primary" data-testid="category-confirm-ok" onclick={() => apply(pending!)}>바꾸기</button><button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pending = null)}>취소</button></div>
       </div>
     {/if}
-    <!-- 처음 만들 때 패널에서 바로: 사이즈 → 사양 글 → 칩 (2026-10-17 사용자: "사인물종류 그리고 사이즈작성하고 다음줄에 텍스트로 … 퀵설정과 같은 요소가 생성되게"). 칩을 누르면 설정 창이 그 자리로 -->
-    {#if category && category !== 'sheet'}
+    <!-- 처음 만들 때 패널에서 바로: 사이즈 → 사양 글 → 칩 (2026-10-17 사용자: "사인물종류 그리고 사이즈작성하고 다음줄에 텍스트로 … 퀵설정과 같은 요소가 생성되게"). 칩을 누르면 설정 창이 그 자리로.
+         시트 분류도 같은 인터페이스 (2026-10-22 사용자: "사인물에서 시트만 다른 인터페이스를 가진다" — 전에는 시트만 사이즈·사양 글·칩이 없었다) -->
+    {#if category}
       <div class="sizes" data-testid="panel-size">
         <label>가로<input data-testid="panel-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
         <span>×</span>
