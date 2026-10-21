@@ -15,7 +15,7 @@
   let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
   // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
   let address = $state(''), bizNo = $state('');
-  // 사업자등록증 사본 (2026-10-21 "사업자 사본 받아야 겠다"): 선택, 그림·PDF 8MB — 제안을 보낸 간판집만 연다
+  // 사업자등록증 사본 (2026-10-21 "사업자 사본 받아야 겠다" → "사업자등록증 무조건 넣어줘"): **필수**, 그림·PDF 8MB — 제안을 보낸 간판집만 연다
   let bizDoc = $state<File | null>(null);
   let scanState = $state<'' | 'scanning' | 'ok' | 'failed'>('');
   /** 사본을 고르면 바로 읽어 빈 칸을 채운다 — 못 읽으면 "직접 입력" (2026-10-21 "분석 실패하면 수동입력") */
@@ -38,7 +38,7 @@
   const signs = $derived(serializeRequestSigns(app.photos, app.signs).signs);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
   const bizOk = $derived(!bizNo.trim() || isValidBizNo(bizNo));
-  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && !(bizDoc && bizDoc.size > 8 * 1024 * 1024) && !busy);
+  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && !!bizDoc && bizDoc.size <= 8 * 1024 * 1024 && !busy);
   const close = () => (app.estimateOpen = false);
 
   async function send() {
@@ -91,7 +91,7 @@
         <label>지역 * <small>(시/군/구까지, 예: 경기 광주시)</small><input data-testid="est-region" bind:value={region} placeholder="경기 광주시" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
         <label>가게 주소 <small>(선택 — 간판집이 현장을 보러 갈 때)</small><input data-testid="est-address" bind:value={address} placeholder="도로명 주소" /></label>
-        <label>사업자등록증 사본 <small>(선택 — 그림·PDF, 제안을 보낸 간판집만 봅니다)</small><input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} />{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{/if}</label>
+        <label>사업자등록증 사본 * <small>(그림·PDF — 가게의 사업자인지 확인하는 근거, 제안을 보낸 간판집만 봅니다. 고르면 번호·상호·주소를 자동으로 읽어 채웁니다)</small><input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} />{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{:else if !bizDoc}<small class="hint">사본이 있어야 보낼 수 있습니다</small>{/if}</label>
         <label>사업자등록번호 <small>(선택 — 넣으면 국세청 확인 배지가 붙어 간판집이 믿고 봅니다)</small><input data-testid="est-bizno" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} />{#if bizNo.trim() && !bizOk}<small class="err">10자리를 확인해 주세요</small>{/if}</label>
         <label>이메일 <small>(선택)</small><input data-testid="est-email" type="email" bind:value={email} /></label>
         <label>요청 내용 <small>(선택 — 원하는 것, 예산, 기한)</small><textarea data-testid="est-text" rows="3" bind:value={text}></textarea></label>
