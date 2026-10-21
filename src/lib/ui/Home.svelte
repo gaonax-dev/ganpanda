@@ -37,6 +37,9 @@
 
   /** 받은 요청 (요청판, 2026-10-17): 요청 받기를 켰거나 답한 요청이 있을 때 */
   let requests = $state<ShopRequest[]>([]);
+  /** 받은 요청 펼침 (2026-10-22 "프로젝트 위에 견적요청 + 수 표시하고 클릭하면 상세로"): 기본은 접힘, 수만 보인다 */
+  let requestsOpen = $state(false);
+  const openRequests = $derived(requests.filter((r) => r.status === 'open' && !r.responded).length);
   /** 내가 보낸 견적 요청 (가게 사장, 2026-10-21 로그인 요청): 키 없이 세션으로 연다 */
   let myRequests = $state<MyRequest[]>([]);
   let responding = $state('');
@@ -233,8 +236,14 @@
     {/if}
     <!-- 운영자는 요청이 없어도 자리를 보인다 (2026-10-22 "받은 요청 페이지가 어디에 있나?") -->
     {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive || app.account?.operator)}
-      <section class="requests" data-testid="request-list">
-        <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>설정</button></small></h1>
+      <section class="requests" data-testid="request-list" data-open={requestsOpen}>
+        <button class="rtoggle" data-testid="request-toggle" aria-expanded={requestsOpen} onclick={() => (requestsOpen = !requestsOpen)}>
+          <span class="chev">{requestsOpen ? '▾' : '▸'}</span> 견적 요청 <b class="rcount" data-testid="request-count" class:hot={openRequests > 0}>{requests.length}</b>
+          {#if openRequests}<small>답 안 한 {openRequests}건</small>{/if}
+          <small class="muted">{app.account?.operator ? '모든 지역 (운영자)' : app.requestSettings?.regions.join(', ') || '지역을 설정하세요'}</small>
+        </button>
+        {#if requestsOpen}
+        <p class="hint"><button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>
         {#each requests as r (r.id)}
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
@@ -259,6 +268,7 @@
         {:else}
           <p class="hint" data-testid="request-empty">{app.account?.operator ? '아직 받은 요청이 없습니다 — 가게 사장이 [가게 사장입니다 → 견적 요청]으로 보내면 모든 지역의 요청이 여기에 나타납니다(운영자).' : '아직 이 지역의 요청이 없습니다.'}</p>
         {/each}
+        {/if}
       </section>
     {/if}
     <section data-testid="project-list">
@@ -479,6 +489,12 @@
 <style>
   .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+  .rtoggle { width: 100%; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 15px; font-weight: 700; color: var(--text); cursor: pointer; text-align: left; margin-bottom: 8px; }
+  .rtoggle .chev { color: var(--muted); font-size: 12px; }
+  .rtoggle .rcount { background: var(--input); border-radius: 999px; padding: 0 9px; font-size: 13px; }
+  .rtoggle .rcount.hot { background: var(--accent); color: #111; }
+  .rtoggle small { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .rtoggle small.muted { margin-left: auto; }
   .ops-warn { background: rgba(255, 80, 80, 0.12); border: 1px solid rgba(255, 80, 80, 0.6); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0 0 12px; }
   .rcard .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }

@@ -86,6 +86,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shop.getByTestId('req-save').click();
   await expect(shop.getByTestId('req-saved')).toContainText('저장');
   await shop.getByTestId('close-settings').click();
+  await expect(shop.getByTestId('request-count')).not.toHaveText('0'); // 프로젝트 위에 수만 보이고, 누르면 상세 (2026-10-22)
+  await shop.getByTestId('request-toggle').click();
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');

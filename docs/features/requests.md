@@ -32,7 +32,7 @@
 ## 흐름
 1. ~~**요청 올리기** `/request` (`RequestForm.svelte`)~~ → 2026-10-21부터 `/estimate` 소비자 보드(위). 옛 설명: 가게 이름(`req-store`), 지역(`req-region`, 시/군/구까지 — 간판사 지역과 글자 그대로 맞춤, 공백 무시), 원하는 내용(`req-text`), 전화(`req-phone`, 숫자만 9~11자리), 이메일 선택(`req-email`), 사진 1~3장(`req-photos`, 필수). `?ref=` 는 숨겨 저장. 보내면(`req-submit`) `POST /api/requests` → 사진 `PUT /api/requests/:id/photos?key=` → **내 요청 페이지 주소**(`req-done-link`, `/r/<id>?key=<키>`)를 보여 주고 "저장해 두세요", 이메일을 넣었으면 메일로도 보냄.
    - 같은 전화번호의 열린 요청이 3건이면 `429 request_limit` → "이미 3건의 요청이 진행 중입니다".
-2. **간판사 알림**: 요청이 오면 그 지역의 "요청 받기" 간판사들에게 이메일(운영: Email Sending, 로컬: 건너뜀). 홈 **받은 요청**(`request-list`, `request-item`)에도 보임: 가게·지역·내용·날짜·사진. 연락처는 **제안을 보낸 요청에만**(`request-phone`).
+2. **간판사 알림**: 요청이 오면 그 지역의 "요청 받기" 간판사들에게 이메일(운영: Email Sending, 로컬: 건너뜀). 홈 **받은 요청**(`request-list`)은 프로젝트 위에 **"견적 요청 N"**(`request-toggle`·`request-count`, 답 안 한 건수)만 접혀 보이고 누르면 상세(`request-item`)가 펼쳐짐(2026-10-22 "프로젝트 위에 견적요청 + 수 표시하고 클릭하면 상세로"): 가게·지역·내용·날짜·사진. 연락처는 **제안을 보낸 요청에만**(`request-phone`).
 3. **제안 만들기**(`request-respond`): `POST /api/requests/:id/respond` → 요청 사진이 들어갈 프로젝트(`projects.request_id`)가 생기고 그 방으로 이동. 앱은 방에 들어가 **문서에 사진이 없으면 요청 사진을 가져와 올립니다**(`importRequestPhotos`: 소유자 용량에 쌓임). 이미 만든 프로젝트가 있으면 그 방으로.
 4. **제안 보내기**: 평소와 같음(`ProposalDialog`). 서버는 `request_id` 가 있는 프로젝트의 제안 링크를 만들 때 `request_responses` 에 기록(간판사·프로젝트·제안 주소) — 이것이 **요금 발생·홍보자 정산의 근거**이고, 이때부터 그 간판사에게 연락처가 보입니다.
 5. **고객 요청 페이지** `/r/:id?key=` (`RequestView.svelte`, `request-page`): 요청 내용·사진·상태, 받은 제안 목록(`request-proposal`: 간판사 이름 · [제안 보기] → 제안 링크). 제안을 승인하면(기존 승인 흐름) 요청 상태가 **승인됨**(`requests.status = 'approved'`, 어느 간판사인지).
