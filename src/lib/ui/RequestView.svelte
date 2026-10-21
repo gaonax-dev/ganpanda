@@ -20,6 +20,8 @@
   $effect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t); });
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const r = $derived(view?.request);
+  // 외주(B2B) 요청 페이지는 핫핑크 (2026-10-22)
+  $effect(() => { const b = !!view?.request.b2b; document.documentElement.classList.toggle('outsource', b); if (b) document.documentElement.classList.remove('consumer'); });
   const steps = $derived(view ? requestSteps(view.request.status, view.responses.length) : []);
   const signs = $derived(r?.signs ?? []);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
@@ -37,6 +39,7 @@
     <header class="hero" data-status={r.status}>
       <div class="top">
         <small>간판 견적 요청 · {date(r.createdAt)}</small>
+        {#if r.b2b}<span class="badge b2b" data-testid="request-b2b">B2B 외주</span>{/if}
         {#if r.bizVerified}<span class="badge ok" data-testid="request-badge" data-kind="verified">✓ 사업자 인증</span>
         {:else if r.general}<span class="badge plain" data-testid="request-badge" data-kind="general">일반 주문</span>{/if}
       </div>
@@ -73,9 +76,9 @@
 
     {#if r.snapshot}
       <!-- 요청한 그대로의 보드 (2026-10-22 "그 상태를 요청페이지로 복제") — 읽기 전용 요청 프로젝트를 넣어 보여 준다 -->
-      <h2>요청한 그대로 <a class="open" data-testid="request-board-open" href="/?room={r.snapshot.project}&c=1" target="_blank" rel="noopener">크게 보기 ↗</a></h2>
+      <h2>요청한 그대로 <a class="open" data-testid="request-board-open" href="/?room={r.snapshot.project}&{r.b2b ? 'o' : 'c'}=1" target="_blank" rel="noopener">크게 보기 ↗</a></h2>
       {#if loadSession()}
-        <iframe class="board" data-testid="request-board" title="요청한 보드" src="/?room={r.snapshot.project}&embed=1&c=1"></iframe>
+        <iframe class="board" data-testid="request-board" title="요청한 보드" src="/?room={r.snapshot.project}&embed=1&{r.b2b ? 'o' : 'c'}=1"></iframe>
       {:else}<p class="hint">요청한 계정으로 로그인하면 요청한 보드가 그대로 보입니다.</p>{/if}
     {/if}
     <h2>요청 내용</h2>
@@ -107,6 +110,8 @@
   .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
   .badge { border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
   .badge.ok { background: rgba(60, 200, 120, 0.15); color: var(--ok); border: 1px solid rgba(60, 200, 120, 0.6); }
+  .badge.b2b { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); }
+  .top { flex-wrap: wrap; }
   .badge.plain { background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); position: relative; }
   .steps li { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); position: relative; }

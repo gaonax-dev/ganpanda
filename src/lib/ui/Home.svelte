@@ -54,12 +54,14 @@
   let formOpen = $state(false);
   const emptyDetails = (): Required<ProjectDetails> => ({ contact: '', address: '', contractDate: '', startDate: '', dueDate: '', memo: '' });
   let newDetails = $state(emptyDetails());
-  function closeForm() { formOpen = false; newDetails = emptyDetails(); }
+  /** 만들기에서 외주 체크 (2026-10-22 "만들기에서 외주체크하면 바로 생성할 수 있다") */
+  let newOutsource = $state(false);
+  function closeForm() { formOpen = false; newDetails = emptyDetails(); newOutsource = false; }
   async function create() {
     const n = name.trim();
     if (!n || busy) return;
     busy = true;
-    try { const p = await createProject(n, newDetails); location.href = `/?room=${p.id}`; } finally { busy = false; }
+    try { const p = await createProject(n, newDetails, newOutsource); location.href = `/?room=${p.id}`; } finally { busy = false; }
   }
 
   // 속성창 (2026-10-21 "카드 오른쪽끝에 상단에 매뉴버튼으로 속성창 열리고 수정 토글버튼으로 수정. 수정전 상태에는 전화걸기복사, 카톡, 주소복사 내용 없으면 안보이게")
@@ -97,7 +99,15 @@
     e.preventDefault(); e.stopPropagation();
     openDetails(p);
   }
-  const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId));
+  const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId && !p.outsource));
+  /** 외주 폴더 (2026-10-22): 다른 업체에 맡길 프로젝트 — 열면 핫핑크 + [외주 요청] */
+  const outsourced = $derived((projects ?? []).filter((p) => p.outsource && !p.groupId));
+  async function setOutsource(p: ProjectInfo, on: boolean) {
+    await updateProject(p.id, { outsource: on });
+    await reload();
+    details = null;
+    if (on) app.showFlash('외주 폴더로 옮겼습니다 — 열어서 [외주 요청]을 누르세요');
+  }
   // 지난 프로젝트 접기 (2026-10-21 "정지, 완료 해당 일자가 6개월이 지난 프로젝트는 다시 연도별 폴딩"): 정지·완료 6개월 지남 → 접힘, 안에서 연도별
   const shelf = $derived(splitShelf(ungrouped));
 
@@ -232,6 +242,7 @@
         {#if formOpen}
           <!-- 제목 빼고 다 선택 (2026-10-21) -->
           <div class="more" data-testid="new-project-details">
+            <label class="chk" class:pink={newOutsource} title="다른 업체에 맡길 프로젝트 — 외주 폴더에 만들어지고, 열면 [외주 요청]"><input data-testid="new-outsource" type="checkbox" bind:checked={newOutsource} /> 외주 (B2B)</label>
             <input data-testid="new-contact" placeholder="연락처" bind:value={newDetails.contact} />
             <input data-testid="new-address" placeholder="주소" bind:value={newDetails.address} />
             <label>계약일<input data-testid="new-contract-date" type="date" bind:value={newDetails.contractDate} /></label>
@@ -314,6 +325,12 @@
         <!-- 프로젝트 카드 (그룹 밖) — 정지·완료 6개월 지난 것은 아래 "지난 프로젝트" 에 -->
         {#each shelf.current as p (p.id)}{@render card(p)}{/each}
       </div>
+      {#if outsourced.length}
+        <details class="shelf outsource" data-testid="outsource-folder" open>
+          <summary>외주 <small>다른 업체에 맡길 프로젝트 · B2B · {outsourced.length}개</small></summary>
+          <div class="grid">{#each outsourced as p (p.id)}{@render card(p)}{/each}</div>
+        </details>
+      {/if}
       {#if shelf.shelvedCount}
         <details class="shelf" data-testid="shelf">
           <summary>지난 프로젝트 <small>정지·완료 6개월 지남 · {shelf.shelvedCount}개</small></summary>
@@ -377,6 +394,8 @@
       </div>
       <footer>
         <a class="btn small" href="/?room={details.id}">프로젝트 열기</a>
+        <!-- 외주 (2026-10-22 "프로젝트 카드 선택에 다른업체에 외주요청 버튼을 누르면 외주폴더로 이동한다") -->
+        {#if details.role === 'owner'}<button class="btn small" class:pink={!details.outsource} type="button" data-testid="details-outsource" onclick={() => setOutsource(details!, !details!.outsource)}>{details.outsource ? '외주 해제' : '다른 업체에 외주 요청'}</button>{/if}
         <span class="grow"></span>
         <button class="btn small" type="button" onclick={() => (details = null)}>닫기</button>
       </footer>
@@ -550,4 +569,8 @@
   .who .big small { font-weight: 400; font-size: 12px; color: inherit; opacity: 0.8; white-space: normal; max-width: 240px; }
   .landing p { color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
+  .shelf.outsource summary { color: #ff3d9a; }
+  .btn.pink { color: #ff3d9a; border-color: #ff3d9a; }
+  .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
+  .chk.pink { color: #ff3d9a; font-weight: 700; }
 </style>

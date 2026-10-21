@@ -23,7 +23,7 @@ import { estimateProject } from './projects';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
 import { autoFlatScale, clampFlatScale, placeholderSize } from './core/boardCards';
-import { fetchRequestPhoto, getRequestPhotoCount, listRequests } from './requests';
+import { fetchRequestPhoto, getRequestPhotoCount, listMyRequests, listRequests } from './requests';
 import { formatBytes } from './core/format';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
@@ -58,7 +58,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -104,6 +104,13 @@ class AppState {
   /** 헤더의 "견적 요청 N": 답 안 한 열린 요청 수, 보일지 */
   requestCount = $state(0);
   requestInboxShown = $state(false);
+  /** 헤더의 "보낸 요청 M" (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 열린 내 요청 수, 보낸 요청이 있으면 보인다 */
+  sentCount = $state(0);
+  sentShown = $state(false);
+  /** 외주 프로젝트를 연 소유자 (2026-10-22): 핫핑크 + [외주 요청] */
+  get outsourceProject(): boolean { return this.access.status === 'ok' && !!this.access.outsource && this.role === 'owner'; }
+  /** 외주 색: 외주 프로젝트, 또는 그 요청 보드(?o=1) */
+  readonly outsourceParam = typeof location !== 'undefined' && new URLSearchParams(location.search).get('o') === '1';
   readonly requestView = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('request') : null;
   readonly embed = typeof location !== 'undefined' && new URLSearchParams(location.search).get('embed') === '1';
   /** 가게 사장 화면은 청록 (2026-10-22 "소비자용 페이지와 사업자용 컬러를 차이주고 싶은데 … 기존 노란색 말고 다른색으로"): /estimate, 요청 페이지, 그 안의 보드(?c=1) */
@@ -480,9 +487,11 @@ class AppState {
   async refreshRequestCount() {
     if (!this.account || this.consumer || !this.requestsEnabled || !SERVER_URL) { this.requestInboxShown = false; return; }
     try {
-      const rs = await listRequests();
+      const [rs, mine] = await Promise.all([listRequests(), listMyRequests().catch(() => [])]);
       this.requestCount = rs.filter((r) => r.status === 'open' && !r.responded).length;
       this.requestInboxShown = rs.length > 0 || !!this.requestSettings?.receive || !!this.account.operator;
+      this.sentCount = mine.filter((r) => r.status === 'open').length;
+      this.sentShown = mine.length > 0;
     } catch { /* 다음에 */ }
     if (!this.requestTimer) this.requestTimer = setInterval(() => void this.refreshRequestCount(), 120_000);
   }
@@ -806,7 +815,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}) };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}) };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };

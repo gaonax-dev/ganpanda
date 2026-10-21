@@ -143,10 +143,11 @@ export class Room extends DurableObject<Env> {
   async exportState(): Promise<Uint8Array> { return Y.encodeStateAsUpdate(this.doc); }
 
   /**
-   * 다른 방의 문서에서 고른 map 만 복제 (2026-10-22 요청 = 보드 복제, 간판집 [그대로·사진만]). settings 는 dropSettings 키를 빼고.
+   * 다른 방의 문서에서 고른 map 만 복제 (2026-10-22 요청 = 보드 복제, 간판집 [그대로·사진만]). settings 는 keepSettings 키만 —
+   * 단가표·원가·견적 줄·주문 정보는 절대 안 옮긴다(외주 요청은 다른 간판집이 읽는다).
    * 대화(messages)는 안 가져온다. 들어온 값 안의 assetId 들을 돌려준다 — 새 소유 계정에 에셋 등록용
    */
-  async cloneFrom(update: Uint8Array, maps: string[], dropSettings: string[] = []): Promise<{ assets: string[]; photoAssets: string[] }> {
+  async cloneFrom(update: Uint8Array, maps: string[], keepSettings: string[] = []): Promise<{ assets: string[]; photoAssets: string[] }> {
     const old = new Y.Doc();
     Y.applyUpdate(old, update);
     const assets = new Set<string>(), photoAssets: string[] = [];
@@ -163,7 +164,7 @@ export class Room extends DurableObject<Env> {
       for (const name of maps) {
         const src = old.getMap<unknown>(name), cur = this.doc.getMap<unknown>(name);
         for (const [k, v] of src.entries()) {
-          if (name === 'settings' && dropSettings.includes(k)) continue;
+          if (name === 'settings' && !keepSettings.includes(k)) continue;
           cur.set(k, clone(v));
           const j = v instanceof Y.Map ? v.toJSON() : v;
           walk(j);

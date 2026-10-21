@@ -54,6 +54,10 @@
   let storesLoaded = $state(false);
   const identityId = $derived(app.settings.estimateIdentity ?? '');
   const chosen = $derived(stores.find((s) => s.id === identityId && s.verified) ?? null);
+  /** 간판집 자신의 확인된 사업자 (설정 "사업자 확인") — 외주 요청에서 (2026-10-22) */
+  const accountBiz = $derived(app.business && app.business.status !== 'closed' ? app.business : null);
+  const useAccount = $derived(identityId === 'account' && !!accountBiz);
+  const b2b = $derived(!app.consumer);
   const general = $derived(identityId === 'general');
   type Step = 'who' | 'scan' | 'confirm' | 'form' | 'done';
   let step = $state<Step>('who');
@@ -61,7 +65,7 @@
     if (!app.account) return;
     listStores().then((s) => {
       stores = s; storesLoaded = true;
-      untrack(() => { if (step === 'who' && (identityId === 'general' || s.some((x) => x.id === identityId && x.verified))) step = 'form'; });
+      untrack(() => { if (step === 'who' && (identityId === 'general' || (identityId === 'account' && !!accountBiz) || s.some((x) => x.id === identityId && x.verified))) step = 'form'; });
     }).catch(() => (storesLoaded = true));
   });
   const setIdentity = (id: string) => app.updateSettings({ estimateIdentity: id });
@@ -72,6 +76,7 @@
     step = 'form';
   }
   function pickGeneral() { setIdentity('general'); step = 'form'; }
+  function pickAccount() { setIdentity('account'); if (!store.trim() && accountBiz) store = accountBiz.name; step = 'form'; }
 
   // ---------- 등록증 → 읽는 효과 → 확인 폼 ----------
   let docFile = $state<File | null>(null);
@@ -131,13 +136,13 @@
     return e instanceof Error ? e.message : String(e);
   }
   async function send() {
-    missing = missingForRequest({ identity: chosen ? 'store' : general ? 'general' : null, store, phone, address, photos: photos.length });
+    missing = missingForRequest({ identity: chosen || useAccount ? 'store' : general ? 'general' : null, store, phone, address, photos: photos.length });
     if (missing.length || busy) return;
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
       // 보드를 서버에서 복제한다 — 사진을 다시 올리지 않는다 (2026-10-22 "이미 서버에 이미지가 있는데 이중으로 작동한다")
-      const r = await createRequest({ ...(app.room ? { fromProject: app.room } : {}), ...(chosen ? { storeId: chosen.id } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
+      const r = await createRequest({ ...(app.room ? { fromProject: app.room } : {}), ...(chosen ? { storeId: chosen.id } : useAccount ? { accountBusiness: true } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
       for (let i = 0; !r.snapshotProject && i < photoOrder.length; i++) { // 복제가 안 된 경우(옛 서버)만 사진을 따로 올린다
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -161,7 +166,7 @@
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="견적 요청" data-testid="estimate-dialog" data-step={step}>
-    <header><h2>간판 견적 요청</h2><button class="icon" data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>{b2b ? '외주 견적 요청 (B2B)' : '간판 견적 요청'}</h2><button class="icon" data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
     {#if !app.account}
       <div class="gate" data-testid="estimate-login">
         <p>견적 요청을 보내려면 <b>로그인</b>이 필요합니다. 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다.</p>
@@ -171,11 +176,16 @@
     {:else if step === 'who'}
       <!-- 대화식 사업자 확인 -->
       <div class="chat" data-testid="est-chat">
-        <p class="bot">안녕하세요, 간판다입니다. 견적을 보내기 전에 <b>사업자를 확인</b>할게요.</p>
+        <p class="bot">안녕하세요, 간판다입니다. {b2b ? '외주 요청' : '견적'}을 보내기 전에 <b>사업자를 확인</b>할게요.</p>
         <p class="bot">사업자등록증 사진을 올려 주시면 내용을 읽어 채워 드려요. <b>사업자 인증 배지</b>가 붙은 요청은 간판집이 믿고 먼저 답합니다.</p>
-        {#if stores.length}
+        {#if stores.length || accountBiz}
           <p class="bot">등록해 둔 사업자가 있어요. 이번 요청에 쓸 곳을 골라 주세요.</p>
           <div class="stores">
+            {#if accountBiz}
+              <button class="store" class:on={identityId === 'account'} data-testid="est-account-pick" onclick={pickAccount}>
+                <span class="badge ok">✓ 인증</span><b>{accountBiz.name || '내 사업자'}</b><small>{formatBizNo(accountBiz.no)} · 설정에서 확인한 내 사업자</small>
+              </button>
+            {/if}
             {#each stores.filter((s) => s.verified) as s (s.id)}
               <button class="store" class:on={s.id === identityId} data-testid="est-store-pick" onclick={() => pickStore(s)}>
                 <span class="badge ok">✓ 인증</span><b>{s.name || '상호 없음'}</b><small>{formatBizNo(s.bizNo)} · {s.ownerName}</small>
@@ -227,8 +237,10 @@
       </form>
     {:else if step === 'form'}
       <!-- 인증 배지(또는 일반 주문) + [변경] -->
-      <div class="identity" data-testid="est-identity" data-kind={chosen ? 'store' : 'general'}>
-        {#if chosen}
+      <div class="identity" data-testid="est-identity" data-kind={chosen || useAccount ? 'store' : 'general'}>
+        {#if useAccount && accountBiz}
+          <span class="badge ok big">✓ 사업자 인증</span><span class="who"><b>{accountBiz.name || '내 사업자'}</b><small>{formatBizNo(accountBiz.no)}</small></span>
+        {:else if chosen}
           <span class="badge ok big">✓ 사업자 인증</span><span class="who"><b>{chosen.name || '상호 없음'}</b><small>{formatBizNo(chosen.bizNo)}</small></span>
         {:else}
           <span class="badge plain big">일반 주문</span><span class="who"><b>사업자 없음</b></span>
@@ -262,8 +274,8 @@
         {/if}
         {#if error}<p class="err" data-testid="estimate-error">{error}</p>{/if}
         <footer>
-          <small class="hint">보낸 뒤에는 보드를 고칠 수 없어요 (요청을 취소하면 다시 고쳐 새로 보낼 수 있어요). 돈은 간판집과 직접.</small>
-          <button class="btn primary" type="submit" data-testid="estimate-send" disabled={!!busy}>{busy || '견적 요청 보내기'}</button>
+          <small class="hint">{b2b ? '보내는 순간의 보드 그대로 다른 간판집에 전달돼요. B2B 로 표시됩니다.' : '보낸 뒤에는 보드를 고칠 수 없어요 (요청을 취소하면 다시 고쳐 새로 보낼 수 있어요). 돈은 간판집과 직접.'}</small>
+          <button class="btn primary" type="submit" data-testid="estimate-send" disabled={!!busy}>{busy || (b2b ? '외주 요청 보내기' : '견적 요청 보내기')}</button>
         </footer>
       </form>
     {:else if step === 'done' && done}

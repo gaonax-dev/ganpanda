@@ -22,7 +22,7 @@ async function draftWithPhoto() {
   const ob = new Y.Map<unknown>(); for (const [k, v] of Object.entries({ id: 'o1', photoId: 'p1', name: '전면 간판', shape: 'rect', quad: [[100, 100], [900, 100], [900, 300], [100, 300]], sheetIds: [], widthMm: 4000, heightMm: 1000, createdAt: 1 })) ob.set(k, v);
   doc.getMap('objects').set('o1', ob);
   const st = doc.getMap<unknown>('settings');
-  st.set('estimateDraft', { store: 'x' }); st.set('estimateIdentity', 'general'); st.set('quoteMode', 'auto');
+  st.set('estimateDraft', { store: 'x' }); st.set('estimateIdentity', 'general'); st.set('quoteMode', 'auto'); st.set('flatScale', 0.2); st.set('prices', { cost: 1 });
   doc.getArray('messages').push([{ id: 'm1', objectId: 'project', author: '나', text: '메모', ts: 1 }]);
   await env.ROOM.getByName(project.id).seedFrom(Y.encodeStateAsUpdate(doc));
   return { cust, draft: project.id, asset };
@@ -44,6 +44,8 @@ describe('요청 = 견적 초안 방의 읽기 전용 복제', () => {
     expect(d.getMap('objects').size).toBe(1);
     expect(d.getMap('settings').has('estimateDraft')).toBe(false);
     expect(d.getMap('settings').has('estimateIdentity')).toBe(false);
+    expect(d.getMap('settings').has('quoteMode')).toBe(false); // 단가·견적 설정은 안 옮긴다 (외주 요청은 다른 간판집이 읽는다)
+    expect(d.getMap('settings').get('flatScale')).toBe(0.2); // 보드 배치는
     expect(d.getArray('messages').length).toBe(0);
     const v = await (await get(`/api/requests/${id}`, cust)).json<{ request: { snapshot: { project: string; photos: string[] } } }>();
     expect(v.request.snapshot).toEqual({ project: snapshotProject, photos: [asset] });

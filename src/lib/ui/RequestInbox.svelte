@@ -2,11 +2,15 @@
   // 받은 견적 요청 페이지 (/requests, 2026-10-22 사용자: "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"):
   // 헤더의 "견적 요청 N" 을 누르면 여기로. 목록은 이름·사인물 정보만, 누르면 요청 보드(복제), 단추는 [견적 넣기] 하나
   import { app } from '../state.svelte';
-  import { listRequests, respondRequest, type ShopRequest } from '../requests';
+  import { listMyRequests, listRequests, respondRequest, type MyRequest, type ShopRequest } from '../requests';
   let requests = $state<ShopRequest[]>([]);
+  /** 보낸 요청 (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 외주(B2B) 요청 */
+  let sent = $state<MyRequest[]>([]);
+  let tab = $state<'received' | 'sent'>(new URLSearchParams(location.search).get('tab') === 'sent' ? 'sent' : 'received');
   let loaded = $state(false);
   let responding = $state('');
-  $effect(() => { if (app.account) listRequests().then((rs) => { requests = rs; loaded = true; }).catch(() => (loaded = true)); });
+  $effect(() => { if (app.account) Promise.all([listRequests(), listMyRequests().catch(() => [])]).then(([rs, mine]) => { requests = rs; sent = mine; loaded = true; }).catch(() => (loaded = true)); });
+  const setTab = (t: 'received' | 'sent') => { tab = t; history.replaceState(null, '', t === 'sent' ? '/requests?tab=sent' : '/requests'); };
   const unanswered = $derived(requests.filter((r) => r.status === 'open' && !r.responded).length);
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   async function respond(r: ShopRequest) {
@@ -19,11 +23,24 @@
 
 <div class="page" data-testid="request-list">
   <header>
-    <h1>받은 견적 요청 {#if unanswered}<small class="hot" data-testid="request-unanswered">답 안 한 {unanswered}건</small>{/if}</h1>
-    <p class="hint">{app.account?.operator ? '모든 지역 (운영자)' : app.requestSettings?.regions.join(', ') || '지역을 정하지 않았습니다'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>
+    <div class="tabs" role="tablist">
+      <button role="tab" class:on={tab === 'received'} data-testid="inbox-tab-received" onclick={() => setTab('received')}>받은 요청 {#if unanswered}<small class="hot" data-testid="request-unanswered">{unanswered}</small>{/if}</button>
+      <button role="tab" class:on={tab === 'sent'} data-testid="inbox-tab-sent" onclick={() => setTab('sent')}>보낸 요청 <small>{sent.length}</small></button>
+    </div>
+    {#if tab === 'received'}<p class="hint">{app.account?.operator ? '모든 지역 (운영자)' : app.requestSettings?.regions.join(', ') || '지역을 정하지 않았습니다'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>{:else}<p class="hint">외주 프로젝트에서 [외주 요청]으로 보낸 요청입니다. 누르면 요청 페이지로.</p>{/if}
   </header>
   {#if !app.account}<p class="hint">로그인하면 받은 요청이 보입니다.</p>
   {:else if !loaded}<p class="hint">불러오는 중…</p>
+  {:else if tab === 'sent'}
+    {#each sent as r (r.id)}
+      <a class="rcard open" data-testid="sent-item" data-status={r.status} href="/r/{r.id}">
+        <div class="rbody">
+          <span><b>{r.store}</b>{#if r.b2b}<span class="tag b2b">B2B</span>{/if}{#if r.status === 'cancelled'}<span class="tag off">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}</span></span>
+          <p class="muted">✎ 사인물 {r.signs?.length ?? 0}개</p>
+        </div>
+        <div class="ract"><span class="resp">{r.status === 'cancelled' ? '취소됨' : r.status === 'approved' ? '선택함' : r.responses ? `견적 ${r.responses}건` : '기다리는 중'}</span></div>
+      </a>
+    {:else}<p class="hint" data-testid="sent-empty">보낸 요청이 없습니다. 프로젝트 ⋯ → [다른 업체에 외주 요청]으로 외주 폴더에 넣고, 열어서 [외주 요청]을 누르세요.</p>{/each}
   {:else}
         {#each requests as r (r.id)}
           <!-- 이름·사인물 정보만, 누르면 요청 그대로의 보드(복제)가 바로 열린다, 단추는 [견적 넣기] 하나 (2026-10-22) -->
@@ -31,7 +48,7 @@
           <div class="rcard" class:open={!!r.snapshot} data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
             onclick={() => { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }} onkeydown={(e) => { if (e.key === 'Enter' && r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }}>
             <div class="rbody">
-              <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
+              <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
             </div>
@@ -51,8 +68,6 @@
 
 <style>
   .page { max-width: 760px; margin: 0 auto; padding: 16px 16px 60px; color: var(--text); }
-  h1 { font-size: 18px; margin: 4px 0; display: flex; align-items: center; gap: 8px; }
-  h1 .hot { font-size: 12px; font-weight: 600; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 1px 8px; }
   .hint { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
@@ -65,5 +80,13 @@
   .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
   .tag.off { color: var(--danger); border-color: var(--danger); }
   .ract { margin-left: auto; display: flex; align-items: center; }
+  .tabs { display: flex; gap: 4px; margin: 4px 0 8px; }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-size: 16px; font-weight: 700; padding: 6px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .tabs small { font-size: 12px; font-weight: 600; background: var(--input); border-radius: 999px; padding: 0 7px; }
+  .tabs small.hot { background: var(--accent); color: var(--accent-ink); }
+  .tag.b2b { color: #ff3d9a; border-color: #ff3d9a; font-weight: 700; }
+  a.rcard { text-decoration: none; color: var(--text); }
+  .resp { color: var(--accent); font-size: 12px; white-space: nowrap; }
   a.btn { text-decoration: none; }
 </style>

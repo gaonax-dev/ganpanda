@@ -2,9 +2,11 @@
 // 문서(Yjs)를 다른 방으로 옮기고, 사진·파일 에셋은 다시 올리지 않고 새 소유 계정에 등록만 한다 (에셋은 내용 해시 id 로 R2 에 하나)
 export interface CloneResult { assets: string[]; photoAssets: string[] }
 
-export async function cloneRoom(env: Env, from: { id: string; owner_id: string }, to: { id: string; owner_id: string }, maps: string[], dropSettings: string[] = []): Promise<CloneResult> {
+/** 복제해도 되는 설정 — 보드 배치만 (단가표·원가·견적·주문 정보는 안 옮긴다) */
+export const DISPLAY_SETTINGS = ['flatScale', 'flatOffset', 'flatGap'];
+export async function cloneRoom(env: Env, from: { id: string; owner_id: string }, to: { id: string; owner_id: string }, maps: string[], keepSettings: string[] = DISPLAY_SETTINGS): Promise<CloneResult> {
   const update = await env.ROOM.getByName(from.id).exportState();
-  const res = await env.ROOM.getByName(to.id).cloneFrom(update, maps, dropSettings);
+  const res = await env.ROOM.getByName(to.id).cloneFrom(update, maps, keepSettings);
   if (from.owner_id !== to.owner_id && res.assets.length) {
     const rows = await env.DB.prepare(`SELECT asset_id, size FROM account_assets WHERE account_id = ? AND asset_id IN (${res.assets.map(() => '?').join(',')})`).bind(from.owner_id, ...res.assets).all<{ asset_id: string; size: number }>();
     const now = Date.now();

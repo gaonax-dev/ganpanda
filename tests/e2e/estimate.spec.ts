@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { apiLogin, dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각·치수로 참고 견적을 보고 요청 → 간판사 홈에 사인물째 들어와 제안', async ({ page, request, browser }) => {
+  test.setTimeout(60_000); // 가게 사장·다른 기기·간판집 세 화면을 거치는 긴 흐름 — 전체 실행 중 30초를 넘기곤 했다
   const store = `떡집 ${Math.random().toString(36).slice(2, 7)}`;
   // 시작 화면: 간판집 / 가게 사장
   await page.goto('/');

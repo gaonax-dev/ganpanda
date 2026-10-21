@@ -25,7 +25,7 @@
 </script>
 
 {#if req}
-  <span class="locked" data-testid="estimate-locked" title="보낸 요청은 고칠 수 없습니다 — 취소하면 다시 고칠 수 있어요">🔒 견적 요청 중</span>
+  <span class="locked" data-testid="estimate-locked" title={app.consumer ? '보낸 요청은 고칠 수 없습니다 — 취소하면 다시 고칠 수 있어요' : '보낸 요청은 그 순간의 보드 그대로입니다 — 이 프로젝트는 계속 고칠 수 있어요'}>{app.consumer ? '🔒 견적 요청 중' : '외주 요청 중'}</span>
   <a class="btn small primary" data-testid="estimate-view" href={req.url}>요청 보기</a>
   <button class="btn small" data-testid="estimate-cancel" disabled={busy} onclick={cancel}>요청 취소</button>
 {/if}

@@ -94,7 +94,9 @@
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
   // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
-  $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme); });
+  $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
+  // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
+  $effect(() => { document.documentElement.classList.toggle('outsource', app.outsourceParam || (app.access.status === 'ok' && !!app.access.outsource)); });
 </script>
 
 <div class="shell">
@@ -108,6 +110,8 @@
         <span class="role" data-testid="consumer-badge" title="로그인 없이 이 기기에만 저장됩니다. 금액은 참고용 예시 단가입니다">가게 사장 · 참고 금액</span>
 {#if app.consumerLocked}<EstimateLock />{:else}<button class="btn small primary" data-testid="estimate-button" disabled={!app.photos.length} title={app.photos.length ? '그린 사인물과 사진으로 지역 간판집에 견적 요청' : '사진을 먼저 올려 주세요'} onclick={() => (app.estimateOpen = true)}>견적 요청</button>{/if}
       {:else}
+      {#if app.access.outsource}<span class="b2b" data-testid="outsource-badge" title="다른 업체에 맡기는 외주 프로젝트">B2B 외주</span>{/if}
+      {#if app.outsourceProject}{#if app.settings.estimateRequest}<EstimateLock />{:else}<button class="btn small primary" data-testid="outsource-request" disabled={!app.photos.length} title={app.photos.length ? '이 보드 그대로 다른 간판집에 외주 견적 요청' : '사진을 먼저 올려 주세요'} onclick={() => (app.estimateOpen = true)}>외주 요청</button>{/if}{/if}
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
       {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title="버전 기록 — 이전 상태로 되돌리기 (유료)" onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
@@ -153,6 +157,7 @@
     </div>
     <div class="right">
       <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게") -->
+      {#if app.sentShown && !app.consumer}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">보낸 요청 <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
       {#if app.requestInboxShown && !app.consumer}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">견적 요청 <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="peers">
@@ -261,7 +266,7 @@
   {/each}
 </div>
 {#if app.settingsOpen}<Settings />{/if}
-{#if app.estimateOpen && app.consumer}<EstimateRequestDialog />{/if}
+{#if app.estimateOpen && (app.consumer || app.outsourceProject)}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
@@ -355,4 +360,5 @@
   .reqs b { background: var(--input); color: var(--text); border-radius: 999px; padding: 0 7px; font-size: 12px; }
   .reqs.hot { color: var(--text); border-color: var(--accent); }
   .reqs.hot b { background: var(--accent); color: var(--accent-ink); }
+  .b2b { font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 </style>

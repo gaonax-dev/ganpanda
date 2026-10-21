@@ -17,7 +17,7 @@
 {#if req}
   <div class="bar" data-testid="request-bar">
     <div class="info">
-      <b>{req.store}</b>
+      <b>{req.store}</b>{#if req.b2b}<span class="b2b" data-testid="request-b2b">B2B</span>{/if}
       {#if req.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if req.general}<span class="tag">일반 주문</span>{/if}
       <span class="muted" data-testid="request-address">{req.address || req.region}</span>
       {#if req.text}<span class="text" data-testid="request-text">“{req.text}”</span>{/if}
@@ -35,6 +35,7 @@
   .muted { color: var(--muted); font-size: 12px; }
   .text { font-size: 12px; }
   .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
+  .b2b { color: #ff3d9a; border: 1px solid #ff3d9a; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 6px; }
   .tag { color: var(--muted); font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
   a { color: var(--accent); }
   a.btn { text-decoration: none; color: var(--accent-ink); }
