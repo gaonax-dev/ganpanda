@@ -3,7 +3,6 @@ import { expect, test } from '@playwright/test';
 import { apiLogin, dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
 
 test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각·치수로 참고 견적을 보고 요청 → 간판사 홈에 사인물째 들어와 제안', async ({ page, request, browser }) => {
-  test.setTimeout(60_000); // 가게 사장·다른 기기·간판집 세 화면을 거치는 긴 흐름 — 전체 실행 중 30초를 넘기곤 했다
   const store = `떡집 ${Math.random().toString(36).slice(2, 7)}`;
   // 시작 화면: 간판집 / 가게 사장
   await page.goto('/');
@@ -151,7 +150,9 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(shop.getByTestId('request-text')).toContainText('예산 200만 원');
   await expect(shop.getByTestId('request-bizdoc')).toContainText('견적을 넣으면 열립니다'); // 사본은 견적 뒤
   await shop.getByTestId('request-respond').click();
-  await expect(shop.getByTestId('project-title')).toContainText(`${store} 요청`);
+  await expect(shop).not.toHaveURL(/request=/, { timeout: 15_000 }); // 요청 보드("…요청서")에서 내 프로젝트로 넘어갈 때까지 — 이름이 비슷해 앞 화면에서 통과하던 경쟁
+  await expect(shop.getByTestId('request-bar')).toHaveCount(0);
+  await expect(shop.getByTestId('project-title')).toHaveText(`${store} 요청`);
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1, { timeout: 15_000 });
   await shop.getByTestId('sign-shape').first().click();
