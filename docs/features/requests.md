@@ -22,6 +22,19 @@
 - **간판사**: 홈 "받은 요청"에 **사인물 수·치수 수**(`request-signs`). [제안 만들기]로 연 프로젝트에 사진과 함께 **사인물이 그대로 그려진다**(`importRequestPhotos` → `materializeRequestSigns`, 문서에 사인물이 없을 때만). 서버 `requests.signs`(JSON, `0022_request_signs.sql`, `server/src/requestSigns.ts` 로 검사 — 앱과 같은 규칙, 틀리면 400).
 - 테스트: `tests/unit/requestSigns.test.ts`, `server/test/requests.test.ts`(signs), `tests/e2e/estimate.spec.ts`.
 
+## 사업자 확인·일반 주문·잠금·취소·재요청 (2026-10-22)
+사용자: "견적요청 버튼 클릭하면 사업자등록확인 요청 대화식으로 등록증 요청한다. 하단에는 수동입력버튼도 준비한다. 이미지가 들어오면 내용을 추출하는 효과를 표현하고 완료되면 수동입력 폼이 나타나고 수집한 내용을 다시 확인한다. 사업자 확인이되면 사업자 인증 배지가 표시된 견적요청 페이지가 나온다. 만약 사업자없으면 일반 주문으로 표시하고 불이익도 안내해준다. 인증배지 옆에 변경도 만들어준다. 사업자 추가도 있어야한다. 선택가능하게. 견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서. 그리고 "견적요청보내기" 왜 작동안하는지 모르겠다. 그리고 견적이 요청되면 수정이 불가능하다. 견적요청 취소 후 재 요청할수있다. 견적 입찰한 업체들은 토큰을 돌려받고 재 견적 간판다에서 요청을 보낸다."
+
+- **대화식 사업자 확인**(`EstimateRequestDialog.svelte`, 단계 `data-step` = who → scan → confirm → form → done): 간판다 말풍선(`est-chat`)이 등록증을 부탁하고, 아래에 **[📷 사업자등록증 올리기]**(`est-bizdoc`) · **[✍️ 직접 입력]**(`est-manual`) · **[사업자 없이 일반 주문]**(`est-general`). 등록해 둔 사업자가 있으면 고르는 목록(`est-store-pick`), 등록증을 또 올리면 **사업자 추가**.
+- **읽는 효과**(`est-scanning`): 등록증 그림 위로 노란 빛줄이 오르내리고 오른쪽 칸(등록번호·상호·대표자·개업일·주소)이 반짝이다 읽은 값이 하나씩 채워진다(최소 0.9초 보이게). 끝나면 **확인 폼**(`est-confirm`, 읽은 값이 들어 있음 — 못 읽었으면 빈 칸과 안내) → **[확인하고 인증받기]**(`est-verify`) = 국세청 진위확인(번호·대표자·개업일) → 사업자 저장(사본도 사업자에 붙여 둠).
+- **요청 폼**: 맨 위 **신원 줄**(`est-identity`, `data-kind` store|general) — "✓ 사업자 인증 · 상호 · 번호" 또는 "일반 주문", 옆에 **[변경]**(`est-identity-change`, 사업자 고르기·추가·일반 주문으로 돌아감). 고른 신원은 견적 초안 방 설정 `estimateIdentity` 로 기기 사이 같이. 일반 주문이면 **불이익 안내**(`est-general-notice`): 간판집이 허위 요청을 걱정해 제안이 적거나 늦을 수 있음, 세금계산서를 받을 수 없어 부가세 매입 공제 불가.
+- **"견적요청보내기"가 안 되던 문제**: 단추가 조건(가게·전화·주소의 시/군/구·사진·사업자)이 모자라면 말없이 꺼져 있었다(운영에 요청이 한 건도 없었음). 이제 단추는 늘 눌리고, 모자라면 **빠진 것 목록**(`estimate-missing`, `core/estimateRequest.ts missingForRequest`)을 보여 준다.
+- **보내면 잠김**: 보낸 요청은 견적 초안 방 설정 `estimateRequest {id,url,at}` 에 남고, 있으면 `app.consumerLocked` → `canEdit` false(보드를 못 고침). 상단 바는 [견적 요청] 대신 **🔒 견적 요청 중 · [요청 보기] · [요청 취소]**(`EstimateLock.svelte`, `estimate-locked`·`estimate-view`·`estimate-cancel`). 다른 기기·요청 페이지에서 취소했으면 열 때 서버 상태를 보고 잠금을 푼다.
+- **취소 → 환불**: `POST /api/requests/:id/cancel`(고객 키·세션, 열린 요청만) → `status = 'cancelled'`. 그 요청으로 만든 프로젝트의 **제안 링크(`invites.kind='proposal'`)에 `refunded_at`** → 이번 달 제안 건수(`proposalsThisMonth`)에서 빠진다 = 간판집의 "토큰"(요금제 제안 건수) 환불. 제안했던 간판집에 메일.
+- **재요청 → 재견적**: 취소한 요청 id 는 `estimatePrev` 에 남고, 다시 보내면 `prevId` 로 실린다. 서버는 앞 요청에 제안했던 간판집에 **재견적 요청 메일**을 보내고, 그 간판집은 지역·"요청 받기"와 상관없이 받은 요청 목록에서 **재견적** 태그(`request-again-tag`)로 본다. 취소된 요청은 목록에 **취소됨 · 제안 건수 환불**(`request-cancelled`).
+- **요청 페이지**(`RequestView.svelte`): 배지(`request-badge` verified|general), 진행 단계(`request-steps`: 요청 접수 → 제안 도착 → 간판집 선택, `requestSteps`), 상태 카드(대기 중 깜빡임), 받은 제안, 요청 내용 요약(`request-summary`: 사인물·치수·사진·지역·내용), **[요청 취소]**(`request-cancel`) → 취소되면 **[고쳐서 다시 요청하기]**(`request-again`, /estimate).
+- **사업자(여럿)**: 서버 `stores` 표(계정당 여럿, 국세청 진위확인 통과만 저장, 사본 R2 `stores/<id>/doc`). 요청에 `storeId` 를 실으면 번호·대표자·개업일·상태·사본이 요청에 복사된다(`biz_verified = 1`). 간판사 자신의 사업자(`businesses`, 계정당 하나)와는 따로.
+
 ## 역할과 돈
 | 역할 | 하는 일 | 돈 |
 |---|---|---|

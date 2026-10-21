@@ -41,22 +41,44 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page.getByTestId('quote-panel')).not.toContainText('이익율'); // 원가·이익은 안 보임
   await page.getByTestId('view-board').click();
 
-  // 견적 요청 (이미 로그인됨)
+  // 견적 요청 (2026-10-22 "대화식으로 등록증 요청 … 추출하는 효과 … 수동입력 폼이 나타나고 수집한 내용을 다시 확인 … 사업자 인증 배지")
   await page.getByTestId('estimate-button').click();
   const dlg = page.getByTestId('estimate-dialog');
+  await expect(dlg).toHaveAttribute('data-step', 'who');
+  await expect(dlg.getByTestId('est-chat')).toContainText('사업자등록증');
+  await expect(dlg.getByTestId('est-manual')).toBeVisible(); // 하단에 수동 입력
+  await expect(dlg.getByTestId('est-general')).toBeVisible();
+  // 등록증 → 읽는 효과 → 읽은 내용 확인 폼 (로컬 fake: 220-81-62517 · 간판다 카페 · 홍길동 · 2020-01-05)
+  await dlg.getByTestId('est-bizdoc').setInputFiles({ name: '등록증.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]) });
+  await expect(dlg.getByTestId('est-scanning')).toBeVisible();
+  await expect(dlg).toHaveAttribute('data-step', 'confirm', { timeout: 10_000 });
+  await expect(dlg.getByTestId('est-scan')).toHaveAttribute('data-state', 'ok');
+  await expect(dlg.getByTestId('est-bizno')).toHaveValue('220-81-62517');
+  await expect(dlg.getByTestId('est-owner')).toHaveValue('홍길동');
+  await expect(dlg.getByTestId('est-bizname')).toHaveValue('간판다 카페');
+  await dlg.getByTestId('est-bizname').fill(store); // 확인하며 고친다
+  await dlg.getByTestId('est-bizaddr').fill('경기도 광주시 경안로 1');
+  await dlg.getByTestId('est-verify').click();
+  // 인증 배지 + [변경]
+  await expect(dlg.getByTestId('est-identity')).toHaveAttribute('data-kind', 'store');
+  await expect(dlg.getByTestId('est-identity')).toContainText('사업자 인증');
+  await expect(dlg.getByTestId('est-identity')).toContainText(store);
+  await expect(dlg.getByTestId('est-identity-change')).toBeVisible();
+  await expect(dlg.getByTestId('est-store')).toHaveValue(store); // 사업자 상호·주소가 채워진다
+  await expect(dlg.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
   await expect(dlg.getByTestId('estimate-summary')).toContainText('사진 1장 · 사인물 1개 (치수 입력 1개)');
   await expect(dlg.getByTestId('estimate-advice')).toHaveCount(0); // 다 재면 안내 없음
-  await dlg.getByTestId('est-store').fill(store);
-  await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 1'); // 지역은 주소에서 (경기 광주시)
-  await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`); // 같은 번호는 열린 요청 3건까지
-  await expect(dlg.getByTestId('estimate-send')).toBeDisabled(); // 사본 없이는 못 보낸다 (2026-10-21 "사업자등록증 무조건")
-  // 창을 닫았다 열어도 적던 내용이 남는다 (2026-10-21 "등록했는데 사라져")
+  // 빠진 것이 있으면 말로 알려 준다 (2026-10-22 "왜 작동안하는지 모르겠다")
+  await dlg.getByTestId('estimate-send').click();
+  await expect(dlg.getByTestId('estimate-missing')).toContainText('전화번호');
+  await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
+  await dlg.getByTestId('est-text').fill('예산 200만 원');
+  // 창을 닫았다 열어도 적던 내용·고른 사업자가 남는다
   await dlg.getByTestId('estimate-close').click();
   await page.getByTestId('estimate-button').click();
+  await expect(page.getByTestId('est-identity')).toHaveAttribute('data-kind', 'store');
   await expect(page.getByTestId('est-store')).toHaveValue(store);
-  await expect(page.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
-  // 다른 기기(같은 계정)에서도 적던 내용이 보인다 — 초안은 계정 초안 방 설정에 (2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다")
-  await dlg.getByTestId('est-text').fill('예산 200만 원');
+  // 다른 기기(같은 계정)에서도 (2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다")
   const dev2 = await browser.newContext();
   const p2 = await dev2.newPage();
   await p2.goto('/estimate');
@@ -64,19 +86,17 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await p2.reload();
   await expect(p2.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   await p2.getByTestId('estimate-button').click();
+  await expect(p2.getByTestId('est-identity')).toHaveAttribute('data-kind', 'store');
   await expect(p2.getByTestId('est-store')).toHaveValue(store);
-  await expect(p2.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
   await expect(p2.getByTestId('est-text')).toHaveValue('예산 200만 원');
   await dev2.close();
-  // 사업자등록증 사본 → 자동 읽기(로컬 fake: 220-81-62517 · 간판다 카페 · 서울 송파구 …) → 빈 칸이 채워진다, 이후 직접 고친다
-  await dlg.getByTestId('est-bizdoc').setInputFiles({ name: '등록증.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]) });
-  await expect(dlg.getByTestId('est-scan')).toContainText('읽었습니다');
-  await expect(dlg.getByTestId('est-bizno')).toHaveValue('220-81-62517');
-  await expect(dlg.getByTestId('est-store')).toHaveValue(store); // 이미 적은 칸은 두고 빈 칸만 채운다
-  await expect(dlg.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1'); // 이미 적은 주소는 두고 빈 칸만 채운다
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
   expect(link).toMatch(/\/r\/[A-Za-z0-9_-]{16}\?key=/);
+  // 보낸 뒤 보드는 잠긴다 (2026-10-22 "견적이 요청되면 수정이 불가능하다")
+  await dlg.getByTestId('estimate-close').click();
+  await expect(page.getByTestId('estimate-locked')).toBeVisible();
+  await expect(page.getByTestId('estimate-button')).toHaveCount(0);
   // 홈에 "내 견적 요청" → 키 없이 세션으로 요청 페이지
   await page.goto('/');
   const mine = page.getByTestId('my-request-item').filter({ hasText: store });
@@ -119,7 +139,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shopCtx.close();
 });
 
-test('사본 없이도 번호·대표자 성명·개업일자를 넣으면 보낼 수 있다 (국세청 진위확인; 로컬 fake 는 홍길동 = 일치), 틀리면 안내', async ({ page, request }) => {
+test('직접 입력으로 인증(틀리면 안내) → [변경]에서 일반 주문(불이익 안내) → 보내면 잠김 → 요청 페이지에서 취소 → 고쳐서 다시 요청 (2026-10-22)', async ({ page, request }) => {
   const store = `빵집 ${Math.random().toString(36).slice(2, 7)}`;
   const session = await apiLogin(request);
   await page.goto('/');
@@ -128,18 +148,41 @@ test('사본 없이도 번호·대표자 성명·개업일자를 넣으면 보�
   await uploadPhoto(page);
   await page.getByTestId('estimate-button').click();
   const dlg = page.getByTestId('estimate-dialog');
-  await expect(dlg.getByTestId('estimate-advice')).toContainText('사인물이 없습니다'); // 보내기 전 안내 (2026-10-21)
-  await dlg.getByTestId('est-store').fill(store);
-  await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 2');
-  await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
-  await expect(dlg.getByTestId('estimate-send')).toBeDisabled();
+  await dlg.getByTestId('est-manual').click();
+  await expect(dlg).toHaveAttribute('data-step', 'confirm');
   await dlg.getByTestId('est-bizno').fill('2208162517');
   await dlg.getByTestId('est-owner').fill('김철수');
   await dlg.getByTestId('est-start').fill('2020-01-05');
-  await expect(dlg.getByTestId('estimate-send')).toBeEnabled();
-  await dlg.getByTestId('estimate-send').click();
-  await expect(dlg.getByTestId('estimate-error')).toContainText('일치하지 않습니다');
+  await dlg.getByTestId('est-verify').click();
+  await expect(dlg.getByTestId('estimate-error')).toContainText('맞지 않습니다');
   await dlg.getByTestId('est-owner').fill('홍길동');
+  await dlg.getByTestId('est-verify').click();
+  await expect(dlg.getByTestId('est-identity')).toHaveAttribute('data-kind', 'store');
+  // [변경] → 등록한 사업자 목록 + 일반 주문
+  await dlg.getByTestId('est-identity-change').click();
+  await expect(dlg.getByTestId('est-store-pick')).toHaveCount(1);
+  await dlg.getByTestId('est-general').click();
+  await expect(dlg.getByTestId('est-identity')).toHaveAttribute('data-kind', 'general');
+  await expect(dlg.getByTestId('est-general-notice')).toContainText('세금계산서');
+  await expect(dlg.getByTestId('estimate-advice')).toContainText('사인물이 없습니다');
+  await dlg.getByTestId('est-store').fill(store);
+  await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 2');
+  await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
   await dlg.getByTestId('estimate-send').click();
-  await expect(dlg.getByTestId('estimate-done-link')).toHaveValue(/\/r\//, { timeout: 20_000 });
+  const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
+  // 요청 페이지: 일반 주문 배지·진행 단계 → 취소
+  const u = new URL(link);
+  await page.goto(u.pathname + u.search); // 서버의 APP_URL 은 다른 포트일 수 있다
+  await expect(page.getByTestId('request-badge')).toHaveAttribute('data-kind', 'general');
+  await expect(page.getByTestId('request-steps').locator('li')).toHaveCount(3);
+  await expect(page.getByTestId('request-summary')).toContainText('사진');
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('request-cancel').click();
+  await expect(page.getByTestId('request-status')).toContainText('취소한 요청');
+  await page.getByTestId('request-again').click();
+  await expect(page).toHaveURL(/\/estimate$/);
+  await expect(page.getByTestId('estimate-button')).toBeVisible({ timeout: 15_000 }); // 잠금이 풀렸다
+  await expect(page.getByTestId('estimate-locked')).toHaveCount(0);
+  await page.getByTestId('estimate-button').click();
+  await expect(page.getByTestId('estimate-send')).toHaveText('다시 견적 요청 보내기');
 });

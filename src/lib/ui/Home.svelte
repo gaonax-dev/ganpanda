@@ -229,7 +229,7 @@
         {#each myRequests as r (r.id)}
           <a class="rcard mine" data-testid="my-request-item" data-status={r.status} href="/r/{r.id}">
             <b>{r.store}</b><span class="muted">{r.region} · {date(r.createdAt)} · 사인물 {r.signs?.length ?? 0}개</span>
-            <span class="resp" data-testid="my-request-responses">{r.status === 'approved' ? '승인됨' : r.responses ? `제안 ${r.responses}건` : '제안 기다리는 중'}</span>
+            <span class="resp" data-testid="my-request-responses">{r.status === 'cancelled' ? '취소됨' : r.status === 'approved' ? '승인됨' : r.responses ? `제안 ${r.responses}건` : '제안 기다리는 중'}</span>
           </a>
         {/each}
       </section>
@@ -248,7 +248,7 @@
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
             <div class="rbody">
-              <b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz" title="번호·대표자명·개업일이 국세청 등록 정보와 일치">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="번호만 국세청 상태조회로 확인 (사본 참고)">✓ 번호 확인</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              <b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz" title="번호·대표자명·개업일이 국세청 등록 정보와 일치">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="번호만 국세청 상태조회로 확인 (사본 참고)">✓ 번호 확인</span>{/if} {#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.reRequest}<span class="tag again" data-testid="request-again-tag" title="취소했던 요청을 고쳐 다시 보냈습니다 — 앞 요청에 쓴 제안 건수는 돌려드렸습니다">재견적</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨 · 제안 건수 환불</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
               {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
               {#if r.bizDoc}<p class="muted" data-testid="request-bizdoc">📄 사업자등록증 사본 {#if r.responded}<a href={bizDocUrl(r.id)} target="_blank" rel="noopener" data-testid="request-bizdoc-open">열기</a>{:else}<span>— 제안을 보내면 열립니다</span>{/if}</p>{/if}
               {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}
@@ -258,7 +258,9 @@
               {:else}
                 <p class="muted">제안 링크를 보내면 연락처가 보입니다.</p>
               {/if}
-              {#if r.projectId}
+              {#if r.status === 'cancelled'}
+                <span class="muted">가게 사장님이 요청을 취소했습니다.</span>
+              {:else if r.projectId}
                 <a class="btn small" data-testid="request-open" href="/?room={r.projectId}">프로젝트 열기</a>
               {:else}
                 <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r)}>제안 만들기</button>
@@ -613,4 +615,7 @@
   .who .big small { font-weight: 400; font-size: 12px; color: inherit; opacity: 0.8; white-space: normal; max-width: 240px; }
   .landing p { color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
+  .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
+  .tag.again { color: var(--accent); border-color: var(--accent); }
+  .tag.off { color: var(--danger); border-color: var(--danger); }
 </style>

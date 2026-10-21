@@ -9,6 +9,7 @@ import { handleVersions } from './versions';
 import { storageUsed } from './usage';
 import { handleAuth } from './auth';
 import { handleBusiness, recheckBusinesses } from './business';
+import { handleStores } from './stores';
 import { handleEstimateProject } from './projects';
 import { checkMailDns } from './mailDns';
 import { handleProjects, resolveAccess, type Role } from './projects';
@@ -249,6 +250,7 @@ export default {
     if (pathname === '/api/spec-samples') return withCors(await handleSpecSamples(req, env)); // 퀵입력이 못 알아본 글 표본 (2026-10-18)
     if (pathname === '/api/me/spec-rules' || pathname === '/api/spec-rules/suggest' || pathname === '/api/spec-rules/defaults') return withCors(await handleSpecRules(req, env, pathname, url)); // 사양 글 개인 사전 + 추천 + 전국 기본값 (2026-10-18 V1 · 10-19 V2)
     if (pathname === '/api/me/business') return withCors(await handleBusiness(req, env)); // 사업자 확인 (2026-10-21)
+    if (pathname.startsWith('/api/me/stores')) return withCors(await handleStores(req, env, pathname)); // 가게 사장의 사업자 (2026-10-22)
     if (pathname === '/api/estimate/project') return withCors(await handleEstimateProject(req, env)); // 소비자 견적 초안 방 (2026-10-22)
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)

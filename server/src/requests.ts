@@ -7,6 +7,7 @@ import { configured as ntsConfigured, fetchStatuses, validBizNo, validateBusines
 import { scanBizDoc } from './docScan';
 import { regionMatches, regionOfAddress } from './region';
 import { isOperator, operatorEmails } from './operator';
+import { getStore, storeDocKey } from './stores';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -20,7 +21,7 @@ const FROM = { email: 'login@ganpanda.co.kr', name: '간판다' };
 
 export interface RequestRow {
   id: string; key_hash: string; store: string; region: string; text: string; phone: string; email: string | null; ref: string | null;
-  photos: string; status: 'open' | 'approved'; created_at: number; approved_at: number | null; approved_by: string | null;
+  photos: string; status: 'open' | 'approved' | 'cancelled'; created_at: number; approved_at: number | null; approved_by: string | null;
   /** 소비자가 그린 사인물 JSON (2026-10-21). 옛 행은 없음 */
   signs?: string;
   /** 요청한 계정 (2026-10-21 로그인 필수). 옛 행은 null */
@@ -31,6 +32,8 @@ export interface RequestRow {
   biz_doc?: string | null;
   /** 사본 없이 직접 넣은 검증 요소와 진위확인 결과 (2026-10-21) */
   owner_name?: string | null; start_date?: string | null; biz_verified?: number;
+  /** 고른 사업자(stores), 일반 주문(사업자 없음), 재요청이면 앞 요청, 취소 시각 (2026-10-22) */
+  store_id?: string | null; general?: number; prev_id?: string | null; cancelled_at?: number | null;
 }
 const bizDocOf = (r: RequestRow): { type: string; size: number } | null => { try { return r.biz_doc ? (JSON.parse(r.biz_doc) as { type: string; size: number }) : null; } catch { return null; } };
 const bizDocKey = (id: string) => `requests/${id}/biz-doc`;
@@ -52,6 +55,7 @@ async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;
   if (r.status === 'open' && isOperator(env, me.email)) return true;
+  if (r.status === 'open' && r.prev_id && (await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(r.prev_id, me.id).first())) return true; // 재견적 (2026-10-22)
   if (!me.receive_requests || r.status !== 'open') return false;
   return regionsOf(me).some((g) => regionMatches(g, r.region));
 }
@@ -73,6 +77,14 @@ async function notify(env: Env, r: RequestRow, url: string) {
   const hit = shops.results.filter((s) => regionsOf(s).some((g) => regionMatches(g, r.region)));
   const home = `${appUrl(env)}/`;
   const to = new Set([...hit.map((s) => s.email), ...operatorEmails(env)]); // 운영자는 항상 (지역에 간판집이 없는 동안 수동 처리)
+  // 재요청이면 앞 요청에 제안했던 간판집에 재견적 요청 (2026-10-22 "재 견적 간판다에서 요청을 보낸다")
+  if (r.prev_id) {
+    const prev = await env.DB.prepare('SELECT a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ?').bind(r.prev_id).all<{ email: string }>();
+    for (const p of prev.results) {
+      to.delete(p.email);
+      try { await env.EMAIL.send({ to: p.email, from: FROM, subject: `[간판다] 재견적 요청 — ${r.store}`, text: `${r.store}에서 내용을 고쳐 다시 견적을 요청했습니다. 앞 요청에 보낸 제안 건수는 돌려드렸습니다.\n\n간판다 홈의 "받은 요청"에서 새 내용을 보고 다시 제안해 주세요: ${home}` }); } catch { /* 무시 */ }
+    }
+  }
   for (const s of [...to].map((email) => ({ email }))) {
     try {
       await env.EMAIL.send({ to: s.email, from: FROM, subject: `[간판다] ${r.region} 간판 견적 요청 — ${r.store}`,
@@ -87,7 +99,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
   }
 }
 
-const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
+const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, reRequest: !!r.prev_id, ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -126,7 +138,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   if (pathname === '/api/requests' && req.method === 'POST') {
     const me = await authenticate(req, env);
     if (!me) return json({ error: 'login_required' }, 401);
-    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean }>(req);
+    const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean; storeId?: string; general?: boolean; prevId?: string }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
     const address0 = typeof b?.address === 'string' ? b.address.trim() : '';
     const region = (typeof b?.region === 'string' && b.region.trim() ? b.region.trim() : regionOfAddress(address0)).slice(0, REGION_MAX); // 지역이 없으면 주소에서 (2026-10-21)
@@ -136,16 +148,23 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (email && !EMAIL_RE.test(email)) return text('bad email', 400);
     const signs = b?.signs === undefined ? [] : validateRequestSigns(b.signs); // 소비자가 그린 사인물 (2026-10-21)
     if (!signs) return text('bad signs', 400);
+    // 고른 사업자(2026-10-22 "사업자 추가 … 선택가능하게"): 내 것·인증된 것만, 번호·대표자·개업일·상태를 그대로 싣는다
+    const st = typeof b?.storeId === 'string' ? await getStore(env, b.storeId) : null;
+    if (b?.storeId !== undefined && (!st || st.account_id !== me.id || !st.verified)) return json({ error: 'bad_store' }, 400);
+    const general = !st && b?.general === true; // 일반 주문 (사업자 없음, 2026-10-22)
+    // 재요청 (2026-10-22 "견적요청 취소 후 재 요청"): 앞 요청은 내 것이고 취소된 것
+    const prev = typeof b?.prevId === 'string' ? await getRequest(env, b.prevId) : null;
+    if (b?.prevId !== undefined && (!prev || prev.account_id !== me.id || prev.status !== 'cancelled')) return json({ error: 'bad_prev' }, 400);
     // 주소(선택)·사업자번호(선택, 2026-10-21 "둘다 작성"): 번호만 국세청 상태조회 → 폐업은 거절, 미등록 거절, 조회 불가면 확인 없이 받는다
-    const address = typeof b?.address === 'string' ? b.address.trim().slice(0, 200) : '';
-    const bizNo = typeof b?.bizNo === 'string' ? b.bizNo.replace(/\D/g, '') : '';
-    let bizStatus: string | null = null, bizVerified = 0;
+    const address = typeof b?.address === 'string' && b.address.trim() ? b.address.trim().slice(0, 200) : st?.address ?? '';
+    const bizNo = st ? st.b_no : typeof b?.bizNo === 'string' ? b.bizNo.replace(/\D/g, '') : '';
+    let bizStatus: string | null = st ? st.status : null, bizVerified = st ? 1 : 0;
     // 검증 요소 (2026-10-21 "사본이 없으면 직접입력 … 필요한 검증 요소만"): 사본을 올리거나(bizDocPending), 번호·대표자명·개업일로 국세청 진위확인
-    const ownerName = typeof b?.ownerName === 'string' ? b.ownerName.trim().slice(0, 40) : '';
-    const startDate = typeof b?.startDate === 'string' ? b.startDate.replace(/\D/g, '') : '';
-    const manual = !!(bizNo && ownerName && /^\d{8}$/.test(startDate));
-    if (!manual && !b?.bizDocPending) return json({ error: 'verification_required' }, 400);
-    if (bizNo) {
+    const ownerName = st ? st.owner_name : typeof b?.ownerName === 'string' ? b.ownerName.trim().slice(0, 40) : '';
+    const startDate = st ? st.start_dt : typeof b?.startDate === 'string' ? b.startDate.replace(/\D/g, '') : '';
+    const manual = !st && !!(bizNo && ownerName && /^\d{8}$/.test(startDate));
+    if (!st && !general && !manual && !b?.bizDocPending) return json({ error: 'verification_required' }, 400);
+    if (bizNo && !st) {
       if (!validBizNo(bizNo)) return json({ error: 'bad_biz_no' }, 400);
       if (ntsConfigured(env)) {
         if (manual) {
@@ -168,10 +187,16 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const id = randomToken().slice(0, 16), key = randomToken();
     const row: RequestRow = {
       id, key_hash: await sha256hex(key), store, region, text: typeof b?.text === 'string' ? b.text.trim().slice(0, TEXT_MAX) : '', phone, email,
-      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs), account_id: me.id, address, biz_no: bizNo || null, biz_status: bizStatus, owner_name: ownerName || null, start_date: startDate || null, biz_verified: bizVerified,
+      ref: typeof b?.ref === 'string' && b.ref.trim() ? b.ref.trim().slice(0, REF_MAX) : null, photos: '[]', status: 'open', created_at: Date.now(), approved_at: null, approved_by: null, signs: JSON.stringify(signs), account_id: me.id, address, biz_no: general ? null : bizNo || null, biz_status: bizStatus, owner_name: general ? null : ownerName || null, start_date: general ? null : startDate || null, biz_verified: bizVerified,
+      store_id: st?.id ?? null, general: general ? 1 : 0, prev_id: prev?.id ?? null,
     };
-    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id, address, biz_no, biz_status, owner_name, start_date, biz_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id, row.address, row.biz_no, row.biz_status, row.owner_name, row.start_date, row.biz_verified).run();
+    // 사업자의 사본이 있으면 요청에 복사 (제안 보낸 간판집만 연다)
+    if (st?.doc) {
+      const obj = await env.ASSETS.get(storeDocKey(st.id));
+      if (obj) { const meta = JSON.parse(st.doc) as { type: string; size: number }; await env.ASSETS.put(bizDocKey(id), await obj.arrayBuffer(), { httpMetadata: { contentType: meta.type } }); row.biz_doc = st.doc; }
+    }
+    await env.DB.prepare('INSERT INTO requests (id, key_hash, store, region, text, phone, email, ref, photos, status, created_at, signs, account_id, address, biz_no, biz_status, owner_name, start_date, biz_verified, store_id, general, prev_id, biz_doc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(row.id, row.key_hash, row.store, row.region, row.text, row.phone, row.email, row.ref, row.photos, row.status, row.created_at, row.signs, row.account_id, row.address, row.biz_no, row.biz_status, row.owner_name, row.start_date, row.biz_verified, row.store_id, row.general, row.prev_id, row.biz_doc ?? null).run();
     const pageUrl = `${appUrl(env)}/r/${id}?key=${key}`;
     await notify(env, row, pageUrl);
     return json({ id, key, url: pageUrl }, 201);
@@ -187,6 +212,9 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const regions = me.receive_requests ? regionsOf(me) : [];
     const operator = isOperator(env, me.email);
     const open = regions.length || operator ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => operator || regions.some((g) => regionMatches(g, r.region))) : [];
+    // 재견적 (2026-10-22): 앞 요청에 제안했던 열린 재요청은 지역과 상관없이
+    const again = (await env.DB.prepare("SELECT r.* FROM requests r JOIN request_responses rr ON rr.request_id = r.prev_id WHERE rr.account_id = ? AND r.status = 'open'").bind(me.id).all<RequestRow>()).results;
+    open.push(...again);
     const answered = byReq.size ? (await env.DB.prepare(`SELECT * FROM requests WHERE id IN (${[...byReq.keys()].map(() => '?').join(',')})`).bind(...byReq.keys()).all<RequestRow>()).results : [];
     const all = new Map<string, RequestRow>();
     for (const r of [...open, ...answered]) all.set(r.id, r);
@@ -198,7 +226,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ requests });
   }
 
-  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond))?$/);
+  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel))?$/);
   if (!m) return text('not found', 404);
   const r = await getRequest(env, m[1]);
   if (!r) return text('request not found', 404);
@@ -263,6 +291,23 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const obj = req.method === 'HEAD' ? await env.ASSETS.head(photoKey(r.id, meta.n)) : await env.ASSETS.get(photoKey(r.id, meta.n));
     if (!obj) return text('not found', 404);
     return new Response(req.method === 'HEAD' ? null : (obj as R2ObjectBody).body, { headers: { 'content-type': meta.type, 'content-length': String(obj.size), 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
+  }
+
+  // ---- 취소: POST /api/requests/:id/cancel (고객, 2026-10-22 "견적요청 취소 후 재 요청할수있다. 견적 입찰한 업체들은 토큰을 돌려받고") ----
+  // 열린 요청만. 이 요청으로 만든 프로젝트의 제안 링크는 이번 달 제안 건수에서 뺀다(환불), 그 간판집에 알림
+  if (m[4] === 'cancel' && req.method === 'POST') {
+    if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
+    if (r.status !== 'open') return json({ error: 'not_open', status: r.status }, 409);
+    const now = Date.now();
+    await env.DB.prepare("UPDATE requests SET status = 'cancelled', cancelled_at = ? WHERE id = ?").bind(now, r.id).run();
+    const refund = await env.DB.prepare("UPDATE invites SET refunded_at = ? WHERE kind = 'proposal' AND refunded_at IS NULL AND project_id IN (SELECT id FROM projects WHERE request_id = ?)").bind(now, r.id).run();
+    if (env.EMAIL) {
+      const shops = await env.DB.prepare('SELECT a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ?').bind(r.id).all<{ email: string }>();
+      for (const s of shops.results) {
+        try { await env.EMAIL.send({ to: s.email, from: FROM, subject: `[간판다] 견적 요청 취소 — ${r.store}`, text: `${r.store}의 견적 요청이 취소되었습니다. 이 요청에 보낸 제안 건수는 돌려드렸습니다. 가게 사장님이 내용을 고쳐 다시 요청하면 재견적 요청을 보내 드립니다.` }); } catch { /* 무시 */ }
+      }
+    }
+    return json({ ok: true, refunded: refund.meta.changes ?? 0 });
   }
 
   // ---- 답하기: POST /api/requests/:id/respond (간판사) → 요청 사진이 들어갈 프로젝트 ----

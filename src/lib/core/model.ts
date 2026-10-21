@@ -210,6 +210,12 @@ export interface ProjectSettings {
   flatGap?: number;
   /** 소비자 견적 요청 폼의 적던 내용 (견적 초안 방에만; 2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다" — 기기 localStorage 에서 옮김). 보내면 지운다 */
   estimateDraft?: EstimateDraft;
+  /** 보낸 견적 요청 (견적 초안 방, 2026-10-22 "견적이 요청되면 수정이 불가능하다"): 있으면 보드는 잠김 — 취소하면 지운다 */
+  estimateRequest?: { id: string; url: string; at: number };
+  /** 취소한 앞 요청 — 다시 보내면 재요청(prevId)으로 그 간판집에 재견적 */
+  estimatePrev?: string;
+  /** 고른 신원: 사업자(stores id) 또는 'general'(일반 주문) — 기기 사이 같이 */
+  estimateIdentity?: string;
 }
 
 /** 견적 요청 폼 글 칸 (파일(사본)은 못 남긴다) */

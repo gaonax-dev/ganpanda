@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { setDnsFetch } from '../src/mailDns';
 import { env, runInDurableObject } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import * as Y from 'yjs';
@@ -15,9 +16,12 @@ beforeEach(async () => {
 const room = async () => (await createProject(session)).id;
 
 describe('라우팅', () => {
-  it('health', async () => {
+  it('health — 메일 DNS 점검 포함 (2026-10-22, DNS 조회는 가짜로)', async () => {
+    setDnsFetch(async (input) => Response.json({ Answer: [{ data: String(input).includes('_dmarc') ? '"v=DMARC1; p=reject;"' : '"v=spf1 include:_spf.mx.cloudflare.net ~all"' }] }));
     const r = await exports.default.fetch('http://sync/api/health');
-    expect(await r.json()).toEqual({ ok: true });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, mail: { spf: true, danger: false } });
+    setDnsFetch(null);
   });
 
   it('잘못된 방 이름은 400', async () => {

@@ -346,7 +346,9 @@ class AppState {
   unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
-  canEdit = $derived(this.role === 'owner' || this.role === 'editor');
+  canEdit = $derived((this.role === 'owner' || this.role === 'editor') && !this.consumerLocked);
+  /** 소비자: 견적을 보낸 뒤에는 보드를 못 고친다 — 요청을 취소하면 다시 (2026-10-22 "견적이 요청되면 수정이 불가능하다. 견적요청 취소 후 재 요청할수있다") */
+  get consumerLocked(): boolean { return this.consumer && !!this.settings.estimateRequest; }
   /** 고객(보기 초대): 사진 보드만, 금액 없음 (2026-10-16 "고객에게 보여지는 것은 사진보드만 보인다." 금액은 제안 링크에서) */
   isCustomer = $derived(this.role === 'viewer');
   /** 원가(공급사 금액)·이익 금액은 오너만 (2026-10-16 "원가와 판매가로 이익율이 확인되어야한다. 오너와 맴버(허가시)에게만보이게") */
