@@ -65,12 +65,26 @@
     try { const p = await createProject(n, newDetails); location.href = `/?room=${p.id}`; } finally { busy = false; }
   }
 
-  // 상세 내역 (2026-10-21 "카드 하단글자부근 클릭은 상세내역 나머지는 프로젝트 오픈"): 이름·상태·연락처·주소·날짜·메모
+  // 속성창 (2026-10-21 "카드 오른쪽끝에 상단에 매뉴버튼으로 속성창 열리고 수정 토글버튼으로 수정. 수정전 상태에는 전화걸기복사, 카톡, 주소복사 내용 없으면 안보이게")
+  // 보기(기본): 연락처 → [전화] [복사] [카톡], 주소 → [복사] — 내용이 없으면 줄 자체를 안 보인다. [수정] 토글 → 입력 폼
   let details = $state<ProjectInfo | null>(null);
+  let detailsEdit = $state(false);
+  let copied = $state('');
+  async function copyText(label: string, text: string) {
+    try { await navigator.clipboard.writeText(text); copied = `${label} 복사됨`; } catch { copied = '복사할 수 없습니다 — 길게 눌러 복사해 주세요'; }
+    setTimeout(() => (copied = ''), 1500);
+  }
+  /** 카톡: 전화번호로 대화를 여는 공개 주소가 없어 번호를 복사하고(휴대폰이면 카카오톡을 연다) 친구 찾기로 안내 */
+  async function kakao(phone: string) {
+    await copyText('번호', phone);
+    if (app.compact) location.href = 'kakaotalk://';
+    else copied = '번호 복사됨 — 카카오톡에서 친구를 찾아 보내세요';
+  }
+  const telHref = (s: string) => `tel:${s.replace(/[^\d+]/g, '')}`;
   let draft = $state<Required<ProjectDetails> & { name: string; status: ProjectStatus }>({ name: '', status: 'waiting', ...emptyDetails() });
   let detailsBusy = $state(false);
-  function openDetails(p: ProjectInfo) {
-    details = p;
+  function openDetails(p: ProjectInfo, edit = false) {
+    details = p; detailsEdit = edit; copied = '';
     draft = { name: p.name, status: p.status, contact: p.contact ?? '', address: p.address ?? '', contractDate: p.contractDate ?? '', startDate: p.startDate ?? '', dueDate: p.dueDate ?? '', memo: p.memo ?? '' };
   }
   async function saveDetails() {
@@ -78,10 +92,10 @@
     const n = draft.name.trim();
     if (!n) return;
     detailsBusy = true;
-    try { await updateProject(details.id, { ...draft, name: n }); details = null; await reload(); } finally { detailsBusy = false; }
+    try { await updateProject(details.id, { ...draft, name: n }); const id = details.id; await reload(); details = projects?.find((x) => x.id === id) ?? null; detailsEdit = false; } finally { detailsBusy = false; }
   }
-  /** 카드 아래 글자(상태·숫자·D-day) 클릭 → 상세. 선택 모드에서는 고르기 */
-  function clickMeta(e: MouseEvent, p: ProjectInfo) {
+  /** 카드 오른쪽 위 ⋯ → 속성창. 선택 모드에서는 고르기 */
+  function clickMenu(e: MouseEvent, p: ProjectInfo) {
     if (selectMode) return;
     e.preventDefault(); e.stopPropagation();
     openDetails(p);
@@ -177,11 +191,11 @@
   {@const m = measureLabel(p, STATUS_LABEL[p.status])}
   {@const d = projectDday(p)}
   <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} data-measure={m.kind} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
-    {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
+    {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>
+    {:else}<button class="menu" type="button" data-testid="project-menu" title="속성" aria-label="속성" onclick={(e) => clickMenu(e, p)}>⋯</button>{/if}
     <b>{p.name}</b>
-    <!-- 아래 글자 = 상태 · 실측 숫자(미측정/전체, 다 재면 전체) · D-day. 여기를 누르면 상세 내역, 나머지는 프로젝트 열기 (2026-10-21) -->
-    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <small class="meta" data-testid="project-meta" title="상세 내역 보기" onclick={(e) => clickMeta(e, p)}>
+    <!-- 아래 글자 = 상태 · 실측 숫자(미측정/전체, 다 재면 전체) · D-day (2026-10-21). 속성은 오른쪽 위 ⋯ -->
+    <small class="meta" data-testid="project-meta">
       <span class="status" data-status={p.status}>{m.label}</span>
       {#if m.count}<span class="count" data-testid="project-count" data-measure={m.kind} title={m.title}>{m.count}</span>{/if}
       <span class="dday" data-testid="project-dday" title={d.title} class:late={d.days < 0}>{d.label}</span>
@@ -339,9 +353,44 @@
 
 {#if details}
   <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) details = null; }}>
-    <div class="dialog" data-testid="project-details" role="dialog" aria-modal="true" aria-label="프로젝트 상세">
+    <div class="dialog" data-testid="project-details" data-mode={detailsEdit ? 'edit' : 'view'} role="dialog" aria-modal="true" aria-label="프로젝트 속성">
+    <header>
+      <h2>{detailsEdit ? '속성 수정' : details.name}</h2>
+      <button class="btn small" class:on={detailsEdit} type="button" data-testid="details-edit" title="수정 켜기/끄기" onclick={() => { if (detailsEdit) openDetails(details!); else detailsEdit = true; }}>{detailsEdit ? '수정 중' : '수정'}</button>
+      <button class="icon" type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button>
+    </header>
+    {#if !detailsEdit}
+      {@const m = measureLabel(details, STATUS_LABEL[details.status])}
+      {@const d = projectDday(details)}
+      <div class="view" data-testid="details-view">
+        <p class="row"><span>상태</span><span class="status" data-status={details.status}>{STATUS_LABEL[details.status]}{m.count ? ` · ${m.title}` : ''}</span></p>
+        {#if details.contact}
+          <p class="row" data-testid="details-contact-row"><span>연락처 <b>{details.contact}</b></span>
+            <span class="acts">
+              <a class="btn small" data-testid="details-call" href={telHref(details.contact)}>전화</a>
+              <button class="btn small" type="button" data-testid="details-copy-phone" onclick={() => copyText('번호', details!.contact!)}>복사</button>
+              <button class="btn small kakao" type="button" data-testid="details-kakao" onclick={() => kakao(details!.contact!)}>카톡</button>
+            </span></p>
+        {/if}
+        {#if details.address}
+          <p class="row" data-testid="details-address-row"><span>주소 <b>{details.address}</b></span>
+            <span class="acts"><button class="btn small" type="button" data-testid="details-copy-address" onclick={() => copyText('주소', details!.address!)}>복사</button></span></p>
+        {/if}
+        {#if details.contractDate || details.startDate || details.dueDate}
+          <p class="row"><span>{[details.contractDate && `계약 ${details.contractDate}`, details.startDate && `시작 ${details.startDate}`, details.dueDate && `완료 ${details.dueDate}`].filter(Boolean).join(' · ')}</span><span class="dday" class:late={d.days < 0} title={d.title}>{d.label}</span></p>
+        {:else}
+          <p class="row"><span class="hint">날짜 없음 (만든 날 {date(details.createdAt)})</span><span class="dday" title={d.title}>{d.label}</span></p>
+        {/if}
+        {#if details.memo}<p class="memo" data-testid="details-memo-view">{details.memo}</p>{/if}
+        {#if copied}<p class="hint ok" data-testid="details-copied">{copied}</p>{/if}
+      </div>
+      <footer>
+        <a class="btn small" href="/?room={details.id}">프로젝트 열기</a>
+        <span class="grow"></span>
+        <button class="btn small" type="button" onclick={() => (details = null)}>닫기</button>
+      </footer>
+    {:else}
     <form class="dform" onsubmit={(e) => { e.preventDefault(); saveDetails(); }}>
-      <header><h2>프로젝트 상세</h2><button class="icon" type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button></header>
       <label>이름<input data-testid="details-name" bind:value={draft.name} /></label>
       <label>상태<select data-testid="details-status" bind:value={draft.status}>{#each Object.entries(STATUS_LABEL) as [k, label] (k)}<option value={k}>{label}</option>{/each}</select></label>
       <label>연락처<input data-testid="details-contact" bind:value={draft.contact} placeholder="010-0000-0000" /></label>
@@ -356,10 +405,11 @@
       <footer>
         <a class="btn small" href="/?room={details.id}">프로젝트 열기</a>
         <span class="grow"></span>
-        <button class="btn small" type="button" onclick={() => (details = null)}>취소</button>
+        <button class="btn small" type="button" onclick={() => openDetails(details!)}>취소</button>
         <button class="btn small primary" type="submit" data-testid="details-save" disabled={detailsBusy || !draft.name.trim()}>저장</button>
       </footer>
     </form>
+    {/if}
     </div>
   </div>
 {/if}
@@ -418,8 +468,7 @@
   .more label input { width: auto; }
   .more .x { margin-left: auto; }
   /* 카드 아래 글자 */
-  .pcard .meta { display: flex; gap: 6px; align-items: center; cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
-  .pcard .meta:hover { background: rgba(255,255,255,0.06); }
+  .pcard .meta { display: flex; gap: 6px; align-items: center; }
   .count[data-measure='waiting'] { color: var(--muted); }
   .count[data-measure='measuring'] { color: var(--accent); font-weight: 600; }
   .count[data-measure='measured'] { color: var(--ok); font-weight: 600; }
@@ -495,6 +544,16 @@
   .btn.on { border-color: var(--accent); color: var(--accent); }
   .pcard.picking { cursor: pointer; }
   .pick { position: absolute; top: 8px; right: 10px; color: var(--accent); font-size: 14px; }
+  .pcard .menu { position: absolute; top: 6px; right: 6px; background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+  .pcard .menu:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .pcard b { padding-right: 22px; }
+  .dialog .view { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .dialog .view .row { align-items: center; gap: 8px; }
+  .dialog .acts { display: flex; gap: 4px; flex-shrink: 0; }
+  .dialog .kakao { background: #fee500; color: #191919; border-color: #fee500; }
+  .dialog .memo { margin: 0; white-space: pre-wrap; background: var(--input); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .dialog .ok { color: var(--ok); }
+  .dialog header .btn { margin-left: auto; margin-right: 8px; }
   .pcard { position: relative; }
   tr.sel td { background: rgba(255, 204, 0, 0.08); }
   .landing { text-align: center; margin-top: 60px; }

@@ -36,31 +36,47 @@ test('만들기: 이름 칸에 포커스하면 선택 항목이 펼쳐지고 ✕
   await expect(card).not.toContainText('실측'); // 숫자만
 });
 
-test('카드 아래 글자를 누르면 상세 내역(연락처·주소·날짜·메모·상태) — 고치면 저장; 완료일이 지났으면 D+n; 그룹에도 D-day', async ({ page, request }) => {
+test('카드 오른쪽 위 ⋯ → 속성창: 보기(전화·복사·카톡·주소복사, 없으면 숨김) ↔ [수정] 토글; 완료일이 지났으면 D+n; 그룹에도 D-day', async ({ page, request, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const session = await apiLogin(request);
   const id = await apiCreateProject(request, session, '상세 매장');
   await request.patch(`http://localhost:8787/api/projects/${id}`, { data: { dueDate: plusDays(-2), contact: '02-123-4567' }, headers: { authorization: `Bearer ${session}` } });
   await openHome(page, session);
   const card = page.getByTestId('project-item').first();
   await expect(card.getByTestId('project-dday')).toHaveText('D+2');
-  await card.getByTestId('project-meta').click();
+  await card.getByTestId('project-menu').click();
   const dlg = page.getByTestId('project-details');
-  await expect(dlg).toBeVisible();
+  await expect(dlg).toHaveAttribute('data-mode', 'view');
+  await expect(dlg.getByTestId('details-call')).toHaveAttribute('href', 'tel:021234567');
+  await dlg.getByTestId('details-copy-phone').click();
+  await expect(dlg.getByTestId('details-copied')).toContainText('복사됨');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('02-123-4567');
+  await expect(dlg.getByTestId('details-kakao')).toBeVisible();
+  await expect(dlg.getByTestId('details-address-row')).toHaveCount(0); // 주소 없음 → 안 보임
+  // 수정 토글
+  await dlg.getByTestId('details-edit').click();
+  await expect(dlg).toHaveAttribute('data-mode', 'edit');
   await expect(dlg.getByTestId('details-contact')).toHaveValue('02-123-4567');
   await expect(dlg.getByTestId('details-due-date')).toHaveValue(plusDays(-2));
   await dlg.getByTestId('details-memo').fill('야간 조명 포함');
   await dlg.getByTestId('details-address').fill('서울 송파구');
   await dlg.getByTestId('details-status').selectOption('ongoing');
   await dlg.getByTestId('details-save').click();
-  await expect(dlg).toHaveCount(0);
+  await expect(dlg).toHaveAttribute('data-mode', 'view'); // 저장 후 보기로
+  await expect(dlg.getByTestId('details-address-row')).toContainText('서울 송파구');
+  await expect(dlg.getByTestId('details-memo-view')).toHaveText('야간 조명 포함');
+  await dlg.getByTestId('details-copy-address').click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('서울 송파구');
+  await dlg.getByTestId('details-close').click();
   await expect(card).toHaveAttribute('data-status', 'ongoing');
-  await card.getByTestId('project-meta').click();
-  await expect(page.getByTestId('details-memo')).toHaveValue('야간 조명 포함');
-  await expect(page.getByTestId('details-address')).toHaveValue('서울 송파구');
-  await page.getByTestId('details-close').click();
-  // 그룹 D-day: 그룹 안 프로젝트의 기준일
+  // 연락처가 없는 프로젝트: 전화·복사·카톡 줄이 없다
   await apiCreateProject(request, session, '둘째');
   await page.reload();
+  await page.getByTestId('project-item').filter({ hasText: '둘째' }).getByTestId('project-menu').click();
+  await expect(page.getByTestId('details-contact-row')).toHaveCount(0);
+  await expect(page.getByTestId('details-kakao')).toHaveCount(0);
+  await page.getByTestId('details-close').click();
+  // 그룹 D-day: 그룹 안 프로젝트의 기준일
   await page.getByTestId('select-mode').click();
   await page.getByTestId('project-item').nth(0).click();
   await page.getByTestId('project-item').nth(1).click();
