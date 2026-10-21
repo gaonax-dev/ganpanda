@@ -101,10 +101,11 @@ describe('소비자 견적 초안 프로젝트 (2026-10-22 "휴대폰에서 작�
     expect(project.name).toBe('간판 견적 요청');
     const b = await (await json('/api/estimate/project', {}, s)).json<{ project: { id: string } }>();
     expect(b.project.id).toBe(project.id);
-    await createProject(s, '보통');
+    // 가게 사장 계정은 보통 프로젝트를 못 만든다 (2026-10-22 계정 종류) — 목록에는 초안이 안 나온다
+    expect((await json('/api/projects', { name: '보통' }, s)).status).toBe(403);
     const list = await (await get('/api/projects', s)).json<{ projects: { id: string }[] }>();
     expect(list.projects.map((p) => p.id)).not.toContain(project.id);
-    expect(list.projects).toHaveLength(1);
+    expect(list.projects).toHaveLength(0);
     expect((await get(`/api/projects/${project.id}/access`, s)).status).toBe(200); // 보통 방처럼 연다
   });
 });

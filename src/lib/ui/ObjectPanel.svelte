@@ -68,7 +68,7 @@
   const label = (g: Group | null) => CATEGORY_GROUPS.find((c) => c.id === g)?.label ?? '없음';
 </script>
 
-<aside class="panel" data-testid="object-panel">
+<aside class="panel" class:ro data-ro={ro || undefined} data-testid="object-panel">
   <header>
     <!-- 입력 즉시 저장: 바깥을 눌러 패널이 닫히면 change 가 오지 않아 이름이 사라졌음 (2026-10-15 사용자: "웹에서 사인물 이름 변경" 안 됨) -->
     <input class="title" data-testid="object-name" value={obj.name} disabled={ro} oninput={(e) => { const v = e.currentTarget.value.trim(); if (v) update({ name: v }); }} />

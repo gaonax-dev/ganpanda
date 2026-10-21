@@ -14,7 +14,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; /** 'shop' | 'consumer' | null (2026-10-22) */ kind?: string | null; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
 
 const LOCK_WINDOW = 15 * 60 * 1000;
 const VERIFY_TTL = 24 * 60 * 60 * 1000;
@@ -33,7 +33,7 @@ export async function authenticate(req: Request, env: Env): Promise<(Account & {
   return row ? { ...row, sessionHash } : null;
 }
 
-const publicAccount = (a: Account) => ({ id: a.id, email: a.email, name: a.name, plan: a.plan, hasPassword: !!a.password_hash });
+const publicAccount = (a: Account) => ({ id: a.id, email: a.email, name: a.name, plan: a.plan, hasPassword: !!a.password_hash, kind: a.kind ?? null });
 /** /api/me 용: 운영자 여부 (홈 운영 배너, 2026-10-22) */
 
 /** 새 세션 (reset = 비밀번호 재설정 링크로 들어온 세션: 15분 동안 현재 비밀번호 없이 새 비밀번호 설정 가능) */

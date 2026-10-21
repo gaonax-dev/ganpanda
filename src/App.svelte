@@ -218,6 +218,13 @@
     </div>
     {#if app.page === 'request-view'}
       <div class="proposal"><RequestView /></div>
+    {:else if app.consumer && app.consumerBlocked}
+      <!-- 간판집 계정은 가게 사장 견적 요청을 못 쓴다 (2026-10-22 "사업자는 소비자 등록이 안된다") -->
+      <section class="gate" data-testid="consumer-blocked">
+        <h1>간판집 계정입니다</h1>
+        <p>간판집 계정은 가게 사장 견적 요청을 쓸 수 없습니다. 다른 업체에 맡기려면 프로젝트를 만들 때 <b>[외주]</b>에 체크하거나, 프로젝트 ⋯ → <b>[다른 업체에 외주 요청]</b>을 쓰세요.</p>
+        <a class="btn primary" href="/">홈으로</a>
+      </section>
     {:else if app.consumer && app.authReady && !app.account}
       <!-- 소비자 입구 (2026-10-21 "입구 카카오 견적요청 사본으로 자동입력"): 로그인 먼저, 그 뒤 보드 -->
       <section class="gate" data-testid="consumer-gate">

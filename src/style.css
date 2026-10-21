@@ -56,3 +56,18 @@ code { font-size: 11px; }
    role="button" tabindex="-1" 인 SVG 조작 요소는 터치하면 포커스를 받는데, 프로그램용 포커스(-1)라 링을 그릴 이유가 없다 */
 [tabindex="-1"]:focus, [tabindex="-1"]:focus-visible { outline: none; }
 svg [role="button"]:focus { outline: none; }
+
+/* 권한에 맞게 (2026-10-22 사용자: "인터페이스 권한에 맞게 감추고 필드(잠금)는 텍스트로 조정해줘"):
+   고칠 수 없는 화면(보기 초대·요청 보드 등, data-ro)에서는 잠긴 입력칸을 글자처럼 — 테두리·배경·화살표 없이, 빈 칸은 "—".
+   고치는 단추(잠긴 .btn·아이콘 단추)는 감춘다. 고른 상태를 보여 주는 칩·체크는 그대로 */
+[data-ro] :is(input, select, textarea):disabled {
+  appearance: none; -webkit-appearance: none; border-color: transparent !important; background: transparent !important;
+  color: var(--text) !important; opacity: 1 !important; -webkit-text-fill-color: var(--text); cursor: default; padding-left: 0; padding-right: 0; box-shadow: none;
+}
+[data-ro] :is(input, textarea):disabled::placeholder { color: transparent; }
+[data-ro] input:disabled:placeholder-shown { background: none; }
+[data-ro] input[type='checkbox']:disabled, [data-ro] input[type='radio']:disabled { appearance: auto; -webkit-appearance: auto; }
+[data-ro] input[type='color']:disabled { appearance: auto; -webkit-appearance: auto; padding: 0; }
+[data-ro] input[type='range']:disabled { display: none; }
+[data-ro] .btn:disabled, [data-ro] button.icon:disabled { display: none; }
+

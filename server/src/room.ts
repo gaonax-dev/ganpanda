@@ -175,6 +175,16 @@ export class Room extends DurableObject<Env> {
     return { assets: [...assets], photoAssets };
   }
 
+  /** 방을 비운다 — 계정 삭제 (2026-10-22): 접속을 끊고 저장된 변경을 모두 지운다 */
+  async wipe() {
+    for (const ws of this.ctx.getWebSockets()) { try { ws.close(1000, 'deleted'); } catch { /* 이미 닫힘 */ } }
+    await this.ctx.storage.deleteAll();
+    this.doc.destroy();
+    this.doc = new Y.Doc({ gc: true });
+    this.doc.on('update', (u: Uint8Array, origin: unknown) => this.onUpdate(u, origin));
+    this.rows = 0;
+  }
+
   /** 백업을 그대로 합친다(merge) — 잃어버린·빈 방, 새 프로젝트로 꺼내기 (2026-10-21) */
   async seedFrom(update: Uint8Array) { Y.applyUpdate(this.doc, update); }
 

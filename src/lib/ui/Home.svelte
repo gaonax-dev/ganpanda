@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { AuthError } from '../auth';
   import { splitShelf } from '../core/projectShelf';
   import { listMyRequests, type MyRequest } from '../requests';
   import { SERVER_URL } from '../sync';
@@ -36,6 +37,11 @@
 
   /** 내가 보낸 견적 요청 (가게 사장, 2026-10-21 로그인 요청): 키 없이 세션으로 연다 */
   let myRequests = $state<MyRequest[]>([]);
+  /** 가게 사장 → 간판집 전환 (2026-10-22): 되돌릴 수 없음, 견적 보드는 내 프로젝트로 */
+  async function toShop() {
+    if (!confirm('간판집(사업자) 계정으로 바꿀까요?\n\n견적 보드는 내 프로젝트로 옮겨지고, 보낸 요청과 등록한 사업자는 그대로 남습니다. 바꾼 뒤에는 가게 사장 견적 요청 대신 외주 요청을 씁니다. 되돌릴 수 없습니다.')) return;
+    try { await app.becomeShop(); await reload(); app.showFlash('간판집 계정으로 바꿨습니다'); } catch (e) { app.notice = e instanceof Error ? e.message : String(e); }
+  }
   async function reload() {
     try {
       [projects, groups] = await Promise.all([listProjects(), listGroups()]);
@@ -61,7 +67,9 @@
     const n = name.trim();
     if (!n || busy) return;
     busy = true;
-    try { const p = await createProject(n, newDetails, newOutsource); location.href = `/?room=${p.id}`; } finally { busy = false; }
+    try { const p = await createProject(n, newDetails, newOutsource); location.href = `/?room=${p.id}`; }
+    catch (e) { app.notice = e instanceof AuthError && e.status === 403 ? '가게 사장 계정은 프로젝트를 만들 수 없습니다. 간판집으로 전환해 주세요.' : e instanceof Error ? e.message : String(e); }
+    finally { busy = false; }
   }
 
   // 속성창 (2026-10-21 "카드 오른쪽끝에 상단에 매뉴버튼으로 속성창 열리고 수정 토글버튼으로 수정. 수정전 상태에는 전화걸기복사, 카톡, 주소복사 내용 없으면 안보이게")
@@ -219,7 +227,16 @@
     {#if app.account?.operator && health && !health.ok}
       <p class="ops-warn" data-testid="ops-health-warning">⚠ 운영 점검: {health.mail?.detail ?? '서버 헬스 이상'} — 로그인 메일·요청 알림이 안 갈 수 있습니다.</p>
     {/if}
-    {#if app.requestsEnabled && myRequests.length}
+    {#if app.consumerAccount}
+      <!-- 가게 사장 계정 (2026-10-22): 프로젝트 대신 견적 요청. 간판집이면 전환 — 견적 보드는 내 프로젝트로 옮겨진다 -->
+      <section class="consumer-home" data-testid="consumer-home">
+        <h1>가게 사장 계정</h1>
+        <p class="hint">사진에 간판을 그려 동네 간판집에 견적을 요청합니다.</p>
+        <div class="row"><a class="btn primary" data-testid="consumer-continue" href="/estimate">견적 요청 하기</a>
+          <button class="btn" data-testid="consumer-to-shop" onclick={toShop}>간판집(사업자)으로 전환</button></div>
+      </section>
+    {/if}
+    {#if app.requestsEnabled && myRequests.length && app.consumerAccount}
       <section class="requests" data-testid="my-request-list">
         <h1>내 견적 요청 <small><a href="/estimate">새 요청</a></small></h1>
         {#each myRequests as r (r.id)}
@@ -231,6 +248,7 @@
       </section>
     {/if}
     <!-- 운영자는 요청이 없어도 자리를 보인다 (2026-10-22 "받은 요청 페이지가 어디에 있나?") -->
+    {#if !app.consumerAccount}
     <section data-testid="project-list">
       <h1>내 프로젝트</h1>
       <form class="new" class:open={formOpen} data-testid="new-project-form" onsubmit={(e) => { e.preventDefault(); create(); }}>
@@ -345,6 +363,7 @@
       {#if projects === null}<p class="hint">불러오는 중…</p>
       {:else if !projects.length}<p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>{/if}
     </section>
+    {/if}
   {:else}
     <section class="landing" data-testid="landing">
       <h1>간판다</h1>
@@ -573,4 +592,8 @@
   .btn.pink { color: #ff3d9a; border-color: #ff3d9a; }
   .chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
   .chk.pink { color: #ff3d9a; font-weight: 700; }
+  .consumer-home { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+  .consumer-home h1 { margin: 0 0 4px; }
+  .consumer-home .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .consumer-home a.btn { text-decoration: none; }
 </style>

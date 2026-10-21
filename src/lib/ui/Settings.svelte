@@ -98,14 +98,28 @@
     app.settingsOpen = false;
   }
 
+  // 전환·삭제 (2026-10-22)
+  let deleting = $state(false), deleteText = $state(''), deleteBusy = $state(false);
+  async function removeAccount() {
+    if (deleteText.trim() !== '삭제') return;
+    deleteBusy = true;
+    try { await app.deleteMyAccount(); } catch (e) { app.notice = `계정을 지우지 못했습니다: ${e instanceof Error ? e.message : String(e)}`; deleteBusy = false; }
+  }
+  async function toShop() {
+    if (!confirm('간판집(사업자) 계정으로 바꿀까요? 되돌릴 수 없습니다.')) return;
+    try { await app.becomeShop(); app.showFlash('간판집 계정으로 바꿨습니다'); } catch (e) { app.notice = e instanceof Error ? e.message : String(e); }
+  }
+
   // 탭 (2026-10-21 사용자: "설정을 내용별로 탭으로 분리해줘"): 로그인했으면 계정부터, 아니면 표시
+  // 역할에 맞게 (2026-10-22 "설정의 내용 … 각 역활에 맞게 정리해줘"): 가게 사장 계정은 계정·표시만 — 멤버·사양 사전·요청 받기·단축키는 간판집 일
+  const shopOnly = () => !app.consumerAccount;
   const TABS: { id: SettingsTab; label: string; needAccount?: boolean; when?: () => boolean }[] = [
     { id: 'account', label: '계정', needAccount: true },
-    { id: 'team', label: '멤버', needAccount: true },
-    { id: 'rules', label: '사양 사전', needAccount: true },
-    { id: 'requests', label: '요청 받기', needAccount: true, when: () => app.requestsEnabled },
+    { id: 'team', label: '멤버', needAccount: true, when: shopOnly },
+    { id: 'rules', label: '사양 사전', needAccount: true, when: shopOnly },
+    { id: 'requests', label: '요청 받기', needAccount: true, when: () => app.requestsEnabled && shopOnly() },
     { id: 'display', label: '표시' },
-    { id: 'keys', label: '단축키' },
+    { id: 'keys', label: '단축키', when: shopOnly },
   ];
   const tabs = $derived(TABS.filter((t) => (!t.needAccount || app.account) && (!t.when || t.when())));
   let tab = $state<SettingsTab>(typeof app.settingsOpen === 'string' ? app.settingsOpen : app.account ? 'account' : 'display');
@@ -131,10 +145,17 @@
           {#if app.usage}
             <p class="row"><span>저장 용량</span><span data-testid="usage-storage">{formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</span></p>
             <div class="bar"><i style:width="{Math.min(100, (app.usage.usage.storageBytes / Math.max(1, app.usage.limits.storageBytes)) * 100)}%"></i></div>
-            <p class="row"><span>멤버 <small>(아래 멤버 목록, 소유자 제외 — 동시 접속 인원은 제한 없음)</small></span><span data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span></p>
-            <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
+            {#if !app.consumerAccount}<p class="row"><span>멤버 <small>(아래 멤버 목록, 소유자 제외 — 동시 접속 인원은 제한 없음)</small></span><span data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span></p>
+            <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>{/if}
           {/if}
         </section>
+        {#if app.consumerAccount}
+          <!-- 가게 사장 → 간판집 (2026-10-22 "소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다") -->
+          <section data-testid="convert-section">
+            <h3>간판집(사업자)으로 전환 <small class="hint">견적 보드는 내 프로젝트로 옮겨지고, 보낸 요청과 등록한 사업자는 그대로 남습니다. 되돌릴 수 없습니다.</small></h3>
+            <p class="row"><span>가게 사장 계정</span><button class="btn small" data-testid="settings-to-shop" onclick={toShop}>간판집으로 전환</button></p>
+          </section>
+        {:else}
         <!-- 사업자 확인 (2026-10-21): 소유자 계정만. 번호·대표자명·개업일 → 국세청 → 제안 페이지 배지, 체험·요금은 사업자당 1번 -->
         <section data-testid="business-section">
           <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>
@@ -154,6 +175,15 @@
             </form>
           {/if}
           {#if bizError}<p class="hint err" data-testid="biz-error">{bizError}</p>{/if}
+        </section>
+        {/if}
+        <!-- 계정 삭제 (2026-10-22 "계정삭제도 필요하다") — "삭제" 를 적어야 -->
+        <section data-testid="delete-section">
+          <h3>계정 삭제 <small class="hint">내 프로젝트·사진·사업자 정보·로그인 정보를 지웁니다. 보낸 요청은 닫히고 연락처가 지워집니다. 되돌릴 수 없습니다.</small></h3>
+          {#if !deleting}<p class="row"><span></span><button class="btn small danger" data-testid="delete-account-open" onclick={() => (deleting = true)}>계정 삭제…</button></p>
+          {:else}
+            <p class="row"><input data-testid="delete-confirm" placeholder="삭제 라고 적어 주세요" bind:value={deleteText} /><button class="btn small danger" data-testid="delete-account" disabled={deleteText.trim() !== '삭제' || deleteBusy} onclick={removeAccount}>영구 삭제</button><button class="btn small" onclick={() => { deleting = false; deleteText = ''; }}>취소</button></p>
+          {/if}
         </section>
       {/if}
       {#if app.account && tab === 'rules'}
@@ -331,4 +361,5 @@
   .icon:disabled { opacity: 0.3; cursor: default; }
   footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); }
   .hint { color: var(--muted); font-size: 12px; }
+  .btn.danger { color: var(--danger); border-color: var(--danger); }
 </style>

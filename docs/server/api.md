@@ -66,6 +66,8 @@
 | GET | `/api/requests/:id/photos/:n` (`?key=` 또는 세션·`?session=`) | 요청 사진 (고객, 또는 그 요청을 볼 수 있는 간판사) | 200 / 401 / 403 / 404 |
 | GET | `/api/requests/:id?key=` | 고객의 내 요청 페이지: 요청 + 받은 제안(`responses[{shop, proposalPath, createdAt}]`, 경로는 앱이 서버 주소를 붙임), 승인되면 `approvedShop` | `{request, responses}` / 403 / 404 |
 | GET | `/api/requests` | 간판사: 받은 요청 — 요청 받기가 켜진 지역의 열린 요청 + 내가 답한 요청. 제안을 보낸 요청에만 `phone`·`email` | `{requests[{…, responded, projectId?, phone?}]}` / 401 |
+| POST | `/api/me/kind` `{kind:'shop'}` | 가게 사장 → 간판집 전환 (2026-10-22): 견적 초안 방은 보통 프로젝트로. 반대는 400 | 200 `{kind}` / 400 |
+| DELETE | `/api/me` `{confirm:'삭제'}` | 계정 삭제 (2026-10-22): 프로젝트·팀·사업자·로그인 정보 삭제, 보낸 요청은 닫고 개인정보 삭제 | 200 / 400 confirm_required |
 | GET·POST | `/api/me/stores` `{bizNo, ownerName, startDate, name, address}` | 가게 사장의 사업자 (2026-10-22, 여럿): 국세청 진위확인 통과만 저장. 목록은 최근 순 | 200 `{stores}` / 201 `{store}` / 400 mismatch·not_registered·biz_closed·bad_input / 502 nts_unavailable |
 | PUT·DELETE | `/api/me/stores/:id/doc` · `/api/me/stores/:id` | 사업자등록증 사본(그림·PDF 8MB) 붙이기 · 사업자 지우기 | 200 / 404 / 413 / 415 |
 | POST | `/api/requests/:id/cancel?key=` | 고객이 요청 취소 (열린 요청만, 2026-10-22): 요청을 닫기만 — 환불·재요청 없음, 제안했던 간판집에 메일 | 200 `{ok}` / 403 / 409 not_open |

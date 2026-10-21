@@ -6,6 +6,7 @@ import { planOf } from './plans';
 import { businessOf } from './business';
 import { proposalsThisMonth } from './usage';
 import { recordResponse, shopCanSee, type RequestRow } from './requests';
+import { settleKind } from './accountKind';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
@@ -115,6 +116,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       const body = await readJson<{ name?: string } & Record<string, unknown>>(req);
       const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
       if (!name) return text('bad name', 400);
+      if ((await settleKind(env, me, 'shop')) === 'consumer') return json({ error: 'consumer_account' }, 403); // 가게 사장은 프로젝트를 못 만든다 — 간판집으로 전환 (2026-10-22)
       const details = detailSets(body ?? {}); // 연락처·주소·날짜·메모 (2026-10-21, 모두 선택)
       if (!details) return text('bad details', 400);
       const outsource = body?.outsource === true ? 1 : 0; // 만들기에서 외주 체크 (2026-10-22)
@@ -224,6 +226,7 @@ export async function handleEstimateProject(req: Request, env: Env): Promise<Res
   const me = await authenticate(req, env);
   if (!me) return text('unauthorized', 401);
   if (req.method !== 'POST') return text('method not allowed', 405);
+  if ((await settleKind(env, me, 'consumer')) === 'shop') return json({ error: 'shop_account' }, 403); // 간판집은 가게 사장 견적 요청을 못 쓴다 — 외주 요청으로 (2026-10-22)
   const found = await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND kind = 'estimate' ORDER BY created_at LIMIT 1").bind(me.id).first<ProjectRow>();
   if (found) return json({ project: pubProject(found, 'owner') });
   const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name: '간판 견적 요청', created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0, quote_total: 0, contract_override: null, kind: 'estimate' };

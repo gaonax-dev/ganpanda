@@ -83,7 +83,7 @@
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } }} />
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="사인물 설정" data-testid="object-settings">
+  <div class="dialog" class:ro data-ro={ro || undefined} role="dialog" aria-modal="true" aria-label="사인물 설정" data-testid="object-settings">
     <header><h2>{obj.name} 설정</h2><button class="icon" data-testid="close-object-settings" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
       <section data-testid="size-section"> <!-- 사인물 전체 치수는 맨 위 (2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에") -->

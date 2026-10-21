@@ -60,7 +60,7 @@
   const sizeLabel = $derived(obj.widthMm && obj.heightMm ? `${fmt(obj.widthMm)}×${fmt(obj.heightMm)}` : m?.estimate ? `≈${fmt(m.estimate.widthMm)}×${fmt(m.estimate.heightMm)}` : '사이즈');
 </script>
 
-<div class="quick" data-testid="quick-bar">
+<div class="quick" class:ro data-ro={ro || undefined} data-testid="quick-bar">
   {#if app.multiMode}
   <div class="row">
     <span class="cnt" data-testid="quick-multi-count">{app.selectionIds.length}개 선택</span>

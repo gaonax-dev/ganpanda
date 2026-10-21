@@ -38,7 +38,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
 import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -100,6 +100,10 @@ class AppState {
   /** 다른 페이지 안에 넣어 보여 주는 보드 (?embed=1, 2026-10-22 요청 페이지의 "요청한 그대로") — 상단 바 없음 */
   /** 간판집이 받은 요청을 열 때 (?request=<id>, 2026-10-22) — 요청 프로젝트 위에 [견적 넣기] */
   /** 받은 견적 요청 페이지 (/requests, 2026-10-22 "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게") */
+  /** /estimate 에 간판집 계정으로 들어옴 (2026-10-22) */
+  consumerBlocked = $state(false);
+  /** 가게 사장 계정 (2026-10-22): 프로젝트 대신 견적 요청만 */
+  get consumerAccount(): boolean { return this.account?.kind === 'consumer'; }
   readonly inbox = typeof location !== 'undefined' && location.pathname === '/requests';
   /** 헤더의 "견적 요청 N": 답 안 한 열린 요청 수, 보일지 */
   requestCount = $state(0);
@@ -403,7 +407,12 @@ class AppState {
     await this.initAuth();
     // 소비자 견적 초안 (2026-10-22 "휴대폰에서 작성한 내용을 pc에서 확인을 못하는데"): 로그인했으면 계정의 초안 방을 서버에서 받아 보통 방처럼 동기화
     if (this.consumer && this.account && SERVER_URL) {
-      try { this.room = (await estimateProject()).id; } catch { this.notice = '견적 초안을 열지 못했습니다. 잠시 뒤 다시 열어 주세요.'; }
+      try { this.room = (await estimateProject()).id; }
+      catch (e) {
+        // 간판집 계정은 가게 사장 견적 요청을 못 쓴다 (2026-10-22 "사업자는 소비자 등록이 안된다") — 외주 요청으로 안내
+        if (e instanceof AuthError && e.status === 403) this.consumerBlocked = true;
+        else this.notice = '견적 초안을 열지 못했습니다. 잠시 뒤 다시 열어 주세요.';
+      }
     }
     if (this.room) await this.initRoom(this.room);
   }
@@ -482,6 +491,10 @@ class AppState {
     void this.refreshRequestCount();
     if (me) void this.loadSpecRules();
   }
+  /** 가게 사장 → 간판집 (2026-10-22 "소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다"): 견적 보드는 보통 프로젝트로 */
+  async becomeShop() { await convertToShop(); await this.refreshMe(); }
+  /** 계정 삭제 (2026-10-22 "계정삭제도 필요하다") */
+  async deleteMyAccount() { await deleteAccount(); location.href = '/'; }
   /** 헤더 "견적 요청 N" (2026-10-22): 요청 받기를 켰거나 운영자이거나 받은 요청이 있으면 보인다. 2분마다 다시 */
   private requestTimer: ReturnType<typeof setInterval> | undefined;
   async refreshRequestCount() {
