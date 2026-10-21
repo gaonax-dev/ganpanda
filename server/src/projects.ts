@@ -11,7 +11,7 @@ export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; request_id?: string | null; group_id?: string | null; status?: string; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; request_id?: string | null; group_id?: string | null; status?: string; /** 'estimate' = 소비자 견적 요청 초안 (2026-10-22) */ kind?: string | null; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
@@ -101,7 +101,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
 
   if (pathname === '/api/projects') {
     if (req.method === 'GET') {
-      const rows = await env.DB.prepare('SELECT * FROM projects WHERE owner_id = ? ORDER BY created_at DESC, id').bind(me.id).all<ProjectRow>();
+      const rows = await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND (kind IS NULL OR kind <> 'estimate') ORDER BY created_at DESC, id").bind(me.id).all<ProjectRow>(); // 견적 초안은 목록에 안 보인다
       return json({ projects: rows.results.map((p) => pub(p, 'owner')) });
     }
     if (req.method === 'POST') {
@@ -205,4 +205,19 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     return new Response(null, { status: 204 });
   }
   return text('not found', 404);
+}
+
+/**
+ * 소비자 견적 요청 초안 프로젝트 (2026-10-22 사용자: "가게 사장님들 휴대폰에서 작성한 내용을 pc에서 확인을 못하는데"):
+ * 계정당 하나(kind = 'estimate'), 보통 프로젝트처럼 서버 방으로 동기화되어 휴대폰에서 그린 것을 PC 에서 이어 본다. 목록·그룹에는 안 나온다
+ */
+export async function handleEstimateProject(req: Request, env: Env): Promise<Response> {
+  const me = await authenticate(req, env);
+  if (!me) return text('unauthorized', 401);
+  if (req.method !== 'POST') return text('method not allowed', 405);
+  const found = await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND kind = 'estimate' ORDER BY created_at LIMIT 1").bind(me.id).first<ProjectRow>();
+  if (found) return json({ project: pubProject(found, 'owner') });
+  const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name: '간판 견적 요청', created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0, quote_total: 0, contract_override: null, kind: 'estimate' };
+  await env.DB.prepare("INSERT INTO projects (id, owner_id, name, created_at, kind) VALUES (?, ?, ?, ?, 'estimate')").bind(p.id, p.owner_id, p.name, p.created_at).run();
+  return json({ project: pubProject(p, 'owner') }, 201);
 }

@@ -25,7 +25,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page.getByTestId('invite-button')).toHaveCount(0);
   await expect(page.getByTestId('tool-pin')).toHaveCount(0);
   await expect(page.getByTestId('tool-zone')).toHaveCount(0);
-  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'local');
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online'); // 계정의 초안 방 — 기기 간 동기화 (2026-10-22)
 
   // 사진 → 사각 → 치수 → 리스트 뷰 참고 견적
   await uploadPhoto(page);

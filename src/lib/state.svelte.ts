@@ -17,8 +17,9 @@ import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
-import { assetUrl, imageSize, putAsset, setAssetsLocalOnly, StorageLimitError } from './assets';
+import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { materializeRequestSigns } from './core/requestSigns';
+import { estimateProject } from './projects';
 import { adjustPlan, replacePlan, shiftBy, sourceOf, type Crop } from './core/photoEdit';
 import { prepareUpload } from './photoPrep';
 import { clampFlatScale, flatOrigin } from './core/boardCards';
@@ -82,7 +83,8 @@ class AppState {
   /** 휴대폰 폭(≤ 720px): 라벨을 축약하고 패널·창을 전체 폭으로 (2026-10-14 사용자: "텍스트도 자리가 넘치거나 모자란데 단축어로") */
   compact = $state(typeof matchMedia === 'function' && matchMedia('(max-width: 720px)').matches);
   /** 현재 방(프로젝트). null = 홈 화면 */
-  readonly room: string | null;
+  /** 방 id. 소비자 초안은 로그인 뒤 서버에서 받아 넣는다(2026-10-22) — 그래서 반응형 */
+  room = $state<string | null>(null);
   /** 로그인 없는 페이지 (요청판, 2026-10-17): /request = 요청 올리기, /r/<id> = 고객의 내 요청 페이지 */
   readonly page: 'request' | 'request-view' | null;
   /** 요청 받기 설정 (/api/me) */
@@ -363,7 +365,7 @@ class AppState {
     if (url.pathname === '/request') location.replace(`/estimate${url.search}`); // 옛 요청 폼 → 소비자 보드 (2026-10-21)
     this.page = /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
-    this.room = this.consumer ? 'estimate' : url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default');
+    this.room = this.consumer ? null : url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default'); // 소비자 방은 로그인 뒤 서버에서 (init)
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
@@ -379,6 +381,10 @@ class AppState {
 
   private async init() {
     await this.initAuth();
+    // 소비자 견적 초안 (2026-10-22 "휴대폰에서 작성한 내용을 pc에서 확인을 못하는데"): 로그인했으면 계정의 초안 방을 서버에서 받아 보통 방처럼 동기화
+    if (this.consumer && this.account && SERVER_URL) {
+      try { this.room = (await estimateProject()).id; } catch { this.notice = '견적 초안을 열지 못했습니다. 잠시 뒤 다시 열어 주세요.'; }
+    }
     if (this.room) await this.initRoom(this.room);
   }
 
@@ -772,20 +778,10 @@ class AppState {
   /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
   private async initRoom(room: string) {
     let params: Record<string, string> = {};
-    if (this.consumer) {
-      // 소비자 견적 요청 보드: 서버 방 없이 기기에만 (2026-10-21). 단가는 예시값으로 자동 계산 — "참고 금액"
-      this.access = { status: 'ok', role: 'owner', projectName: '간판 견적 요청', billing: false }; // 원가·이익은 간판집 것
-      setAssetScope(null); setAssetsLocalOnly(true);
-      const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
-      await persist.whenSynced;
-      if (!this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(null), quoteMode: 'auto' });
-      this.ready = true;
-      return;
-    }
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}) };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}) };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
@@ -812,7 +808,7 @@ class AppState {
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
     this.client.whenOnline(() => {
       // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")
-      if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.accountPrices), quoteMode: 'manual' });
+      if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.consumer ? null : this.accountPrices), quoteMode: this.consumer ? 'auto' : 'manual' }); // 소비자 초안은 예시 단가 자동 계산 = "참고 금액"
     });
     this.client.setName(this.nickname);
   }

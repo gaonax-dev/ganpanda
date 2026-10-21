@@ -26,6 +26,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const listProjects = () => call<{ projects: ProjectInfo[] }>('/api/projects').then((r) => r.projects);
+/** 소비자 견적 요청 초안 방 (계정당 하나, 2026-10-22) */
+export const estimateProject = () => call<{ project: ProjectInfo }>('/api/estimate/project', { method: 'POST', body: '{}' }).then((r) => r.project);
 /** 상세 칸 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD, 빈 값 = 지움)·메모 */
 export interface ProjectDetails { contact?: string; address?: string; contractDate?: string | null; startDate?: string | null; dueDate?: string | null; memo?: string }
 export const createProject = (name: string, details: ProjectDetails = {}) =>

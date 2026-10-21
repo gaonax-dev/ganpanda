@@ -91,3 +91,20 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     expect((await get('/api/groups', stranger)).status).toBe(200);
   });
 });
+
+describe('소비자 견적 초안 프로젝트 (2026-10-22 "휴대폰에서 작성한 내용을 pc에서 확인을 못하는데")', () => {
+  it('계정당 하나를 만들고 다시 부르면 같은 것, 보통 프로젝트 목록에는 안 나온다', async () => {
+    const s = await login('est@example.com');
+    const a = await json('/api/estimate/project', {}, s);
+    expect(a.status).toBe(201);
+    const { project } = await a.json<{ project: { id: string; name: string } }>();
+    expect(project.name).toBe('간판 견적 요청');
+    const b = await (await json('/api/estimate/project', {}, s)).json<{ project: { id: string } }>();
+    expect(b.project.id).toBe(project.id);
+    await createProject(s, '보통');
+    const list = await (await get('/api/projects', s)).json<{ projects: { id: string }[] }>();
+    expect(list.projects.map((p) => p.id)).not.toContain(project.id);
+    expect(list.projects).toHaveLength(1);
+    expect((await get(`/api/projects/${project.id}/access`, s)).status).toBe(200); // 보통 방처럼 연다
+  });
+});
