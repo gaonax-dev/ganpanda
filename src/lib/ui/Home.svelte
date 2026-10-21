@@ -6,6 +6,7 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { splitShelf, statusDate } from '../core/projectShelf';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
   import { listRequests, respondRequest, shopPhotoUrl, type ShopRequest } from '../requests';
@@ -56,6 +57,10 @@
     try { const p = await createProject(n); location.href = `/?room=${p.id}`; } finally { busy = false; }
   }
   const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId));
+  // 지난 프로젝트 접기 (2026-10-21 "정지, 완료 해당 일자가 6개월이 지난 프로젝트는 다시 연도별 폴딩"): 정지·완료 6개월 지남 → 접힘, 안에서 연도별
+  const shelf = $derived(splitShelf(ungrouped));
+  /** 카드의 날짜: 정지·완료는 그날, 아니면 만든 날 */
+  const cardDate = (p: ProjectInfo) => (p.status === 'paused' || p.status === 'done' ? statusDate(p) : p.createdAt);
 
   // ---------- 선택 모드 ----------
   function toggleSelectMode() { selectMode = !selectMode; selected = new Set(); naming = false; }
@@ -91,6 +96,13 @@
     const ids = [...selected];
     selected = new Set(); selectMode = false;
     for (const id of ids) await updateProject(id, { groupId: null });
+    await reload();
+  }
+  /** 선택한 프로젝트의 상태를 한 번에 (2026-10-21 "선택 후 나오는 메뉴에 상태변경 진행,정지, 완료 추가") */
+  async function setStatus(status: ProjectStatus) {
+    const ids = [...selected];
+    selected = new Set(); selectMode = false;
+    for (const id of ids) await updateProject(id, { status });
     await reload();
   }
   async function removeSelected() {
@@ -132,6 +144,14 @@
   }
   const date = (ts: number) => new Date(ts).toLocaleDateString('ko-KR');
 </script>
+
+{#snippet card(p: ProjectInfo)}
+  <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
+    {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
+    <b>{p.name}</b>
+    <small><span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span> · {date(cardDate(p))}</small>
+  </a>
+{/snippet}
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') { if (selectMode) toggleSelectMode(); editing = null; } }} />
 
@@ -241,15 +261,20 @@
           </div>
         {/each}
 
-        <!-- 프로젝트 카드 (그룹 밖) -->
-        {#each ungrouped as p (p.id)}
-          <a class="pcard" data-testid="project-item" data-id={p.id} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
-            {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
-            <b>{p.name}</b>
-            <small><span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span> · {date(p.createdAt)}</small>
-          </a>
-        {/each}
+        <!-- 프로젝트 카드 (그룹 밖) — 정지·완료 6개월 지난 것은 아래 "지난 프로젝트" 에 -->
+        {#each shelf.current as p (p.id)}{@render card(p)}{/each}
       </div>
+      {#if shelf.shelvedCount}
+        <details class="shelf" data-testid="shelf">
+          <summary>지난 프로젝트 <small>정지·완료 6개월 지남 · {shelf.shelvedCount}개</small></summary>
+          {#each shelf.shelved as y (y.year)}
+            <details class="year" data-testid="shelf-year" data-year={y.year}>
+              <summary>{y.year}년 <small>{y.projects.length}개</small></summary>
+              <div class="grid">{#each y.projects as p (p.id)}{@render card(p)}{/each}</div>
+            </details>
+          {/each}
+        </details>
+      {/if}
       {#if projects === null}<p class="hint">불러오는 중…</p>
       {:else if !projects.length}<p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>{/if}
     </section>
@@ -281,6 +306,12 @@
         </select>
       {/if}
       {#if selectedGrouped}<button class="btn small" data-testid="bar-ungroup" onclick={ungroup}>그룹에서 빼기</button>{/if}
+      <!-- 상태 바꾸기 (2026-10-21): 진행 · 정지 · 완료 -->
+      <span class="seg" title="고른 프로젝트의 상태">
+        <button class="btn small" data-testid="bar-status-ongoing" disabled={!selected.size} onclick={() => setStatus('ongoing')}>진행</button>
+        <button class="btn small" data-testid="bar-status-paused" disabled={!selected.size} onclick={() => setStatus('paused')}>정지</button>
+        <button class="btn small" data-testid="bar-status-done" disabled={!selected.size} onclick={() => setStatus('done')}>완료</button>
+      </span>
       <button class="btn small danger" data-testid="bar-delete" disabled={!selected.size} onclick={removeSelected}>삭제</button>
       <button class="btn small" data-testid="bar-cancel" onclick={toggleSelectMode}>취소</button>
     {/if}
@@ -312,6 +343,17 @@
   .status[data-status='ongoing'] { color: var(--accent); }
   .status[data-status='done'] { color: var(--ok); }
   .status[data-status='waiting'] { color: var(--muted); }
+  .status[data-status='paused'] { color: var(--warn); }
+  /* 지난 프로젝트 접기 */
+  .shelf { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .shelf summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
+  .shelf summary::before { content: '▸'; font-size: 12px; }
+  .shelf[open] > summary::before, .year[open] > summary::before { content: '▾'; }
+  .shelf summary small { font-weight: 400; font-size: 12px; }
+  .year { margin: 8px 0 0 14px; }
+  .year summary { font-size: 13px; }
+  .year .grid { margin-left: 14px; }
+  .bar .seg { gap: 2px; padding: 2px; }
   /* 그룹: 카드 두 장이 겹친 모양 */
   .gwrap { display: flex; flex-direction: column; gap: 8px; }
   .gwrap.open { flex-basis: 100%; }

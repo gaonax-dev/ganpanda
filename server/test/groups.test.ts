@@ -25,6 +25,14 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     const other = await login('g2-other@example.com');
     const p = await createProject(s, '카페');
     expect((await json(`/api/projects/${p.id}`, { status: 'ongoing' }, other, 'PATCH')).status).toBe(403);
+    // 정지(paused) 상태 + 상태가 된 시각 (2026-10-21 홈 "지난 프로젝트" 접기): 상태가 바뀔 때만 statusAt 이 찍힌다
+    const t0 = Date.now();
+    const pz = await (await json(`/api/projects/${p.id}`, { status: 'paused' }, s, 'PATCH')).json<{ project: { status: string; statusAt?: number } }>();
+    expect(pz.project.status).toBe('paused');
+    expect(pz.project.statusAt).toBeGreaterThanOrEqual(t0);
+    const same = await (await json(`/api/projects/${p.id}`, { status: 'paused', paidAmount: 1 }, s, 'PATCH')).json<{ project: { statusAt?: number } }>();
+    expect(same.project.statusAt).toBe(pz.project.statusAt); // 같은 상태면 그대로
+    expect((await json(`/api/projects/${p.id}`, { status: 'stopped' }, s, 'PATCH')).status).toBe(400);
     let r = await json(`/api/projects/${p.id}`, { quoteTotal: 1_500_000, status: 'ongoing', paidAmount: 500_000 }, s, 'PATCH');
     expect(r.status).toBe(200);
     let { project } = await r.json<{ project: Record<string, unknown> }>();

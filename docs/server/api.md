@@ -44,7 +44,7 @@
 | GET | `/api/projects/:id/invites` | 초대 목록 (id = 해시 앞 16자). 소유자가 **다시 복사**할 수 있게 폐기 안 된 링크는 `url` 포함(2026-10-17, `invites.token` 원문 저장 — 그 전에 만든 링크는 없음). 제안 링크는 `kind:'proposal'` | `{invites[{id, role, createdAt, revoked, kind?, url?}]}` |
 | POST | `/api/projects/:id/invites` `{role: viewer\|editor, kind?: 'proposal'}` | 초대 링크 생성. `kind: 'proposal'` = 제안 보내기 링크 → 무료 요금제 월 건수 한도 (2026-10-17) | 201 `{token, role, url}` / 400 / **402 `{error:'proposal_limit', used, limit}`** |
 | DELETE | `/api/projects/:id/invites/:inviteId` | 초대 폐기 | 204 |
-| PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|done, contractAmount?: number\|null, paidAmount?, quoteTotal?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만). `contractAmount: null` = 자동(견적 합계) 복구. `quoteTotal` 은 앱이 리스트 뷰 견적 합계를 저장 | 200 / 400 / 403 / 404 |
+| PATCH | `/api/projects/:id` `{name?, groupId?: id\|null, status?: waiting\|ongoing\|paused\|done, contractAmount?: number\|null, paidAmount?, quoteTotal?}` | 그룹(내 그룹만)·상태·정산 변경 (소유자, 주어진 것만). 상태가 바뀌면 `statusAt`(시각)을 찍어 돌려준다(2026-10-21; 개발 모드 `AUTH_DEV_LINK=1` 에서만 `statusAt` 입력 허용). `contractAmount: null` = 자동(견적 합계) 복구. `quoteTotal` 은 앱이 리스트 뷰 견적 합계를 저장 | 200 / 400 / 403 / 404 |
 | GET | `/api/groups` | 내 그룹 (오너 것 + 내가 팀 멤버인 오너들의 것: `role`, `canBilling`) | `{groups}` |
 | POST | `/api/groups` `{name, projectIds?}` | 그룹 생성 (+ 내 프로젝트들을 바로 넣기) | 201 `{group}` / 400 |
 | GET | `/api/groups/:id` | 그룹 보기: 프로젝트(상태; `quoteTotal/contractAmount/contractAuto/paidAmount` 는 `canBilling` 인 사람에게만) | `{group, projects}` / 403 |
