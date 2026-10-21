@@ -73,6 +73,7 @@
     if (f && id) await app.replacePhoto(id, f);
   }
 
+  // 파일 입력은 고른 뒤 값을 비운다 — 같은 파일을 다시 고르면 change 가 안 나던 문제 (2026-10-21 "사진 삭제후 같은 사진을 업로드하면 업로드가 안된다")
   export async function addPhotos(files: FileList | File[]) {
     let i = 0;
     for (const f of files) {
@@ -474,7 +475,7 @@
       {#if app.ready && !app.photos.length && app.canEdit}
         <div class="empty">
           <p>건물 사진을 올려 시작하세요</p>
-          <label class="btn primary">사진 추가<input type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+          <label class="btn primary">사진 추가<input type="file" accept="image/*" multiple hidden onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} /></label>
           <small>또는 사진을 여기로 끌어다 놓으세요</small>
         </div>
       {/if}
@@ -504,7 +505,7 @@
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="타원 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>⬭<span class="lbl"> 타원</span></button>
-          <label class="file" data-testid="tool-photo" title="사진 추가"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => addPhotos(e.currentTarget.files!)} /></label>
+          <label class="file" data-testid="tool-photo" title="사진 추가"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} /></label>
         {:else}
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>💬 말풍선</button>
           <span class="readonly">보기·대화만 가능</span>
