@@ -34,7 +34,7 @@ describe('진위확인 → 계정에 사업자', () => {
     expect(r.status).toBe(200);
     const { business } = await r.json<{ business: { no: string; name: string; status: string; startDate: string } }>();
     expect(business).toMatchObject({ no: '2208162517', name: '간판집', ownerName: '홍길동', startDate: '20200105', status: 'active' });
-    expect(m.seen).toEqual({ businesses: [{ b_no: '2208162517', start_dt: '20200105', p_nm: '홍길동', p_nm2: '', b_nm: '간판집', corp_no: '', b_sector: '', b_type: '', b_adr: '' }] });
+    expect(m.seen).toEqual({ businesses: [{ b_no: '2208162517', start_dt: '20200105', p_nm: '홍길동', p_nm2: '', b_nm: '', corp_no: '', b_sector: '', b_type: '', b_adr: '' }] });
     expect(await me(s)).toMatchObject({ no: '2208162517' });
   });
   it('불일치(02)면 400 mismatch, 등록 안 된 번호면 not_registered, 검증 자릿수가 틀리면 bad_input (국세청 안 부름)', async () => {

@@ -142,7 +142,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
       if (!validBizNo(bizNo)) return json({ error: 'bad_biz_no' }, 400);
       if (ntsConfigured(env)) {
         if (manual) {
-          const v = await validateBusiness(env, { b_no: bizNo, p_nm: ownerName, start_dt: startDate, b_nm: store }).catch(() => null);
+          const v = await validateBusiness(env, { b_no: bizNo, p_nm: ownerName, start_dt: startDate, b_nm: '' }).catch(() => null); // 상호는 안 맞춘다 (브랜드명·띄어쓰기로 틀릴 수 있다)
           if (v) {
             if (!v.registered) return json({ error: 'not_registered' }, 400);
             if (!v.valid) return json({ error: 'mismatch' }, 400);

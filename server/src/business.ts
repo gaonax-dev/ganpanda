@@ -101,7 +101,7 @@ export async function handleBusiness(req: Request, env: Env): Promise<Response> 
   // 다른 계정이 이미 쓰는 번호 (체험·요금은 사업자당 1번)
   const taken = await env.DB.prepare('SELECT account_id FROM businesses WHERE b_no = ?').bind(no).first<{ account_id: string }>();
   if (taken && taken.account_id !== me.id) return json({ error: 'taken' }, 409);
-  const v = await validateBusiness(env, { b_no: no, p_nm: ownerName, start_dt: startDate, b_nm: name });
+  const v = await validateBusiness(env, { b_no: no, p_nm: ownerName, start_dt: startDate, b_nm: '' }); // 상호는 안 맞춘다 — 등록 상호와 표기가 달라 불일치가 나지 않게
   if (!v) return json({ error: 'nts_unavailable' }, 502);
   if (!v.registered) return json({ error: 'not_registered' }, 400);
   if (!v.valid) return json({ error: 'mismatch' }, 400);

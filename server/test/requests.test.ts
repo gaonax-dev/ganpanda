@@ -84,7 +84,10 @@ describe('요청 올리기 (로그인한 고객)', () => {
     expect((await get(`/api/requests/${id}/biz-doc`, shop)).status).toBe(200);
   });
   it('모델 답에서 JSON 을 뽑고 번호는 검증 자릿수가 맞을 때만', () => {
-    expect(parseScan('여기 있습니다: {"bizNo":"220-81-62517","name":" 간판다 ","owner":"홍길동","address":"서울","startDate":"2020.01.05"} 끝')).toEqual({ bizNo: '2208162517', name: '간판다', owner: '홍길동', address: '서울', startDate: '2020-01-05' });
+    expect(parseScan('여기 있습니다: {"bizNo":"220-81-62517","name":" 간판다 ","owner":"홍길동","address":"서울시 송파구","startDate":"2020.01.05"} 끝')).toEqual({ bizNo: '2208162517', name: '간판다', owner: '홍길동', address: '서울시 송파구', startDate: '2020-01-05' });
+    // 객체로 와도 읽고, 생년월일과 같은 개업일·주소답지 않은 주소·이름답지 않은 대표자는 버린다 (2026-10-21 실제 등록증 테스트)
+    expect(parseScan({ bizNo: '271-79-00651', name: '가오낙스', owner: '김성범', birthDate: '1974-01-28', address: '1974년 01월 28일', startDate: '1974-01-28' })).toEqual({ bizNo: '2717900651', name: '가오낙스', owner: '김성범' });
+    expect(parseScan({ bizNo: '271-79-00651', owner: '', address: '김성범', startDate: '2025년 07월 01일' })).toEqual({ bizNo: '2717900651', startDate: '2025-07-01' });
     expect(parseScan('{"bizNo":"220-81-62518","name":""}')).toBeNull();
     expect(parseScan('못 읽음')).toBeNull();
   });
