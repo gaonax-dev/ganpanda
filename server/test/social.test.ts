@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import { handleSocial, setOauthFetch } from '../src/social';
 import { appleClientSecret, signJwt, verifyJwtRS256, pemFromPkcs8 } from '../src/oauth/jwt';
-import { api, get } from './helpers';
+import { api, get, login } from './helpers';
 
 
 /** 테스트용 애플 서명 키(P-256)와 id_token 서명용 RSA 키 */
@@ -110,6 +110,27 @@ describe('카카오', () => {
     const me = await meOf(q.get('session')!);
     expect(me.email).toBe('kakao-12345@noemail.ganpanda.co.kr');
     expect(me.name).toBe('카카오사장');
+  });
+});
+
+describe('카카오 이메일 확인 여부 (2026-10-21 카카오 로그인 기본 — 남의 이메일 계정에 붙는 사고 방지)', () => {
+  it('is_email_verified 인 이메일은 같은 이메일의 기존 계정에 연결된다', async () => {
+    await login('owner@example.com'); // 이메일 계정이 먼저 있다
+    const { state } = await startAndState('kakao');
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 777, kakao_account: { email: 'Owner@example.com', is_email_verified: true, is_email_valid: true }, properties: { nickname: '사장' } });
+    const q = sessionFromRedirect(await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' }));
+    const me = await meOf(q.get('session')!);
+    expect(me.email).toBe('owner@example.com');
+  });
+  it('확인되지 않은 이메일은 기존 계정에 연결하지 않고 대체 이메일로 새 계정', async () => {
+    await login('victim@example.com');
+    const { state } = await startAndState('kakao');
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 888, kakao_account: { email: 'victim@example.com', is_email_verified: false }, properties: { nickname: '수상한' } });
+    const q = sessionFromRedirect(await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' }));
+    const me = await meOf(q.get('session')!);
+    expect(me.email).toBe('kakao-888@noemail.ganpanda.co.kr');
   });
 });
 

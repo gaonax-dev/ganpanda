@@ -38,7 +38,8 @@
 
 ## 소셜 로그인 (1-2d, `server/src/social.ts`)
 - 흐름: 앱의 버튼 → `GET /api/auth/{kakao|google|apple}/start?next=<돌아갈 경로>` → 서버가 state(10분, 1회용)를 D1 `oauth_states`에 저장하고 공급자 로그인 화면으로 → 공급자가 `…/api/auth/{p}/callback`으로 돌려주면(애플은 POST form_post) 서버가 code 를 교환해 사용자 정보를 얻고 → 세션을 만들어 **`APP_URL/login#session=…&next=…`**로 보냄 → 앱이 세션을 저장하고 `next`로 이동(주소에서 세션 제거).
-- **계정 연결 규칙**(`identities` 테이블): 같은 공급자 ID → 기존 계정. 없으면 같은 이메일의 계정에 연결(이메일 로그인 계정과 합쳐짐). 둘 다 없으면 새 계정. 공급자가 이메일을 안 주면(카카오 동의 안 함) `kakao-<id>@noemail.ganpanda.co.kr` 같은 대체 이메일.
+- **카카오가 기본**(2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안, 문자 인증은 안 만든다 → [../product/decisions.md](../product/decisions.md)): 로그인 창에서 카카오 단추를 크게 맨 위에, 안내 "간판집·직원 모두 카카오로 시작하는 걸 권합니다"(`social-hint`). 서버에 카카오 키가 있을 때만 보인다.
+- **계정 연결 규칙**(`identities` 테이블): 같은 공급자 ID → 기존 계정. 없으면 **공급자가 확인한 이메일**과 같은 계정에 연결(이메일 로그인 계정과 합쳐짐) — 카카오는 `is_email_verified` 일 때만, 확인 안 된 이메일은 없는 것으로 본다(남의 이메일 계정에 붙는 사고 방지, 2026-10-21). 둘 다 없으면 새 계정. 공급자가 이메일을 안 주면(카카오 동의 안 함·미확인) `kakao-<id>@noemail.ganpanda.co.kr` 같은 대체 이메일.
 - 애플: client secret 은 `.p8` 키로 ES256 서명한 JWT(1시간), 돌아온 `id_token`은 애플 공개키(JWKS)로 서명·`iss`·`aud`·만료를 검증. 이름은 첫 로그인 때만 `user` 폼 필드로 옴. 이메일은 비공개 릴레이 주소일 수 있음.
 - 자격이 없는 공급자는 `GET /api/auth/providers`에서 빠지고 앱이 버튼을 숨깁니다. 로컬 `.dev.vars`에는 자리값이 들어 있어 버튼은 보이지만 실제 로그인은 안 됩니다.
 - 서버의 공급자 호출은 `setOauthFetch`로 바꿔 끼울 수 있어 테스트가 가짜 공급자로 전 흐름을 검사합니다(`server/test/social.test.ts`).

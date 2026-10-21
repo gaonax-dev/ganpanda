@@ -6,6 +6,7 @@
   import { app } from '../state.svelte';
   import { AuthError, describeAuthError, fetchProviders, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
+  // 카카오가 기본 (2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안). 서버가 카카오 키를 갖고 있을 때만 보인다
   const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
@@ -91,7 +92,8 @@
     {:else}
       {#if providers.length && (mode === 'login' || mode === 'signup')}
         <div class="social">
-          {#each providers as p (p)}<a class="btn social-{p}" data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>{/each}
+          {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>{/each}
+          {#if providers.includes('kakao')}<p class="hint" data-testid="social-hint">간판집·직원 모두 카카오로 시작하는 걸 권합니다. 휴대폰에서 한 번에 됩니다.</p>{/if}
         </div>
         <div class="or"><span>또는 이메일로</span></div>
       {/if}
@@ -134,6 +136,8 @@
   .social { display: flex; flex-direction: column; gap: 8px; }
   .social .btn { text-decoration: none; justify-content: center; font-weight: 700; }
   .social-kakao { background: #fee500; color: #191919; border-color: #fee500; }
+  .social .big { padding: 11px; font-size: 15px; }
+  .social .hint { margin: 0; color: var(--muted); font-size: 11px; text-align: center; }
   .social-google { background: #fff; color: #1f1f1f; border-color: #dadce0; }
   .social-apple { background: #000; color: #fff; border-color: #000; }
   .or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }

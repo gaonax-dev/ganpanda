@@ -54,7 +54,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 공급자 콘솔에 **리디렉션 URI** `https://sync.ganpanda.co.kr/api/auth/<공급자>/callback`를 등록하고, 아래 비밀값을 `cd server && npx wrangler secret put <이름>`으로 넣습니다(로컬은 `.dev.vars`). xlpop 의 자격을 재사용할 수 있습니다(콘솔에 URI 만 추가).
 | 공급자 | 콘솔 설정 | 비밀값 |
 |---|---|---|
-| 카카오 | 카카오 디벨로퍼스 → 앱 → 카카오 로그인 활성화, Redirect URI 등록, 동의항목 이메일·닉네임, 보안 Client Secret 사용 | `KAKAO_CLIENT_ID`(REST API 키), `KAKAO_CLIENT_SECRET` |
+| 카카오 (**기본 로그인**, 2026-10-21) | 카카오 디벨로퍼스 → 앱 → 카카오 로그인 활성화, Redirect URI 등록, 동의항목 닉네임·**카카오계정(이메일)**(선택 동의로 바로 가능; 필수 동의는 **비즈 앱 전환** = 사업자등록번호 등록 뒤), 보안 Client Secret 사용. 전화번호 동의는 비즈 앱 + 권한 검수 — 요청판 때 | `KAKAO_CLIENT_ID`(REST API 키), `KAKAO_CLIENT_SECRET` |
 | Google | Cloud Console → OAuth 클라이언트(웹) → 승인된 리디렉션 URI 추가 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Apple | Developer → Identifiers → Services ID(또는 기존 것) → Sign in with Apple 설정에 도메인 `ganpanda.co.kr`·`sync.ganpanda.co.kr`과 Return URL 추가, Keys 의 Sign in with Apple 키(.p8) | `APPLE_CLIENT_ID`(Services ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`(.p8 전체, 줄바꿈은 `\n` 가능) |
 - `.p8`은 `npx wrangler secret put APPLE_PRIVATE_KEY < AuthKey_XXXX.p8`로 파일에서 넣습니다.

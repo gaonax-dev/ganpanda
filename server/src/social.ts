@@ -8,6 +8,7 @@ const PROVIDERS: Provider[] = ['kakao', 'google', 'apple'];
 const STATE_TTL = 10 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 
+/** email 은 공급자가 확인한 주소만 (카카오 is_email_verified — 2026-10-21 카카오 기본 로그인: 확인 안 된 이메일로 남의 계정에 붙지 않도록) */
 interface Identity { provider: Provider; providerId: string; email: string | null; name: string | null }
 
 /** 공급자 호출 (테스트에서 가짜로 바꿔 끼운다) */
@@ -54,8 +55,9 @@ async function exchange(env: Env, p: Provider, code: string, redirect: string, e
     const { access_token } = await t.json<{ access_token: string }>();
     const u = await oauthFetch('https://kapi.kakao.com/v2/user/me', { headers: { authorization: `Bearer ${access_token}` } });
     if (!u.ok) return null;
-    const info = await u.json<{ id: number; kakao_account?: { email?: string }; properties?: { nickname?: string } }>();
-    return { provider: p, providerId: String(info.id), email: info.kakao_account?.email ?? null, name: info.properties?.nickname ?? null };
+    const info = await u.json<{ id: number; kakao_account?: { email?: string; is_email_verified?: boolean }; properties?: { nickname?: string } }>();
+    const ka = info.kakao_account;
+    return { provider: p, providerId: String(info.id), email: ka?.email && ka.is_email_verified ? ka.email : null, name: info.properties?.nickname ?? null }; // 확인된 이메일만
   }
   // 애플: code → id_token, 애플 공개키로 검증. 이름은 첫 로그인 때 form 의 user 에만 온다
   const t = await oauthFetch('https://appleid.apple.com/auth/token', form({ grant_type: 'authorization_code', code, client_id: env.APPLE_CLIENT_ID, client_secret: await appleClientSecret(env), redirect_uri: redirect }));
