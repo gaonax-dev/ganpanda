@@ -398,6 +398,19 @@ export function classifySecondAxis(pair: [Line, Line]): '+z' | '+y' {
 /** AI 제안 선 쌍에 붙일 축: 첫 쌍은 가로 X, 둘째 쌍은 제안이 말한 축(깊이 Y / 높이 Z), 없으면 기울기로 */
 export const axesForProposal = (found: { x: [Line, Line]; y: [Line, Line]; second?: '+y' | '+z' }): { first: AxisDir; second: AxisDir } => ({ first: '+x', second: found.second ?? classifySecondAxis(found.y) });
 
+/**
+ * 제안을 적용할 때의 축 (2026-10-21 사용자: "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면 자동으로 잡아줘"):
+ * 지정한 축은 **그대로 지킨다**(2026-10-18 "설정의 자동에서 따르게"). AI 가 요청한 축의 선(깊이 Y)을 못 찾아 다른 축(높이 Z)의 선을 냈으면 fallback = true —
+ * 호출자는 둘째 쌍의 선을 바꾸지 않고(라벨과 선이 어긋나면 풀이가 틀린다) 알린다
+ */
+export function axesAfterProposal(chosen: { first: AxisDir; second: AxisDir } | undefined, found: { x: [Line, Line]; y: [Line, Line]; second?: '+y' | '+z' }): { axes: { first: AxisDir; second: AxisDir }; fallback: boolean } {
+  if (!chosen) return { axes: axesForProposal(found), fallback: false };
+  const got = found.second ?? classifySecondAxis(found.y);
+  return { axes: chosen, fallback: !(chosen.second[1] === got[1] || chosen.second[1] === 'x') };
+}
+/** 지정한 둘째 축을 AI 제안에 요청할 값 */
+export const wantedSecond = (axes: { second: AxisDir } | undefined): { second?: 'y' | 'z' } => (axes && (axes.second[1] === 'y' || axes.second[1] === 'z') ? { second: axes.second[1] } : {});
+
 /** 축 선·기준 길이 선의 끝점을 사진 모서리에 붙인다 (법선 방향 탐색) */
 export function snapSetup(img: Gray, setup: CameraSetup, range = 8): CameraSetup {
   const snapLine = (l: Line): Line => { const r = snapEdge(img, l, range); return { a: r.a, b: r.b }; };

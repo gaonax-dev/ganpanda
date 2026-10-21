@@ -15,7 +15,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
-import { autoCameraFrom, axesForProposal, calibrationOf, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
+import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedSecond, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, setAssetsLocalOnly, StorageLimitError } from './assets';
 import { materializeRequestSigns } from './core/requestSigns';
@@ -498,12 +498,13 @@ class AppState {
     this.cameraBusy = true;
     try {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
-      const want = this.cameraDraft.axes?.second[1]; // 창에서 고른 둘째 축이 있으면 그 축의 선을 찾는다 (2026-10-21 "축선을 변경하면 다시 자동으로")
-      const found = gray && proposeAxisLines(gray, want === 'y' || want === 'z' ? { second: want } : {});
+      const found = gray && proposeAxisLines(gray, wantedSecond(this.cameraDraft.axes)); // 창에서 고른 둘째 축의 선을 찾는다 (2026-10-21 "축선을 변경하면 다시 자동으로")
       if (!gray || !found) return false;
+      const ax = axesAfterProposal(this.cameraDraft.axes, found);
+      if (ax.fallback) this.notice = '깊이(Y) 선을 찾지 못해 둘째 쌍은 그대로 두었습니다. 바닥·천장의 물러나는 선이 보이는 사진이어야 하고, 아니면 선을 직접 놓으세요.';
       // 첫 쌍(가로에 가까운 선)·둘째 쌍(세로에 가까운 선)의 축은 창의 축 선 설정을 따른다(2026-10-18 사용자: "설정에 x, y 설정하고 자동으로 측정하면 x, z로 변경되어 결과가 나온다. 설정의 자동에서 따르게").
       // 설정이 '자동'이면 X 가로·Z 높이 (X·Y 수평, Z 수직 — "실내 실외 구분표시 제거, x와 y는 수평 z가 수직")
-      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, y: found.y, axes: this.cameraDraft.axes ?? axesForProposal(found) }); // 축 지정이 '자동'이면 둘째 쌍 기울기로 Z/Y (2026-10-21)
+      this.cameraDraft = snapSetup(gray, { ...this.cameraDraft, x: found.x, ...(ax.fallback ? {} : { y: found.y }), axes: ax.axes });
       return true;
     } finally { this.cameraBusy = false; }
   }
@@ -523,7 +524,8 @@ class AppState {
   async autoMatchCamera(photoId: string): Promise<boolean> {
     const p = this.photos.find((x) => x.id === photoId);
     if (!p || !this.canEdit) return false;
-    const sign = this.matchSignOf(photoId);
+    // 사람이 둘째 축을 깊이(Y)로 바꿔 두었으면 사인물(좌우 변 = Z) 대신 AI 로 그 축의 선을 찾는다 (2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면")
+    const sign = p.camera?.axes?.second[1] === 'y' ? null : this.matchSignOf(photoId);
     if (sign) {
       const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h); // 가로세로 비율로 화각까지 (2026-10-20)
       if (setup) {
@@ -534,10 +536,12 @@ class AppState {
     this.cameraBusy = true;
     try {
       const gray = await this.grayOf(p.assetId, p.w, p.h);
-      const found = gray && proposeAxisLines(gray);
+      const found = gray && proposeAxisLines(gray, wantedSecond(p.camera?.axes));
       if (!gray || !found) return false;
       const base = p.camera ? (JSON.parse(JSON.stringify(p.camera)) as CameraSetup) : defaultCameraSetup(p.w, p.h);
-      const next = snapSetup(gray, { ...base, x: found.x, y: found.y, axes: base.axes ?? axesForProposal(found), auto: true }); // 둘째 쌍 기울기로 Z/Y (2026-10-21)
+      const ax = axesAfterProposal(base.axes, found);
+      if (ax.fallback) this.notice = '깊이(Y) 선을 찾지 못해 둘째 쌍은 그대로 두었습니다.';
+      const next = snapSetup(gray, { ...base, x: found.x, ...(ax.fallback ? {} : { y: found.y }), axes: ax.axes, auto: true }); // 지정한 축은 지키고, 그 축의 선을 못 찾으면 둘째 쌍은 그대로 (2026-10-21)
       this.updateCamera(p.id, { camera: next, autoCamera: undefined });
       return true;
     } finally { this.cameraBusy = false; }
