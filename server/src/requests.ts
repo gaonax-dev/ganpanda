@@ -10,7 +10,8 @@ import { isOperator, operatorEmails } from './operator';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
-const MAX_PHOTOS = 3;
+/** 사진 장수 제한은 없앰 (2026-10-22 사용자: "견적요청보내기 사진수 리밋있다. 제거해줘") — 30 은 저장소 보호용 안전선일 뿐 */
+const MAX_PHOTOS = 30;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const STORE_MAX = 60, REGION_MAX = 40, TEXT_MAX = 500, REF_MAX = 40;

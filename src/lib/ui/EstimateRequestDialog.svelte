@@ -54,7 +54,7 @@
   const manualOk = $derived(isValidBizNo(bizNo) && !!ownerName.trim() && !!bizStartDate(startDate));
   // 지역은 주소에서 (2026-10-21 "지역입력은 주소와 중복된다") — 주소가 필수가 된다
   const region = $derived(regionOfAddress(address));
-  const canSend = $derived(!!store.trim() && !!region && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && (docOk || manualOk) && !busy);
+  const canSend = $derived(!!store.trim() && !!region && /^\d{9,11}$/.test(digits) && photos.length > 0 && bizOk && (docOk || manualOk) && !busy);
   const close = () => (app.estimateOpen = false);
 
   async function send() {
@@ -105,7 +105,7 @@
       <div class="link"><input data-testid="estimate-done-link" readonly value={done.url} /><button class="btn small" data-testid="estimate-copy" onclick={copy}>{copied ? '복사됨' : '복사'}</button></div>
       <footer><a class="btn primary" href={done.url} data-testid="estimate-open">내 요청 페이지 열기</a><button class="btn" onclick={close}>닫기</button></footer>
     {:else}
-      <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개){photos.length > 3 ? ' — 사진은 3장까지입니다' : ''}{photos.length === 0 ? ' — 사진을 먼저 올려 주세요' : ''}</p>
+      <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개){photos.length === 0 ? ' — 사진을 먼저 올려 주세요' : ''}</p>
       {#if signs.length === 0}
         <p class="advice" data-testid="estimate-advice">사인물이 없습니다. 사진 위에 간판 자리를 사각으로 그려 주면 간판집이 바로 견적을 낼 수 있습니다. 그대로 보내면 응답이 적을 수 있습니다.</p>
       {:else if unmeasured > 0}

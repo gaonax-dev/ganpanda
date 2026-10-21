@@ -126,14 +126,13 @@ describe('요청 올리기 (로그인한 고객)', () => {
     expect(r.status).toBe(429);
     expect(await r.json()).toMatchObject({ error: 'request_limit', limit: 3 });
   });
-  it('사진은 고객 키로 3장까지, 이미지만, 8MB 까지. 고객 키나 간판사 세션으로 받는다', async () => {
+  it('사진은 고객 키로 장수 제한 없이(안전선 30장), 이미지만, 8MB 까지. 고객 키나 간판사 세션으로 받는다', async () => {
     const { id, key } = await (await create()).json<{ id: string; key: string }>();
     expect((await putPhoto(id, 'wrong', png(1))).status).toBe(403);
     expect((await putPhoto(id, key, png(1), 'text/plain')).status).toBe(415);
-    for (let n = 0; n < 3; n++) expect((await putPhoto(id, key, png(n + 1))).status).toBe(201);
-    expect((await putPhoto(id, key, png(9))).status).toBe(409);
+    for (let n = 0; n < 5; n++) expect((await putPhoto(id, key, png(n + 1))).status).toBe(201); // 4장 이상도 된다 (2026-10-22 "사진수 리밋 제거")
     const mine = await (await api(`/api/requests/${id}?key=${key}`)).json<{ request: { photos: { n: number; type: string }[] } }>();
-    expect(mine.request.photos.map((p) => p.n)).toEqual([0, 1, 2]);
+    expect(mine.request.photos.map((p) => p.n)).toEqual([0, 1, 2, 3, 4]);
     const asCustomer = await api(`/api/requests/${id}/photos/1?key=${key}`);
     expect(asCustomer.status).toBe(200);
     expect(new Uint8Array(await asCustomer.arrayBuffer())[4]).toBe(2);

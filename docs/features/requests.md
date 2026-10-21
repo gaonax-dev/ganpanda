@@ -18,7 +18,7 @@
 - **운영자 수동 처리**(2026-10-21 사용자: "가게 사장님이 보낸 견적요청을 아직 받을 간판 가게가 없다. 일정 기간 수동으로 처리해야 한다"): `wrangler.jsonc vars.OPERATOR_EMAILS`(쉼표 구분)의 계정은 요청 받기 설정·지역과 상관없이 **모든 열린 요청**을 홈 "받은 요청"에서 보고 [제안 만들기]로 답하며, 요청 알림 메일도 받는다(`isOperator`). 가입 간판집이 생기면 목록에서 빼면 된다. 운영자에게는 홈 "받은 요청" 자리가 요청이 없어도 보인다(2026-10-22 "받은 요청 페이지가 어디에 있나?" — 홈 맨 위, 내 프로젝트 위). 고객 완료 문구에도 "지역에 가입 간판집이 아직 없으면 간판다가 직접 확인해 연결"을 적었다.
 - **시작 화면 분기**(`Home.svelte` `landing`): [간판집입니다 → 로그인](`landing-shop`) / [가게 사장입니다 → 견적 요청](`landing-consumer` → `/estimate`).
 - **`/estimate`** = 로그인한 계정의 **견적 초안 방**(`app.consumer`; 서버 `POST /api/estimate/project` 가 계정당 하나 `projects.kind = 'estimate'` 를 만들어 주고 보통 방처럼 동기화 — 2026-10-22 "휴대폰에서 작성한 내용을 pc에서 확인을 못하는데"; 그 전엔 기기에만 두는 로컬 방이었음). 초안은 프로젝트 목록·그룹에 안 나온다. 사진은 소비자 계정 용량에 쌓인다(무료 100MB). 사업자 보드와 같은 도구에서 **말풍선·존만 뺌**. 단가는 예시표(`mergePrices(null)`)로 **자동 계산** → 리스트 뷰 견적에 "참고 금액"(`quote-reference`), 상단 배지 `consumer-badge`. 버전·초대·제안 단추 대신 **[견적 요청]**(`estimate-button`, 사진이 있어야 켜짐).
-- **[견적 요청]**(`EstimateRequestDialog.svelte`, `estimate-dialog`): 가게 이름·지역·전화(필수), 이메일·요청 내용(선택). 보내면 `POST /api/requests` 에 **그린 사인물**(`signs`: 요청 사진 번호 `photo`, 이름, 모양, 영역 `quad`(사진 px), 둥글기, 가로·세로 mm, 종류 `productId`, 메모 — `core/requestSigns.ts serializeRequestSigns`, 연결 영역 제외, 50개까지)을 싣고, 보드의 사진을 왼쪽부터 번호대로 `PUT /photos`(3장까지). 끝나면 요청 페이지 주소(`estimate-done-link`, 기기 `ganpanda.myRequests` 에도 기억).
+- **[견적 요청]**(`EstimateRequestDialog.svelte`, `estimate-dialog`): 가게 이름·지역·전화(필수), 이메일·요청 내용(선택). 보내면 `POST /api/requests` 에 **그린 사인물**(`signs`: 요청 사진 번호 `photo`, 이름, 모양, 영역 `quad`(사진 px), 둥글기, 가로·세로 mm, 종류 `productId`, 메모 — `core/requestSigns.ts serializeRequestSigns`, 연결 영역 제외, 50개까지)을 싣고, 보드의 사진을 왼쪽부터 번호대로 `PUT /photos`(장수 제한 없음 — 2026-10-22 사용자: "사진수 리밋 제거"; 서버 안전선 30장). 끝나면 요청 페이지 주소(`estimate-done-link`, 기기 `ganpanda.myRequests` 에도 기억).
 - **간판사**: 홈 "받은 요청"에 **사인물 수·치수 수**(`request-signs`). [제안 만들기]로 연 프로젝트에 사진과 함께 **사인물이 그대로 그려진다**(`importRequestPhotos` → `materializeRequestSigns`, 문서에 사인물이 없을 때만). 서버 `requests.signs`(JSON, `0022_request_signs.sql`, `server/src/requestSigns.ts` 로 검사 — 앱과 같은 규칙, 틀리면 400).
 - 테스트: `tests/unit/requestSigns.test.ts`, `server/test/requests.test.ts`(signs), `tests/e2e/estimate.spec.ts`.
 
@@ -26,7 +26,7 @@
 | 역할 | 하는 일 | 돈 |
 |---|---|---|
 | 홍보자 | `/request?ref=<코드>` 링크·전단으로 가게 사장을 데려옴 | 자기 코드의 요청에 제안이 들어온 만큼(요금 발생분의 일부, 비율 미정). 간판다가 받은 돈 안에서 계좌이체 |
-| 가게 사장 | 요청 올림(사진 1~3장·가게·지역·내용·전화·이메일 선택). 요청 페이지에서 제안 비교·승인 | 무료 |
+| 가게 사장 | 요청 올림(사진 1장 이상·가게·지역·내용·전화·이메일 선택). 요청 페이지에서 제안 비교·승인 | 무료 |
 | 가입 간판사 | 설정에서 "요청 받기" + 지역. 홈 "받은 요청"에서 [제안 만들기] → 프로젝트 → 제안 링크 | **제안 링크를 만들 때** 요금제의 제안 건수(무료 월 3건, 베이직·프로 무제한). 제안을 보내야 고객 연락처가 보임 |
 
 ## 흐름
