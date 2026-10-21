@@ -138,12 +138,15 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(item.getByTestId('request-signs')).toContainText('4,000×700');
   await expect(item.getByTestId('request-biz')).toContainText('확인');
   await expect(item.locator('img')).toHaveCount(0);
-  await expect(item.getByTestId('request-respond')).toHaveText('견적 넣기');
-  await expect(item.getByTestId('request-view')).toHaveText('요청 보기'); // 견적 넣은 뒤에도 요청 그대로 (2026-10-22)
+  // 카드 단추는 파란 [실측 보기] 하나 — 가져오기는 요청 보드에서 (2026-10-22 "내 견적보기 -> 실측보기(강조색 파란색) 수정안됨 프로젝트 창에서 내프로젝트로 가져오기로 복제하기")
+  await expect(item.getByTestId('request-respond')).toHaveCount(0);
+  await expect(item.getByTestId('request-view')).toHaveText('실측 보기');
+  expect(await item.getByTestId('request-view').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(59, 130, 246)');
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 간판집은 노랑
   // 누르면 요청 그대로의 보드(읽기 전용) + 요청 정보 줄 + [견적 넣기]
-  await item.click();
+  await item.getByTestId('request-view').click();
   await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('request-respond')).toHaveText('내 프로젝트로 가져오기');
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1);
   await expect(shop.getByTestId('request-address')).toContainText('경안로 1');

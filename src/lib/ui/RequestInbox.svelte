@@ -51,18 +51,13 @@
           <div class="rcard open" data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
             onclick={() => view(r)} onkeydown={(e) => { if (e.key === 'Enter') view(r); }}>
             <div class="rbody">
-              <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
+              <span class="rhead"><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
             </div>
             <div class="ract">
-              <!-- 견적을 넣은 뒤에도 요청 그대로를 다시 본다 (2026-10-22 "견적요청카드에 해당 뷰를 볼수 없다. 현재는 내견적보기만 있다") -->
-              <button class="btn small" data-testid="request-view" onclick={(e) => { e.stopPropagation(); view(r); }}>요청 보기</button>
-              {#if r.projectId && r.status !== 'cancelled'}
-                <a class="btn small" data-testid="request-open" href="/?room={r.projectId}" onclick={(e) => e.stopPropagation()}>내 견적 열기</a>
-              {:else if r.status !== 'cancelled'}
-                <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={(e) => { e.stopPropagation(); respond(r); }}>견적 넣기</button>
-              {/if}
+              <!-- 단추는 [실측 보기] 하나 — 고칠 수 없는 요청 보드를 열고, 거기서 [내 프로젝트로 가져오기]로 복제 (2026-10-22 "내 견적보기 -> 실측보기(강조색 파란색) 수정안됨 프로젝트 창에서 내프로젝트로 가져오기로 복제하기") -->
+              <button class="btn small blue" data-testid="request-view" onclick={(e) => { e.stopPropagation(); view(r); }}>실측 보기</button>
             </div>
           </div>
         {:else}
@@ -79,7 +74,8 @@
       {#if v.text}<p>“{v.text}”</p>{/if}
       {#if v.signs?.length}<ul>{#each v.signs as s, i (i)}<li><b>{s.name}</b> {s.widthMm && s.heightMm ? `${s.widthMm.toLocaleString()}×${s.heightMm.toLocaleString()}mm` : '치수 없음'}{s.memo ? ` — ${s.memo}` : ''}</li>{/each}</ul>{/if}
       <div class="photos">{#each v.photos as p (p.n)}<img src={shopPhotoUrl(v.id, p.n)} alt="" />{/each}</div>
-      <p class="hint">복제 기능 전에 보낸 요청이라 사진과 사인물 목록으로 보여 줍니다. [견적 넣기]를 누르면 사진·사인물이 내 프로젝트로 들어옵니다.</p>
+      <p class="hint">복제 기능 전에 보낸 요청이라 사진과 사인물 목록으로 보여 줍니다.</p>
+      {#if v.status !== 'cancelled'}<footer>{#if v.projectId}<a class="btn small primary" data-testid="request-open" href="/?room={v.projectId}">내 프로젝트 열기</a>{:else}<button class="btn primary" data-testid="request-respond" disabled={responding === v.id} onclick={() => respond(v)}>내 프로젝트로 가져오기</button>{/if}</footer>{/if}
     </div>
   </div>
 {/if}
@@ -91,7 +87,11 @@
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
   .rcard.open { cursor: pointer; }
   .rcard.open:hover { border-color: var(--accent); }
-  .rbody { display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0; }
+  .rbody { display: flex; flex-direction: column; gap: 8px; font-size: 13px; min-width: 0; }
+  /* 위쪽 줄(가게·배지·지역) 간격 (2026-10-22 "견적요청카드 상단 내용 간격 띄워주고") */
+  .rhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; line-height: 1.6; }
+  .rhead .tag { margin-left: 0; }
+  .btn.blue { background: #3b82f6; border-color: #3b82f6; color: #fff; font-weight: 700; }
   .rbody p { margin: 0; }
   .muted { color: var(--muted); }
   .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }

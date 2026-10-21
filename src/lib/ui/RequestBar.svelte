@@ -1,6 +1,6 @@
 <script lang="ts">
   // 간판집이 받은 요청을 열었을 때 (2026-10-22 사용자: "사업자는 페이지에서도 리스트는 이름 사인물 정보만 표시하고 클릭하면 복제된 페이지 바로보이게 해줘 그리고 견적넣기 버튼만 있으면 될거 같아"):
-  // 요청 프로젝트(보드 복제, 읽기 전용) 위에 요청 정보 한 줄 + [견적 넣기] — 누르면 요청 그대로 내 프로젝트로 가져와 연다
+  // 요청 프로젝트(보드 복제, 읽기 전용 = 실측 보기) 위에 요청 정보 한 줄 + [내 프로젝트로 가져오기] — 누르면 요청 그대로 복제해 연다 (2026-10-22)
   import { app } from '../state.svelte';
   import { bizDocUrl, listRequests, respondRequest, type ShopRequest } from '../requests';
   let req = $state<ShopRequest | null>(null);
@@ -24,8 +24,8 @@
       {#if req.bizDoc}<span class="muted" data-testid="request-bizdoc">📄 사업자등록증 {#if req.responded}<a href={bizDocUrl(req.id)} target="_blank" rel="noopener">열기</a>{:else}— 견적을 넣으면 열립니다{/if}</span>{/if}
     </div>
     {#if req.status === 'cancelled'}<span class="muted">취소된 요청</span>
-    {:else if req.projectId}<a class="btn small primary" data-testid="request-open" href="/?room={req.projectId}">내 견적 열기</a>
-    {:else}<button class="btn primary" data-testid="request-respond" disabled={busy} onclick={quote}>{busy ? '가져오는 중…' : '견적 넣기'}</button>{/if}
+    {:else if req.projectId}<a class="btn small primary" data-testid="request-open" href="/?room={req.projectId}">내 프로젝트 열기</a>
+    {:else}<button class="btn primary" data-testid="request-respond" disabled={busy} onclick={quote} title="사진·사인물·치수를 그대로 복제해 내 프로젝트로 — 여기서 견적을 만든다">{busy ? '가져오는 중…' : '내 프로젝트로 가져오기'}</button>{/if}
   </div>
 {/if}
 
