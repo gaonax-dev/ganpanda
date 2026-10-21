@@ -1,6 +1,9 @@
 <script lang="ts">
   import { app, type ViewKind } from './lib/state.svelte';
-  import { PLAN_LABEL } from './lib/auth';
+  import { PLAN_LABEL, fetchProviders, socialStartUrl, type SocialProvider } from './lib/auth';
+  // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
+  let providers = $state<SocialProvider[]>([]);
+  $effect(() => { if (app.consumer) fetchProviders().then((p) => (providers = p)); });
   import BoardView from './lib/views/BoardView.svelte';
   import ListView from './lib/views/ListView.svelte';
   import UvView from './lib/views/UvView.svelte';
@@ -91,7 +94,7 @@
 
 <div class="shell">
   <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->
-  <nav class="top" class:hidden={(app.proposalMode && !app.canEdit) || !!app.page} data-testid="top-nav">
+  <nav class="top" class:hidden={(app.proposalMode && !app.canEdit) || !!app.page || (app.consumer && app.authReady && !app.account)} data-testid="top-nav">
     <a class="logo" href="/" data-testid="go-projects">간판다</a>
     {#if app.room && app.access.status === 'ok'}
       <span class="project" data-testid="project-title">{app.access.projectName}</span>
@@ -200,6 +203,15 @@
     </div>
     {#if app.page === 'request-view'}
       <div class="proposal"><RequestView /></div>
+    {:else if app.consumer && app.authReady && !app.account}
+      <!-- 소비자 입구 (2026-10-21 "입구 카카오 견적요청 사본으로 자동입력"): 로그인 먼저, 그 뒤 보드 -->
+      <section class="gate" data-testid="consumer-gate">
+        <h1>간판 견적 요청</h1>
+        <p>사진에 간판을 그려 참고 견적을 보고, 동네 간판집에 견적을 요청합니다. 먼저 <b>로그인</b>해 주세요 — 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다.</p>
+        {#if providers.includes('kakao')}<a class="btn kakao big" data-testid="consumer-login-kakao" href={socialStartUrl('kakao', '/estimate')}>카카오로 시작</a>{/if}
+        <button class="btn" data-testid="consumer-login-other" onclick={() => (app.loginOpen = true)}>다른 방법으로 로그인</button>
+        <p class="hint"><a href="/">간판집입니다 → 홈으로</a></p>
+      </section>
     {:else if !app.room}
       <Home />
     {:else if app.access.status === 'denied'}
@@ -258,6 +270,13 @@
 
 <style>
   .proposal { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; }
+  .gate { max-width: 420px; margin: 60px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+  .gate h1 { margin: 0; font-size: 22px; }
+  .gate p { margin: 0; color: var(--muted); line-height: 1.6; font-size: 14px; }
+  .gate .btn { justify-content: center; text-decoration: none; font-weight: 700; }
+  .gate .big { padding: 12px; font-size: 15px; }
+  .gate .kakao { background: #fee500; color: #191919; border-color: #fee500; }
+  .gate .hint a { color: var(--muted); }
   .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
   .approval[data-status='changed'] { color: var(--warn); }
   .shell { display: grid; grid-template-rows: auto 1fr; height: 100%; overflow-x: hidden; }

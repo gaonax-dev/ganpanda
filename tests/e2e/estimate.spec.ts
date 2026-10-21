@@ -11,6 +11,14 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page.getByTestId('landing-shop')).toBeVisible();
   await page.getByTestId('landing-consumer').click();
   await expect(page).toHaveURL(/\/estimate$/);
+  // 입구 로그인 (2026-10-21 "입구 카카오"): 카카오 단추(next=/estimate) 또는 다른 방법 — 로그인 전엔 보드가 안 열린다
+  await expect(page.getByTestId('consumer-gate')).toBeVisible();
+  await expect(page.getByTestId('consumer-login-kakao')).toHaveAttribute('href', /\/api\/auth\/kakao\/start\?next=%2Festimate/);
+  await expect(page.getByTestId('top-nav')).toBeHidden();
+  const custSession = await apiLogin(request);
+  await page.evaluate((s) => localStorage.setItem('ganpanda.session', s), custSession);
+  await page.reload();
+  await expect(page.getByTestId('consumer-gate')).toHaveCount(0);
   await expect(page.getByTestId('consumer-badge')).toContainText('참고 금액');
   await expect(page.getByTestId('estimate-button')).toBeDisabled(); // 사진 먼저
   await expect(page.getByTestId('proposal-button')).toHaveCount(0);
@@ -33,19 +41,9 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(page.getByTestId('quote-panel')).not.toContainText('이익율'); // 원가·이익은 안 보임
   await page.getByTestId('view-board').click();
 
-  // 견적 요청: 로그인이 먼저 (2026-10-21 "인증이 되야") — 카카오 단추(next=/estimate) 또는 다른 방법
+  // 견적 요청 (이미 로그인됨)
   await page.getByTestId('estimate-button').click();
-  let dlg = page.getByTestId('estimate-dialog');
-  await expect(dlg.getByTestId('estimate-login')).toBeVisible();
-  await expect(dlg.getByTestId('estimate-login-kakao')).toHaveAttribute('href', /\/api\/auth\/kakao\/start\?next=%2Festimate/);
-  await dlg.getByTestId('estimate-close').click();
-  // (카카오 대신) 세션을 넣고 다시 열면 그린 내용은 기기에 남아 있다
-  const custSession = await apiLogin(request);
-  await page.evaluate((s) => localStorage.setItem('ganpanda.session', s), custSession);
-  await page.reload();
-  await expect(page.getByTestId('sign-shape')).toHaveCount(1);
-  await page.getByTestId('estimate-button').click();
-  dlg = page.getByTestId('estimate-dialog');
+  const dlg = page.getByTestId('estimate-dialog');
   await expect(dlg.getByTestId('estimate-summary')).toContainText('사진 1장 · 사인물 1개 (치수 입력 1개)');
   // 사업자등록증 사본 → 자동 읽기(로컬 fake: 220-81-62517 · 간판다 카페 · 서울 송파구 …) → 빈 칸이 채워진다, 이후 직접 고친다
   await dlg.getByTestId('est-bizdoc').setInputFiles({ name: '등록증.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]) });
