@@ -8,7 +8,8 @@
   import type { Photo } from '../core/model';
 
   let { photo }: { photo: Photo } = $props();
-  const src = sourceOf(photo);
+  // svelte-ignore state_referenced_locally
+  const src = sourceOf(photo); // 창은 사진마다 새로 열린다({#key}) — 처음 값만 쓴다
   let crop = $state<Crop>({ ...src.crop });
   let brightness = $state(src.brightness);
   let url = $state<string | undefined>();
@@ -91,12 +92,15 @@
         <div class="stage" style:width="{stageW * scale}px" style:height="{stageH * scale}px">
           <div class="pad" style:left="{sx(crop.x)}px" style:top="{sy(crop.y)}px" style:width="{crop.w * scale}px" style:height="{crop.h * scale}px"></div>
           {#if url}<img src={url} alt={photo.name} draggable="false" style:left="{sx(0)}px" style:top="{sy(0)}px" style:width="{src.w * scale}px" style:height="{src.h * scale}px" style:filter="brightness({brightness})" />{/if}
-          <!-- 크롭 밖은 어둡게 -->
+          <!-- 크롭 밖은 어둡게. 핸들은 마우스·터치 전용(숫자 입력이 키보드 경로) -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <svg class="ov" width={stageW * scale} height={stageH * scale} onpointermove={move} onpointerup={up} onpointercancel={up}>
             <defs><mask id="cropmask"><rect width="100%" height="100%" fill="#fff" /><rect x={sx(crop.x)} y={sy(crop.y)} width={crop.w * scale} height={crop.h * scale} fill="#000" /></mask></defs>
             <rect width="100%" height="100%" fill="rgba(0,0,0,0.55)" mask="url(#cropmask)" />
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <rect class="box" data-testid="crop-box" x={sx(crop.x)} y={sy(crop.y)} width={crop.w * scale} height={crop.h * scale} style:cursor={cursors.move} onpointerdown={(e) => down(e, 'move')} />
             {#each [['nw', crop.x, crop.y], ['n', crop.x + crop.w / 2, crop.y], ['ne', crop.x + crop.w, crop.y], ['e', crop.x + crop.w, crop.y + crop.h / 2], ['se', crop.x + crop.w, crop.y + crop.h], ['s', crop.x + crop.w / 2, crop.y + crop.h], ['sw', crop.x, crop.y + crop.h], ['w', crop.x, crop.y + crop.h / 2]] as [h, x, y] (h)}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <rect class="hd" data-testid="crop-handle-{h}" x={sx(x as number) - HS} y={sy(y as number) - HS} width={HS * 2} height={HS * 2} style:cursor={cursors[h as Handle]} onpointerdown={(e) => down(e, h as Handle)} />
             {/each}
           </svg>
