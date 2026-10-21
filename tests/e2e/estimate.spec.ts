@@ -50,6 +50,9 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await dlg.getByTestId('est-store').fill(store);
   await dlg.getByTestId('est-region').fill('경기 광주시');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
+  await dlg.getByTestId('est-address').fill('경기 광주시 경안로 1');
+  await dlg.getByTestId('est-bizno').fill('2208162517'); // 로컬 fake 국세청: 999 로 시작하지 않으면 계속사업자
+  await expect(dlg.getByTestId('est-bizno')).toHaveValue('220-81-62517');
   await dlg.getByTestId('est-text').fill('예산 200만 원');
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
@@ -78,6 +81,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
+  await expect(item.getByTestId('request-biz')).toContainText('사업자 확인'); // 사업자번호 상태조회 배지
+  await expect(item.getByTestId('request-address')).toContainText('경안로 1');
   await expect(item).toContainText('예산 200만 원');
   await item.getByTestId('request-respond').click();
   await expect(shop.getByTestId('project-title')).toContainText(`${store} 요청`);

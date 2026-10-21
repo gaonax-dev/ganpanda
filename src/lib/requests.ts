@@ -4,7 +4,7 @@ import { AuthError, loadSession } from './auth';
 import type { RequestSign } from './core/requestSigns';
 
 export interface RequestPhoto { n: number; type: string }
-export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved'; createdAt: number; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[] }
+export interface RequestInfo { id: string; store: string; region: string; text: string; status: 'open' | 'approved'; createdAt: number; photos: RequestPhoto[]; /** 소비자가 그린 사인물 (2026-10-21) */ signs?: RequestSign[]; /** 주소·사업자번호(선택)·국세청 상태 (2026-10-21) */ address?: string; bizNo?: string | null; bizStatus?: string | null }
 /** 간판사 목록의 한 줄: 제안을 보낸(요금이 발생한) 요청에만 연락처가 온다 */
 export interface ShopRequest extends RequestInfo { responded: boolean; projectId?: string; phone?: string; email?: string }
 export interface CustomerRequestView { request: RequestInfo & { approvedShop?: string; approvedAt?: number }; responses: { shop: string; /** 서버 기준 경로 — SERVER_URL 을 붙여 연다 */ proposalPath: string; createdAt: number }[] }
@@ -23,7 +23,7 @@ async function call<T>(path: string, init: RequestInit = {}, auth = true): Promi
 
 // ---------- 고객 (로그인 없음) ----------
 /** 요청 올리기 — 로그인 필수 (2026-10-21, 카카오 기본) */
-export const createRequest = (body: { store: string; region: string; text: string; phone: string; email?: string; ref?: string; signs?: RequestSign[] }) =>
+export const createRequest = (body: { store: string; region: string; text: string; phone: string; email?: string; ref?: string; signs?: RequestSign[]; address?: string; bizNo?: string }) =>
   call<{ id: string; key: string; url: string }>('/api/requests', { method: 'POST', body: JSON.stringify(body) });
 /** 내 요청 목록 (요청한 계정) */
 export interface MyRequest extends RequestInfo { responses: number }

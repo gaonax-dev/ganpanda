@@ -6,18 +6,22 @@
   import { createRequest, uploadRequestPhoto } from '../requests';
   import { serializeRequestSigns } from '../core/requestSigns';
   import { AuthError, fetchProviders, socialStartUrl, type SocialProvider } from '../auth';
+  import { formatBizNo, isValidBizNo } from '../core/business';
   // 로그인 필수 (2026-10-21 "카카오톡으로 로그인하게해줘 인증이되야 할거 같아"): 카카오가 기본, 다른 방법은 로그인 창
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
   $effect(() => { if (app.account && !email) email = app.account.email.includes('@noemail.') ? '' : app.account.email; });
 
   let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
+  // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
+  let address = $state(''), bizNo = $state('');
   let busy = $state(''), error = $state(''), done = $state<{ url: string } | null>(null), copied = $state(false);
   const digits = $derived(phone.replace(/\D/g, ''));
   const photos = $derived(app.photos);
   const signs = $derived(serializeRequestSigns(app.photos, app.signs).signs);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
-  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && !busy);
+  const bizOk = $derived(!bizNo.trim() || isValidBizNo(bizNo));
+  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && !busy);
   const close = () => (app.estimateOpen = false);
 
   async function send() {
@@ -25,7 +29,7 @@
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
-      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), signs });
+      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), ...(address.trim() ? { address: address.trim() } : {}), ...(bizNo.trim() ? { bizNo: bizNo.replace(/\D/g, '') } : {}), signs });
       for (let i = 0; i < photoOrder.length; i++) {
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -37,7 +41,10 @@
       try { const mine = JSON.parse(localStorage.getItem('ganpanda.myRequests') ?? '[]') as string[]; localStorage.setItem('ganpanda.myRequests', JSON.stringify([r.url, ...mine].slice(0, 20))); } catch { /* 저장 못 해도 됨 */ }
       done = { url: r.url };
     } catch (e) {
+      const code = (() => { try { return e instanceof AuthError ? (JSON.parse(e.message) as { error?: string }).error : undefined; } catch { return undefined; } })();
       if (e instanceof AuthError && e.status === 429) error = '이미 3건의 요청이 진행 중입니다. 받은 제안을 먼저 확인해 주세요.';
+      else if (code === 'biz_closed') error = '국세청 기준 폐업한 사업자번호입니다. 번호를 확인하거나 비워 주세요.';
+      else if (code === 'bad_biz_no') error = '사업자등록번호 10자리를 확인해 주세요.';
       else error = e instanceof Error ? e.message : String(e);
     } finally { busy = ''; }
   }
@@ -65,6 +72,8 @@
         <label>가게 이름 *<input data-testid="est-store" bind:value={store} placeholder="예: 바로바로 정육점" /></label>
         <label>지역 * <small>(시/군/구까지, 예: 경기 광주시)</small><input data-testid="est-region" bind:value={region} placeholder="경기 광주시" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
+        <label>가게 주소 <small>(선택 — 간판집이 현장을 보러 갈 때)</small><input data-testid="est-address" bind:value={address} placeholder="도로명 주소" /></label>
+        <label>사업자등록번호 <small>(선택 — 넣으면 국세청 확인 배지가 붙어 간판집이 믿고 봅니다)</small><input data-testid="est-bizno" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} />{#if bizNo.trim() && !bizOk}<small class="err">10자리를 확인해 주세요</small>{/if}</label>
         <label>이메일 <small>(선택)</small><input data-testid="est-email" type="email" bind:value={email} /></label>
         <label>요청 내용 <small>(선택 — 원하는 것, 예산, 기한)</small><textarea data-testid="est-text" rows="3" bind:value={text}></textarea></label>
         {#if error}<p class="err" data-testid="estimate-error">{error}</p>{/if}

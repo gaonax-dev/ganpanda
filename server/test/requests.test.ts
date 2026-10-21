@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import { api, createProject, get, json, login } from './helpers';
+import { setNtsFetch } from '../src/business';
 
 const png = (seed: number, size = 64) => { const b = new Uint8Array(size); b.set([137, 80, 78, 71, seed & 255]); return b; };
 /** 전화번호당 열린 요청 3건 한도가 있으므로 기본 번호는 매번 다르게 */
@@ -49,6 +50,17 @@ describe('요청 올리기 (로그인한 고객)', () => {
     const view = await (await get(`/api/requests/${id}?key=${encodeURIComponent(key)}`)).json<{ request: { signs: unknown[] } }>();
     expect(view.request.signs).toEqual(signs);
     expect((await create({ signs: [{ photo: 0, name: 'x', shape: 'rect', quad: [] }] })).status).toBe(400);
+  });
+  it('주소·사업자번호는 선택: 번호는 국세청 상태조회로 확인(active 배지), 폐업은 400 biz_closed, 자릿수 틀리면 bad_biz_no (2026-10-21 "둘다 작성")', async () => {
+    const nts = (cd: string) => setNtsFetch(async () => new Response(JSON.stringify({ data: [{ b_no: '2208162517', b_stt_cd: cd }] }), { headers: { 'content-type': 'application/json' } }));
+    nts('01');
+    const ok = await (await create({ address: '서울 송파구 올림픽로 1', bizNo: '220-81-62517' })).json<{ id: string; key: string }>();
+    const v = await (await get(`/api/requests/${ok.id}?key=${ok.key}`)).json<{ request: { address: string; bizNo: string; bizStatus: string } }>();
+    expect(v.request).toMatchObject({ address: '서울 송파구 올림픽로 1', bizNo: '2208162517', bizStatus: 'active' });
+    nts('03');
+    expect(await (await create({ bizNo: '2208162517' })).json()).toEqual({ error: 'biz_closed' });
+    expect(await (await create({ bizNo: '2208162518' })).json()).toEqual({ error: 'bad_biz_no' });
+    setNtsFetch(null);
   });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);

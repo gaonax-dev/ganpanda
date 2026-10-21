@@ -231,7 +231,8 @@
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
             <div class="rbody">
-              <b>{r.store}</b> <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              <b>{r.store}</b> {#if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="국세청 사업자등록 상태조회로 확인된 사업자">✓ 사업자 확인</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
+              {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
               {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}
               {#if r.text}<p>{r.text}</p>{/if}
               {#if r.responded}
@@ -469,6 +470,7 @@
 <style>
   .requests h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 8px; }
   .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; }
+  .rcard .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
   .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
