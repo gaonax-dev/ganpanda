@@ -33,6 +33,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - 배포 뒤 확인: `/api/health` 200, 실시간 접속·퇴장 프로브, 에셋 PUT 201 → GET 동일 바이트
 
 ## 배포 (앱)
+- **에셋 지킴이 워커**(`worker/index.ts`, 2026-10-21 "모바일 계속 로딩중" → "css가 깨진 상태"): 정적 에셋의 single-page-application 처리가 없는 `/assets/*`·`/env/*` 경로에도 index.html 을 **200** 으로 주고 `_headers` 가 1년 immutable 을 붙였다. 배포 직후 새 index.html 을 받은 휴대폰이 아직 옛 버전인 POP 에 새 번들을 청하면 HTML 이 JS·CSS 로 내려와 브라우저·엣지에 1년 저장됨 → 앱이 안 뜨고(로딩중) 꾸밈이 사라짐. `run_worker_first` 로 그 두 경로만 워커를 거쳐 HTML 이 돌아오면 **404 no-store**. 그래서 앱 배포는 `wrangler deploy`(`npm run deploy`) — `wrangler pages deploy` 는 워커 스크립트를 싣지 않는다. 이미 깨진 휴대폰은 다음 배포(새 해시)나 사이트 데이터 삭제로 낫는다.
 - 루트 `wrangler.jsonc`: Workers 정적 에셋 호스팅(`assets.directory = dist`, SPA 폴백). Cloudflare Pages는 쓰지 않습니다(2026-10-13 결정).
 - 명령: `npm run deploy` (= `npm run build && wrangler deploy`). 빌드는 `.env.production`의 `VITE_SYNC_URL=https://sync.ganpanda.co.kr`을 씁니다.
 - 주소: **`https://ganpanda.co.kr`**, `https://www.ganpanda.co.kr` + 비상용 `https://ganpanda.gaonax-dev.workers.dev`

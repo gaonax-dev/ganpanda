@@ -5,10 +5,15 @@
   "compatibility_date": "2026-10-01",
   // 도메인 전파 전·비상용으로 workers.dev 주소도 유지
   "workers_dev": true,
+  // 정적 에셋 앞의 작은 워커: 없는 /assets·/env 경로가 index.html(200, 1년 캐시)로 내려와 휴대폰이 깨지던 문제 → 404 (2026-10-21, worker/guard.ts)
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     // 모든 경로를 index.html 로 (?room= 같은 쿼리 포함 단일 페이지 앱)
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // 이 경로만 워커를 먼저 거친다 — 나머지는 에셋 서비스가 바로 낸다
+    "run_worker_first": ["/assets/*", "/env/*"]
   },
   "routes": [
     { "pattern": "ganpanda.co.kr", "custom_domain": true },
