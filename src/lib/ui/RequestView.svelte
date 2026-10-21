@@ -2,7 +2,7 @@
      2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "취소만 남기고 환불 재요청 빼줘":
      진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
-  import { cancelRequest, customerPhotoUrl, getRequest, type CustomerRequestView } from '../requests';
+  import { cancelRequest, getRequest, type CustomerRequestView } from '../requests';
   import { loadSession } from '../auth';
   import { SERVER_URL } from '../sync';
   import { requestSteps } from '../core/estimateRequest';
@@ -87,7 +87,6 @@
         {#if r.text}<dt>요청</dt><dd>{r.text}</dd>{/if}
       </dl>
       {#if signs.length}<ul class="signs">{#each signs as s, i (i)}<li><b>{s.name}</b>{#if s.widthMm && s.heightMm}<small>{s.widthMm.toLocaleString()}×{s.heightMm.toLocaleString()}mm</small>{:else}<small class="warn">치수 없음</small>{/if}</li>{/each}</ul>{/if}
-      {#if !r.snapshot && r.photos.length}<div class="photos">{#each r.photos as p (p.n)}<img src={customerPhotoUrl(id, key, p.n)} alt="" />{/each}</div>{/if}
     </section>
 
     {#if r.status === 'open'}
@@ -140,8 +139,6 @@
   .signs small { color: var(--muted); }
   .board { width: 100%; height: min(70vh, 560px); border: 1px solid var(--line); border-radius: 14px; background: var(--canvas); }
   h2 .open { float: right; font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 600; }
-  .photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
-  .photos img { height: 110px; border-radius: 8px; }
   .btn.danger { align-self: flex-start; color: var(--danger); border-color: var(--danger); background: none; }
   .warn { color: #ffb347; }
   small.warn { color: var(--warn); }

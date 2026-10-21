@@ -32,6 +32,7 @@
   import RequestView from './lib/ui/RequestView.svelte';
   import EstimateRequestDialog from './lib/ui/EstimateRequestDialog.svelte';
   import EstimateLock from './lib/ui/EstimateLock.svelte';
+  import RequestBar from './lib/ui/RequestBar.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -186,6 +187,7 @@
       {/if}
     </div>
   </nav>
+  {#if app.requestView && app.room && app.access.status === 'ok'}<RequestBar />{/if}
   <main>
     <!-- 알림 영역: 본문 위에 떠 있는 겹층 — 나타나고 사라져도 다른 요소가 밀리지 않는다 (2026-10-18 사용자: "동시접속 안내 … 화면이 재정렬되고 사라지면 다시 제위치로 간다. 이건 문제다") -->
     <div class="banners">

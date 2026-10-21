@@ -7,7 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf } from '../core/projectShelf';
-  import { bizDocUrl, listMyRequests, snapshotPhotoUrl, type MyRequest, type RespondMode } from '../requests';
+  import { listMyRequests, type MyRequest, type RespondMode } from '../requests';
   import { SERVER_URL } from '../sync';
   // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
   let health = $state<{ ok: boolean; mail?: { detail: string } } | null>(null);
@@ -17,7 +17,7 @@
   import type { ProjectDetails } from '../projects';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
-  import { listRequests, respondRequest, shopPhotoUrl, type ShopRequest } from '../requests';
+  import { listRequests, respondRequest, type ShopRequest } from '../requests';
 
   let projects = $state<ProjectInfo[] | null>(null);
   let groups = $state<GroupInfo[]>([]);
@@ -245,35 +245,20 @@
         {#if requestsOpen}
         <p class="hint"><button class="link" onclick={() => (app.settingsOpen = 'requests')}>요청 받기 설정</button></p>
         {#each requests as r (r.id)}
-          <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
-            <div class="rphotos">{#if r.snapshot}{#each r.snapshot.photos as a (a)}<img src={snapshotPhotoUrl(r.snapshot.project, a)} alt="" />{/each}{:else}{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}{/if}</div>
+          <!-- 이름·사인물 정보만, 누르면 요청 그대로의 보드(복제)가 바로 열린다, 단추는 [견적 넣기] 하나 (2026-10-22) -->
+          {@const sized = (r.signs ?? []).filter((s) => s.widthMm && s.heightMm)}
+          <div class="rcard" class:open={!!r.snapshot} data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
+            onclick={() => { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }} onkeydown={(e) => { if (e.key === 'Enter' && r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; }}>
             <div class="rbody">
-              <b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz" title="번호·대표자명·개업일이 국세청 등록 정보와 일치">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz" title="번호만 국세청 상태조회로 확인 (사본 참고)">✓ 번호 확인</span>{/if} {#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span>
-              {#if r.address}<p class="muted" data-testid="request-address">📍 {r.address}</p>{/if}
-              {#if r.bizDoc}<p class="muted" data-testid="request-bizdoc">📄 사업자등록증 사본 {#if r.responded}<a href={bizDocUrl(r.id)} target="_blank" rel="noopener" data-testid="request-bizdoc-open">열기</a>{:else}<span>— 제안을 보내면 열립니다</span>{/if}</p>{/if}
-              {#if r.signs?.length}<p class="muted" data-testid="request-signs">✎ 사인물 {r.signs.length}개 · 치수 {r.signs.filter((s) => s.widthMm && s.heightMm).length}개 — 제안 만들기로 열면 그대로 그려집니다</p>{/if}
-              {#if r.text}<p>{r.text}</p>{/if}
-              {#if r.responded}
-                <p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 제안을 보냈습니다</span></p>
-              {:else}
-                <p class="muted">제안 링크를 보내면 연락처가 보입니다.</p>
-              {/if}
-              {#if r.status === 'cancelled'}
-                <span class="muted">가게 사장님이 요청을 취소했습니다.</span>
-              {:else if r.projectId}
-                <a class="btn small" data-testid="request-open" href="/?room={r.projectId}">프로젝트 열기</a>
-              {:else}
-                {#if r.snapshot}
-                  <!-- 가져오기 방식 (2026-10-22 "복제해서 자기 프로젝트로 가져오는건 옵션으로 보통 새로 만들경우도 있어서") -->
-                  <a class="btn small" data-testid="request-board-view" href="/?room={r.snapshot.project}" target="_blank" rel="noopener">요청 보드 보기</a>
-                  <span class="respond" data-testid="request-respond-options">제안 만들기:
-                    <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r, 'copy')} title="사진·사인물·치수 그대로 내 프로젝트로">그대로 가져오기</button>
-                    <button class="btn small" data-testid="request-respond-photos" disabled={responding === r.id} onclick={() => respond(r, 'photos')} title="사진만 가져와 새로 그리기">사진만</button>
-                    <button class="btn small" data-testid="request-respond-blank" disabled={responding === r.id} onclick={() => respond(r, 'blank')} title="빈 프로젝트 — 현장 사진으로 새로">새로 만들기</button>
-                  </span>
-                {:else}
-                <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={() => respond(r)}>제안 만들기</button>
-                {/if}
+              <span><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
+              <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
+              {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
+            </div>
+            <div class="ract">
+              {#if r.projectId && r.status !== 'cancelled'}
+                <a class="btn small" data-testid="request-open" href="/?room={r.projectId}" onclick={(e) => e.stopPropagation()}>내 견적 열기</a>
+              {:else if r.status !== 'cancelled'}
+                <button class="btn small primary" data-testid="request-respond" disabled={responding === r.id} onclick={(e) => { e.stopPropagation(); respond(r); }}>견적 넣기</button>
               {/if}
             </div>
           </div>
@@ -511,13 +496,13 @@
   .rcard .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
   .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }
+  .rcard.open { cursor: pointer; }
+  .rcard.open:hover { border-color: var(--accent); }
+  .ract { margin-left: auto; display: flex; align-items: center; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
-  .rphotos { display: flex; gap: 4px; flex-shrink: 0; }
-  .rphotos img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; }
   .rbody { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
   .rbody p { margin: 0; }
   .rbody .muted { color: var(--muted); }
-  .rbody .btn { align-self: flex-start; margin-top: 4px; }
   .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
   section { width: min(900px, 100%); }
   h1 { font-size: 22px; margin: 0 0 14px; }
@@ -627,5 +612,4 @@
   @media (max-width: 720px) { .pcard, .gcard { width: calc(50% - 7px); } .amounts input { width: 90px; } }
   .tag { font-size: 11px; border-radius: 999px; padding: 1px 7px; border: 1px solid var(--line); color: var(--muted); margin-left: 4px; }
   .tag.off { color: var(--danger); border-color: var(--danger); }
-  .respond { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 </style>

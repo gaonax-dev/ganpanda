@@ -129,16 +129,22 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shop.getByTestId('request-toggle').click();
   const item = shop.getByTestId('request-item').filter({ hasText: store });
   await expect(item).toBeVisible();
+  // 목록은 이름·사인물 정보만, 단추는 [견적 넣기] 하나 (2026-10-22 "리스트는 이름 사인물 정보만 표시하고 클릭하면 복제된 페이지 바로보이게 … 견적넣기 버튼만")
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
-  await expect(item.getByTestId('request-respond-options')).toContainText('사진만'); // 가져오기 방식 고르기 (2026-10-22)
-  await expect(item.getByTestId('request-respond-blank')).toBeVisible();
+  await expect(item.getByTestId('request-signs')).toContainText('4,000×700');
+  await expect(item.getByTestId('request-biz')).toContainText('확인');
+  await expect(item.locator('img')).toHaveCount(0);
+  await expect(item.getByTestId('request-respond')).toHaveText('견적 넣기');
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 간판집은 노랑
-  await expect(item.getByTestId('request-biz')).toContainText('확인'); // 사본에서 읽은 번호·대표자·개업일로 진위확인 → ✓ 사업자 확인
-  await expect(item.getByTestId('request-address')).toContainText('경안로 1');
-  await expect(item).toContainText('경기 광주시'); // 주소에서 뽑은 지역
-  await expect(item.getByTestId('request-bizdoc')).toContainText('제안을 보내면 열립니다'); // 사본은 제안 뒤
-  await expect(item).toContainText('예산 200만 원');
-  await item.getByTestId('request-respond').click();
+  // 누르면 요청 그대로의 보드(읽기 전용) + 요청 정보 줄 + [견적 넣기]
+  await item.click();
+  await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('sign-shape')).toHaveCount(1);
+  await expect(shop.getByTestId('request-address')).toContainText('경안로 1');
+  await expect(shop.getByTestId('request-text')).toContainText('예산 200만 원');
+  await expect(shop.getByTestId('request-bizdoc')).toContainText('견적을 넣으면 열립니다'); // 사본은 견적 뒤
+  await shop.getByTestId('request-respond').click();
   await expect(shop.getByTestId('project-title')).toContainText(`${store} 요청`);
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1, { timeout: 15_000 });
