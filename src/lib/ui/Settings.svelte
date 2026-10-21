@@ -27,7 +27,7 @@
     finally { bizBusy = false; }
   }
   async function removeBiz() {
-    if (!confirm('사업자 확인을 떼면 제안 페이지의 "사업자 확인" 배지가 사라집니다. 뗄까요?')) return;
+    if (!confirm('사업자 확인을 해제하면 제안 페이지의 "사업자 확인" 배지가 사라지고, 이 번호를 다른 계정에서 확인할 수 있게 됩니다. 해제할까요?')) return;
     try { app.business = await removeBusiness(); } catch (e) { bizError = describeBusinessError(e); }
   }
   const dateLabel = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
@@ -141,7 +141,7 @@
           {#if app.business}
             <p class="row biz" data-testid="biz-verified">
               <span>✓ <b>{app.business.name || '상호 없음'}</b> · {formatBizNo(app.business.no)} · {app.business.ownerName} · 개업 {dateLabel(app.business.startDate)} · <b class:warn={app.business.status !== 'active'}>{BIZ_STATUS_LABEL[app.business.status]}</b> <small>확인 {new Date(app.business.verifiedAt).toLocaleDateString('ko-KR')}</small></span>
-              <button class="btn small" data-testid="biz-remove" onclick={removeBiz}>떼기</button>
+              <button class="btn small" data-testid="biz-remove" onclick={removeBiz}>확인 해제</button>
             </p>
             {#if app.business.status !== 'active'}<p class="hint err">국세청 기준 {BIZ_STATUS_LABEL[app.business.status]} 상태입니다. 다시 열었으면 사업자등록증 정보로 다시 확인해 주세요.</p>{/if}
           {:else}
