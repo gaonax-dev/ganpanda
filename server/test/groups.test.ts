@@ -33,6 +33,14 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     const same = await (await json(`/api/projects/${p.id}`, { status: 'paused', paidAmount: 1 }, s, 'PATCH')).json<{ project: { statusAt?: number } }>();
     expect(same.project.statusAt).toBe(pz.project.statusAt); // 같은 상태면 그대로
     expect((await json(`/api/projects/${p.id}`, { status: 'stopped' }, s, 'PATCH')).status).toBe(400);
+    // 실측 상태용 수 (2026-10-21): 앱이 저장, 음수·문자는 400
+    const sc = await (await json(`/api/projects/${p.id}`, { signTotal: 3, signUnmeasured: 1 }, s, 'PATCH')).json<{ project: { signTotal: number; signUnmeasured: number } }>();
+    expect(sc.project).toMatchObject({ signTotal: 3, signUnmeasured: 1 });
+    expect((await json(`/api/projects/${p.id}`, { signTotal: -1 }, s, 'PATCH')).status).toBe(400);
+    // 같은 순간의 부분 변경이 서로를 지우지 않는다 (주어진 칸만 UPDATE)
+    await Promise.all([json(`/api/projects/${p.id}`, { signTotal: 4, signUnmeasured: 2 }, s, 'PATCH'), json(`/api/projects/${p.id}`, { quoteTotal: 777 }, s, 'PATCH')]);
+    const both = (await (await get('/api/projects', s)).json<{ projects: { id: string; signTotal: number; signUnmeasured: number; quoteTotal: number }[] }>()).projects.find((x) => x.id === p.id)!;
+    expect(both).toMatchObject({ signTotal: 4, signUnmeasured: 2, quoteTotal: 777 });
     let r = await json(`/api/projects/${p.id}`, { quoteTotal: 1_500_000, status: 'ongoing', paidAmount: 500_000 }, s, 'PATCH');
     expect(r.status).toBe(200);
     let { project } = await r.json<{ project: Record<string, unknown> }>();

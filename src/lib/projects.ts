@@ -8,7 +8,7 @@ export type ProjectStatus = 'waiting' | 'ongoing' | 'paused' | 'done';
 /** 정지(paused)는 2026-10-21 추가 — 홈 선택 탭 [진행 · 정지 · 완료] */
 export const STATUS_LABEL: Record<ProjectStatus, string> = { waiting: '대기', ongoing: '진행중', paused: '정지', done: '완료' };
 /** 그룹·상태·정산은 2026-10-15 추가. 계약 금액 = 직접 입력(contractAuto=false) 또는 리스트 뷰 견적 합계(quoteTotal, 자동). 금액은 정산을 볼 수 있는 사람에게만 온다 */
-export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; /** 상태가 된 시각 (2026-10-21) */ statusAt?: number; quoteTotal?: number; contractAmount?: number; contractAuto?: boolean; paidAmount?: number }
+export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; /** 상태가 된 시각 (2026-10-21) */ statusAt?: number; /** 실측 상태: 사인물 수·미측정 수 (앱이 저장, 2026-10-21) */ signTotal?: number; signUnmeasured?: number; quoteTotal?: number; contractAmount?: number; contractAuto?: boolean; paidAmount?: number }
 export interface GroupInfo { id: string; name: string; createdAt: number; role: 'owner' | 'member'; canBilling: boolean }
 export interface TeamMember { accountId: string; email: string; name: string; canBilling: boolean; createdAt: number }
 export interface GroupView { group: GroupInfo; projects: ProjectInfo[] }
@@ -30,7 +30,7 @@ export const createProject = (name: string) =>
   call<{ project: ProjectInfo }>('/api/projects', { method: 'POST', body: JSON.stringify({ name }) }).then((r) => r.project);
 
 export const deleteProject = (id: string) => call<void>(`/api/projects/${id}`, { method: 'DELETE' });
-export const updateProject = (id: string, body: { name?: string; groupId?: string | null; status?: ProjectStatus; contractAmount?: number | null; paidAmount?: number; quoteTotal?: number; /** 개발·E2E 전용 */ statusAt?: number }) =>
+export const updateProject = (id: string, body: { name?: string; groupId?: string | null; status?: ProjectStatus; contractAmount?: number | null; paidAmount?: number; quoteTotal?: number; signTotal?: number; signUnmeasured?: number; /** 개발·E2E 전용 */ statusAt?: number }) =>
   call<{ project: ProjectInfo }>(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.project);
 
 // ---------- 프로젝트 그룹 (계산서를 그룹에서 한번에) ----------

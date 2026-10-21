@@ -56,6 +56,17 @@
     quoteTimer = window.setTimeout(() => { lastSavedTotal = total; updateProject(app.room!, { quoteTotal: Math.round(total) }).catch(() => {}); }, 1000);
   });
 
+  // 실측 상태 (2026-10-21 "사이즈가 입력되면 실측중 … 미측정/전체사인물수"): 사인물 수·미측정 수가 바뀌면 1초 뒤 프로젝트에 저장 (홈 카드가 읽는다, core/measureSummary.ts)
+  let countTimer = 0, lastSavedCounts = '';
+  $effect(() => {
+    const total = app.signs.length, un = app.unmeasuredCount;
+    if (!app.room || app.role !== 'owner' || !app.ready) return;
+    const key = `${total}/${un}`;
+    if (key === lastSavedCounts) return;
+    clearTimeout(countTimer);
+    countTimer = window.setTimeout(() => { lastSavedCounts = key; updateProject(app.room!, { signTotal: total, signUnmeasured: un }).catch(() => {}); }, 1000);
+  });
+
   // 캔버스 밖에서도 브라우저 확대(Ctrl+휠·핀치)가 일어나지 않게 (xlpop 과 동일)
   $effect(() => {
     const block = (e: WheelEvent) => {

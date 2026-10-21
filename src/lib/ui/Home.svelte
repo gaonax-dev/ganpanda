@@ -7,6 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { splitShelf, statusDate } from '../core/projectShelf';
+  import { measureLabel } from '../core/measureSummary';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
   import { won } from '../core/quote';
   import { listRequests, respondRequest, shopPhotoUrl, type ShopRequest } from '../requests';
@@ -146,10 +147,12 @@
 </script>
 
 {#snippet card(p: ProjectInfo)}
-  <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
+  {@const m = measureLabel(p, STATUS_LABEL[p.status])}
+  <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} data-measure={m.kind} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
     {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>{/if}
     <b>{p.name}</b>
-    <small><span class="status" data-status={p.status}>{STATUS_LABEL[p.status]}</span> · {date(cardDate(p))}</small>
+    <!-- 실측 상태 (2026-10-21): 대기 + 치수 입력 → 실측중 · 미측정 u/N, 다 넣으면 실측완료 N -->
+    <small><span class="status" data-status={p.status} data-measure={m.kind}>{m.label}</span> · {date(cardDate(p))}</small>
   </a>
 {/snippet}
 
@@ -344,6 +347,8 @@
   .status[data-status='done'] { color: var(--ok); }
   .status[data-status='waiting'] { color: var(--muted); }
   .status[data-status='paused'] { color: var(--warn); }
+  .status[data-measure='measuring'] { color: var(--accent); }
+  .status[data-measure='measured'] { color: var(--ok); }
   /* 지난 프로젝트 접기 */
   .shelf { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
   .shelf summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
