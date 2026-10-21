@@ -19,6 +19,7 @@ test('연결 공급사 용어 힌트와 용어집 내보내기', async ({ page, 
   await expect(spec.getByTestId('spec-term')).toContainText("알리다 용어 '오사이'");
   await spec.getByTestId('spec-cancel').click();
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-rules').click();
   const download = page.waitForEvent('download');
   await page.getByTestId('glossary-export').click();
   const d = await download;

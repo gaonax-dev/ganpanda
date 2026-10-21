@@ -44,6 +44,7 @@ test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵�
   await uploadPhoto(page);
   // 경고는 옵션 (설정에서 켬)
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-display').click();
   await page.getByTestId('warn-measure').check();
   await page.getByTestId('close-settings').click();
   await page.keyboard.press('t');

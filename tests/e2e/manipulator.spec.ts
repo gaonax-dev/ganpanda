@@ -302,6 +302,7 @@ test('매니퓰레이터 기본 크기는 설정에서 조절 (기기에 기억)
   const arrow = () => barLen(page);
   const before = await arrow();
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-display').click();
   await page.getByTestId('gizmo-size').fill('96');
   await page.getByTestId('close-settings').click();
   const after = await arrow();

@@ -22,7 +22,7 @@
 3. **제안 만들기**(`request-respond`): `POST /api/requests/:id/respond` → 요청 사진이 들어갈 프로젝트(`projects.request_id`)가 생기고 그 방으로 이동. 앱은 방에 들어가 **문서에 사진이 없으면 요청 사진을 가져와 올립니다**(`importRequestPhotos`: 소유자 용량에 쌓임). 이미 만든 프로젝트가 있으면 그 방으로.
 4. **제안 보내기**: 평소와 같음(`ProposalDialog`). 서버는 `request_id` 가 있는 프로젝트의 제안 링크를 만들 때 `request_responses` 에 기록(간판사·프로젝트·제안 주소) — 이것이 **요금 발생·홍보자 정산의 근거**이고, 이때부터 그 간판사에게 연락처가 보입니다.
 5. **고객 요청 페이지** `/r/:id?key=` (`RequestView.svelte`, `request-page`): 요청 내용·사진·상태, 받은 제안 목록(`request-proposal`: 간판사 이름 · [제안 보기] → 제안 링크). 제안을 승인하면(기존 승인 흐름) 요청 상태가 **승인됨**(`requests.status = 'approved'`, 어느 간판사인지).
-6. **요청 받기 설정**(`Settings.svelte` `requests-section`): 켜기(`req-receive`) + 지역(`req-regions`, 쉼표로 여러 곳) → `PUT /api/me/request-settings`.
+6. **요청 받기 설정**(`Settings.svelte` "요청 받기" 탭 `requests-section`, 요청판이 켜져 있을 때만): 켜기(`req-receive`) + 지역(`req-regions`, 쉼표로 여러 곳) → `PUT /api/me/request-settings`.
 
 ## 데이터 (D1, `server/migrations/0010_requests.sql`)
 - `accounts.receive_requests`(0/1), `accounts.regions`(쉼표 구분 문자열)

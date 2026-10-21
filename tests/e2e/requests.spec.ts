@@ -9,6 +9,7 @@ test('고객이 요청을 올리면 간판사가 받아 제안으로 답하고, 
   await page.evaluate(() => localStorage.setItem('ganpanda.requests', '1')); // 요청판 화면은 기본 숨김 (2026-10-17)
   await page.goto('/');
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-requests').click();
   await page.getByTestId('req-receive').check();
   await page.getByTestId('req-regions').fill('경기 광주시');
   await page.getByTestId('req-save').click();
@@ -74,6 +75,7 @@ test('요청판 화면은 기본으로 숨김: 설정에 요청 받기 없음, /
   await page.goto('/');
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('requests-section')).toHaveCount(0);
+  await expect(page.getByTestId('settings-tab-requests')).toHaveCount(0); // 탭도 없음 (2026-10-21)
   await page.getByTestId('close-settings').click();
   await expect(page.getByTestId('request-list')).toHaveCount(0);
   await page.goto('/request');

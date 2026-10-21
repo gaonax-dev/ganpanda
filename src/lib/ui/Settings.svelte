@@ -1,6 +1,6 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
-  import { app } from '../state.svelte';
+  import { app, type SettingsTab } from '../state.svelte';
   import { PLAN_LABEL } from '../auth';
   import { setRequestSettings } from '../requests';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
@@ -79,18 +79,33 @@
     capture = null;
     app.settingsOpen = false;
   }
+
+  // 탭 (2026-10-21 사용자: "설정을 내용별로 탭으로 분리해줘"): 로그인했으면 계정부터, 아니면 표시
+  const TABS: { id: SettingsTab; label: string; needAccount?: boolean; when?: () => boolean }[] = [
+    { id: 'account', label: '계정', needAccount: true },
+    { id: 'team', label: '멤버', needAccount: true },
+    { id: 'rules', label: '사양 사전', needAccount: true },
+    { id: 'requests', label: '요청 받기', needAccount: true, when: () => app.requestsEnabled },
+    { id: 'display', label: '표시' },
+    { id: 'keys', label: '단축키' },
+  ];
+  const tabs = $derived(TABS.filter((t) => (!t.needAccount || app.account) && (!t.when || t.when())));
+  let tab = $state<SettingsTab>(typeof app.settingsOpen === 'string' ? app.settingsOpen : app.account ? 'account' : 'display');
+  $effect(() => { if (!tabs.some((t) => t.id === tab)) tab = tabs[0].id; }); // 로그아웃 등으로 탭이 사라지면 첫 탭
 </script>
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
   <div class="dialog" data-testid="settings" role="dialog" aria-modal="true" aria-label="설정">
     <header>
       <h2>설정</h2>
-      <div class="tabs"><span class="on">계정 · 멤버 · 단축키 · 표시</span></div>
+      <div class="tabs" role="tablist">
+        {#each tabs as t (t.id)}<button class="tab" class:on={tab === t.id} role="tab" aria-selected={tab === t.id} data-testid="settings-tab-{t.id}" onclick={() => { capture = null; tab = t.id; }}>{t.label}</button>{/each}
+      </div>
       <button class="icon" data-testid="close-settings" title="닫기 (Esc)" onclick={close}>✕</button>
     </header>
 
     <div class="body">
-      {#if app.account}
+      {#if app.account && tab === 'account'}
         <section data-testid="account-section">
           <h3>계정 · 구독</h3>
           <p class="row"><span>{app.account.email}</span><b data-testid="plan">{PLAN_LABEL[app.account.plan] ?? app.account.plan} 요금제</b></p>
@@ -102,6 +117,8 @@
             <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
         </section>
+      {/if}
+      {#if app.account && tab === 'rules'}
         <!-- 사양 글 사전 (V2, 2026-10-19): 내 규칙 목록·삭제, 전국 기본값 수 -->
         <section data-testid="rules-section">
           <h3>사양 글 사전 <small class="hint">퀵입력이 못 알아본 말에 답한 뜻 — 내 사전이 전국 기본값보다 먼저</small></h3>
@@ -119,8 +136,9 @@
             {#if reqSaved}<p class="hint" data-testid="rules-region-saved">{reqSaved}</p>{/if}
           {/if}
         </section>
-        <!-- 요청판 (2026-10-17): 요청 받기 + 지역 → 홈 "받은 요청". 지금은 숨김 (app.requestsEnabled) -->
-        {#if app.requestsEnabled}
+      {/if}
+      <!-- 요청판 (2026-10-17): 요청 받기 + 지역 → 홈 "받은 요청". 지금은 숨김 (app.requestsEnabled) -->
+      {#if app.account && app.requestsEnabled && tab === 'requests'}
         <section data-testid="requests-section">
           <h3>견적 요청 받기</h3>
           <p class="hint">켜 두면 이 지역 가게 사장들의 간판 견적 요청이 홈 "받은 요청"과 이메일로 옵니다. 요청에서 바로 프로젝트를 만들어 제안 링크로 답하고(요금제의 제안 건수), 제안을 보내면 연락처가 보입니다.</p>
@@ -128,9 +146,10 @@
           <label class="opt">지역 <small>(시/군/구까지, 여러 곳은 쉼표)</small><input data-testid="req-regions" bind:value={reqRegions} placeholder="예: 경기 광주시, 성남시 분당구" /></label>
           <p class="row"><span class="hint" data-testid="req-saved">{reqSaved}</span><button class="btn small primary" data-testid="req-save" onclick={saveRequests} disabled={reqBusy}>저장</button></p>
         </section>
-        {/if}
+      {/if}
+      {#if app.account && tab === 'team'}
         <section data-testid="team-section">
-          <h3>멤버</h3>
+          <h3>멤버 {#if app.usage}<span class="count" data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span>{/if}</h3>
           <p class="hint">멤버는 내 프로젝트 그룹과 계산서를 봅니다. 정산 금액은 "정산 보기"를 켠 멤버만 봅니다. 가입된 계정의 이메일로 추가합니다.</p>
           {#each members ?? [] as m (m.accountId)}
             <div class="member" data-testid="team-member">
@@ -148,6 +167,7 @@
           {#if memberError}<p class="hint err" data-testid="member-error">{memberError}</p>{/if}
         </section>
       {/if}
+      {#if tab === 'display'}
       <section>
         <h3>표시</h3>
         <label class="check"><input type="checkbox" data-testid="warn-measure" checked={app.warnMeasure} onchange={(e) => app.setWarnMeasure(e.currentTarget.checked)} /> 입력 치수가 사진 추정과 많이 다르면 경고(⚠) 표시</label>
@@ -157,6 +177,8 @@
         </label>
         <p class="hint">치수는 제작용 메모이고 3D 는 그린 영역에 맞춥니다. 경고는 참고용이라 기본은 꺼져 있습니다.</p>
       </section>
+      {/if}
+      {#if tab === 'keys'}
       {#each groups as g (g)}
         <section>
           <h3>{g}</h3>
@@ -206,12 +228,15 @@
           </tbody>
         </table>
       </section>
+      {/if}
     </div>
 
+    {#if tab === 'keys'}
     <footer>
       <span class="hint">글자 키는 키보드 위치 기준이라 한글 입력 상태에서도 동작합니다.</span>
       <button class="btn small" data-testid="shortcuts-reset-all" onclick={() => { capture = null; app.resetKeymap(); }}>모두 기본값으로</button>
     </footer>
+    {/if}
   </div>
 </div>
 
@@ -226,6 +251,7 @@
   .member > span { flex: 1; } .member small { display: block; color: var(--muted); font-size: 11px; }
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }
+  .count { font-weight: 400; margin-left: 6px; }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
   .opt { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
   .opt > input { flex: 1; min-width: 0; }
@@ -235,9 +261,12 @@
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 50; }
   .dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
   header { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  @media (max-width: 720px) { header { gap: 8px; padding: 10px 12px; } .tab { padding: 4px 7px; font-size: 12px; } }
   h2 { margin: 0; font-size: 16px; }
-  .tabs span { font-size: 13px; padding: 4px 10px; border-radius: 6px; }
-  .tabs .on { background: var(--input); }
+  .tabs { display: flex; gap: 2px; overflow-x: auto; min-width: 0; }
+  .tab { background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .tab.on { background: var(--input); color: var(--text); }
+  .body { min-height: 220px; }
   header .icon { margin-left: auto; }
   .body { overflow-y: auto; padding: 4px 16px 12px; }
   section { margin-top: 12px; }

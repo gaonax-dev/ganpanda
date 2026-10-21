@@ -283,7 +283,8 @@
   .peer { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px 2px 6px; }
   .peer i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .account { position: relative; }
-  .menu { position: absolute; right: 0; top: 36px; width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); z-index: 20; }
+  /* 상단 바(.top)가 overflow: hidden 이라 absolute 면 잘려 로그아웃이 안 보였다(휴대폰, 2026-10-21) → fixed 로 바 바깥에 */
+  .menu { position: fixed; right: 10px; top: 44px; width: 240px; max-width: calc(100vw - 20px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); z-index: 20; }
   .menu small { color: var(--muted); font-size: 11px; }
   .small-name { font-size: 12px; }
   .who { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }

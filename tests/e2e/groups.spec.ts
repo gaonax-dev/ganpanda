@@ -123,6 +123,7 @@ test('멤버는 설정에서 관리: 추가하면 오너의 그룹을 보고, �
   await page.getByTestId('open-settings').click();
   await expect(page.getByTestId('plan')).toContainText('요금제');
   await expect(page.getByTestId('usage-storage')).toContainText('/');
+  await page.getByTestId('settings-tab-team').click();
   await page.getByTestId('member-email').fill('nobody@example.com');
   await page.getByTestId('member-add').click();
   await expect(page.getByTestId('member-error')).toBeVisible();

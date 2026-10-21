@@ -7,7 +7,7 @@
 - **서버**: `POST /api/auth/signup`(201, 이미 있는 이메일 409), `POST /api/auth/login`(401 / 같은 이메일 15분에 10번 틀리면 429 잠금, `login_failures`), `POST /api/auth/email {reset:true}` → `/login?token=&reset=1` 재설정 메일, `POST /api/me/password {password, current?}`(비밀번호가 있으면 현재 비밀번호 필요 403, **재설정 링크로 만든 세션은 15분 동안 면제** `sessions.reset_until`). 해시는 PBKDF2-SHA256 10만 회 + 16바이트 salt(`server/src/password.ts`), 상수 시간 비교. `/api/me` 의 `account.hasPassword`.
 - **가입 이메일 인증**(2026-10-15 사용자: "가입할 때 이메일 인증도 받게 해줘"): 가입하면 세션 대신 **인증 메일**(`/login?token=&verify=1`, 24시간 유효)을 보냅니다. 링크를 열면 인증되고 로그인되며 "이메일 인증이 끝났습니다" 안내. **인증 전 비밀번호 로그인은 403** → 로그인 창에 [인증 메일 다시 받기](`login-resend-verify`, `POST /api/auth/resend-verify` — 가입 여부를 드러내지 않게 항상 202). 인증 전 같은 이메일로 다시 가입하면 비밀번호를 덮고 메일을 다시 보냄(먼저 걸어 둔 남의 비밀번호가 남지 않음). 인증된 이메일은 409.
 - **이메일 가로채기 방지**: 비밀번호 가입은 이메일 확인 전(`email_verified = 0`). 그 이메일의 주인이 메일 링크·소셜(공급자가 확인한 이메일)로 들어오면 확인 처리하면서 **확인 전에 걸린 비밀번호를 지웁니다**(`markEmailVerified`) — 남이 먼저 내 이메일로 비밀번호를 걸어 두는 것을 막음. 기존 계정은 모두 확인된 것으로 이전.
-- **앱**: 재설정 링크로 들어오면 바로 "새 비밀번호 정하기"(`PasswordDialog.svelte`, 현재 비밀번호 없이). 계정 메뉴·설정 "계정 · 구독"에서 비밀번호 만들기/바꾸기(`open-password`, `settings-password`).
+- **앱**: 재설정 링크로 들어오면 바로 "새 비밀번호 정하기"(`PasswordDialog.svelte`, 현재 비밀번호 없이). 계정 메뉴·설정 "계정" 탭에서 비밀번호 만들기/바꾸기(`open-password`, `settings-password`).
 - 데이터: `server/migrations/0008_password.sql`. 테스트: `server/test/password.test.ts`, `tests/e2e/auth.spec.ts`.
 
 ## 요약
@@ -38,6 +38,7 @@
 
 ## 소셜 로그인 (1-2d, `server/src/social.ts`)
 - 흐름: 앱의 버튼 → `GET /api/auth/{kakao|google|apple}/start?next=<돌아갈 경로>` → 서버가 state(10분, 1회용)를 D1 `oauth_states`에 저장하고 공급자 로그인 화면으로 → 공급자가 `…/api/auth/{p}/callback`으로 돌려주면(애플은 POST form_post) 서버가 code 를 교환해 사용자 정보를 얻고 → 세션을 만들어 **`APP_URL/login#session=…&next=…`**로 보냄 → 앱이 세션을 저장하고 `next`로 이동(주소에서 세션 제거).
+- **계정 메뉴**(상단 이름 단추): 이메일·요금제·사용량·표시 이름·비밀번호·로그아웃. 상단 바가 `overflow: hidden`이라 휴대폰에서 메뉴가 잘려 로그아웃이 안 보이던 문제(2026-10-21 "사용자 누르면 나오는 정보가 모바일에서 가려진다", "로그아웃 기능이 없다") → 메뉴를 `position: fixed`로 바 바깥에(`tests/e2e/mobile.spec.ts` "계정 메뉴").
 - **카카오가 기본**(2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안, 문자 인증은 안 만든다 → [../product/decisions.md](../product/decisions.md)): 로그인 창에서 카카오 단추를 크게 맨 위에, 안내 "간판집·직원 모두 카카오로 시작하는 걸 권합니다"(`social-hint`). 서버에 카카오 키가 있을 때만 보인다.
 - **계정 연결 규칙**(`identities` 테이블): 같은 공급자 ID → 기존 계정. 없으면 **공급자가 확인한 이메일**과 같은 계정에 연결(이메일 로그인 계정과 합쳐짐) — 카카오는 `is_email_verified` 일 때만, 확인 안 된 이메일은 없는 것으로 본다(남의 이메일 계정에 붙는 사고 방지, 2026-10-21). 둘 다 없으면 새 계정. 공급자가 이메일을 안 주면(카카오 동의 안 함·미확인) `kakao-<id>@noemail.ganpanda.co.kr` 같은 대체 이메일.
 - 애플: client secret 은 `.p8` 키로 ES256 서명한 JWT(1시간), 돌아온 `id_token`은 애플 공개키(JWKS)로 서명·`iss`·`aud`·만료를 검증. 이름은 첫 로그인 때만 `user` 폼 필드로 옴. 이메일은 비공개 릴레이 주소일 수 있음.

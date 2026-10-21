@@ -29,6 +29,7 @@ test('멤버 한도: 무료는 설정에서 멤버 2명까지, 3번째는 요금
   const emails = [0, 1, 2].map((i) => `mem${i}-${Math.random().toString(36).slice(2, 8)}@example.com`);
   for (const e of emails) await apiLogin(request, e);
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-team').click();
   for (const e of emails.slice(0, 2)) { await page.getByTestId('member-email').fill(e); await page.getByTestId('member-add').click(); await expect(page.getByTestId('team-section')).toContainText(e); }
   await expect(page.getByTestId('usage-members')).toContainText('2 / 2명');
   await page.getByTestId('member-email').fill(emails[2]);

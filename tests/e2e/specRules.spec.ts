@@ -70,6 +70,7 @@ test('전국 기본값으로 알아본 말에 이의를 내면 내 뜻이 개인
   await spec.getByTestId('spec-cancel').click();
   // 설정 → 사양 글 사전: 규칙이 보이고 지울 수 있다
   await page.getByTestId('open-settings').click();
+  await page.getByTestId('settings-tab-rules').click();
   const rules = page.getByTestId('rules-section');
   await expect(rules.getByTestId('rule-row').filter({ hasText: phrase })).toHaveCount(1);
   await rules.getByTestId('rule-row').filter({ hasText: phrase }).getByTestId('rule-delete').click();

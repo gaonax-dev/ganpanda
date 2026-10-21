@@ -29,6 +29,8 @@ import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
+/** 설정 창 탭 (Settings.svelte) */
+export type SettingsTab = 'account' | 'team' | 'rules' | 'requests' | 'display' | 'keys';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
@@ -71,7 +73,8 @@ class AppState {
   ready = $state(false);
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
   keymap = $state<Keymap>(mergeKeymap(parse(load('ganpanda.keymap'))));
-  settingsOpen = $state(false);
+  /** 설정 창: true 또는 처음 보일 탭 이름 (2026-10-21 탭 분리) */
+  settingsOpen = $state<boolean | SettingsTab>(false);
   inviteOpen = $state(false);
   readonly isMac = isMacPlatform();
   /** 휴대폰 폭(≤ 720px): 라벨을 축약하고 패널·창을 전체 폭으로 (2026-10-14 사용자: "텍스트도 자리가 넘치거나 모자란데 단축어로") */

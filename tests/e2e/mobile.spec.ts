@@ -507,3 +507,14 @@ test('두 손가락 조작 중에는 원근(3D)으로 겹친 그림을 잠시 �
   await touch(page, 'pointerup', 2, 250, 650);
   expect(await shown()).not.toBe('none');
 });
+
+test('계정 메뉴가 휴대폰에서 가려지지 않는다 — 로그아웃 단추까지 눌리는 자리에 (2026-10-21 "사용자 누르면 나오는 정보가 모바일에서 가려진다")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await page.getByTestId('account-menu').click();
+  const logout = page.getByTestId('logout');
+  await expect(logout).toBeVisible();
+  const b = (await logout.boundingBox())!;
+  expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(390);
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), [b.x + b.width / 2, b.y + b.height / 2]);
+  expect(hit).toBe('logout');
+});

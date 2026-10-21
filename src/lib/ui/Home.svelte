@@ -141,7 +141,7 @@
   {:else if app.account}
     {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive)}
       <section class="requests" data-testid="request-list">
-        <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = true)}>설정</button></small></h1>
+        <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>설정</button></small></h1>
         {#each requests as r (r.id)}
           <div class="rcard" data-testid="request-item" data-status={r.status} data-responded={r.responded}>
             <div class="rphotos">{#each r.photos as p (p.n)}<img src={shopPhotoUrl(r.id, p.n)} alt="" />{/each}</div>
