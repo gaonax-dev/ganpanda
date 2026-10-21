@@ -13,11 +13,16 @@
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
   $effect(() => { if (app.account && !email) email = app.account.email.includes('@noemail.') ? '' : app.account.email; });
 
-  let store = $state(''), phone = $state(''), email = $state(''), text = $state('');
+  // 적던 내용은 기기에 남긴다 (2026-10-21 "사업자등록정보 등록했는데 사라져": 창을 닫거나 카카오 로그인으로 돌아오면 비어 있던 문제). 보내면 지운다. 파일은 못 남긴다
+  const DRAFT_KEY = 'ganpanda.estimateDraft';
+  type Draft = { store: string; phone: string; email: string; text: string; address: string; bizNo: string; ownerName: string; startDate: string };
+  const draft0 = ((): Partial<Draft> => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? '{}') as Partial<Draft>; } catch { return {}; } })();
+  let store = $state(draft0.store ?? ''), phone = $state(draft0.phone ?? ''), email = $state(draft0.email ?? ''), text = $state(draft0.text ?? '');
   // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
-  let address = $state(''), bizNo = $state('');
+  let address = $state(draft0.address ?? ''), bizNo = $state(draft0.bizNo ?? '');
   // 사본이 없으면 직접 넣는 검증 요소 (2026-10-21 "사본이 없으면 직접입력 필요한 우리가 필요한 검증 요소만 입력"): 번호 + 대표자 성명 + 개업일 → 국세청 진위확인
-  let ownerName = $state(''), startDate = $state('');
+  let ownerName = $state(draft0.ownerName ?? ''), startDate = $state(draft0.startDate ?? '');
+  $effect(() => { const d: Draft = { store, phone, email, text, address, bizNo, ownerName, startDate }; try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* 저장 못 해도 됨 */ } });
   // 사업자등록증 사본 (2026-10-21 "사업자 사본 받아야 겠다" → "사업자등록증 무조건 넣어줘"): **필수**, 그림·PDF 8MB — 제안을 보낸 간판집만 연다
   let bizDoc = $state<File | null>(null);
   let scanState = $state<'' | 'scanning' | 'ok' | 'failed'>('');
@@ -69,6 +74,7 @@
       // 내 요청 주소를 기기에 기억 (나중에 다시 열어 제안을 본다)
       try { const mine = JSON.parse(localStorage.getItem('ganpanda.myRequests') ?? '[]') as string[]; localStorage.setItem('ganpanda.myRequests', JSON.stringify([r.url, ...mine].slice(0, 20))); } catch { /* 저장 못 해도 됨 */ }
       done = { url: r.url };
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* 무시 */ }
     } catch (e) {
       const code = (() => { try { return e instanceof AuthError ? (JSON.parse(e.message) as { error?: string }).error : undefined; } catch { return undefined; } })();
       if (e instanceof AuthError && e.status === 429) error = '이미 3건의 요청이 진행 중입니다. 받은 제안을 먼저 확인해 주세요.';

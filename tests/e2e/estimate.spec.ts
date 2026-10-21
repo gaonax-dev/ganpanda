@@ -50,6 +50,11 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 1'); // 지역은 주소에서 (경기 광주시)
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`); // 같은 번호는 열린 요청 3건까지
   await expect(dlg.getByTestId('estimate-send')).toBeDisabled(); // 사본 없이는 못 보낸다 (2026-10-21 "사업자등록증 무조건")
+  // 창을 닫았다 열어도 적던 내용이 남는다 (2026-10-21 "등록했는데 사라져")
+  await dlg.getByTestId('estimate-close').click();
+  await page.getByTestId('estimate-button').click();
+  await expect(page.getByTestId('est-store')).toHaveValue(store);
+  await expect(page.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1');
   // 사업자등록증 사본 → 자동 읽기(로컬 fake: 220-81-62517 · 간판다 카페 · 서울 송파구 …) → 빈 칸이 채워진다, 이후 직접 고친다
   await dlg.getByTestId('est-bizdoc').setInputFiles({ name: '등록증.png', mimeType: 'image/png', buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]) });
   await expect(dlg.getByTestId('est-scan')).toContainText('읽었습니다');
