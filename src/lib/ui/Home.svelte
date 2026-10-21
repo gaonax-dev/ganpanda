@@ -231,7 +231,8 @@
         {/each}
       </section>
     {/if}
-    {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive)}
+    <!-- 운영자는 요청이 없어도 자리를 보인다 (2026-10-22 "받은 요청 페이지가 어디에 있나?") -->
+    {#if app.requestsEnabled && (requests.length || app.requestSettings?.receive || app.account?.operator)}
       <section class="requests" data-testid="request-list">
         <h1>받은 요청 <small>{app.requestSettings?.regions.join(', ') || '지역을 설정하세요'} · <button class="link" onclick={() => (app.settingsOpen = 'requests')}>설정</button></small></h1>
         {#each requests as r (r.id)}
@@ -256,7 +257,7 @@
             </div>
           </div>
         {:else}
-          <p class="hint">아직 이 지역의 요청이 없습니다.</p>
+          <p class="hint" data-testid="request-empty">{app.account?.operator ? '아직 받은 요청이 없습니다 — 가게 사장이 [가게 사장입니다 → 견적 요청]으로 보내면 모든 지역의 요청이 여기에 나타납니다(운영자).' : '아직 이 지역의 요청이 없습니다.'}</p>
         {/each}
       </section>
     {/if}
