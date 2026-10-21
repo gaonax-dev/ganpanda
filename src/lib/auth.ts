@@ -6,7 +6,7 @@ export interface Account { id: string; email: string; name: string; plan: string
 export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
 /** members = 팀 멤버 수(소유자 제외, 2026-10-21 — 전엔 동시 작업 인원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) */
 export interface Usage { limits: { storageBytes: number; members: number; proposalsPerMonth: number | null }; usage: { storageBytes: number; members: number; proposals: number } }
-export type Me = { account: Account; prices: unknown; /** 색 라이브러리 (2026-10-17) */ colors?: unknown; /** 세트 라이브러리 (2026-10-19) */ sets?: unknown; /** 요청판: 요청 받기·지역 (2026-10-17) */ requestSettings?: { receive: boolean; regions: string[] } } & Usage;
+export type Me = { account: Account; /** 확인된 사업자 (2026-10-21) */ business?: import('./core/business').Business | null; prices: unknown; /** 색 라이브러리 (2026-10-17) */ colors?: unknown; /** 세트 라이브러리 (2026-10-19) */ sets?: unknown; /** 요청판: 요청 받기·지역 (2026-10-17) */ requestSettings?: { receive: boolean; regions: string[] } } & Usage;
 /** 계정 기본 단가표 저장 */
 export const savePrices = (prices: unknown) => call<{ prices: unknown }>('/api/me/prices', { method: 'PUT', body: JSON.stringify({ prices }) });
 /** 계정 색 라이브러리 저장 (2026-10-17) */

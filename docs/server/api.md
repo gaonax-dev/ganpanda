@@ -53,6 +53,7 @@
 | POST | `/api/me/team` `{email, canBilling?}` | 멤버 추가 (가입된 계정만, 자기 자신 불가) | 201 `{member}` / 400 / 404 |
 | PATCH / DELETE | `/api/me/team/:accountId` `{canBilling}` | 정산 보기 허용 / 멤버 제거 | 200 / 204 / 404 |
 | PUT | `/api/me/plan` `{plan: free\|basic\|pro}` | **개발 모드 전용**(`AUTH_DEV_LINK=1`, E2E 에서 소유자+직원 동시 작업용). 운영은 404 — 결제 미구현, 관리자가 D1 에서 바꿈 | `{account}` / 400 / 404 |
+| GET·PUT·DELETE | `/api/me/business` `{no, ownerName, startDate, name?}` | 사업자 확인 (2026-10-21): 국세청 진위확인 → 계정에 사업자. `/api/me` 응답에도 `business` | 200 `{business}` / 400 `{error: bad_input\|mismatch\|not_registered}` / 409 `taken` / 502 `nts_unavailable` / 503 `not_configured` → [../features/accounts.md](../features/accounts.md) |
 | POST | `/api/me/presence` `{device}` | 같은 아이디 동시 사용 신호(30초마다, 2026-10-21) | `{others}` 지금 쓰는 다른 기기 수 / 400 / 401 |
 | POST | `/api/me/logout-others` `{device}` | [다른 곳 로그아웃] — 이 세션 말고 이 계정 세션 모두 삭제 | `{ok}` / 400 / 401 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |

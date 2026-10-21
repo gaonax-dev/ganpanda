@@ -3,6 +3,7 @@ import { authenticate, type Account } from './auth';
 import { teamAccess } from './team';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { planOf } from './plans';
+import { businessOf } from './business';
 import { proposalsThisMonth } from './usage';
 import { recordResponse } from './requests';
 
@@ -78,7 +79,9 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     const billing = r.role === 'owner' || (r.role === 'editor' && !!r.account && !!(await teamAccess(env, r.project.owner_id, r.account))?.canBilling);
     // branding: 소유자 요금제가 무료면 제안 페이지에 "간판다로 만든 제안" (2026-10-17)
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, billing, branding: plan.branding, ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
+    // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
+    const biz = await businessOf(env, r.project.owner_id);
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
   }
 
   const me = await authenticate(req, env);

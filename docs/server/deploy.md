@@ -58,6 +58,9 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 | Google | Cloud Console → OAuth 클라이언트(웹) → 승인된 리디렉션 URI 추가 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Apple | Developer → Identifiers → Services ID(또는 기존 것) → Sign in with Apple 설정에 도메인 `ganpanda.co.kr`·`sync.ganpanda.co.kr`과 Return URL 추가, Keys 의 Sign in with Apple 키(.p8) | `APPLE_CLIENT_ID`(Services ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`(.p8 전체, 줄바꿈은 `\n` 가능) |
 - `.p8`은 `npx wrangler secret put APPLE_PRIVATE_KEY < AuthKey_XXXX.p8`로 파일에서 넣습니다.
+
+## 사업자 확인 키 (2026-10-21)
+[공공데이터포털](https://www.data.go.kr) "국세청_사업자등록정보 진위확인 및 상태조회 서비스" 활용신청 → 일반 인증키(**Decoding**) → `cd server && echo -n '<키>' | npx wrangler secret put NTS_API_KEY`. 로컬 `.dev.vars` 는 `NTS_API_KEY=fake`(가짜 응답). 비어 있으면 설정의 사업자 확인이 503 `not_configured`. 운영 등록 2026-10-21. 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0018_business).
 - 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0004_identities).
 
 ## 도메인 `ganpanda.co.kr`

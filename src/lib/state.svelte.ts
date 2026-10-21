@@ -23,6 +23,7 @@ import { prepareUpload } from './photoPrep';
 import { clampFlatScale, flatOrigin } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount } from './requests';
 import { formatBytes } from './core/format';
+import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
@@ -55,7 +56,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -85,6 +86,8 @@ class AppState {
   readonly page: 'request' | 'request-view' | null;
   /** 요청 받기 설정 (/api/me) */
   requestSettings = $state<{ receive: boolean; regions: string[] } | null>(null);
+  /** 확인된 사업자 (2026-10-21, 설정 "계정" 탭) */
+  business = $state<Business | null>(null);
   /** 요청판 화면 켜기 (2026-10-17 사용자: "우선 안보이게 해줘 현재는 간판 실측툴로서 기본기를 단단히 하겠다"). 서버·API 는 그대로, 화면만 숨김.
       켜려면 빌드에 VITE_REQUESTS=1 또는 기기에 localStorage 'ganpanda.requests' = '1' (E2E·내부 확인용) */
   readonly requestsEnabled = import.meta.env.VITE_REQUESTS === '1' || load('ganpanda.requests') === '1';
@@ -440,6 +443,7 @@ class AppState {
     if (sets) { this.setLibrary = sets.sets; saveLocalSets(sets.sets); }
     else if (me && this.setLibrary.length) void this.persistSets();
     this.requestSettings = me?.requestSettings ?? null;
+    this.business = me?.business ?? null;
     if (me) void this.loadSpecRules();
   }
   private async persistSets() { saveLocalSets(this.setLibrary); if (this.account) { try { await saveSets({ version: 1, sets: this.setLibrary }); } catch { /* 다음에 */ } } }
@@ -757,7 +761,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing, branding: !!a.branding, ...(a.requestId ? { requestId: a.requestId } : {}) };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}) };
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };

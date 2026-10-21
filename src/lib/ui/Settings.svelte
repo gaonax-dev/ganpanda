@@ -7,12 +7,30 @@
   import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
   import { glossaryCsv } from '../core/terms';
+  import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
+  import { describeBusinessError, removeBusiness, verifyBusiness } from '../business';
   /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
   function exportGlossary() {
     const blob = new Blob([glossaryCsv(app.prices, app.specRules)], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `간판다 용어집 ${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   }
+
+  // ---------- 사업자 확인 (2026-10-21 결정: 로그인 위에 "어느 사업체인가" — 국세청 진위확인, 숨고·크몽 방식) ----------
+  let bizNo = $state(''), bizOwner = $state(''), bizStart = $state(''), bizName = $state('');
+  let bizBusy = $state(false), bizError = $state('');
+  const bizReady = $derived(isValidBizNo(bizNo) && !!bizOwner.trim() && !!bizStartDate(bizStart));
+  async function verifyBiz() {
+    bizBusy = true; bizError = '';
+    try { app.business = await verifyBusiness({ no: bizNo, ownerName: bizOwner.trim(), startDate: bizStartDate(bizStart)!, name: bizName.trim() }); }
+    catch (e) { bizError = describeBusinessError(e); }
+    finally { bizBusy = false; }
+  }
+  async function removeBiz() {
+    if (!confirm('사업자 확인을 떼면 제안 페이지의 "사업자 확인" 배지가 사라집니다. 뗄까요?')) return;
+    try { app.business = await removeBusiness(); } catch (e) { bizError = describeBusinessError(e); }
+  }
+  const dateLabel = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
 
   // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
   let members = $state<TeamMember[] | null>(null);
@@ -116,6 +134,26 @@
             <p class="row"><span>멤버 <small>(아래 멤버 목록, 소유자 제외 — 동시 접속 인원은 제한 없음)</small></span><span data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span></p>
             <p class="row"><span>이번 달 제안 링크</span><span data-testid="usage-proposals">{app.usage.usage.proposals}{app.usage.limits.proposalsPerMonth === null ? '건 (무제한)' : ` / ${app.usage.limits.proposalsPerMonth}건`}</span></p>
           {/if}
+        </section>
+        <!-- 사업자 확인 (2026-10-21): 소유자 계정만. 번호·대표자명·개업일 → 국세청 → 제안 페이지 배지, 체험·요금은 사업자당 1번 -->
+        <section data-testid="business-section">
+          <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>
+          {#if app.business}
+            <p class="row biz" data-testid="biz-verified">
+              <span>✓ <b>{app.business.name || '상호 없음'}</b> · {formatBizNo(app.business.no)} · {app.business.ownerName} · 개업 {dateLabel(app.business.startDate)} · <b class:warn={app.business.status !== 'active'}>{BIZ_STATUS_LABEL[app.business.status]}</b> <small>확인 {new Date(app.business.verifiedAt).toLocaleDateString('ko-KR')}</small></span>
+              <button class="btn small" data-testid="biz-remove" onclick={removeBiz}>떼기</button>
+            </p>
+            {#if app.business.status !== 'active'}<p class="hint err">국세청 기준 {BIZ_STATUS_LABEL[app.business.status]} 상태입니다. 다시 열었으면 사업자등록증 정보로 다시 확인해 주세요.</p>{/if}
+          {:else}
+            <form class="bizform" onsubmit={(e) => { e.preventDefault(); if (bizReady && !bizBusy) verifyBiz(); }}>
+              <label>사업자등록번호<input data-testid="biz-no" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} /></label>
+              <label>대표자 성명<input data-testid="biz-owner" placeholder="사업자등록증의 성명" bind:value={bizOwner} /></label>
+              <label>개업일자<input data-testid="biz-start" inputmode="numeric" placeholder="2020-01-05" bind:value={bizStart} /></label>
+              <label>상호 <small>(선택)</small><input data-testid="biz-name" placeholder="간판집 상호" bind:value={bizName} /></label>
+              <p class="row"><span class="hint">사업자등록증에 적힌 그대로 넣어 주세요. 확인은 보통 1초 안에 끝납니다.</span><button class="btn small primary" type="submit" data-testid="biz-verify" disabled={!bizReady || bizBusy}>{bizBusy ? '확인 중…' : '확인'}</button></p>
+            </form>
+          {/if}
+          {#if bizError}<p class="hint err" data-testid="biz-error">{bizError}</p>{/if}
         </section>
       {/if}
       {#if app.account && tab === 'rules'}
@@ -251,6 +289,11 @@
   .member > span { flex: 1; } .member small { display: block; color: var(--muted); font-size: 11px; }
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }
+  .bizform { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .bizform label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+  .bizform .row { grid-column: 1 / -1; align-items: center; }
+  .biz .warn { color: var(--warn); }
+  @media (max-width: 720px) { .bizform { grid-template-columns: 1fr; } }
   .count { font-weight: 400; margin-left: 6px; }
   .check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
   .opt { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }

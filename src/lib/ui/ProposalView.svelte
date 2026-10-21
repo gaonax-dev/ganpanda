@@ -46,6 +46,10 @@
     <h1>{projectName}</h1>
     {#if proposal?.note}<p class="note" data-testid="proposal-note-view">{proposal.note}</p>{/if}
     {#if proposal}<small class="meta">{proposal.author} · {date(proposal.createdAt)}</small>{/if}
+    <!-- 소유자의 확인된 사업자 (2026-10-21): 돈이 간판다를 거치지 않는 구조에서 고객이 믿을 근거 -->
+    {#if app.access.status === 'ok' && app.access.business && app.access.business.status === 'active'}
+      <small class="biz" data-testid="proposal-business" title="국세청 사업자등록 정보로 확인된 간판집입니다">✓ 사업자 확인된 간판집{app.access.business.name ? ` · ${app.access.business.name}` : ''}</small>
+    {/if}
   </header>
 
   {#if proposal?.renders.length}
@@ -141,6 +145,7 @@
   .hero h1 { margin: 2px 0 6px; font-size: 22px; }
   .note { margin: 0 0 6px; font-size: 14px; line-height: 1.5; }
   .meta { color: var(--muted); }
+  .biz { display: inline-block; margin-top: 6px; color: var(--ok); border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; }
   section { padding: 0 16px; }
   .renders figure { margin: 10px 0 0; }
   .renders img { width: 100%; border-radius: 12px; display: block; }

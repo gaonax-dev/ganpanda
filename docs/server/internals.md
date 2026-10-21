@@ -27,6 +27,9 @@
 - `POST /api/me/logout-others` 는 `dropOthers` 뒤 D1 `sessions` 에서 이 세션 말고 그 계정의 세션을 모두 지운다 → 다른 기기는 다음 신호에서 401.
 - (옛) 좌석 `seats(sid, person, updated_at)`·`acquire/renew/release` 는 2026-10-21 요금제 한도가 멤버 수로 바뀌어 쓰지 않는다 — `index.ts` 가 더 이상 좌석을 받지 않고 Room 에 `x-owner` 를 주지 않는다.
 
+## 사업자 확인 (`server/src/business.ts`, 2026-10-21)
+- D1 `businesses(b_no PK, account_id UNIQUE, owner_name, start_dt, name, status, verified_at, checked_at)`. 국세청 호출은 `setNtsFetch` 로 바꿔 끼운다(테스트). 매시간 cron(`scheduled`)이 백업과 함께 `recheckBusinesses` — 30일 지난 행 100개 상태조회 → [../features/accounts.md](../features/accounts.md).
+
 ## 테스트 환경
 - `@cloudflare/vitest-plugin`(이전 이름 `vitest-pool-workers`)으로 실제 Workers 런타임에서 실행합니다.
 - 테스트용 클라이언트 `server/test/client.ts`: 이 런타임에서는 바이너리 메시지가 Blob으로 들어오므로, 순서를 지키며 ArrayBuffer로 바꿔 처리합니다. 실제 브라우저의 `y-websocket`은 ArrayBuffer로 받습니다. `echo = true`로 두면 y-websocket처럼 남의 상태를 되돌려 보내는 동작을 흉내 냅니다.

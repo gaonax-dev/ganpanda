@@ -50,6 +50,16 @@
 - 바인딩이 없으면 503, 발송 실패(한도 초과 등)면 502 를 돌려주고 **그 토큰은 즉시 폐기**합니다(떠도는 링크 방지). 앱은 "잠시 후 다시 시도" 안내.
 - 테스트는 `EMAIL.send`를 가짜로 바꿔 메시지 구성과 실패 처리를 검사합니다(`server/test/email.test.ts`).
 
+## 사업자 확인 (2026-10-21, `server/src/business.ts` · `src/lib/business.ts` · `core/business.ts`)
+결정: 로그인(사람 = 카카오/이메일) 위에 얹는 "어느 사업체인가" — 숨고·크몽 방식 → [../product/decisions.md](../product/decisions.md).
+- **어디서**: 설정 → **계정** 탭 "사업자 확인"(`business-section`): 사업자등록번호(`biz-no`, 자동 하이픈·검증 자릿수 `isValidBizNo`) · 대표자 성명(`biz-owner`) · 개업일자(`biz-start`, 2020-01-05 / 20200105) · 상호(선택 `biz-name`) → [확인](`biz-verify`). 확인되면 `biz-verified`(상호·번호·대표자·개업일·상태·확인일) + [떼기](`biz-remove`, 확인 창).
+- **서버** `PUT /api/me/business {no, ownerName, startDate, name?}` → 국세청 공공데이터 API **진위확인**(`api.odcloud.kr/api/nts-businessman/v1/validate`, 키 `NTS_API_KEY` = data.go.kr 일반 인증키 Decoding). 응답: 200 `{business}` / 400 `{error: bad_input|mismatch|not_registered}` / 409 `taken`(다른 계정이 쓰는 번호 — 계정 하나 = 사업자 하나, 번호는 계정 사이에 유일) / 502 `nts_unavailable` / 503 `not_configured`. `DELETE` 로 뗀다. `GET /api/me` 에 `business`.
+- **상태**: 국세청 `b_stt_cd` 01 계속(`active`) · 02 휴업(`suspended`) · 03 폐업(`closed`). 폐업·휴업도 저장하고 경고로 보인다. **재조회**: 매시간 cron 에서 `checked_at` 30일 지난 것 100개씩 **상태조회**(`/status`)로 갱신(`recheckBusinesses`).
+- **제안 페이지 배지**: `/api/projects/:id/access` 에 소유자의 `business {name, status}` → 상태가 계속사업자면 제안 페이지 머리에 "✓ 사업자 확인된 간판집 · 상호"(`proposal-business`). 돈이 간판다를 거치지 않는 구조에서 고객이 믿을 근거.
+- **업종은 확인 안 함**(API 가 안 줌). 대표자명 불일치 때 사업자등록증 사진 + 운영자 승인 경로는 아직 없음(안내 문구만) — 필요해지면 추가.
+- **로컬·E2E**: `.dev.vars` `NTS_API_KEY=fake` → 가짜 응답(대표자명 "홍길동" = 일치, 번호가 999 로 시작 = 폐업). 테스트: `server/test/business.test.ts`(가짜 국세청 `setNtsFetch`), `tests/unit/business.test.ts`, `tests/e2e/business.spec.ts`.
+- 아직 쓰이지 않는 것: 체험·요금 "사업자당 1번"은 체험 전환을 구현할 때 이 테이블을 쓴다 → [../product/pricing.md](../product/pricing.md).
+
 ## 남은 일
 - 운영 자격 등록: 카카오는 됨(2026-10-21). 구글·애플은 각 콘솔에 리디렉션 URI + `wrangler secret put` → [../server/deploy.md](../server/deploy.md)
 - 매직링크 요청 횟수 제한, 계정 메뉴에서 연결된 공급자 보기
