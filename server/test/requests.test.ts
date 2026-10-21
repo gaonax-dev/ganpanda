@@ -101,6 +101,18 @@ describe('요청 올리기 (로그인한 고객)', () => {
     expect(await (await create({ bizDocPending: undefined } as unknown as Record<string, string>)).json()).toEqual({ error: 'verification_required' });
     setNtsFetch(null);
   });
+  it('지역이 없으면 주소에서 뽑고, 간판사 지역과 포함 관계로 맞춘다 (2026-10-21 "지역입력은 주소와 중복된다")', async () => {
+    const r = await create({ region: '', address: '경기도 광주시 경안로 1' } as Record<string, string>);
+    expect(r.status).toBe(201);
+    const { id, key } = await r.json<{ id: string; key: string }>();
+    const v = await (await get(`/api/requests/${id}?key=${key}`)).json<{ request: { region: string } }>();
+    expect(v.request.region).toBe('경기 광주시');
+    const list = await (await get('/api/requests', shop)).json<{ requests: { id: string }[] }>(); // 간판사 지역 '경기 광주시'
+    expect(list.requests.map((x) => x.id)).toContain(id);
+    const r2 = await (await create({ region: '', address: '경기도 성남시 중원구 성남대로 1' } as Record<string, string>)).json<{ id: string }>();
+    const list2 = await (await get('/api/requests', shop)).json<{ requests: { id: string }[] }>(); // '성남시 분당구' ≠ 중원구
+    expect(list2.requests.map((x) => x.id)).not.toContain(r2.id);
+  });
   it('가게·지역·전화가 없거나 전화가 숫자 9~11자리가 아니면 400', async () => {
     expect((await create({ store: '' })).status).toBe(400);
     expect((await create({ region: ' ' })).status).toBe(400);

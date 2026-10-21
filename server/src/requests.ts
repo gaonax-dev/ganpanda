@@ -5,6 +5,7 @@ import { json, randomToken, readJson, sha256hex, text } from './http';
 import { validateRequestSigns, type RequestSign } from './requestSigns';
 import { configured as ntsConfigured, fetchStatuses, validBizNo, validateBusiness } from './business';
 import { scanBizDoc } from './docScan';
+import { regionMatches, regionOfAddress } from './region';
 
 /** 같은 전화번호의 열린 요청 한도 (허위 요청 방지 1차) */
 export const REQUEST_LIMIT_PER_PHONE = 3;
@@ -37,7 +38,7 @@ interface PhotoMeta { n: number; type: string; size: number }
 const photosOf = (r: RequestRow): PhotoMeta[] => { try { return JSON.parse(r.photos) as PhotoMeta[]; } catch { return []; } };
 const photoKey = (id: string, n: number) => `requests/${id}/${n}`;
 /** 지역 비교: 공백 무시 */
-const normRegion = (s: string) => s.replace(/\s+/g, '');
+/** 지역 맞춤 (2026-10-21 "지역입력은 주소와 중복된다"): 요청 지역은 주소에서 뽑고, 간판사 지역과는 포함 관계로 (region.ts) */
 export const regionsOf = (a: Pick<Account, 'regions'>): string[] => (a.regions ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 const appUrl = (env: Env) => env.APP_URL.replace(/\/+$/, '');
 
@@ -48,7 +49,7 @@ async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<boolean
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;
   if (!me.receive_requests || r.status !== 'open') return false;
-  return regionsOf(me).some((g) => normRegion(g) === normRegion(r.region));
+  return regionsOf(me).some((g) => regionMatches(g, r.region));
 }
 async function customerKeyOk(r: RequestRow, key: string | null): Promise<boolean> {
   return !!key && (await sha256hex(key)) === r.key_hash;
@@ -65,7 +66,7 @@ async function customerOk(env: Env, req: Request, url: URL, r: RequestRow, key: 
 async function notify(env: Env, r: RequestRow, url: string) {
   if (!env.EMAIL) return;
   const shops = await env.DB.prepare("SELECT email, regions FROM accounts WHERE receive_requests = 1 AND regions <> ''").all<{ email: string; regions: string }>();
-  const hit = shops.results.filter((s) => regionsOf(s).some((g) => normRegion(g) === normRegion(r.region)));
+  const hit = shops.results.filter((s) => regionsOf(s).some((g) => regionMatches(g, r.region)));
   const home = `${appUrl(env)}/`;
   for (const s of hit) {
     try {
@@ -122,7 +123,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (!me) return json({ error: 'login_required' }, 401);
     const b = await readJson<{ store?: string; region?: string; text?: string; phone?: string; email?: string; ref?: string; signs?: unknown; address?: string; bizNo?: string; ownerName?: string; startDate?: string; bizDocPending?: boolean }>(req);
     const store = typeof b?.store === 'string' ? b.store.trim().slice(0, STORE_MAX) : '';
-    const region = typeof b?.region === 'string' ? b.region.trim().slice(0, REGION_MAX) : '';
+    const address0 = typeof b?.address === 'string' ? b.address.trim() : '';
+    const region = (typeof b?.region === 'string' && b.region.trim() ? b.region.trim() : regionOfAddress(address0)).slice(0, REGION_MAX); // 지역이 없으면 주소에서 (2026-10-21)
     const phone = typeof b?.phone === 'string' ? b.phone.replace(/\D/g, '') : '';
     const email = typeof b?.email === 'string' && b.email.trim() ? b.email.trim().toLowerCase() : null;
     if (!store || !region || !/^\d{9,11}$/.test(phone)) return text('bad request', 400);
@@ -177,8 +179,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const mine = await env.DB.prepare('SELECT p.request_id, p.id AS project_id, rr.proposal_url FROM projects p LEFT JOIN request_responses rr ON rr.request_id = p.request_id AND rr.account_id = p.owner_id WHERE p.owner_id = ? AND p.request_id IS NOT NULL')
       .bind(me.id).all<{ request_id: string; project_id: string; proposal_url: string | null }>();
     const byReq = new Map(mine.results.map((m) => [m.request_id, m]));
-    const regions = me.receive_requests ? regionsOf(me).map(normRegion) : [];
-    const open = regions.length ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => regions.includes(normRegion(r.region))) : [];
+    const regions = me.receive_requests ? regionsOf(me) : [];
+    const open = regions.length ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => regions.some((g) => regionMatches(g, r.region))) : [];
     const answered = byReq.size ? (await env.DB.prepare(`SELECT * FROM requests WHERE id IN (${[...byReq.keys()].map(() => '?').join(',')})`).bind(...byReq.keys()).all<RequestRow>()).results : [];
     const all = new Map<string, RequestRow>();
     for (const r of [...open, ...answered]) all.set(r.id, r);

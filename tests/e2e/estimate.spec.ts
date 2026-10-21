@@ -46,7 +46,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   const dlg = page.getByTestId('estimate-dialog');
   await expect(dlg.getByTestId('estimate-summary')).toContainText('사진 1장 · 사인물 1개 (치수 입력 1개)');
   await dlg.getByTestId('est-store').fill(store);
-  await dlg.getByTestId('est-region').fill('경기 광주시');
+  await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 1'); // 지역은 주소에서 (경기 광주시)
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`); // 같은 번호는 열린 요청 3건까지
   await expect(dlg.getByTestId('estimate-send')).toBeDisabled(); // 사본 없이는 못 보낸다 (2026-10-21 "사업자등록증 무조건")
   // 사업자등록증 사본 → 자동 읽기(로컬 fake: 220-81-62517 · 간판다 카페 · 서울 송파구 …) → 빈 칸이 채워진다, 이후 직접 고친다
@@ -54,8 +54,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(dlg.getByTestId('est-scan')).toContainText('읽었습니다');
   await expect(dlg.getByTestId('est-bizno')).toHaveValue('220-81-62517');
   await expect(dlg.getByTestId('est-store')).toHaveValue(store); // 이미 적은 칸은 두고 빈 칸만 채운다
-  await expect(dlg.getByTestId('est-address')).toHaveValue(/송파구/);
-  await dlg.getByTestId('est-address').fill('경기 광주시 경안로 1');
+  await expect(dlg.getByTestId('est-address')).toHaveValue('경기도 광주시 경안로 1'); // 이미 적은 주소는 두고 빈 칸만 채운다
   await dlg.getByTestId('est-text').fill('예산 200만 원');
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
@@ -86,6 +85,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
   await expect(item.getByTestId('request-biz')).toContainText('확인'); // 사본에서 읽은 번호·대표자·개업일로 진위확인 → ✓ 사업자 확인
   await expect(item.getByTestId('request-address')).toContainText('경안로 1');
+  await expect(item).toContainText('경기 광주시'); // 주소에서 뽑은 지역
   await expect(item.getByTestId('request-bizdoc')).toContainText('제안을 보내면 열립니다'); // 사본은 제안 뒤
   await expect(item).toContainText('예산 200만 원');
   await item.getByTestId('request-respond').click();
@@ -109,7 +109,7 @@ test('사본 없이도 번호·대표자 성명·개업일자를 넣으면 보�
   await page.getByTestId('estimate-button').click();
   const dlg = page.getByTestId('estimate-dialog');
   await dlg.getByTestId('est-store').fill(store);
-  await dlg.getByTestId('est-region').fill('경기 광주시');
+  await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 2');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
   await expect(dlg.getByTestId('estimate-send')).toBeDisabled();
   await dlg.getByTestId('est-bizno').fill('2208162517');

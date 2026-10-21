@@ -7,12 +7,13 @@
   import { serializeRequestSigns } from '../core/requestSigns';
   import { AuthError, fetchProviders, socialStartUrl, type SocialProvider } from '../auth';
   import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
+  import { regionOfAddress } from '../core/region';
   // 로그인 필수 (2026-10-21 "카카오톡으로 로그인하게해줘 인증이되야 할거 같아"): 카카오가 기본, 다른 방법은 로그인 창
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { fetchProviders().then((p) => (providers = p)); });
   $effect(() => { if (app.account && !email) email = app.account.email.includes('@noemail.') ? '' : app.account.email; });
 
-  let store = $state(''), region = $state(''), phone = $state(''), email = $state(''), text = $state('');
+  let store = $state(''), phone = $state(''), email = $state(''), text = $state('');
   // 주소·사업자번호는 선택 (2026-10-21 "둘다 작성하는 걸로"): 번호는 국세청 상태조회로 "사업자 확인" 배지 — 주소는 국세청이 안 주므로 직접
   let address = $state(''), bizNo = $state('');
   // 사본이 없으면 직접 넣는 검증 요소 (2026-10-21 "사본이 없으면 직접입력 필요한 우리가 필요한 검증 요소만 입력"): 번호 + 대표자 성명 + 개업일 → 국세청 진위확인
@@ -44,7 +45,9 @@
   const bizOk = $derived(!bizNo.trim() || isValidBizNo(bizNo));
   const docOk = $derived(!!bizDoc && bizDoc.size <= 8 * 1024 * 1024);
   const manualOk = $derived(isValidBizNo(bizNo) && !!ownerName.trim() && !!bizStartDate(startDate));
-  const canSend = $derived(!!store.trim() && !!region.trim() && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && (docOk || manualOk) && !busy);
+  // 지역은 주소에서 (2026-10-21 "지역입력은 주소와 중복된다") — 주소가 필수가 된다
+  const region = $derived(regionOfAddress(address));
+  const canSend = $derived(!!store.trim() && !!region && /^\d{9,11}$/.test(digits) && photos.length > 0 && photos.length <= 3 && bizOk && (docOk || manualOk) && !busy);
   const close = () => (app.estimateOpen = false);
 
   async function send() {
@@ -52,7 +55,7 @@
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
-      const r = await createRequest({ store: store.trim(), region: region.trim(), text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), ...(address.trim() ? { address: address.trim() } : {}), ...(bizNo.trim() ? { bizNo: bizNo.replace(/\D/g, '') } : {}), ...(manualOk ? { ownerName: ownerName.trim(), startDate: bizStartDate(startDate)! } : {}), ...(docOk ? { bizDocPending: true } : {}), signs });
+      const r = await createRequest({ store: store.trim(), region, text: text.trim(), phone: digits, ...(email.trim() ? { email: email.trim() } : {}), ...(address.trim() ? { address: address.trim() } : {}), ...(bizNo.trim() ? { bizNo: bizNo.replace(/\D/g, '') } : {}), ...(manualOk ? { ownerName: ownerName.trim(), startDate: bizStartDate(startDate)! } : {}), ...(docOk ? { bizDocPending: true } : {}), signs });
       for (let i = 0; i < photoOrder.length; i++) {
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -97,10 +100,9 @@
       <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개){photos.length > 3 ? ' — 사진은 3장까지입니다' : ''}{photos.length === 0 ? ' — 사진을 먼저 올려 주세요' : ''}</p>
       <form onsubmit={(e) => { e.preventDefault(); send(); }}>
         <label>가게 이름 *<input data-testid="est-store" bind:value={store} placeholder="예: 바로바로 정육점" /></label>
-        <label>지역 * <small>(시/군/구까지, 예: 경기 광주시)</small><input data-testid="est-region" bind:value={region} placeholder="경기 광주시" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
-        <label>가게 주소 <small>(선택 — 간판집이 현장을 보러 갈 때)</small><input data-testid="est-address" bind:value={address} placeholder="도로명 주소" /></label>
-        <label>사업자등록증 사본 <small>(그림·PDF — 제안을 보낸 간판집만 봅니다. 고르면 번호·상호·대표자·주소를 자동으로 읽어 채웁니다)</small><input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} />{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{:else if !bizDoc}<small class="hint">사본이 없으면 아래 번호·대표자 성명·개업일자를 직접 넣어 국세청 확인을 받습니다</small>{/if}</label>
+        <label>가게 주소 * <small>(지역은 주소에서 — {region ? `${region} 간판집에 전달` : '시/도부터 도로명까지'})</small><input data-testid="est-address" bind:value={address} placeholder="경기도 성남시 중원구 성남대로 1" />{#if address.trim() && !region}<small class="err">시/군/구가 들어간 주소로 적어 주세요</small>{/if}</label>
+        <label>사업자등록증 사본 <small>(그림·PDF — 제안을 보낸 간판집만 봅니다. 고르면 번호·상호·대표자·주소를 자동으로 읽어 채웁니다)</small><span class="pick"><label class="btn file" data-testid="est-bizdoc-pick">📄 {bizDoc ? '다른 파일 고르기' : '사진·파일 고르기'}<input data-testid="est-bizdoc" type="file" accept="image/*,application/pdf" hidden onchange={(e) => pickDoc(e.currentTarget.files?.[0] ?? null)} /></label>{#if bizDoc}<span class="fname" data-testid="est-bizdoc-name">{bizDoc.name}</span>{/if}</span>{#if scanState === 'scanning'}<small class="hint" data-testid="est-scan">등록증 읽는 중…</small>{:else if scanState === 'ok'}<small class="ok" data-testid="est-scan">읽었습니다 — 아래 칸을 확인해 주세요</small>{:else if scanState === 'failed'}<small class="err" data-testid="est-scan">자동 인식이 안 됐습니다 — 아래 칸에 직접 입력해 주세요</small>{/if}{#if bizDoc && bizDoc.size > 8 * 1024 * 1024}<small class="err">8MB 까지입니다</small>{:else if !bizDoc}<small class="hint">사본이 없으면 아래 번호·대표자 성명·개업일자를 직접 넣어 국세청 확인을 받습니다</small>{/if}</label>
         <label>사업자등록번호 {docOk ? '' : '*'}<small>(국세청 확인 배지가 붙어 간판집이 믿고 봅니다)</small><input data-testid="est-bizno" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} />{#if bizNo.trim() && !bizOk}<small class="err">10자리를 확인해 주세요</small>{/if}</label>
         {#if !docOk}
           <div class="two">
@@ -128,6 +130,9 @@
   .icon { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; }
   form { display: flex; flex-direction: column; gap: 8px; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .btn.file { cursor: pointer; font-weight: 600; }
+  .fname { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; max-width: 220px; white-space: nowrap; }
   textarea { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 13px; resize: vertical; }
   .sum { margin: 0; font-size: 13px; color: var(--muted); }
   .ok { margin: 0; font-size: 13px; line-height: 1.5; }
