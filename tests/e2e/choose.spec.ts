@@ -41,3 +41,30 @@ test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈
   await expect(shop.getByTestId('project-lost-banner')).toContainText('정지');
   await ctx.close();
 });
+
+test('복제 전 옛 요청도 [실측 보기]는 가게 사장의 프로젝트를 고칠 수 없게 연다 (2026-10-22 "실측보기 눌렀는데 프로젝트 안열린다")', async ({ page, request, browser }) => {
+  const { uploadPhoto } = await import('./helpers');
+  const cust = await apiLogin(request);
+  await page.goto('/');
+  await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, cust);
+  await page.goto('/estimate');
+  await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
+  await uploadPhoto(page);
+  await page.waitForTimeout(1500); // 사진이 서버에 올라가게
+  const store = `옛 ${Math.random().toString(36).slice(2, 6)}`;
+  // fromProject 없이 보낸 요청 = 옛 요청
+  const { id } = await (await request.post(`${SERVER}/api/requests`, { data: { store, address: '경기도 광주시 경안로 1', phone: `010${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`, general: true }, headers: auth(cust) })).json();
+  const s = await apiLogin(request);
+  await request.put(`${SERVER}/api/me/request-settings`, { data: { receive: true, regions: ['경기 광주시'] }, headers: auth(s) });
+  const ctx = await browser.newContext();
+  const shop = await ctx.newPage();
+  await shop.goto('/');
+  await shop.evaluate((x) => { localStorage.clear(); localStorage.setItem('ganpanda.session', x); }, s);
+  await shop.goto('/requests');
+  await shop.getByTestId('request-item').filter({ hasText: store }).getByTestId('request-view').click();
+  await expect(shop).toHaveURL(new RegExp(`request=${id}`));
+  await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('role-badge')).toHaveAttribute('data-role', 'viewer'); // 고칠 수 없다
+  await ctx.close();
+});

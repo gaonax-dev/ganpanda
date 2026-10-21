@@ -46,6 +46,8 @@ export const getRequest = (id: string, key: string) => call<CustomerRequestView>
 /** 고객이 보는 사진 주소: 키 또는 세션 */
 export const customerPhotoUrl = (id: string, key: string, n: number) => `${SERVER_URL}/api/requests/${id}/photos/${n}?${key ? `key=${encodeURIComponent(key)}` : `session=${encodeURIComponent(loadSession() ?? '')}`}`;
 
+/** 실측 보기 (간판사, 2026-10-22): 요청 프로젝트 id — 옛 요청은 그 가게 사장의 견적 프로젝트를 지금 복제 */
+export const requestBoard = (id: string) => call<{ project: string }>(`/api/requests/${id}/board`, { method: 'POST', body: '{}' }).then((r) => r.project);
 /** 간판집 확정 (고객, 2026-10-22): 다른 간판집 프로젝트는 "다른 업체 선택" + 정지 */
 export const chooseShop = (id: string, projectId: string, key = '') => call<{ ok: true }>(`/api/requests/${id}/choose${key ? `?key=${encodeURIComponent(key)}` : ''}`, { method: 'POST', body: JSON.stringify({ projectId }) });
 /** 요청 취소 (고객, 2026-10-22): 요청을 닫기만 — 환불·재요청 없음 */

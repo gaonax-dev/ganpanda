@@ -105,3 +105,22 @@ describe('알림 메일 링크 (2026-10-22 "견적요청알림으로 견적요�
     expect(shopRequestLink(e, { id: 'r1', snapshot_project: null })).toBe('https://ganpanda.co.kr/requests');
   });
 });
+
+describe('옛 요청의 실측 보기 (2026-10-22 "실측보기 눌렀는데 프로젝트 안열린다" → "그냥 프로젝트 열어주면되 소비자의 프로젝트를")', () => {
+  it('복제가 없는 요청은 POST /board 가 그 가게 사장의 견적 프로젝트를 복제해 읽기 전용 요청 프로젝트로 — 한 번만 만들고, 볼 수 없는 간판집은 403', async () => {
+    const { cust, draft, asset } = await draftWithPhoto();
+    const { id } = await (await json('/api/requests', { store: '옛 요청', address: '경기도 광주시 경안로 1', phone: randPhone(), general: true }, cust)).json<{ id: string }>(); // fromProject 없이 = 옛 요청
+    const shop = await login(`snap-b-${u()}@example.com`);
+    await json('/api/me/request-settings', { receive: true, regions: ['경기 광주시'] }, shop, 'PUT');
+    const r = await json(`/api/requests/${id}/board`, {}, shop);
+    expect(r.status).toBe(200);
+    const { project } = await r.json<{ project: string }>();
+    expect(project).not.toBe(draft);
+    expect((await (await get(`/api/projects/${project}/access`, shop)).json<{ role: string }>()).role).toBe('viewer');
+    expect((await docOf(project)).getMap('objects').size).toBe(1);
+    expect((await api(`/api/assets/${asset}?project=${project}&session=${shop}`)).status).toBe(200);
+    expect((await (await json(`/api/requests/${id}/board`, {}, shop)).json<{ project: string }>()).project).toBe(project); // 다시 불러도 같은 것
+    const stranger = await login(`snap-z-${u()}@example.com`);
+    expect((await json(`/api/requests/${id}/board`, {}, stranger)).status).toBe(403);
+  });
+});

@@ -70,6 +70,7 @@
 | DELETE | `/api/me` `{confirm:'삭제'}` | 계정 삭제 (2026-10-22): 프로젝트·팀·사업자·로그인 정보 삭제, 보낸 요청은 닫고 개인정보 삭제 | 200 / 400 confirm_required |
 | GET·POST | `/api/me/stores` `{bizNo, ownerName, startDate, name, address}` | 가게 사장의 사업자 (2026-10-22, 여럿): 국세청 진위확인 통과만 저장. 목록은 최근 순 | 200 `{stores}` / 201 `{store}` / 400 mismatch·not_registered·biz_closed·bad_input / 502 nts_unavailable |
 | PUT·DELETE | `/api/me/stores/:id/doc` · `/api/me/stores/:id` | 사업자등록증 사본(그림·PDF 8MB) 붙이기 · 사업자 지우기 | 200 / 404 / 413 / 415 |
+| POST | `/api/requests/:id/board` | 간판사 실측 보기 (2026-10-22): 읽기 전용 요청 프로젝트 id. 복제가 없는 옛 요청은 그 가게 사장의 견적 프로젝트를 지금 복제(한 번만) | 200 `{project}` / 403 / 404 no_board |
 | POST | `/api/requests/:id/choose?key=` `{projectId}` | 고객이 제안한 간판집 확정 (2026-10-22): 요청 승인·받은 목록에서 빠짐, 다른 간판집 프로젝트는 lost + 정지 + 메일. 다시 부르면 바뀜 | 200 / 400 bad_project / 403 / 409 cancelled |
 | POST | `/api/requests/:id/cancel?key=` | 고객이 요청 취소 (열린 요청만, 2026-10-22): 요청을 닫기만 — 환불·재요청 없음, 제안했던 간판집에 메일 | 200 `{ok}` / 403 / 409 not_open |
 | POST | `/api/requests/:id/respond` `{mode?: copy|photos|blank}` | 간판사: 요청에서 프로젝트 만들기(`projects.request_id`, 이름 "<가게> 요청"). 이미 있으면 그것. 보드 복제 요청이면 mode 대로 요청 프로젝트를 복제(기본 copy = 사진·사인물째, photos = 사진만, blank = 빈 프로젝트, 2026-10-22) | 201/200 `{project}` / 401 / 403 / 404 |

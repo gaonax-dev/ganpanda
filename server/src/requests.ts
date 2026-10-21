@@ -242,7 +242,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     return json({ requests });
   }
 
-  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel|choose))?$/);
+  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel|choose|board))?$/);
   if (!m) return text('not found', 404);
   const r = await getRequest(env, m[1]);
   if (!r) return text('request not found', 404);
@@ -322,6 +322,22 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
       }
     }
     return json({ ok: true });
+  }
+
+  // ---- 실측 보기: POST /api/requests/:id/board (간판사) → 읽기 전용 요청 프로젝트 id (2026-10-22 "실측보기 눌렀는데 프로젝트 안열린다" → "그냥 프로젝트 열어주면되 소비자의 프로젝트를") ----
+  // 복제가 있으면 그것, 없는 옛 요청은 그 가게 사장의 견적 프로젝트를 지금 복제해 붙인다(한 번만)
+  if (m[4] === 'board' && req.method === 'POST') {
+    const me = await authenticate(req, env);
+    if (!me) return text('unauthorized', 401);
+    if (!(await shopCanSee(env, me, r))) return text('forbidden', 403);
+    if (r.snapshot_project) return json({ project: r.snapshot_project });
+    const draft = r.account_id ? await env.DB.prepare("SELECT * FROM projects WHERE owner_id = ? AND kind = 'estimate' ORDER BY created_at LIMIT 1").bind(r.account_id).first<ProjectRow>() : null;
+    if (!draft) return json({ error: 'no_board' }, 404);
+    const snap = newRoomId();
+    await env.DB.prepare("INSERT INTO projects (id, owner_id, name, created_at, kind) VALUES (?, ?, ?, ?, 'request')").bind(snap, draft.owner_id, `${r.store} 요청서`.slice(0, 60), Date.now()).run();
+    const c = await cloneRoom(env, draft, { id: snap, owner_id: draft.owner_id }, ['photos', 'objects', 'sources', 'settings']);
+    await env.DB.prepare('UPDATE requests SET snapshot_project = ?, snapshot_photos = ? WHERE id = ?').bind(snap, JSON.stringify(c.photoAssets), r.id).run();
+    return json({ project: snap });
   }
 
   // ---- 확정: POST /api/requests/:id/choose {projectId} (고객, 2026-10-22) — 제안을 보낸 간판집 중 하나 ----

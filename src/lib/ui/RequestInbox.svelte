@@ -2,10 +2,14 @@
   // 받은 견적 요청 페이지 (/requests, 2026-10-22 사용자: "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"):
   // 헤더의 "견적 요청 N" 을 누르면 여기로. 목록은 이름·사인물 정보만, 누르면 요청 보드(복제), 단추는 [견적 넣기] 하나
   import { app } from '../state.svelte';
-  import { listMyRequests, listRequests, respondRequest, shopPhotoUrl, type MyRequest, type ShopRequest } from '../requests';
+  import { listMyRequests, listRequests, requestBoard, respondRequest, shopPhotoUrl, type MyRequest, type ShopRequest } from '../requests';
   /** 옛 요청(보드 복제 전)은 사진·사인물을 창으로 */
   let viewing = $state<ShopRequest | null>(null);
-  function view(r: ShopRequest) { if (r.snapshot) location.href = `/?room=${r.snapshot.project}&request=${r.id}`; else viewing = r; }
+  /** 실측 보기 = 가게 사장의 프로젝트를 고칠 수 없게 연다 (2026-10-22 "그냥 프로젝트 열어주면되 소비자의 프로젝트를"). 옛 요청은 서버가 지금 복제 — 안 되면 사진 창 */
+  async function view(r: ShopRequest) {
+    if (r.snapshot) { location.href = `/?room=${r.snapshot.project}&request=${r.id}`; return; }
+    try { const p = await requestBoard(r.id); location.href = `/?room=${p}&request=${r.id}`; } catch { viewing = r; }
+  }
   let requests = $state<ShopRequest[]>([]);
   /** 보낸 요청 (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 외주(B2B) 요청 */
   let sent = $state<MyRequest[]>([]);
