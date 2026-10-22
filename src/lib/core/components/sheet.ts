@@ -28,6 +28,9 @@ function spec(p: SignPart): string {
     .filter(Boolean).join(' ');
 }
 
+/** 시트 두께 (mm) */
+export const SHEET_THICKNESS_MM = 1;
+
 export const sheet: Component = {
   kind: 'sheet', label: '시트', color: '#5aa8ff',
   // 시트 = UV 출력 / 재질 시트 (커팅은 옵션, 2026-10-16). 옛 안개 시트는 재질 "안개"
@@ -43,7 +46,7 @@ export const sheet: Component = {
   optionFields: (part) => { if (included(part)) return []; const opts = part.options ?? {}; return [...SHEET_COMMON_OPTIONS, ...(SHEET_OPTIONS[part.type] ?? [])].filter((f) => !f.when || f.when(opts, {} as SignObject)); },
   specKeys: SHEET_SPEC_KEYS,
   host: (p) => (included(p) ? '미리보기 위' : `${spec(p)} 위`),
-  depthMm: () => 0,
+  depthMm: () => SHEET_THICKNESS_MM, // 시트 두께 1mm (2026-10-22 사용자: "시트 두께 1mm") — 단면·3D 층 깊이
   lighting: () => 'none',
   paint: { face: 'sheet', side: 'sheet' },
   // 객체가 크기(가로·세로)를 가지면 그 면적 합, 아니면 간판 면적

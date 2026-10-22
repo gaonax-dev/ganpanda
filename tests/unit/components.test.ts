@@ -46,7 +46,7 @@ describe('레지스트리', () => {
     sc.options = { thickness: '8T' };
     expect(componentOf('channel').extrude).toBe(true); expect(componentOf('channel').depthMm(ch, o)).toBe(120); expect(componentOf('channel').lighting(ch)).toBe('front');
     expect(componentOf('scashi').depthMm(sc, o)).toBe(8); expect(componentOf('scashi').lighting(sc)).toBe('none'); expect(componentOf('scashi').paint.face).toBe('paint');
-    expect(componentOf('sheet').extrude).toBe(false); expect(componentOf('sheet').depthMm(sh, o)).toBe(0); expect(componentOf('sheet').paint.face).toBe('sheet');
+    expect(componentOf('sheet').extrude).toBe(false); expect(componentOf('sheet').depthMm(sh, o)).toBe(1); /* 시트 두께 1mm (2026-10-22 사용자: "시트 두께 1mm") */ expect(componentOf('sheet').paint.face).toBe('sheet');
   });
   it('견적 줄은 모듈의 price 로 — 금액·문구는 전과 같다', () => {
     const P = DEFAULT_PRICES;

@@ -39,6 +39,7 @@ describe('단면 쌓기 — 층 = 올린 곳', () => {
     expect(cs.frame).toBeNull();
     expect(cs.tiers[0].n).toBe(1);
     expect(cs.tiers[0].items[0]).toMatchObject({ x0: -2000, x1: 2000 });
+    expect(cs.tiers[0].items[0].depth).toBe(1); // 시트 두께 1mm (2026-10-22)
   });
 
   it('층 줄 요약: "2층 · 프레임 면 위 — 채널, 스카시"', () => {
