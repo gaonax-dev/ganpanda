@@ -28,7 +28,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false, clean = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -104,6 +104,8 @@
     threeD?: 'ok' | 'none';
     /** 치수 경고(⚠) 표시 여부 (옵션) */
     showWarnings?: boolean;
+    /** 컨펌 (2026-10-22): 표시 없이 — 사진 위에 사인물·디자인이 올라간 모습만 (이름표·말풍선·존·사진 머리·외곽선 없음) */
+    clean?: boolean;
     /** 매니퓰레이터 기본 크기(화면 px, 설정) */
     gizmoPx?: number;
     /** 이 사진의 원근 설정(카메라) — 있으면 매니퓰레이터가 그 벽면을 따른다 */
@@ -460,7 +462,7 @@
 {/snippet}
 
 
-<div class="zone" data-testid="photo-zone" style:left="{photo.x}px" style:top="{photo.y}px" style:width="{photo.width}px" style:height="{worldH}px">
+<div class="zone" data-clean={clean || undefined} data-testid="photo-zone" style:left="{photo.x}px" style:top="{photo.y}px" style:width="{photo.width}px" style:height="{worldH}px">
   <div
     class="header"
     style:transform="scale({1 / zoom})"
@@ -574,7 +576,7 @@
     onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
     onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
-    {#if zones.length}
+    {#if zones.length && !clean}
       <path class="zone-dim" d={dimPath} fill-rule="evenodd" />
       {#each zones as zone, zi (zi)}
         {@const selected = zoneSel?.zone === zi}
@@ -656,11 +658,11 @@
           pointer-events={tool === 'magic' || tool === 'pin' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
-        <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
+        {#if !clean}<text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
-        </text>
+        </text>{/if}
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
-        {#if lastMsg && q.length === 4 && !overlay}
+        {#if lastMsg && q.length === 4 && !overlay && !clean}
           {@const H = solveHomography(UNIT_RECT, q)}
           {@const Hi = solveHomography(q, UNIT_RECT)}
           {@const tipL = o.bubble?.tip ?? DEFAULT_TIP}
@@ -940,4 +942,7 @@
   .lvl[data-level='3'] i.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
   .cam.opt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px; }
   .header svg.opt-ico { position: static; display: block; width: 14px; height: 14px; inset: auto; fill: none; stroke: currentColor; stroke-width: 1.4; pointer-events: none; } /* 사진 위 겹층용 svg 규칙(absolute)을 끊는다 */
+  /* 컨펌 (2026-10-22 "이런저런 표시없이 사인물(러프포함) 디자인과 사진에 올라간 상태"): 사진 머리·외곽선·손잡이 없이, 눌러도 고르지 않는다 */
+  .zone[data-clean] .header { display: none; }
+  .zone[data-clean] polygon[data-testid='sign-shape'] { stroke: transparent !important; fill: transparent !important; pointer-events: none; }
 </style>

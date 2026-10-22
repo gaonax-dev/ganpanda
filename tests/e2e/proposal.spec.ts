@@ -72,7 +72,7 @@ test('제안 보내기: 실사 이미지 만들고 링크 발급 → 고객이 �
   await expect(pg.getByTestId('proposal-approve')).toContainText('홍길동');
   await expect(page.getByTestId('approval-status')).toHaveAttribute('data-status', 'approved');
   await expect(page.getByTestId('approval-status')).toContainText('홍길동');
-  await expect(page.getByTestId('toast').filter({ hasText: '승인' })).toHaveCount(1);
+  await expect(page.getByTestId('toast').filter({ hasText: '진행에 동의' })).toHaveCount(1); // 2026-10-22 진행 동의 → 제작
 
   // 제작자가 치수를 바꾸면 → 변경됨 (양쪽)
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), (await page.evaluate(() => (window as unknown as { __ganpanda: { signs: { id: string }[] } }).__ganpanda.signs[0].id)));

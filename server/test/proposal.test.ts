@@ -29,7 +29,7 @@ describe('제안 승인 (viewer 가 문서 편집 권한 없이 승인 기록)',
     const msg = (o.doc.getArray('messages').toArray() as { kind: string; author: string; objectId: string; text: string }[]).find((m) => m.kind === 'approval')!;
     expect(msg.author).toBe('홍길동');
     expect(msg.objectId).toBe('project');
-    expect(msg.text).toContain('승인');
+    expect(msg.text).toContain('진행에 동의');
     o.close();
   });
 
@@ -84,5 +84,24 @@ describe('제안 링크 (카카오톡 미리보기용 OG 페이지)', () => {
     expect(img.status).toBe(200);
     expect(img.headers.get('content-type')).toContain('image/png');
     expect((await img.arrayBuffer()).byteLength).toBe(png.byteLength);
+  });
+});
+
+describe('진행 동의 → 제작 (2026-10-22 "여기에 진행동의를 누르면 제작을 한다")', () => {
+  it('동의는 뺀 사인물(excluded)을 함께 기록하고, 대기 중인 프로젝트를 진행중으로 바꾼다 — 정지·완료는 건드리지 않는다', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const r = await json(`/api/rooms/${project.id}/approvals?invite=${inv.token}`, { ...approval('h-consent'), excluded: ['sign-b', 7, 'sign-c'] });
+    expect(r.status).toBe(201);
+    await until(() => (o.doc.getMap('settings').get('approvals') as unknown[] | undefined)?.length === 1);
+    const stored = (o.doc.getMap('settings').get('approvals') as { excluded?: string[] }[])[0];
+    expect(stored.excluded).toEqual(['sign-b', 'sign-c']); // 문자열만
+    await until(() => (o.doc.getArray('messages').toArray() as { kind: string; text: string }[]).some((m) => m.kind === 'approval' && m.text.includes('진행에 동의')));
+    const status = async () => (await (await get('/api/projects', owner)).json<{ projects: { id: string; status: string }[] }>()).projects.find((p) => p.id === project.id)!.status;
+    expect(await status()).toBe('ongoing');
+    await json(`/api/projects/${project.id}`, { status: 'paused' }, owner, 'PATCH');
+    await json(`/api/rooms/${project.id}/approvals?invite=${inv.token}`, approval('h-again'));
+    expect(await status()).toBe('paused');
+    o.close();
   });
 });

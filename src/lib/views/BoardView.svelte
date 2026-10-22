@@ -349,6 +349,7 @@
 
 <div
   class="board"
+  data-clean={app.confirmMode || undefined}
   role="region"
   aria-label="사진 보드"
   class:dropping
@@ -382,9 +383,9 @@
         onduplicate={(id) => { app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
-        editable={app.canEdit}
-        unread={app.unread}
-        pins={app.visiblePins.filter((x) => x.photoId === p.id)}
+        editable={app.canEdit && !app.confirmMode}
+        unread={app.confirmMode ? {} : app.unread}
+        pins={app.confirmMode ? [] : app.visiblePins.filter((x) => x.photoId === p.id)}
         selectedPinId={app.selectedPinId}
         oncreatepin={(x, y) => app.createPin(p.id, x, y)}
         onselectpin={(id) => app.selectPin(id)}
@@ -418,7 +419,8 @@
         cameraBusy={app.cameraBusy}
         cameraSet={app.cameras.has(p.id)}
         threeD={app.threeDOk(p.id) ? 'ok' : 'none'}
-        showWarnings={app.warnMeasure}
+        showWarnings={app.warnMeasure && !app.confirmMode}
+        clean={app.confirmMode}
         ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
         onreplace={app.canEdit ? () => { replacingId = p.id; replaceInput?.click(); } : undefined}
         onadjust={app.canEdit ? () => (app.adjustPhotoId = p.id) : undefined}
@@ -504,7 +506,7 @@
   {/if}
 <!-- 사진 교체 파일 고르기 (2026-10-21, 도구 막대 밖 — 막대 순서 테스트) -->
 <input data-testid="photo-replace-input" type="file" accept="image/*" hidden bind:this={replaceInput} onchange={onReplaceFile} />
-<div class="tools" role="toolbar">
+<div class="tools" role="toolbar" hidden={app.confirmMode}><!-- 컨펌에는 도구 막대 없음 (2026-10-22) -->
         {#if app.canEdit}
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
@@ -557,6 +559,7 @@
     background: var(--panel); border: 1px solid var(--accent); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); white-space: nowrap;
   }
   .multibar .cnt { font-size: 12px; color: var(--accent); font-weight: 700; margin-right: 4px; }
+  .tools[hidden] { display: none !important; }
   .tools {
     position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
     display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 12px;
@@ -586,4 +589,6 @@
     .tools .sep { display: none; }
     .empty p { font-size: 15px; text-align: center; padding: 0 16px; }
   }
+  /* 컨펌: 도구·평면도 카드·다중 선택 막대 없이 (2026-10-22) */
+  .board[data-clean] .flat-label, .board[data-clean] .flat-handle, .board[data-clean] .flat-outline, .board[data-clean] :global([data-testid='board-card']), .board[data-clean] :global([data-testid='board-standalone']) { display: none; }
 </style>

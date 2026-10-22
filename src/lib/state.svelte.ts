@@ -177,15 +177,19 @@ class AppState {
    * 사진보드 = 실측(stage original) · 디자인 = 2D·3D·디자인 파일 · 사인물리스트 · 컨펌 = 제안 미리보기(proposalMode). 처음은 사진보드
    */
   designStage = $state<'2d' | '3d'>('2d');
+  /** 컨펌 탭 (2026-10-22 "사진보드와 같은데 이런저런 표시없이 … 여기에 진행동의를 누르면 제작을 한다"): 표시 없는 사진보드 + 진행 동의 */
+  confirmMode = $state(false);
+  /** 컨펌에서 뺀 사인물 (진행 동의할 때 함께 보낸다) */
+  confirmExcluded = $state<string[]>([]);
   get tab(): 'board' | 'design' | 'list' | 'confirm' {
-    if (this.proposalMode) return 'confirm';
+    if (this.confirmMode || this.proposalMode) return 'confirm';
     if (this.view === 'list') return 'list';
     if (this.view === 'uv' || this.stage !== 'original') return 'design';
     return 'board';
   }
   setTab(t: 'board' | 'design' | 'list' | 'confirm') {
-    if (t === 'confirm') { this.proposalMode = true; return; }
-    this.proposalMode = false;
+    if (t === 'confirm') { this.proposalMode = false; this.confirmMode = true; this.view = 'board'; this.stage = this.designStage; this.selectObject(null); return; }
+    this.proposalMode = false; this.confirmMode = false;
     if (t === 'list') this.view = 'list';
     else if (t === 'board') { this.view = 'board'; this.stage = 'original'; }
     else { this.view = 'board'; this.stage = this.designStage; }
@@ -822,11 +826,11 @@ class AppState {
 
   /** 단가표·설치비·추가 항목 수정 (편집 권한) */
   /** 제안 승인 ([이걸로 할게요]): 현재 내용 스냅샷 + 해시 + 이름을 서버가 문서에 기록 */
-  async approve(by: string) {
+  async approve(by: string, excluded: string[] = []) {
     if (!this.room) throw new Error('방이 없습니다');
     this.setNickname(by);
     const snapshot = snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources);
-    await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: this.contentHash, snapshot, proposalId: this.settings.proposal?.id });
+    await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: this.contentHash, snapshot, proposalId: this.settings.proposal?.id, ...(excluded.length ? { excluded } : {}) });
   }
 
   updateSettings(patch: Partial<ProjectSettings>) {

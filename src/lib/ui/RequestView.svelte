@@ -62,7 +62,7 @@
       {:else if r.status === 'approved'}
         ✅ <b>{view.request.approvedShop}</b>의 제안을 골랐습니다. 이후 일정·계약은 그 간판집과 직접 진행하세요.
       {:else if view.responses.length}
-        <b>제안 {view.responses.length}건이 도착했어요.</b> 각 제안에서 내 가게 사진 위 모습과 금액을 보고, 마음에 드는 곳을 <b>[이걸로 할게요]</b>로 골라 주세요.
+        <b>제안 {view.responses.length}건이 도착했어요.</b> 각 제안에서 내 가게 사진 위 모습과 금액을 보고, 마음에 드는 곳을 <b>[확정]</b>으로 골라 주세요. 제안 안에서 [진행 동의]를 누르면 제작이 시작됩니다.
       {:else}
         <b>간판집에 요청을 전달했어요.</b> 보통 하루 안에 제안이 옵니다. 제안이 오면 여기에 바로 보여요.
         <span class="pulse" aria-hidden="true"></span>

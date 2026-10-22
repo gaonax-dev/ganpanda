@@ -35,6 +35,8 @@ export interface Approval {
   snapshot: Snapshot;
   /** 승인 당시의 제안 id (있으면) */
   proposalId?: string;
+  /** 진행 동의에서 뺀 사인물 (2026-10-22) */
+  excluded?: string[];
 }
 
 type SizeOf = (o: SignObject) => { w: number; h: number; estimated: boolean } | null;

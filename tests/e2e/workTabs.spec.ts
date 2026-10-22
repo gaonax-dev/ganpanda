@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { openOwnedProject, uploadPhoto } from './helpers';
 
-test('탭은 사진보드 · 디자인 · 사인물리스트 · 컨펌 — 처음은 사진보드(실측), 디자인 안에 2D·3D·디자인 파일, 컨펌은 제안 화면', async ({ page, request }) => {
+test('탭은 사진보드 · 디자인 · 사인물리스트 · 컨펌 — 처음은 사진보드(실측), 디자인 안에 2D·3D·디자인 파일, 컨펌은 표시 없는 사진보드 + 진행 동의', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await expect(page.getByTestId('work-tabs').locator('button')).toHaveText(['사진보드', '디자인', '사인물리스트', '컨펌']);
@@ -15,10 +15,25 @@ test('탭은 사진보드 · 디자인 · 사인물리스트 · 컨펌 — 처�
   await expect(page.getByTestId('view-design')).toHaveClass(/on/); // 디자인 파일도 디자인 탭
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('view-list')).toHaveClass(/on/);
+  // 컨펌 = 표시 없는 사진보드 + [진행 동의] → 제작 (2026-10-22 "사진보드와 같은데 이런저런 표시없이 … 여기에 진행동의를 누르면 제작을 한다")
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; for (const n of ['간판', '돌출']) a.project.addObject({ photoId: a.photos[0].id, name: n, shape: 'rect', quad: [[100, 100], [400, 100], [400, 200], [100, 200]], sheetIds: [], widthMm: 3000, heightMm: 1000 }); });
   await page.getByTestId('view-confirm').click();
-  await expect(page.getByTestId('proposal-page')).toBeVisible();
   await expect(page.getByTestId('view-confirm')).toHaveClass(/on/);
+  await expect(page.getByTestId('photo-zone')).toHaveAttribute('data-clean', 'true');
+  await expect(page.getByTestId('tool-rect')).toBeHidden(); // 도구 없음
+  await expect(page.getByTestId('photo-zone').locator('.header')).toBeHidden(); // 사진 머리 없음
+  await expect(page.getByTestId('confirm-state')).toContainText('진행 동의 전');
+  await page.getByTestId('confirm-sign').filter({ hasText: '돌출' }).click(); // 빼기
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('confirm-consent').click();
+  await expect(page.getByTestId('confirm-bar')).toHaveAttribute('data-status', 'approved');
+  await expect(page.getByTestId('confirm-state')).toContainText('1개 제외');
+  await expect(page.getByTestId('confirm-state')).toContainText('제작');
   await page.getByTestId('view-board').click();
-  await expect(page.getByTestId('proposal-page')).toHaveCount(0);
-  await expect(page.getByTestId('photo-zone')).toBeVisible();
+  await expect(page.getByTestId('confirm-bar')).toHaveCount(0);
+  await expect(page.getByTestId('photo-zone')).not.toHaveAttribute('data-clean', 'true');
+  await expect(page.getByTestId('tool-rect')).toBeVisible();
+  // 동의하면 프로젝트는 진행중(제작)
+  await page.goto('/');
+  await expect(page.locator('[data-testid="project-item"]').first()).toHaveAttribute('data-status', 'ongoing');
 });

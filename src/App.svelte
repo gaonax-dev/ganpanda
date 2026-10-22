@@ -34,6 +34,7 @@
   import EstimateLock from './lib/ui/EstimateLock.svelte';
   import RequestBar from './lib/ui/RequestBar.svelte';
   import RequestInbox from './lib/ui/RequestInbox.svelte';
+  import ConfirmBar from './lib/ui/ConfirmBar.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -97,7 +98,7 @@
   // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
   $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
   // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
-  $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode); });
+  $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode || app.confirmMode); }); // 컨펌도 파랑
   // 실측 보기(받은 요청 보드)는 파랑 — 가져온 내 프로젝트는 노랑 (2026-10-22 "프로젝트가져오기 버튼을 사용하면 노랑색으로 변경하고 소비자 초대해 제안한다")
   $effect(() => { document.documentElement.classList.toggle('survey', !!app.requestView); });
   // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
@@ -297,6 +298,7 @@
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen && !app.noPrices}<QuoteSheet />{/if}
 {#if app.orderOpen && !app.noPrices}<OrderDialog />{/if}
+{#if app.confirmMode && app.room && app.access.status === 'ok'}<ConfirmBar />{/if}
 {#if app.proposalOpen}{#await lazyProposal()}<Loading text="제안 도구 불러오는 중…" />{:then m}<m.default />{/await}{/if}
 {#if app.adjustPhoto}{#key app.adjustPhoto.id}{#await lazyPhotoAdjust()}<Loading text="이미지 조절 불러오는 중…" />{:then m}<m.default photo={app.adjustPhoto} />{/await}{/key}{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}{#await lazyCamera()}<Loading text="원근 맞추기 불러오는 중…" />{:then m}<m.default photo={app.cameraPhoto} />{/await}{/key}{/if}

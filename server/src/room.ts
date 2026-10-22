@@ -23,7 +23,7 @@ interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: 
 export interface Attachment { assetId: string; name: string; type: string; size: number }
 export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[] }
 /** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
-export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string }
+export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string; /** 진행 동의에서 뺀 사인물 (2026-10-22) */ excluded?: string[] }
 type AwRow = { client_id: number; sock: string; clock: number; state: string; updated_at?: number };
 /** y-protocols 와 같은 기준: 클라이언트는 15초마다 갱신하므로 30초 넘게 조용한 상태는 죽은 것 (닫힘 신호 없이 사라진 휴대폰 탭 등) */
 const AWARENESS_TTL = 30_000;
@@ -258,11 +258,11 @@ export class Room extends DurableObject<Env> {
    * 제안 승인 기록 (RPC, viewer 도 가능). settings.approvals(JSON 배열)에 추가하고 대화에 승인 메시지를 남긴다 (objectId 'project').
    * 같은 트랜잭션으로 넣어 한 번에 전파된다
    */
-  async addApproval(by: string, hash: string, snapshot: unknown, proposalId?: string): Promise<Approval> {
+  async addApproval(by: string, hash: string, snapshot: unknown, proposalId?: string, excluded: string[] = []): Promise<Approval> {
     const settings = this.doc.getMap<unknown>('settings');
-    const a: Approval = { id: crypto.randomUUID(), at: Date.now(), by, hash, snapshot, ...(proposalId ? { proposalId } : {}) };
+    const a: Approval = { id: crypto.randomUUID(), at: Date.now(), by, hash, snapshot, ...(proposalId ? { proposalId } : {}), ...(excluded.length ? { excluded } : {}) };
     const total = (snapshot as { total?: number } | null)?.total;
-    const text = `${by} 님이 제안을 승인했습니다${typeof total === 'number' ? ` (합계 ${Math.round(total).toLocaleString('ko-KR')}원)` : ''}`;
+    const text = `${by} 님이 진행에 동의했습니다 — 제작을 시작합니다${excluded.length ? ` (${excluded.length}개 제외)` : ''}${typeof total === 'number' ? ` · 합계 ${Math.round(total).toLocaleString('ko-KR')}원` : ''}`;
     this.doc.transact(() => {
       const prev = (settings.get('approvals') as Approval[] | undefined) ?? [];
       settings.set('approvals', [...prev, a]);

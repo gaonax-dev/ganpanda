@@ -93,7 +93,7 @@ export const deleteMessage = (room: string, invite: string | null, body: { id: s
   call<{ ok: true }>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'DELETE', body: JSON.stringify(body) });
 
 /** 제안 승인: 누구나(viewer 포함) 서버를 통해 문서에 기록 */
-export const postApproval = (room: string, invite: string | null, body: { by: string; hash: string; snapshot: unknown; proposalId?: string }) =>
+export const postApproval = (room: string, invite: string | null, body: { by: string; hash: string; snapshot: unknown; proposalId?: string; excluded?: string[] }) =>
   call<{ approval: { id: string } }>(`/api/rooms/${room}/approvals${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 /** viewer 의 핀: 서버가 문서에 기록 */

@@ -64,11 +64,11 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="제안 보내기" data-testid="proposal-dialog">
     <header><h2>제안 보내기</h2><button class="icon" data-testid="close-proposal" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
-      <p class="hint">고객에게 보낼 링크 하나: 가게 사진 위에 간판이 이렇게(주간/야간) 달립니다 · 사인물 치수 · 총 금액 · 질문 · <b>[이걸로 할게요]</b>. 로그인 없이 휴대폰에서 열리고, 다른 사람에게 그대로 전달할 수 있습니다.</p>
+      <p class="hint">고객에게 보낼 링크 하나: 가게 사진 위에 간판이 이렇게(주간/야간) 달립니다 · 사인물 치수 · 총 금액 · 질문 · <b>[진행 동의]</b>. 로그인 없이 휴대폰에서 열리고, 다른 사람에게 그대로 전달할 수 있습니다.</p>
 
       {#if approval.status !== 'none'}
         <div class="approval" data-testid="proposal-approval" data-status={approval.status}>
-          {#if approval.status === 'approved'}✅ <b>{approval.approval.by}</b> 님이 {date(approval.approval.at)}에 승인했습니다 (합계 {won(approval.approval.snapshot.total)}).
+          {#if approval.status === 'approved'}✅ <b>{approval.approval.by}</b> 님이 {date(approval.approval.at)}에 진행에 동의했습니다 (합계 {won(approval.approval.snapshot.total)}).
           {:else}⚠ {approval.approval.by} 님이 {date(approval.approval.at)}에 승인한 뒤 <b>내용이 바뀌었습니다</b>. 다시 제안을 보내 재승인을 받으세요.{/if}
         </div>
       {/if}

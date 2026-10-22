@@ -1,4 +1,4 @@
-<!-- 고객이 보는 제안 페이지 (휴대폰 우선, 로그인 없음): 실사 주간/야간 · 사인물 목록·치수·금액 · 질문 · [이걸로 할게요] -->
+<!-- 고객이 보는 제안 페이지 (휴대폰 우선, 로그인 없음): 실사 주간/야간 · 사인물 목록·치수·금액 · 질문 · [진행 동의] (2026-10-22, 전에는 [이걸로 할게요]) -->
 <script lang="ts">
   import { signTextOf } from '../core/parts';
   import { app } from '../state.svelte';
@@ -31,10 +31,13 @@
   });
   const photoName = (id: string) => app.photos.find((p) => p.id === id)?.name ?? '';
 
+  // 진행 동의 (2026-10-22 "여기에 진행동의를 누르면 제작을 한다"): 사인물을 빼고 동의할 수 있다 — 뺀 것은 기록에 '제외'
+  let skip = $state(new Set<string>());
+  const toggleSkip = (id: string) => { const n = new Set(skip); if (n.has(id)) n.delete(id); else n.add(id); skip = n; };
   async function approve() {
     if (!name.trim()) { error = '이름을 넣어 주세요.'; return; }
     sending = true; error = '';
-    try { await app.approve(name.trim()); confirming = false; }
+    try { await app.approve(name.trim(), [...skip]); confirming = false; }
     catch (e) { error = e instanceof Error ? e.message : '승인에 실패했습니다. 다시 시도해 주세요.'; }
     finally { sending = false; }
   }
@@ -109,19 +112,21 @@
 
   <section class="approve" data-testid="proposal-approve" data-status={approval.status}>
     {#if approval.status === 'approved'}
-      <p class="done">✅ <b>{approval.approval.by}</b> 님이 {date(approval.approval.at)}에 승인했습니다.</p>
-      <small>승인한 내용(사인물·치수·디자인·금액)이 기록되어 있습니다. 이후 내용이 바뀌면 다시 확인을 요청드립니다.</small>
+      <p class="done">✅ <b>{approval.approval.by}</b> 님이 {date(approval.approval.at)}에 진행에 동의했습니다 — <b>제작</b>을 시작합니다.{#if approval.approval.excluded?.length} ({approval.approval.excluded.length}개 제외){/if}</p>
+      <small>동의한 내용(사인물·치수·디자인·금액)이 기록되어 있습니다. 이후 내용이 바뀌면 다시 확인을 요청드립니다.</small>
     {:else}
       {#if approval.status === 'changed'}
-        <p class="changed">⚠ {approval.approval.by} 님이 {date(approval.approval.at)}에 승인한 뒤 내용이 바뀌었습니다. 위 내용을 다시 확인하고 승인해 주세요.</p>
+        <p class="changed">⚠ {approval.approval.by} 님이 {date(approval.approval.at)}에 동의한 뒤 내용이 바뀌었습니다. 위 내용을 다시 확인하고 동의해 주세요.</p>
       {/if}
       {#if !confirming}
-        <button class="btn primary big" data-testid="proposal-approve-button" onclick={() => (confirming = true)}>이걸로 할게요</button>
-        <small>위 사진·치수·금액으로 제작을 진행해도 좋다는 뜻입니다. 궁금한 점은 먼저 사인물마다 [질문하기]로 물어보세요.</small>
+        <!-- 사인물 빼기: 누르면 빠짐 (2026-10-22) -->
+        <div class="skip" data-testid="consent-signs">{#each app.signs as o (o.id)}<button class="chip" class:off={skip.has(o.id)} data-testid="consent-sign" onclick={() => toggleSkip(o.id)}>{skip.has(o.id) ? '○' : '✓'} {o.name}</button>{/each}</div>
+        <button class="btn primary big" data-testid="proposal-approve-button" onclick={() => (confirming = true)}>진행 동의</button>
+        <small>체크된 사인물을 위 모습·치수·금액으로 <b>제작</b>해도 좋다는 뜻입니다. 빼고 싶은 사인물은 눌러서 빼세요. 궁금한 점은 먼저 사인물마다 [질문하기]로 물어보세요.</small>
       {:else}
-        <label>승인자 이름<input data-testid="proposal-approver" bind:value={name} placeholder="예: 홍길동" /></label>
+        <label>동의하는 분 이름<input data-testid="proposal-approver" bind:value={name} placeholder="예: 홍길동" /></label>
         <div class="row">
-          <button class="btn primary" data-testid="proposal-approve-confirm" disabled={sending} onclick={approve}>{sending ? '보내는 중…' : '네, 이 내용으로 승인합니다'}</button>
+          <button class="btn primary" data-testid="proposal-approve-confirm" disabled={sending} onclick={approve}>{sending ? '보내는 중…' : skip.size ? `네, ${skip.size}개 빼고 진행합니다` : '네, 이 내용으로 진행합니다'}</button>
           <button class="btn" onclick={() => (confirming = false)}>취소</button>
         </div>
         {#if error}<p class="err">{error}</p>{/if}
@@ -180,4 +185,7 @@
   .brand { padding: 8px 16px; text-align: center; font-size: 12px; }
   .brand a { color: var(--muted); text-decoration: none; }
   .brand a:hover { color: var(--accent); }
+  .skip { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .chip { font: inherit; font-size: 12px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .chip.off { border-color: var(--line); background: none; color: var(--muted); text-decoration: line-through; }
 </style>

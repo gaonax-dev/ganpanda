@@ -164,13 +164,16 @@ async function postMessage(req: Request, env: Env, room: string, role: Role): Pr
 /** 제안 승인 (viewer·editor·owner 모두). 이름·해시·스냅샷을 문서에 기록 */
 async function postApproval(req: Request, env: Env, room: string): Promise<Response> {
   if (req.method !== 'POST') return text('method not allowed', 405);
-  const b = await readJson<{ by?: string; hash?: string; snapshot?: unknown; proposalId?: string }>(req);
+  const b = await readJson<{ by?: string; hash?: string; snapshot?: unknown; proposalId?: string; excluded?: unknown }>(req);
   const by = typeof b?.by === 'string' ? b.by.trim().slice(0, 40) : '';
   const hash = typeof b?.hash === 'string' ? b.hash.trim().slice(0, 64) : '';
   if (!by || !hash || !b?.snapshot || typeof b.snapshot !== 'object') return text('bad approval', 400);
   if (JSON.stringify(b.snapshot).length > 200_000) return text('snapshot too large', 413);
-  const approval = await env.ROOM.getByName(room).addApproval(by, hash, b.snapshot, typeof b.proposalId === 'string' ? b.proposalId : undefined);
+  // 진행 동의 (2026-10-22 "여기에 진행동의를 누르면 제작을 한다"): 뺀 사인물 id 들, 동의하면 대기 중인 프로젝트는 진행중(제작)으로
+  const excluded = Array.isArray(b.excluded) ? b.excluded.filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 64)).slice(0, 200) : [];
+  const approval = await env.ROOM.getByName(room).addApproval(by, hash, b.snapshot, typeof b.proposalId === 'string' ? b.proposalId : undefined, excluded);
   await markApproved(env, room); // 요청판: 요청에서 만든 프로젝트면 요청을 승인됨으로 (2026-10-17)
+  await env.DB.prepare("UPDATE projects SET status = 'ongoing', status_at = ? WHERE id = ? AND (status IS NULL OR status = 'waiting')").bind(Date.now(), room).run();
   return json({ approval }, 201);
 }
 
