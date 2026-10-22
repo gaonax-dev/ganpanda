@@ -4,7 +4,8 @@ import type { PartItem, SignObject, SignPart } from './model';
 import { itemBox } from './frontView';
 import { drawnParts } from './parts';
 import { svgText, type TextRenderer } from './svgText';
-import { layerOrder } from './parts';
+import { layerOrder, partsOf } from './parts';
+import { withSheetAreas } from './sheetArea';
 
 import { COMPONENTS, componentOf, surfaceOf } from './components';
 
@@ -26,9 +27,11 @@ export interface LaidItem {
 
 /** 사인물(mmW×mmH) 을 W×H 에 그릴 때 객체 자리. 치수나 구성 요소가 없으면 빈 목록 */
 export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, H: number): LaidItem[] {
-  if (!o.parts || !(mmW > 0) || !(mmH > 0)) return [];
+  // 글자 없는 면 시트도 (2026-10-22 "시트 2d 3d에서 안나온다") — 옛 시트(sheetIds)는 구성 요소로 읽어 면 시트만
+  const base = o.parts ?? partsOf(o).filter((p) => componentOf(p.kind).areaFill);
+  if (!base.length || !(mmW > 0) || !(mmH > 0)) return [];
   const sx = W / mmW, sy = H / mmH;
-  return layerOrder(drawnParts(o, o.parts)).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
+  return layerOrder(withSheetAreas(o, drawnParts(o, base))).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
     const b = itemBox(it);
     return {
       id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),

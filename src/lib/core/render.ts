@@ -1,4 +1,5 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
+import { withSheetAreas } from './sheetArea';
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
 import { componentOf, surfaceOf } from './components';
@@ -116,6 +117,16 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
         x: b.x * sx, y: b.y * sy, w: b.w * sx, h: b.h * sy, color: surfaceOf(part).face ?? c.color, ...(zMm ? { z: zMm } : {}), // 시트 색 (2026-10-17)
       });
     }
+  }
+  // 글자 없는 면 시트 = 올라간 면 전체 (2026-10-22 "시트 2d 3d에서 안나온다") — 저장된 레이어 트리는 그대로 두고 그 시트만 앞면 객체로
+  const all = drawnParts(o, partsOf(o));
+  for (const part of withSheetAreas(o, all)) {
+    const src = all.find((x) => x.id === part.id);
+    if (!src || src.items.length || !part.items.length) continue;
+    const host = part.on && part.on !== 'frame' ? all.find((x) => x.id === part.on) : undefined;
+    const zMm = host ? componentOf(host.kind).depthMm(host, o) * Math.min(sx, sy) : 0;
+    const it = part.items[0];
+    faceItems.push({ id: it.id, kind: 'shape', shape: 'rect', ...(it.fill ? { fill: it.fill } : {}), x: it.x * sx, y: it.y * sy, w: (it.w ?? 0) * sx, h: it.h * sy, color: it.fill ?? componentOf(part.kind).color, ...(zMm ? { z: zMm } : {}) });
   }
   faceItems.sort((a, b) => (a.z ?? 0) - (b.z ?? 0)); // 앞면(텍스처)에 깔리는 것부터, 같은 높이는 트리 순서
   return { ...(letterItems.length ? { letterItems } : {}), ...(faceItems.length ? { faceItems } : {}) };

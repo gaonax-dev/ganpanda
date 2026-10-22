@@ -176,3 +176,21 @@ test('단면 그림: 시트 커팅도 스카시처럼 바운드 박스 + 컷팅 
   await expect(sheet.locator('text', { hasText: '오픈세일' }).first()).toBeAttached();
   await expect(sheet.locator('polygon.bbox').first()).toBeAttached();
 });
+
+// 2026-10-22 사용자: "시트 2d 3d에서 안나온다" — 글자 없이 면 전체에 붙이는 시트
+test('글자 없는 시트(UV·안개·재질 시트 컷팅 없음·옛 시트)는 2D 에서 면 전체로 칠해진다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const pid = a.photos[0].id;
+    const q = (x: number) => [[x, 200], [x + 300, 200], [x + 300, 700], [x, 700]];
+    a.project.addObject({ photoId: pid, name: '큰시트', shape: 'rect', quad: q(50), sheetIds: [], widthMm: 2100, heightMm: 2100, parts: [{ id: 'a', kind: 'sheet', type: 'sh-print', on: 'frame', items: [] }] });
+    a.project.addObject({ photoId: pid, name: '안개', shape: 'rect', quad: q(400), sheetIds: [], widthMm: 2100, heightMm: 2100, parts: [{ id: 'b', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }] });
+    a.project.addObject({ photoId: pid, name: '폴딩시트', shape: 'rect', quad: q(750), sheetIds: [], widthMm: 410, heightMm: 2010, parts: [{ id: 'c', kind: 'sheet', type: 'sh-cut', on: 'frame', options: { cut: '컷팅 없음', sheetSystem: '기본색', sheetCode: '검정' }, items: [] }] });
+    a.project.addObject({ photoId: pid, name: '정면문시트', shape: 'rect', quad: q(1100), sheetIds: ['sh-cut'], widthMm: 870, heightMm: 2010 });
+  });
+  await page.getByTestId('stage-2d').click();
+  const fills = async () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
+  await expect.poll(fills).toEqual(expect.arrayContaining(['#d9d9d9', '#e9f0f5', '#141414', '#ffffff']));
+});

@@ -287,3 +287,4 @@
 | 2026-10-22 | **층 정면도**: 단면 쌓기의 층에서 [이 층 정면도] → 그 층만 편집(바탕 = 올라간 면, 아래 층 흐리게, 위 층 숨김), 구성 요소 하나만 편집도. 설정 창 [배치] 탭은 유지 | 사용자: "층 정면도 진행해줘" (앞서 "해당 층을 클릭하면 정면도로 활용 가능하다") → [../features/material-stack.md](../features/material-stack.md) |
 | 2026-10-22 | 단면 그림: **시트 커팅도 스카시와 같게** — 글자가 있으면 바운드 박스 + 컷팅 글자 모양 | 사용자: "시트 커팅에 글자를 넣었다. 그런데 커팅글자가 나오지 않앗어" → "시트 커팅도 스카시와 같게" → [../features/material-stack.md](../features/material-stack.md) |
 | 2026-10-22 | **시트 두께 = 1mm**(단면 쌓기·3D 층 깊이 모두) — 전엔 0 | 사용자: "시트 두께 1mm" → [../features/material-stack.md](../features/material-stack.md) |
+| 2026-10-22 | **글자 없는 시트는 올라간 면 전체**를 칠해 2D·3D 에 보인다(안개 밝은색, UV 디자인 전 연회색, 재질 시트 = 시트 색) | 사용자: "시트 2d 3d에서 안나온다" → [../features/composition.md](../features/composition.md) |

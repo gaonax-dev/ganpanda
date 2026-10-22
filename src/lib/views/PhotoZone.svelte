@@ -9,6 +9,7 @@
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
+  import { hasPartsToDraw } from '../core/sheetArea';
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
@@ -543,7 +544,7 @@
         </div>
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
-      {#each objects.filter((o) => o.widthMm && o.heightMm && o.parts?.some((p) => p.items.length)) as o (o.id)}
+      {#each objects.filter((o) => o.widthMm && o.heightMm && hasPartsToDraw(o)) as o (o.id)}
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
         {@const pb = capBox(o.widthMm! * 0.5, o.heightMm! * 0.5)}<!-- 3D 층 크기 제한 (2026-10-21 휴대폰 크래시) -->
         {@const pw = pb.w}
