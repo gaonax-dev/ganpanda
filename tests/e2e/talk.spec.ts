@@ -158,3 +158,31 @@ test('톡 멤버는 아이디로 — 이름을 바꿔도 방에 남고, 메인 �
   await expect.poll(() => guest.evaluate(() => (window as unknown as G2).__ganpanda.selectedId)).toBe(signId);
   await guest.ctx.close();
 });
+
+// 2026-10-22 사용자: "다른사진 이름을 터치하면 톡 링크된 사진이 포커싱된다", "이번엔 언두할때 링크된 사진이 포커싱됨다"
+test('톡 링크로 화면을 맞춘 뒤에는 사진이 바뀌어도(이름 바꾸기·언두) 다시 그 자리로 끌려가지 않는다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.getByTestId('talk-open').click();
+  await page.getByTestId('talk-room').first().click();
+  const img = (await page.getByTestId('photo-img').first().boundingBox())!;
+  await page.mouse.click(img.x + img.width * 0.5, img.y + img.height * 0.9); // 📷 링크
+  await page.getByTestId('chat-send').click();
+  await page.getByTestId('talk-ref').click();
+  await page.waitForTimeout(300);
+  // 화면을 옮긴다
+  const box = page.getByTestId('board-canvas');
+  const b = (await box.boundingBox())!;
+  await page.mouse.move(b.x + 100, b.y + 200);
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(300);
+  const before = (await page.getByTestId('photo-img').first().boundingBox())!;
+  // 사진이 바뀐다 — 이름 바꾸기, 그리고 언두
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; renamePhoto(id: string, n: string): void } }).__ganpanda; a.renamePhoto(a.photos[0].id, '측면'); });
+  await page.waitForTimeout(300);
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.waitForTimeout(300);
+  const after = (await page.getByTestId('photo-img').first().boundingBox())!;
+  expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+  expect(Math.abs(after.x - before.x)).toBeLessThan(2);
+});

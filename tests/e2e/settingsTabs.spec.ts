@@ -1,10 +1,10 @@
 // 설정 창 탭 (2026-10-21 사용자: "설정을 내용별로 탭으로 분리해줘")
 import { expect, test } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { openOwnedProject, openSettings } from './helpers';
 
 test('설정은 계정 · 멤버 · 사양 사전 · 표시 · 단축키 탭으로 나뉘고, 처음엔 계정 탭', async ({ page, request }) => {
   await openOwnedProject(page, request);
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   const dlg = page.getByTestId('settings');
   await expect(dlg.locator('[data-testid^="settings-tab-"]')).toHaveText(['계정', '멤버', '사양 사전', '요청 받기', '표시', '단축키']); // 요청 받기 탭은 2026-10-21 "켜는 걸로 진행해줘" 부터
   await expect(dlg.getByTestId('account-section')).toBeVisible();
@@ -23,7 +23,7 @@ test('설정은 계정 · 멤버 · 사양 사전 · 표시 · 단축키 탭으�
 
 test('로그인 없이 열면 표시 · 단축키만', async ({ page }) => {
   await page.goto('/');
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   const dlg = page.getByTestId('settings');
   await expect(dlg.locator('[data-testid^="settings-tab-"]')).toHaveText(['표시', '단축키']);
   await expect(dlg.getByTestId('warn-measure')).toBeVisible();

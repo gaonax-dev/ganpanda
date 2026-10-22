@@ -1,7 +1,7 @@
 // 간판집의 외주 요청 (B2B) — 2026-10-22 사용자: "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시. 프로젝트 카드 선택에 다른업체에 외주요청 버튼을 누르면 외주폴더로 이동한다.
 // 이제 외주 리스트에서 프로젝트를 열면 기본컬러 핫핑크로 하고 요청 버튼이 생긴다. 해당 건은 b2b로 표시 보여준다"
 import { expect, test } from '@playwright/test';
-import { apiLogin, dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
+import { apiLogin, dragOnPhoto, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 test('만들기에서 [외주] 를 체크하면 처음부터 외주 프로젝트 — 열리자마자 핫핑크 + [외주 요청] (2026-10-22 "만들기에서 외주체크하면 바로 생성할 수 있다")', async ({ page, request }) => {
   const session = await apiLogin(request);
@@ -64,7 +64,7 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await shop.goto('/');
   await shop.evaluate((s) => localStorage.setItem('ganpanda.session', s), s2);
   await shop.reload();
-  await shop.getByTestId('open-settings').click();
+  await openSettings(shop);
   await shop.getByTestId('settings-tab-requests').click();
   await shop.getByTestId('req-receive').check();
   await shop.getByTestId('req-regions').fill('경기 광주시');

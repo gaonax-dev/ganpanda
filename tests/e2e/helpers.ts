@@ -100,3 +100,12 @@ export async function openObjectSettings(page: Page) {
 export async function clearAutoCamera(page: Page) {
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; clearCamera(id: string): void } }).__ganpanda; for (const p of a.photos) a.clearCamera(p.id); });
 }
+
+/** 설정 창 열기 — 로그인하면 ⚙ 는 닉네임 메뉴 안 (2026-10-22), 로그인 전에는 상단 */
+export async function openSettings(page: Page) {
+  await expect(page.getByTestId('account-menu').or(page.getByTestId('login-button')).first()).toBeVisible(); // 계정 확인이 끝난 뒤 판단
+  await expect(async () => {
+    if (await page.getByTestId('account-menu').isVisible() && !(await page.getByTestId('account-menu-list').isVisible())) await page.getByTestId('account-menu').click();
+    await page.getByTestId('open-settings').click({ timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+}

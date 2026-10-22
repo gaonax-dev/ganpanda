@@ -1,6 +1,6 @@
 // 소비자 견적 요청 (2026-10-21 "시작(로그인전) 사업자 소비자 구분해서 소비자는 간판견적을 보고 견적 요청하는 방식 … 도형그리기 사이즈 그리고 메모로 견적을 요청하게" → "켜는 걸로 진행")
 import { expect, test } from '@playwright/test';
-import { apiLogin, dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { apiLogin, dragOnPhoto, openObjectSettings, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각·치수로 참고 견적을 보고 요청 → 간판사 홈에 사인물째 들어와 제안', async ({ page, request, browser }) => {
   const store = `떡집 ${Math.random().toString(36).slice(2, 7)}`;
@@ -118,7 +118,7 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   const shop = await shopCtx.newPage();
   await openOwnedProject(shop, request, '간판사');
   await shop.goto('/');
-  await shop.getByTestId('open-settings').click();
+  await openSettings(shop);
   await shop.getByTestId('settings-tab-requests').click();
   await shop.getByTestId('req-receive').check();
   await shop.getByTestId('req-regions').fill('경기 광주시');

@@ -45,16 +45,20 @@
   // 리스트에서 사진에 올린 뒤: 그 사진을 화면에 맞춘다
   $effect(() => {
     const r = app.reveal;
-    if (!r) return;
+    if (!r || !canvas) return; // 캔버스가 붙기 전이면 붙은 뒤에
+    // 맞춤은 요청(reveal)이 바뀔 때 한 번만 — 사진이 바뀔 때(이름 탭·언두 등) 다시 끌려가지 않게 (2026-10-22 "언두할때 링크된 사진이 포커싱됨다")
+    untrack(() => revealTo(r));
+  });
+  function revealTo(r: NonNullable<typeof app.reveal>) {
     const p = app.photos.find((x) => x.id === r.photoId);
     if (!p || !canvas) return;
     let { w, h } = canvas.size();
     // 톡 창이 열려 있으면 가려지지 않는 쪽에 맞춘다 (데스크톱 오른쪽 · 휴대폰 아래, 2026-10-22)
-    const talkEl = untrack(() => app.talkOpen) ? document.querySelector('[data-testid="talk-panel"]') : null;
+    const talkEl = app.talkOpen ? document.querySelector('[data-testid="talk-panel"]') : null;
     if (talkEl) { const b = talkEl.getBoundingClientRect(); if (b.top > h * 0.3) h = Math.max(160, b.top - 50); else w = Math.max(200, b.left); }
     const s = p.width / p.w;
-    const target = r.objectId ? untrack(() => app.objects.find((o) => o.id === r.objectId)) : null;
-    const pin = r.pinId ? untrack(() => app.pins.find((x) => x.id === r.pinId)) : null;
+    const target = r.objectId ? app.objects.find((o) => o.id === r.objectId) : null;
+    const pin = r.pinId ? app.pins.find((x) => x.id === r.pinId) : null;
     const pts = target ? target.quad : pin ? [[pin.x, pin.y]] : null;
     if (pts?.length) {
       // 톡 링크 (2026-10-22): 그 사인물·번호를 화면 가운데에 크게 — 둘레를 넉넉히 띄운다
@@ -65,7 +69,7 @@
       return;
     }
     viewport = fitRect({ x: p.x, y: p.y - 40, w: p.width, h: p.width * (p.h / p.w) + 40 }, w, h, 40);
-  });
+  }
 
   /** withCards: [전체 보기] 단추·단축키는 평면도 카드까지 (2026-10-20 — 카드 묶음이 화면 밖에 남았다). 처음 열 때·사진 올린 뒤는 사진만 */
   function fitAll(withCards = false) {

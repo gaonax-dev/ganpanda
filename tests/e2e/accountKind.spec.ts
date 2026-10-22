@@ -1,7 +1,7 @@
 // 계정 종류·전환·삭제, 권한에 맞는 화면 (2026-10-22 사용자: "인터페이스 권한에 맞게 감추고 필드(잠금)는 텍스트로 조정해줘 / 설정의 내용 그리고 사인물 속성등 각 역활에 맞게 정리해줘 /
 // 그리고 사업자는 소비자 등록이 안된다. / 소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다, / 계정삭제도 필요하다.")
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 test('간판집 계정으로 /estimate 에 들어가면 막고 외주 요청을 안내한다', async ({ page, request }) => {
   await openOwnedProject(page, request); // 프로젝트를 만들면 간판집
@@ -18,7 +18,7 @@ test('가게 사장 계정: 홈은 견적 요청만, 설정은 계정·표시만
   await page.goto('/');
   await expect(page.getByTestId('consumer-home')).toBeVisible();
   await expect(page.getByTestId('project-list')).toHaveCount(0);
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await expect(page.getByTestId('settings').locator('[data-testid^="settings-tab-"]')).toHaveText(['계정', '표시']);
   await expect(page.getByTestId('business-section')).toHaveCount(0);
   await expect(page.getByTestId('convert-section')).toBeVisible();
@@ -30,7 +30,7 @@ test('가게 사장 계정: 홈은 견적 요청만, 설정은 계정·표시만
   await expect(page.getByTestId('project-item').filter({ hasText: '간판 견적 요청' })).toHaveCount(1);
   await expect(page.getByTestId('consumer-home')).toHaveCount(0);
   // 계정 삭제 — "삭제" 를 적어야
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await page.getByTestId('delete-account-open').click();
   await expect(page.getByTestId('delete-account')).toBeDisabled();
   await page.getByTestId('delete-confirm').fill('삭제');

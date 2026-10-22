@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { SERVER, apiLogin, openOwnedProject, uploadPhoto } from './helpers';
+import { SERVER, apiLogin, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 // 2026-10-18 V1 (docs/features/spec-vocabulary.md): 못 알아본 말의 뜻을 묻고, 고른 뜻은 개인 규칙이 되어 다음부터 바로 알아본다
 test('퀵입력이 못 알아본 말에 뜻을 답하면 규칙으로 배우고, 다음 입력부터 알아본다', async ({ page, request }) => {
@@ -69,7 +69,7 @@ test('전국 기본값으로 알아본 말에 이의를 내면 내 뜻이 개인
   await expect(spec.getByTestId('spec-item').filter({ hasText: '(전국:' })).toHaveCount(0);
   await spec.getByTestId('spec-cancel').click();
   // 설정 → 사양 글 사전: 규칙이 보이고 지울 수 있다
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await page.getByTestId('settings-tab-rules').click();
   const rules = page.getByTestId('rules-section');
   await expect(rules.getByTestId('rule-row').filter({ hasText: phrase })).toHaveCount(1);

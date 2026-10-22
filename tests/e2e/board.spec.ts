@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettings } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -43,7 +43,7 @@ test('원형 도구 = 모서리 50% 둥근 사각형. 설정에서 둥글기를 
 test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵션 켜면) → 추정값 적용', async ({ page }) => {
   await uploadPhoto(page);
   // 경고는 옵션 (설정에서 켬)
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await page.getByTestId('settings-tab-display').click();
   await page.getByTestId('warn-measure').check();
   await page.getByTestId('close-settings').click();

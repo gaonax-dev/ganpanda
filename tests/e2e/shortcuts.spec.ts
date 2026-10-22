@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -51,7 +51,7 @@ test.describe('화면 조작 (xlpop 과 동일)', () => {
 
 test.describe('단축키 설정', () => {
   test('사각 도구를 B 로 바꾸면 B 로 그려지고 R 은 동작하지 않는다 (새로고침 후 유지)', async ({ page }) => {
-    await page.getByTestId('open-settings').click();
+    await openSettings(page);
     await page.getByTestId('settings-tab-keys').click();
     await page.getByTestId('shortcut-edit-toolRect').click();
     await page.keyboard.press('b');
@@ -67,13 +67,13 @@ test.describe('단축키 설정', () => {
     await expect(page.getByTestId('sign-shape')).toHaveCount(1);
 
     await page.reload();
-    await page.getByTestId('open-settings').click();
+    await openSettings(page);
     await page.getByTestId('settings-tab-keys').click();
     await expect(page.getByTestId('shortcut-row-toolRect')).toContainText('B');
   });
 
   test('다른 동작과 같은 키를 지정하면 충돌을 알린다', async ({ page }) => {
-    await page.getByTestId('open-settings').click();
+    await openSettings(page);
     await page.getByTestId('settings-tab-keys').click();
     await page.getByTestId('shortcut-edit-toolRect').click();
     await page.keyboard.press('v');
@@ -81,7 +81,7 @@ test.describe('단축키 설정', () => {
   });
 
   test('Esc 로 입력을 취소하고, 기본값으로 되돌린다', async ({ page }) => {
-    await page.getByTestId('open-settings').click();
+    await openSettings(page);
     await page.getByTestId('settings-tab-keys').click();
     await page.getByTestId('shortcut-edit-toolRect').click();
     await page.keyboard.press('Escape');
@@ -94,7 +94,7 @@ test.describe('단축키 설정', () => {
   });
 
   test('단축키 추가: 한 동작에 키를 여러 개', async ({ page }) => {
-    await page.getByTestId('open-settings').click();
+    await openSettings(page);
     await page.getByTestId('settings-tab-keys').click();
     await page.getByTestId('shortcut-add-toolEllipse').click();
     await page.keyboard.press('c');

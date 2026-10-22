@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { SERVER, apiCreateInvite, apiLogin, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { SERVER, apiCreateInvite, apiLogin, openInvited, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 // 요금제 (2026-10-21 "무료사용 100mb로 변경해줘 그리고 동시접속은 2인으로 … 동시접속이라고 했는데 맴버가입수이다"): 한도 = 팀 멤버 수(무료 2명), 동시 접속은 막지 않는다. 무료 100MB·제안 월 3건
 test('동시 접속은 막지 않는다: 무료여도 소유자가 작업 중일 때 직원(editor)·고객(viewer)이 함께 연결된다', async ({ page, request, browser }) => {
@@ -17,8 +17,12 @@ test('사진이 서버에 올라가고 소유자 사용량에 반영된다 (무�
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await expect(page.getByTestId('photo-img')).toBeVisible();
-  await page.getByTestId('account-menu').click();
-  await expect(page.getByTestId('usage-storage')).not.toContainText('0 B');
+  // 사용량은 메뉴를 열 때 새로 읽는다 — 서버 업로드가 끝날 때까지 다시 열어 본다
+  await expect(async () => {
+    if (await page.getByTestId('account-menu-list').isVisible()) await page.keyboard.press('Escape');
+    await page.getByTestId('account-menu').click();
+    await expect(page.getByTestId('usage-storage')).not.toContainText('0 B', { timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId('usage-storage')).toContainText('100 MB');
   await expect(page.getByTestId('usage-members')).toContainText('0 / 2명');
   await expect(page.getByTestId('usage-proposals')).toContainText('0 / 3건');
@@ -28,7 +32,7 @@ test('멤버 한도: 무료는 설정에서 멤버 2명까지, 3번째는 요금
   await openOwnedProject(page, request);
   const emails = [0, 1, 2].map((i) => `mem${i}-${Math.random().toString(36).slice(2, 8)}@example.com`);
   for (const e of emails) await apiLogin(request, e);
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await page.getByTestId('settings-tab-team').click();
   for (const e of emails.slice(0, 2)) { await page.getByTestId('member-email').fill(e); await page.getByTestId('member-add').click(); await expect(page.getByTestId('team-section')).toContainText(e); }
   await expect(page.getByTestId('usage-members')).toContainText('2 / 2명');

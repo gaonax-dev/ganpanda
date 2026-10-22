@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateProject, apiLogin, openOwnedProject } from './helpers';
+import { apiCreateProject, apiLogin, openOwnedProject, openSettings } from './helpers';
 
 async function openHome(page: import('@playwright/test').Page, session: string) {
   await page.goto('/');
@@ -120,7 +120,7 @@ test('멤버는 설정에서 관리: 추가하면 오너의 그룹을 보고, �
   await makeGroup(page, '본사 발주');
   await page.getByTestId('group').click(); // 접기 (설정 창 뒤에서 상관없지만 상태 정리)
   // 설정 → 계정·구독·사용량 + 멤버 추가
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await expect(page.getByTestId('plan')).toContainText('요금제');
   await expect(page.getByTestId('usage-storage')).toContainText('/');
   await page.getByTestId('settings-tab-team').click();

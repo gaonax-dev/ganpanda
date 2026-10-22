@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 // 2026-10-19 V5 용어 통일: 품목에 연결된 공급사의 용어를 확인 창에 힌트로, 설정에서 용어집 CSV 내보내기
 test('연결 공급사 용어 힌트와 용어집 내보내기', async ({ page, request }) => {
@@ -18,7 +18,7 @@ test('연결 공급사 용어 힌트와 용어집 내보내기', async ({ page, 
   await spec.getByTestId('spec-parse').click();
   await expect(spec.getByTestId('spec-term')).toContainText("알리다 용어 '오사이'");
   await spec.getByTestId('spec-cancel').click();
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   await page.getByTestId('settings-tab-rules').click();
   const download = page.waitForEvent('download');
   await page.getByTestId('glossary-export').click();

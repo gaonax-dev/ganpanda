@@ -47,6 +47,15 @@
 
   let accountOpen = $state(false);
   let nameDraft = $state('');
+  // 닉네임 메뉴는 바깥을 누르거나 Esc 로 닫힌다 (2026-10-22 "사용자 닉 클릭으로 나온 창은 다른 곳을 누르면 꺼지게")
+  $effect(() => {
+    if (!accountOpen) return;
+    const down = (e: PointerEvent) => { if (!(e.target as Element | null)?.closest?.('.account')) accountOpen = false; };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') accountOpen = false; };
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('pointerdown', down, true); window.removeEventListener('keydown', key); };
+  });
   async function saveName() {
     const n = nameDraft.trim();
     if (n && n !== app.account?.name) await app.renameAccount(n);
@@ -195,7 +204,8 @@
       {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">{app.compact ? '요청' : '견적 요청'} <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <!-- 톡 (2026-10-22 "톡은 메인화면의 상단에 톡버튼") -->
       {#if app.room && app.access.status === 'ok' && !app.inbox}<button class="talkbtn" class:on={app.talkOpen} data-testid="talk-open" title="톡 — 회사 멤버·고객과 방별 대화" onclick={() => (app.talkOpen ? app.closeTalk() : app.openTalk())}>톡{#if app.talkUnreadInfo.total}<b data-testid="talk-unread">{app.talkUnreadInfo.total}</b>{/if}</button>{/if}
-      <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
+      <!-- 설정 ⚙ 는 로그인하면 닉네임 메뉴 안으로 (2026-10-22 "기어마크 설정버튼을 사용자닉에 메뉴로 추가") — 로그인 전에는 메뉴가 없어 여기 -->
+      {#if !app.account}<button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>{/if}
       <span class="peers">
         {#each app.peers as p (p.name)}
           <span class="peer" data-testid="peer" title={p.name}><i style:background={p.color}></i>{p.name}</span>
@@ -210,7 +220,7 @@
             {app.account.name || app.nickname || app.account.email.split('@')[0]}
           </button>
           {#if accountOpen}
-            <div class="menu" role="menu">
+            <div class="menu" role="menu" data-testid="account-menu-list">
               <small>{app.account.email} · {PLAN_LABEL[app.account.plan] ?? app.account.plan}</small>
               {#if app.usage}
                 <small data-testid="usage-storage">저장 용량 {formatBytes(app.usage.usage.storageBytes)} / {formatBytes(app.usage.limits.storageBytes)}</small>
@@ -220,6 +230,7 @@
               <label>표시 이름
                 <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
               </label>
+              <button class="btn small" data-testid="open-settings" onclick={() => { accountOpen = false; app.settingsOpen = true; }}>⚙ 설정</button>
               <button class="btn small" data-testid="open-password" onclick={() => { accountOpen = false; app.passwordOpen = 'change'; }}>{app.account.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>
               <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
             </div>

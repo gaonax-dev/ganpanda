@@ -1,6 +1,6 @@
 // 사업자 확인 (2026-10-21 결정): 설정 "계정" 탭에서 번호·대표자명·개업일 → 국세청(로컬은 .dev.vars NTS_API_KEY=fake: 대표자명 홍길동 = 일치) → 제안 페이지 배지
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, openInvited, openOwnedProject } from './helpers';
+import { apiCreateInvite, openInvited, openOwnedProject, openSettings } from './helpers';
 
 /** 검증 자릿수 맞는 번호 — 로컬 D1 은 실행 사이에 남으므로 매번 새 번호 */
 const bno = (prefix = '') => {
@@ -14,7 +14,7 @@ const dash = (n: string) => `${n.slice(0, 3)}-${n.slice(3, 5)}-${n.slice(5)}`;
 
 test('사업자 확인: 일치하면 계정에 붙고, 틀리면 안내, 뗄 수 있다; 제안 페이지에 "사업자 확인" 배지', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request, '배지 매장');
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   const sec = page.getByTestId('business-section');
   const no = bno('2');
   await sec.getByTestId('biz-no').fill(no);
@@ -39,7 +39,7 @@ test('사업자 확인: 일치하면 계정에 붙고, 틀리면 안내, 뗄 수
   await expect(guest.getByTestId('proposal-business')).toContainText('배지 간판');
 
   // 떼기
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   page.once('dialog', (d) => d.accept());
   await sec.getByTestId('biz-remove').click();
   await expect(sec.getByTestId('biz-no')).toBeVisible();
@@ -47,7 +47,7 @@ test('사업자 확인: 일치하면 계정에 붙고, 틀리면 안내, 뗄 수
 
 test('폐업 상태로 나오면 그대로 알려 준다 (fake: 999 로 시작)', async ({ page, request }) => {
   await openOwnedProject(page, request, '폐업 매장');
-  await page.getByTestId('open-settings').click();
+  await openSettings(page);
   const sec = page.getByTestId('business-section');
   await sec.getByTestId('biz-no').fill(bno('999'));
   await sec.getByTestId('biz-owner').fill('홍길동');
