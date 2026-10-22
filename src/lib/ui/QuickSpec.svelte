@@ -61,6 +61,8 @@
 {#if category}
 <div class="quickspec" class:compact data-testid="quick-spec">
   <div class="chips">
+    <!-- 단면 쌓기 (재료 조합 S1, 2026-10-22 "단면쌓기는 인터페이스야") — 설정 창 첫 화면. 빠른 막대(compact)에는 없음 -->
+    {#if !compact && kinds.length}<button class="chip" class:on={active === 'stack'} data-testid="quick-stack" onclick={() => pick('stack')}><small>단면</small>쌓기</button>{/if}
     {#if product || category !== 'sheet'}
       <button class="chip" class:on={active === 'body'} data-testid="quick-body" onclick={() => pick('body')}>
         <small>몸통</small>{product?.name ?? '종류'}{#if bodyColor}{#if dot(bodyColor)}<i style:background={dot(bodyColor)}></i>{/if}{bodyColor}{/if}

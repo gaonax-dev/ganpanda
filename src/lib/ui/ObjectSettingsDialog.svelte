@@ -9,6 +9,7 @@
   import { flatten, isItemLayer, layersOf, lockedItemIds } from '../core/layers';
   import type { PartItem } from '../core/model';
   import PartsEditor from './PartsEditor.svelte';
+  import CrossSection from './CrossSection.svelte';
   import QuickSpec from './QuickSpec.svelte';
   import SpecInput from './SpecInput.svelte';
   import ColorField from './ColorField.svelte';
@@ -38,7 +39,8 @@
   /** 칩 = 탭 (2026-10-17 사용자: "칩을 일종의 탭으로"): body | part:<id> | layout | note | price. 칩에서 열렸으면 그 탭, 아니면 몸통(없으면 첫 구성 요소) */
   const parts = $derived(partsOf(obj));
   const hasBody = $derived(!!category && category !== 'sheet');
-  const defaultTab = () => (hasBody || !category ? 'body' : parts.length ? `part:${parts[0].id}` : 'note');
+  /** 첫 화면 = 단면 쌓기 (재료 조합 S1, 2026-10-22 "단면쌓기는 인터페이스야") — 구성 요소를 붙일 수 있는 분류만, 아니면 전처럼 */
+  const defaultTab = () => (category && partKindsFor(obj).length ? 'stack' : hasBody || !category ? 'body' : parts.length ? `part:${parts[0].id}` : 'note');
   const initial = app.objectSettingsFocus;
   // svelte-ignore state_referenced_locally
   let tab = $state<string>(initial === 'channel' || initial === 'led' ? (parts.find((p) => p.kind === 'channel') ? `part:${parts.find((p) => p.kind === 'channel')!.id}` : 'body') : initial === 'thick' ? 'body' : initial ?? defaultTab());
@@ -125,7 +127,10 @@
       </section>
       <!-- 사양 글 + 칩(탭): 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k", "칩을 일종의 탭으로") -->
       {#if category}<section data-testid="quick-section" class="tabs">{#if !ro}<SpecInput {obj} {ro} {update} />{/if}<QuickSpec {obj} {ro} {update} active={tab} onPick={(t) => (tab = t)} /></section>{/if}
-      {#if tab === 'body'}
+      {#if tab === 'stack'}
+        <section><h3>단면 쌓기 <span class="hint">무엇 위에 올렸는가 = 층. 층을 눌러 속성을 고치고, 정면도에서 자리를 잡습니다</span></h3>
+          <CrossSection {obj} {ro} {update} {hasBody} kinds={partKinds} onTab={(t) => (tab = t)} /></section>
+      {:else if tab === 'body'}
       <section>
         <h3>종류 <span class="cat">{category ? CATEGORY_GROUPS.find((g) => g.id === category)?.label : '분류 없음 (패널에서 선택)'}</span></h3>
         {#if category && category !== 'sheet'}

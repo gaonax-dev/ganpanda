@@ -94,6 +94,12 @@ export async function openObjectSettings(page: Page) {
   if (await page.getByTestId('object-settings').count()) return;
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
+  // 첫 화면은 단면 쌓기(2026-10-22 재료 조합 S1) — 예전 테스트는 예전 첫 탭(몸통, 몸통 없으면 첫 구성 요소)에서 시작
+  const dlg = page.getByTestId('object-settings');
+  if (await dlg.getByTestId('quick-stack').count()) {
+    if (await dlg.getByTestId('quick-body').count()) await dlg.getByTestId('quick-body').click();
+    else if (await dlg.getByTestId('quick-part').count()) await dlg.getByTestId('quick-part').first().click();
+  }
 }
 
 /** 사진 등록 즉시 자동 원근(2026-10-19)을 끈다 — "원근 없는 사진"을 시험하는 테스트용. 읽는 중이어도 끔(autoCamera false)이 이긴다 */
