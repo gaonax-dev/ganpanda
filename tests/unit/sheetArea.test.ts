@@ -61,12 +61,13 @@ describe('시트는 붙는 면을 가리지 않는다 — 몸통 없는 시트�
     expect(spec?.clearFace).toBe(true);
   });
   // 2026-10-22 사용자: "안개는 블러처리하면되는데" — 면은 아주 옅게, 뒤는 블러(화면 층, hasFrost)
-  it('안개 시트: 면은 옅은 색(0.2), 블러 대상', () => {
+  // "안개는 화이트 없이 지금 블러에 10배" — 면 색 없음(0), 블러만
+  it('안개 시트: 면 색 없음(0), 블러 대상', () => {
     const frost = o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]);
     const [p] = withSheetAreas(frost);
-    expect(p.items[0].opacity).toBe(0.2);
+    expect(p.items[0].opacity).toBe(0);
     const spec = renderSpecOf(frost, { cx: 0, cy: 0, w: 2100, h: 2100 } as never);
-    expect(spec?.faceItems?.find((f) => f.kind === 'shape')?.opacity).toBe(0.2);
+    expect(spec?.faceItems?.find((f) => f.kind === 'shape')?.opacity).toBe(0);
     expect(hasFrost(frost)).toBe(true);
     expect(hasFrost(o([{ id: 'c', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] }]))).toBe(false);
   });
@@ -81,7 +82,7 @@ describe('2D: 안개 시트 반투명', () => {
   it('layoutParts·SVG 에 fill-opacity', async () => {
     const { layoutParts, partsSvg } = await import('../../src/lib/core/partsLayout');
     const laid = layoutParts(o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]), 2100, 2100, 210, 210);
-    expect(laid[0].opacity).toBe(0.2);
-    expect(partsSvg(laid, () => undefined)).toContain('fill-opacity="0.20"');
+    expect(laid[0].opacity).toBe(0);
+    expect(partsSvg(laid, () => undefined)).toContain('fill-opacity="0.00"');
   });
 });

@@ -867,7 +867,7 @@
   .header .x { white-space: nowrap; flex-shrink: 0; }
   .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .designs.hidden { display: none; }
-  .frost { position: absolute; left: 0; top: 0; width: 100%; height: 100%; filter: blur(6px) brightness(1.12) saturate(0.85); pointer-events: none; }
+  .frost { position: absolute; left: 0; top: 0; width: 100%; height: 100%; filter: blur(60px); pointer-events: none; } /* 흰색 없이 블러만 (2026-10-22 "화이트 없이 지금 블러에 10배") */
   svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
