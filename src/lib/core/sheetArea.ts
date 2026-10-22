@@ -6,8 +6,9 @@ import { componentOf } from './components';
 import { itemBox } from './frontView';
 import { partsOf } from './parts';
 
-export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o)): SignPart[] {
-  const W = o.widthMm, H = o.heightMm;
+/** size: 치수를 넣지 않은 사인물의 크기(추정 치수·그린 자리) — 2026-10-22 "시트가 2d 3d에 적용이 안됐어"(치수 없는 시트 사인물) */
+export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o), size?: { w: number; h: number }): SignPart[] {
+  const W = o.widthMm || size?.w, H = o.heightMm || size?.h;
   if (!(W && W > 0 && H && H > 0)) return parts;
   return parts.map((p) => {
     const fill = componentOf(p.kind).areaFill?.(p);
@@ -26,7 +27,7 @@ export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o)): S
 }
 
 /** 사진 위(2D)에 그릴 구성 요소가 있나: 글자·그림이 있는 구성 요소, 또는 면 전체 시트 (옛 시트 sheetIds 포함) */
-export function hasPartsToDraw(o: SignObject): boolean {
+export function hasPartsToDraw(o: SignObject): boolean { // 치수는 따지지 않는다 — 그리는 쪽이 추정 치수·그린 자리 크기를 넘긴다
   if (o.parts?.some((p) => p.items.length)) return true;
   return partsOf(o).some((p) => !p.items.length && !!componentOf(p.kind).areaFill?.(p));
 }

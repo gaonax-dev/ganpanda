@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { withSheetAreas } from '../../src/lib/core/sheetArea';
+import { renderSpecOf } from '../../src/lib/core/render';
 import type { SignObject, SignPart } from '../../src/lib/core/model';
 
 const o = (parts: SignPart[]): SignObject => ({ id: 's', photoId: 'p', name: '큰시트', shape: 'rect', quad: [], sheetIds: [], widthMm: 2100, heightMm: 2100, parts } as unknown as SignObject);
@@ -28,8 +29,16 @@ describe('글자 없는 시트 = 올라간 면 전체', () => {
     expect(ps[1].items[0]).toMatchObject({ kind: 'shape', x: 100, y: 50, h: 200, w: 360 }); // 글자 상자 = 2자 × 200 × 0.9
   });
 
-  it('치수가 없으면 그리지 않는다', () => {
-    const [p] = withSheetAreas({ ...o([{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] }]), widthMm: undefined });
-    expect(p.items).toEqual([]);
+  it('치수가 없으면 넘겨 준 크기(추정 치수·그린 자리)로 — 넘겨 준 크기도 없으면 그리지 않는다', () => {
+    const unsized = { ...o([{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] }]), widthMm: undefined, heightMm: undefined };
+    expect(withSheetAreas(unsized)[0].items).toEqual([]);
+    expect(withSheetAreas(unsized, undefined, { w: 300, h: 120 })[0].items[0]).toMatchObject({ x: 0, y: 0, w: 300, h: 120 });
+  });
+
+  // 2026-10-22 사용자: "시트가 2d 3d에 적용이 안됐어" — 치수를 넣지 않은 시트 사인물(와이드·윗창)
+  it('3D: 치수 없는 시트 사인물도 그린 자리 크기로 면을 칠한다', () => {
+    const unsized = { ...o([{ id: 'sh', kind: 'sheet', type: 'sh-print', on: 'frame', items: [] }]), widthMm: undefined, heightMm: undefined };
+    const spec = renderSpecOf(unsized, { cx: 0, cy: 0, w: 2400, h: 900 } as never);
+    expect(spec?.faceItems?.some((f) => f.kind === 'shape' && f.fill === '#d9d9d9' && Math.abs(f.w - 2400) < 1)).toBe(true);
   });
 });

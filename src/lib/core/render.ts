@@ -1,5 +1,5 @@
 // 실사 합성 (5차): 사인물 + 벽면 위치 → 시뮬레이터 간판 사양
-import { withSheetAreas } from './sheetArea';
+import { hasPartsToDraw, withSheetAreas } from './sheetArea';
 import { SCASHI_OPTIONS, categoryOf, isChannelProduct, productById, signParts } from './catalog';
 import { itemBox } from './frontView';
 import { componentOf, surfaceOf } from './components';
@@ -120,7 +120,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   }
   // 글자 없는 면 시트 = 올라간 면 전체 (2026-10-22 "시트 2d 3d에서 안나온다") — 저장된 레이어 트리는 그대로 두고 그 시트만 앞면 객체로
   const all = drawnParts(o, partsOf(o));
-  for (const part of withSheetAreas(o, all)) {
+  for (const part of withSheetAreas(o, all, { w: o.widthMm || p.w, h: o.heightMm || p.h })) { // 치수가 없으면 그린 자리 크기
     const src = all.find((x) => x.id === part.id);
     if (!src || src.items.length || !part.items.length) continue;
     const host = part.on && part.on !== 'frame' ? all.find((x) => x.id === part.on) : undefined;
@@ -153,7 +153,8 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const accessories = partsOf(o).flatMap((part) => { const a = componentOf(part.kind).scene?.(part, frameHex(o) ?? frameDefaultColor(o)); if (!a) return []; return [a.kind === 'molding' ? { ...a, widthMm: a.widthMm * k } : { ...a, heightMm: a.heightMm * k, sizeMm: a.sizeMm * k }]; });
   const base = { ...(accessories.length ? { accessories } : {}), id: o.id, text, x: p.cx, y: p.cy, letterSpacing: l?.letterSpacing ?? DEFAULT_LETTER3D.letterSpacing, textColor: '#111111', ...(tl ? { topLight: { kind: tl.kind, count: tl.count, armMm: tl.armMm, color: tl.color, side: tl.side, aim: tl.aim, ...(tl.fixture ? { fixture: tl.fixture } : {}) } } : {}) };
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
-  if (o.parts && (o.widthMm || o.heightMm)) {
+  // 면 시트는 치수가 없어도·옛 시트(sheetIds)여도 그린 자리 크기로 (2026-10-22 "시트가 2d 3d에 적용이 안됐어")
+  if ((o.parts && (o.widthMm || o.heightMm)) || hasPartsToDraw(o)) {
     const comp = composedOf(o, p, d, base.letterSpacing);
     if (comp.letterItems || comp.faceItems) {
       // 몸통 없음·옛 채널 제품·스카시 분류 = 상자 없이 글자만 (사인물 자체가 글자)

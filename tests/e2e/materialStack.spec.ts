@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { clearAutoCamera, openOwnedProject, uploadPhoto } from './helpers';
 
 type G = { __ganpanda: { photos: { id: string }[]; objects: { id: string; parts?: { id: string; kind: string; on?: string; stack?: { material: string; thickness: number }[] }[] }[]; selectObject(id: string): void; project: { addObject(o: unknown): string } } };
 
@@ -219,4 +219,25 @@ test('재질 시트: 제작사·시트 코드는 구성내역에, 미리보기 �
   await page.getByTestId('stage-2d').click();
   const fills = () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
   await expect.poll(fills).toContain('#ff0000');
+});
+
+// 2026-10-22 사용자: "시트가 2d 3d에 적용이 안됐어" (푸르미도그 — 치수를 넣지 않은 시트 사인물·옛 시트)
+test('치수 없는 시트 사인물도 2D 에 면·글자가 칠해진다 (추정 치수 없으면 외곽선 크기)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await clearAutoCamera(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const pid = a.photos[0].id;
+    const q = (x: number, w: number) => [[x, 200], [x + w, 200], [x + w, 500], [x, 500]];
+    a.project.addObject({ photoId: pid, name: '와이드', shape: 'rect', quad: q(50, 600), sheetIds: [], parts: [
+      { id: 'legacy-sheet-sh-cut', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] },
+      { id: 'b', kind: 'sheet', type: 'sh-cut', on: 'legacy-sheet-sh-cut', options: { cutMode: '반컷', sheetMat: '메탈', sheetSystem: '기본색', sheetCode: '파랑' }, items: [{ id: 't', kind: 'text', text: '푸르미도그', x: 0, y: 0, h: 171 }] }] });
+    a.project.addObject({ photoId: pid, name: '윗창2', shape: 'rect', quad: q(700, 300), sheetIds: [], parts: [{ id: 'c', kind: 'sheet', type: 'sh-print', on: 'frame', items: [] }] });
+    a.project.addObject({ photoId: pid, name: '도어', shape: 'rect', quad: q(1050, 200), sheetIds: ['sh-cut'], widthMm: 900, heightMm: 2100 });
+  });
+  await page.getByTestId('stage-2d').click();
+  const fills = () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
+  await expect.poll(fills).toEqual(expect.arrayContaining(['#ffffff', '#d9d9d9']));
+  await expect(page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] text', { hasText: '푸르미도그' }).first()).toBeAttached();
 });

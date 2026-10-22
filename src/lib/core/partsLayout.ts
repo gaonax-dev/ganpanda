@@ -31,7 +31,7 @@ export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, 
   const base = o.parts ?? partsOf(o).filter((p) => componentOf(p.kind).areaFill);
   if (!base.length || !(mmW > 0) || !(mmH > 0)) return [];
   const sx = W / mmW, sy = H / mmH;
-  return layerOrder(withSheetAreas(o, drawnParts(o, base))).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
+  return layerOrder(withSheetAreas(o, drawnParts(o, base), { w: mmW, h: mmH })).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
     const b = itemBox(it);
     return {
       id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),

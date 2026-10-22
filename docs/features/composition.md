@@ -30,6 +30,7 @@
 - 재질 시트·안개 시트 옵션: **시트 제작사**(`sheetMaker`, 글자) · **시트 코드**(`sheetNo`, 글자) — 구성내역·주문서에 "재질 시트 단색 3M 7725-12 …". 제작사·코드 목록은 나중에 DB 로(사용자가 넣음) — 지금은 글자 입력.
 - **미리보기 색**(`previewColor`, `kind: 'color'`, `preview`): 2D·3D·단면 화면 색만, 요약·주문 사양에는 없음(`partOptionValues`·`describeOptions` 가 미리보기 제외). 편집기는 색 고르기 + ✕(지우기).
 - 시트의 도색 필드(`sheetSystem`·`sheetCode`·광택·투명도)는 없앴다. 옛 값은 읽을 때 미리보기 색으로 옮긴다(`sheet.normalize` — 예: 기본색 검정 → `#141414`). UV 출력은 바탕·잉크 그대로(코드 없음).
+- **치수를 넣지 않은 시트 사인물·옛 시트도**(2026-10-22 "시트가 2d 3d에 적용이 안됐어" — 푸르미도그 와이드·윗창): 2D 는 입력 치수 > 실측 추정 치수 > 외곽선 크기(사진 px) 순으로 크기를 정해 그리고(`PhotoZone drawMm`), 3D 는 원근 면 위 그린 자리 크기(mm)로(`renderSpecOf` 가 면 시트가 있으면 치수 없이도 조합형으로). 치수를 넣으면 정확해진다.
 - 2D: `layoutParts`(사진 위·카드·리스트·PDF)와 사진 위 겹침 조건 `hasPartsToDraw`. 3D: `render.ts composedOf` 가 저장된 레이어 트리는 그대로 두고 면 시트만 앞면 객체로 더한다(구성 요소 위면 그 두께만큼 앞).
 - 테스트: `tests/unit/sheetArea.test.ts`, `tests/e2e/materialStack.spec.ts`("글자 없는 시트").
 

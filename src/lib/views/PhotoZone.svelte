@@ -446,6 +446,14 @@
     onmove((e.clientX - headerDrag.x) / zoom, (e.clientY - headerDrag.y) / zoom);
     headerDrag = { x: e.clientX, y: e.clientY };
   }
+  /** 그릴 때 쓸 사인물 크기(mm): 입력 치수 > 실측 추정 > 외곽선 크기(사진 px) */
+  function drawMm(o: SignObject): { w: number; h: number } {
+    if (o.widthMm && o.heightMm) return { w: o.widthMm, h: o.heightMm };
+    const sz = app.sizeOf(o);
+    if (sz) return { w: sz.w, h: sz.h };
+    const q = quadOf(o);
+    return { w: Math.max(1, Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1])), h: Math.max(1, Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1])) };
+  }
 </script>
 
 <!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
@@ -544,14 +552,16 @@
         </div>
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
-      {#each objects.filter((o) => o.widthMm && o.heightMm && hasPartsToDraw(o)) as o (o.id)}
+      {#each objects.filter((o) => (o.parts?.some((p) => p.items.length) && o.widthMm && o.heightMm) || hasPartsToDraw(o)) as o (o.id)}
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
-        {@const pb = capBox(o.widthMm! * 0.5, o.heightMm! * 0.5)}<!-- 3D 층 크기 제한 (2026-10-21 휴대폰 크래시) -->
+        <!-- 치수가 없으면 추정 치수, 그것도 없으면 외곽선 크기(사진 px) — 면 시트가 빠지지 않게 (2026-10-22 "시트가 2d 3d에 적용이 안됐어") -->
+        {@const mm = drawMm(o)}
+        {@const pb = capBox(mm.w * 0.5, mm.h * 0.5)}<!-- 3D 층 크기 제한 (2026-10-21 휴대폰 크래시) -->
         {@const pw = pb.w}
         {@const ph = pb.h}
         <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
           <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
-            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={o.widthMm!} mmH={o.heightMm!} w={pw} h={ph} /></div>
+            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={mm.w} mmH={mm.h} w={pw} h={ph} /></div>
           </div>
         </div>
       {/each}
