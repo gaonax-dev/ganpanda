@@ -266,6 +266,7 @@ test('스카시 재료 층: 고무 스카시 = 철판 + 고무 묶음, 철판을
 test('UV 후렉스 출력: 몸통에 배경색(미리보기), [+ 글자]·[+ 그림]은 미리보기 구성 요소(디자이너 참고 — 컷팅 옵션·견적 줄 없음)로, 2D 사진 위에 글자가 보인다 (2026-10-21)', async ({ page, request }) => {
   // 2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"
   await openOwnedProject(page, request);
+  await page.getByTestId('view-design').click(); // 2D 는 디자인 탭 (2026-10-22 작업 탭)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

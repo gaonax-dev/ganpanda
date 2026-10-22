@@ -171,6 +171,7 @@ test('3D 단계: 사인물을 눌러 고르면 면 막대가 뜨고(맨 위라 �
   await setCamera(page);
   const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
   await page.evaluate(() => (window as unknown as { __ganpanda: { selectObject(id: string | null): void } }).__ganpanda.selectObject(null));
+  await page.getByTestId('view-design').click();
   await page.getByTestId('stage-3d').click();
   const overlay = page.getByTestId('photo-overlay');
   await expect(overlay).toHaveCount(1, { timeout: 30_000 });
@@ -267,6 +268,7 @@ test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async 
   await expect(page.getByTestId('face-cycle')).toHaveAttribute('data-axis', 'z');
   await tapDot(page); // Z → X
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
+  await page.getByTestId('view-design').click();
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
 });

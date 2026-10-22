@@ -182,7 +182,8 @@ test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
     app.project.addObject({ photoId: app.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex' });
   });
-  await expect(page.getByTestId('view-uv')).toHaveText('디자인');
+  await page.getByTestId('view-design').click(); // 디자인 탭 안의 [파일] (2026-10-22)
+  await expect(page.getByTestId('view-uv')).toHaveText('파일');
   await page.getByTestId('view-uv').click();
   const panel = page.getByTestId('link-panel');
   await expect(panel).toBeHidden();

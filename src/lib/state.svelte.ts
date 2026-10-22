@@ -171,7 +171,26 @@ class AppState {
   /** 마지막으로 저장한 실사 PNG (데이터 URL, 테스트·재첨부용) */
   /** 보드 단계: 원본(실측·편집) / 3D(모든 사진 위에 합성 결과를 겹침, 편집 없음). 2026-10-15 사용자: "3D 는 화면에 바로 올리고" */
   /** 보드 단계 (2026-10-17 사용자: "원본 2d 3d 이렇게 해줘. 2d가 현재 보여주는 형식이고 원본은 실측만 나오게"): original = 외곽선·치수만, 2d = 바탕색·디자인·글자 겹침(기본), 3d = 합성 */
-  stage = $state<'original' | '2d' | '3d'>('2d');
+  stage = $state<'original' | '2d' | '3d'>('original');
+  /**
+   * 작업 탭 (2026-10-22 사용자: "사진보드, 러프디자인(2d,3d),사인물리스트, 컨펌 으로" → "러프를 디자인으로 변경하고 거기에 포함"):
+   * 사진보드 = 실측(stage original) · 디자인 = 2D·3D·디자인 파일 · 사인물리스트 · 컨펌 = 제안 미리보기(proposalMode). 처음은 사진보드
+   */
+  designStage = $state<'2d' | '3d'>('2d');
+  get tab(): 'board' | 'design' | 'list' | 'confirm' {
+    if (this.proposalMode) return 'confirm';
+    if (this.view === 'list') return 'list';
+    if (this.view === 'uv' || this.stage !== 'original') return 'design';
+    return 'board';
+  }
+  setTab(t: 'board' | 'design' | 'list' | 'confirm') {
+    if (t === 'confirm') { this.proposalMode = true; return; }
+    this.proposalMode = false;
+    if (t === 'list') this.view = 'list';
+    else if (t === 'board') { this.view = 'board'; this.stage = 'original'; }
+    else { this.view = 'board'; this.stage = this.designStage; }
+  }
+  setDesignStage(s: '2d' | '3d') { this.designStage = s; this.view = 'board'; this.stage = s; }
   /** ?safe=1 — 휴대폰 크래시 원인 가르기용 (2026-10-18): 2D 겹침·카드 얼굴을 그리지 않는다 */
   safeMode = $state(false);
   /** 3D 단계의 사진별 합성 결과 (내용 키 + 데이터 URL) */
@@ -833,6 +852,8 @@ class AppState {
       try {
         const a = await checkAccess(room, this.invite);
         this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}) };
+        // 사진 보드만 보는 고객(보기 초대)은 탭이 없으니 디자인(2D)으로 — 실측 화면에서 시작하면 디자인이 안 보인다 (2026-10-22 작업 탭)
+        if (a.role === 'viewer' && !this.requestView) this.stage = '2d';
         const session = loadSession();
         const useSession = (a.role === 'owner' || !this.invite) && !!session;
         params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };

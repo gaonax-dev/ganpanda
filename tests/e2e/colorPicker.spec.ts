@@ -6,6 +6,7 @@ const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((win
 
 test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피커 → 직접 #hex, 체계 RAL 코드. 칩·요약·3D 색에 반영', async ({ page, request }) => {
   await openOwnedProject(page, request, '컬러');
+  await page.getByTestId('view-design').click(); // 2D 는 디자인 탭 (2026-10-22 작업 탭)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

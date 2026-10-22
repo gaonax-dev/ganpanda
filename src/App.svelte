@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, type ViewKind } from './lib/state.svelte';
+  import { app } from './lib/state.svelte';
   import { PLAN_LABEL, fetchProviders, socialStartUrl, type SocialProvider } from './lib/auth';
   // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
   let providers = $state<SocialProvider[]>([]);
@@ -85,11 +85,12 @@
   });
 
   /** 휴대폰 폭에서는 짧은 라벨 (short) */
-  const VIEWS: { id: ViewKind; label: string; short: string }[] = [
-    { id: 'board', label: '사진 보드', short: '보드' },
-    { id: 'list', label: '사인물 리스트', short: '리스트' },
-    // 'UV 뷰' → '디자인 파일' (2026-10-15 사용자: "uv맵이라고 했는데 디자인 파일 또는 소스 이미지로"). id 'uv' 는 데이터·테스트 호환상 유지
-    { id: 'uv', label: '디자인 파일', short: '디자인' },
+  // 작업 탭 (2026-10-22 "사진보드, 러프디자인(2d,3d),사인물리스트, 컨펌 으로" → "러프를 디자인으로 변경하고 거기에 포함"): 디자인 탭 안에 2D·3D·디자인 파일
+  const TABS: { id: 'board' | 'design' | 'list' | 'confirm'; label: string; short: string }[] = [
+    { id: 'board', label: '사진보드', short: '보드' },
+    { id: 'design', label: '디자인', short: '디자인' },
+    { id: 'list', label: '사인물리스트', short: '리스트' },
+    { id: 'confirm', label: '컨펌', short: '컨펌' },
   ];
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
@@ -123,9 +124,9 @@
       {/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
-    {#if app.room && app.access.status === 'ok' && !app.proposalMode && app.view === 'board'}
+    {#if app.room && app.access.status === 'ok' && !app.proposalMode && (app.view === 'board' || app.view === 'uv')}
       <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
-      {#if app.compact && app.selected && app.canEdit}
+      {#if app.compact && app.selected && app.canEdit && app.view === 'board'}
         <!-- 휴대폰: 사인물을 고르면 단계 자리에 복사·붙여넣기·복제 (2026-10-18 사용자) + 말풍선·정리·녹음 (같은 날: "상단 메뉴에 녹음 버튼 … 말풍선도 여기로 … 녹음이 맨 오른쪽 같은자리에 정리버튼") -->
         <!-- [다중] 복사 앞 (2026-10-19 사용자: "모바일에 다중선택 버튼 복사 앞에 그리고 다중 선택켜지면 말풍선 녹음 사라지게") -->
         <div class="views stage" data-testid="mobile-edit">
@@ -142,20 +143,24 @@
           {/if}
         </div>
       {:else}
+      {#if app.tab === 'design'}
+      <!-- 디자인 탭 안: 2D(사진 위 평면) · 3D(합성) · 디자인 파일(일러스트·SVG 연결) -->
       <div class="views stage" data-testid="stage">
-        <button data-testid="stage-original" class:on={app.stage === 'original'} title="실측 — 사진 그대로, 외곽선·치수만{app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}" onclick={() => (app.stage = 'original')}>실측{#if app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}</button> <!-- 2026-10-18 사용자: "원본 2D 3D를 실측, 2D, 3D 로" -->
-        <button data-testid="stage-2d" class:on={app.stage === '2d'} title="바탕색·디자인·글자를 사진 위에 평면으로" onclick={() => (app.stage = '2d')}>2D</button>
-        <button data-testid="stage-3d" class:on={app.stage === '3d'} onclick={() => (app.stage = '3d')}>3D</button>
+        <button data-testid="stage-2d" class:on={app.view === 'board' && app.stage === '2d'} title="바탕색·디자인·글자를 사진 위에 평면으로" onclick={() => app.setDesignStage('2d')}>2D</button>
+        <button data-testid="stage-3d" class:on={app.view === 'board' && app.stage === '3d'} onclick={() => app.setDesignStage('3d')}>3D</button>
+        {#if !app.boardOnly}<button data-testid="view-uv" class:on={app.view === 'uv'} title="일러스트·SVG 디자인 파일을 올려 사인물에 연결" onclick={() => (app.view = 'uv')}>{app.compact ? '파일' : '디자인 파일'}</button>{/if}
       </div>
       {/if}
+      {/if}
     {/if}
-    <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode || app.boardOnly}>
-      {#each VIEWS.filter((v) => (!app.isCustomer || v.id === 'board' || (app.requestView && v.id === 'list'))) as v (v.id)}
-        <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
-          {app.compact ? v.short : v.label}
-          {#if v.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
-          {#if v.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
-          {#if v.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
+    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly}>
+      {#each TABS.filter((t) => (app.isCustomer ? t.id === 'board' || (!!app.requestView && t.id === 'list') : t.id !== 'confirm' || (app.canEdit && !app.consumer))) as t (t.id)}
+        <button data-testid="view-{t.id}" class:on={app.tab === t.id} title={t.id === 'board' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === 'design' ? '2D · 3D · 디자인 파일' : t.id === 'confirm' ? '고객이 볼 제안 화면 — 확인하고 보내기' : ''} onclick={() => app.setTab(t.id)}>
+          {app.compact ? t.short : t.label}
+          {#if t.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
+          {#if t.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
+          {#if t.id === 'board' && app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}
+          {#if t.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
         </button>
       {/each}
     </div>

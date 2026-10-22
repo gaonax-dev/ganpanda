@@ -48,6 +48,7 @@ async function dragOnSource(page: Page, pageIndex: number, from: [number, number
 test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가 되고, 영역을 그려 사인물에 입힌다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await makeSign(page);
+  await page.getByTestId('view-design').click(); // 디자인 파일은 디자인 탭 안 (2026-10-22)
   await page.getByTestId('view-uv').click();
   await page.getByTestId('source-input').setInputFiles({ name: '간판 시안.ai', mimeType: 'application/postscript', buffer: twoPagePdf() });
   await expect(page.getByTestId('source-page')).toHaveCount(2, { timeout: 30_000 });
@@ -74,8 +75,8 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
   await expect(page.getByTestId('crop-rect')).toHaveCount(0);
   await page.getByTestId('uv-object').first().click();
 
-  // 사진 보드와 전개도에 디자인이 보인다
-  await page.getByTestId('view-board').click();
+  // 사진 위(디자인 탭 2D)와 전개도에 디자인이 보인다
+  await page.getByTestId('stage-2d').click();
   await expect(page.getByTestId('photo-zone').getByTestId('design-image')).toHaveCount(1); // 사진 위 (보드 평면도 카드에도 한 번 더 보인다)
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-design')).toHaveCount(1);
@@ -89,6 +90,7 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
 test('영역을 바꾸면 히스토리가 쌓이고, 이전 것을 눌러 되돌릴 수 있다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await makeSign(page);
+  await page.getByTestId('view-design').click(); // 디자인 파일은 디자인 탭 안 (2026-10-22)
   await page.getByTestId('view-uv').click();
   await page.getByTestId('source-input').setInputFiles({ name: '시안.pdf', mimeType: 'application/pdf', buffer: twoPagePdf() });
   await expect(page.getByTestId('source-page')).toHaveCount(2, { timeout: 30_000 });
@@ -106,6 +108,7 @@ test('영역을 바꾸면 히스토리가 쌓이고, 이전 것을 눌러 되돌
 
 test('PDF 호환이 아닌 .ai 는 안내하고, 이미지 파일은 바로 소스가 된다', async ({ page, request }) => {
   await openOwnedProject(page, request);
+  await page.getByTestId('view-design').click(); // 디자인 파일은 디자인 탭 안 (2026-10-22)
   await page.getByTestId('view-uv').click();
   await page.getByTestId('source-input').setInputFiles({ name: '옛날.ai', mimeType: 'application/postscript', buffer: Buffer.from('%!PS-Adobe-3.0 not a pdf') });
   await expect(page.getByTestId('notice')).toContainText('PDF 호환');

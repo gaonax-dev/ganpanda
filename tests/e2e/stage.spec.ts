@@ -23,16 +23,18 @@ async function setup(page: import('@playwright/test').Page, request: import('@pl
 
 test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨는다, 내용이 바뀌면 다시 그리고, 원본으로 돌아오면 사라진다', async ({ page, request }) => {
   await setup(page, request);
+  await page.getByTestId('view-design').click(); // 2D 는 디자인 탭 (2026-10-22 작업 탭)
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   // 단계 원본 / 2D / 3D (2026-10-17 "2d가 현재 보여주는 형식이고 원본은 실측만"): 기본 2D 에는 바탕이 그려지고, 원본은 외곽선·치수만
   await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
   await expect(page.getByTestId('sign-fill')).toHaveCount(1);
   expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 248, 230)'); // 후렉스 기본 바탕
-  await page.getByTestId('stage-original').click();
+  await page.getByTestId('view-board').click();
   await expect(page.getByTestId('sign-fill')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
-  await page.getByTestId('stage-2d').click();
+  await page.getByTestId('view-design').click();
+  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
   await expect(page.getByTestId('sign-fill')).toHaveCount(1);
   await page.getByTestId('stage-3d').click();
   // 3D 에서는 그리기·존·자동 도구가 흐려지고(비활성), 선택·핀·사진 추가는 그대로 (2026-10-17 "3d에서는 툴바에서 작동하지 않는 기능이 있다")
@@ -57,7 +59,7 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(third);
   // 렌더링 버튼은 사진마다 그대로 (디자인 포함 최종 합성 창)
   await expect(page.getByTestId('render-open')).toContainText('렌더링');
-  await page.getByTestId('stage-original').click();
+  await page.getByTestId('view-board').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   await expect(page.getByTestId('tool-rect')).toBeEnabled();
@@ -78,7 +80,7 @@ test('[실측] 단추에 가로·세로를 아직 넣지 않은 사인물 수가
   });
   const badge = page.getByTestId('unmeasured-count');
   await expect(badge).toHaveText('2');
-  await expect(page.getByTestId('stage-original')).toHaveAttribute('title', /미실측 2/);
+  await expect(page.getByTestId('view-board')).toHaveAttribute('title', /미실측 2/); // 실측 = 사진보드 탭 (2026-10-22)
   await page.evaluate(({ h }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(h, { heightMm: 200 }), ids);
   await expect(badge).toHaveText('1');
   await page.evaluate(({ n }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(n, { widthMm: 500, heightMm: 500 }), ids);
