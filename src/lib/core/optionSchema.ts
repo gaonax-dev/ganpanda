@@ -11,7 +11,8 @@ export type Options = Record<string, OptionValue>;
 export interface OptionField {
   key: string;
   label: string;
-  kind: 'select' | 'toggle' | 'text';
+  /** color = 색 고르기 (미리보기 색, 2026-10-22) */
+  kind: 'select' | 'toggle' | 'text' | 'color';
   values?: { id: string; label: string }[];
   placeholder?: string;
   /** 조건부 표시 (같은 사인물의 다른 옵션 값에 따라) */
@@ -256,13 +257,20 @@ const CUT = (kind: string): OptionField[] => [
   tog('transferTape', '보조시트 (어플리케이션 테이프)', (opts) => cutOn(opts) && opts.cutMode !== '반컷'),
 ];
 /** 시트 구성내역 문구에 들어가는 키 (요약에서 따로 적지 않는다) */
-export const SHEET_SPEC_KEYS = new Set(['sheetMat', 'cut', 'cutMode', 'transferTape']);
+export const SHEET_SPEC_KEYS = new Set(['sheetMat', 'sheetMaker', 'sheetNo', 'cut', 'cutMode', 'transferTape']);
 const INK = sel('ink', '잉크', ['UV', '솔벤트']);
+/** 시트 제작사·코드(주문 사양) + 미리보기 색(2D·3D 화면만) */
+const SHEET_CODE: OptionField[] = [
+  txt('sheetMaker', '시트 제작사', '예: 3M, LG하우시스, 현대L&C, 오라칼'),
+  txt('sheetNo', '시트 코드', '예: 7725-12'),
+  { key: 'previewColor', label: '미리보기 색', kind: 'color', preview: true },
+];
 /** 시트별 (2026-10-15 사용자: "시트: uv실사(흰색,회색), 단색(재질)시트,안개") */
 export const SHEET_OPTIONS: Record<string, OptionField[]> = {
   'sh-print': [sel('base', '바탕', ['흰색', '회색']), INK, ...CUT('돔보컷팅')],
-  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램', '안개']), ...paint('sheet', '시트 색'), ...CUT('커팅')], // 시트 색 (2026-10-17 색 누락 점검: 단색 시트에 색이 없었다)
-  'sh-frost': [...CUT('커팅')],
+  // 시트는 도색이 없다 — 제작사·시트 코드로 주문하고 화면 색은 미리보기 색 따로 (2026-10-22 "시트는 도색이 없다 … 미리보기 색상 따로 시트 제작사 시트코드가 필요해", 코드 목록은 DB 예정)
+  'sh-cut': [sel('sheetMat', '재질', ['단색', '반사', '투명', '메탈', '홀로그램', '안개']), ...SHEET_CODE, ...CUT('커팅')],
+  'sh-frost': [...SHEET_CODE, ...CUT('커팅')],
   'sh-perf': [INK],
 };
 

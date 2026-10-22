@@ -194,3 +194,29 @@ test('글자 없는 시트(UV·안개·재질 시트 컷팅 없음·옛 시트)�
   const fills = async () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
   await expect.poll(fills).toEqual(expect.arrayContaining(['#d9d9d9', '#e9f0f5', '#141414', '#ffffff']));
 });
+
+// 2026-10-22 사용자: "시트는 도색이 없다. uv출력과 회사별 시트 코드가 있다. 맞아 미리보기 색상 따로 시트 제작사 시트코드가 필요해"
+test('재질 시트: 제작사·시트 코드는 구성내역에, 미리보기 색은 화면(2D)에만 — 도색 칸 없음', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const id = a.project.addObject({ photoId: a.photos[0].id, name: '폴딩시트', shape: 'rect', quad: [[100, 200], [400, 200], [400, 700], [100, 700]], sheetIds: [], widthMm: 410, heightMm: 2010, parts: [{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', options: { cut: '컷팅 없음' }, items: [] }] });
+    a.selectObject(id);
+  });
+  await page.getByTestId('object-settings-open').click();
+  const dlg = page.getByTestId('object-settings');
+  await dlg.getByTestId('quick-part').first().click();
+  await expect(dlg.getByTestId('part-option-sheetSystem')).toHaveCount(0);
+  await dlg.getByTestId('part-option-sheetMaker').fill('3M');
+  await dlg.getByTestId('part-option-sheetMaker').press('Tab');
+  await dlg.getByTestId('part-option-sheetNo').fill('7725-12');
+  await dlg.getByTestId('part-option-sheetNo').press('Tab');
+  await dlg.getByTestId('part-option-previewColor').fill('#ff0000');
+  await expect(dlg.getByTestId('part-spec')).toContainText('3M 7725-12');
+  await expect(dlg.getByTestId('part-spec')).not.toContainText('#ff0000');
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('stage-2d').click();
+  const fills = () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
+  await expect.poll(fills).toContain('#ff0000');
+});

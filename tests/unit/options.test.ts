@@ -34,7 +34,7 @@ describe('주문 사양 옵션 스키마', () => {
   });
   it('시트: 코팅 + 종류별 + 컷팅(컷팅·컷 방식·완컷이면 보조시트) — 2026-10-16 컷팅은 옵션', () => {
     expect(keys(obj({ sheetIds: ['sh-print'] }))).toEqual(['coating', 'base', 'ink', 'cut', 'cutMode', 'transferTape']);
-    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['coating', 'sheetMat', 'sheetSystem', 'cut', 'cutMode', 'transferTape']); // 시트 색 (2026-10-17)
+    expect(keys(obj({ sheetIds: ['sh-cut'] }))).toEqual(['coating', 'sheetMat', 'sheetMaker', 'sheetNo', 'cut', 'cutMode', 'transferTape', 'previewColor']); // 미리보기 묶음은 끝에 · 시트는 도색 없이 제작사·코드 + 미리보기 색 (2026-10-22)
     expect(keys(obj({}))).toEqual([]);
   });
   it('요약 문구: 고른 값·켜진 토글·코드만', () => {

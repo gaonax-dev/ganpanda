@@ -17,7 +17,7 @@ export function partOptionFields(part: import('./model').SignPart): OptionField[
 
 /** 구성 요소 옵션의 실제 값 (기본값 채움) — 주문 JSON 용 */
 export function effectivePartOptions(part: import('./model').SignPart): Options {
-  return Object.fromEntries(partOptionFields(part).map((f) => [f.key, optionValue(f, part.options ?? {})]));
+  return Object.fromEntries(partOptionFields(part).filter((f) => !f.preview).map((f) => [f.key, optionValue(f, part.options ?? {})])); // 미리보기(색) 제외
 }
 
 /** 이 사인물에 보여 줄 옵션 묶음 (조건부 필드는 현재 값으로 거른다) */
@@ -76,7 +76,7 @@ export function describeOptions(o: SignObject, { defaults = false } = {}): strin
   const shown = new Set((o.parts || legacyParts ? all : all.filter((p) => componentOf(p.kind).fromBody)).map((p) => p.id)); // 옛 사인물: 몸통 옵션이던 상단 조명만 구성 요소로
   if (!shown.size) return fromOptions;
   const lines = describeParts(o);
-  return [...fromOptions, ...all.flatMap((p, i) => !shown.has(p.id) ? [] : [lines[i], ...partOptionFields(p).filter((f) => !componentOf(p.kind).specKeys?.has(f.key)).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
+  return [...fromOptions, ...all.flatMap((p, i) => !shown.has(p.id) ? [] : [lines[i], ...partOptionFields(p).filter((f) => !f.preview && !componentOf(p.kind).specKeys?.has(f.key)).map((f) => describeField(f, defaults ? optionValue(f, p.options ?? {}) : p.options?.[f.key])).filter((s): s is string => !!s)])];
 }
 
 /** 보이는 필드 전부의 실제 값 (기본값 채움) — 주문 JSON 용 */

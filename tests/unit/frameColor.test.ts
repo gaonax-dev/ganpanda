@@ -37,8 +37,10 @@ describe('프레임이 있는 종류에는 프레임 색, 인쇄물 면은 출�
     expect(partOptionFields(ch).some((f) => f.key === 'capSystem')).toBe(false);
     ch.options = { chFrame: '200폭' };
     expect(partOptionFields(ch).some((f) => f.key === 'chFramePaintSystem')).toBe(true);
-    expect(partOptionFields(newPart('sheet', 'sh-cut')).some((f) => f.key === 'sheetSystem')).toBe(true);
-    expect(partOptionFields(newPart('sheet', 'sh-print')).some((f) => f.key === 'sheetSystem')).toBe(false);
+    // 시트는 도색이 없다 — 미리보기 색 (2026-10-22)
+    expect(partOptionFields(newPart('sheet', 'sh-cut')).some((f) => f.key === 'previewColor')).toBe(true);
+    expect(partOptionFields(newPart('sheet', 'sh-cut')).some((f) => f.key === 'sheetSystem')).toBe(false);
+    expect(partOptionFields(newPart('sheet', 'sh-print')).some((f) => f.key === 'previewColor')).toBe(false);
   });
 });
 

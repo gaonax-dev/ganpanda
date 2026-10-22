@@ -171,6 +171,12 @@
                 {#each f.values ?? [] as o2 (o2.id)}<option value={o2.id}>{o2.label}</option>{/each}
               </select>
             </label>
+          {:else if f.kind === 'color'}
+            <!-- 미리보기 색 (2026-10-22 시트: 도색 대신 화면 색만 — 주문은 제작사·시트 코드) -->
+            <label class="opt">{f.label}{#if f.preview}<small class="pv">화면만</small>{/if}
+              <span class="colorrow"><input type="color" data-testid="part-option-{f.key}" value={/^#[0-9a-f]{6}$/i.test(String(v)) ? String(v) : '#ffffff'} disabled={ro} onchange={(e) => setPartOption(i, f, e.currentTarget.value)} />
+              {#if v && !ro}<button class="icon" data-testid="part-option-{f.key}-clear" title="미리보기 색 지우기" onclick={() => setPartOption(i, f, '')}>✕</button>{/if}</span>
+            </label>
           {:else if f.kind === 'toggle'}
             <label class="check"><input type="checkbox" data-testid="part-option-{f.key}" checked={v === true} disabled={ro} onchange={(e) => setPartOption(i, f, e.currentTarget.checked)} /> {f.label}</label>
           {:else}
@@ -247,6 +253,9 @@
   .layer .t input { width: 56px; text-align: right; }
   .layer .fin { display: flex; align-items: center; gap: 4px; color: var(--muted); }
   .stack .row { display: flex; gap: 6px; }
+  .pv { margin-left: 4px; color: var(--muted); font-size: 11px; }
+  .colorrow { display: inline-flex; align-items: center; gap: 4px; }
+  .colorrow input[type='color'] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
   .stack .row.mats { flex-wrap: wrap; align-items: center; }
   .stack .row.mats small { color: var(--muted); }
   .opt { display: flex; flex-direction: row; align-items: center; font-size: 12px; gap: 6px; } /* 가로 한 줄 (2026-10-18) */
