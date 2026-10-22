@@ -151,11 +151,16 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   // 견적 요청서 = 사인물 리스트 뷰 (2026-10-22 "견적요청서 리스트가 있어야 견적이 쉽다" → "모바일에서는 … 사인물 리스트를 사용하면 안되나?") — 금액은 없음
   await shop.getByTestId('request-sheet-toggle').click();
   await expect(shop.getByTestId('list-card')).toHaveCount(1);
-  await expect(shop.getByTestId('quote-panel')).toHaveCount(0);
   await expect(shop.getByTestId('list-card').locator('.price')).toHaveCount(0);
+  // 견적 패널은 금액 빠진 품목 리스트 (2026-10-22 "데스크탑의 견적을 약간 개량해서 금액이 빠진 품목 리스트로")
+  await expect(shop.getByTestId('quote-items-only')).toBeVisible();
+  await expect(shop.getByTestId('quote-line').first()).toBeVisible();
+  expect(await shop.getByTestId('quote-panel').innerText()).not.toMatch(/\d원/);
+  await expect(shop.getByTestId('quote-total')).toHaveCount(0);
   await shop.setViewportSize({ width: 390, height: 800 }); // 휴대폰 아래 막대에서도
   await expect(shop.getByTestId('tab-pdf')).toBeVisible();
-  for (const t of ['quote-toggle', 'tab-order', 'tab-quote-sheet', 'open-quote-sheet']) await expect(shop.getByTestId(t)).toHaveCount(0);
+  for (const t of ['tab-order', 'tab-quote-sheet', 'open-quote-sheet']) await expect(shop.getByTestId(t)).toHaveCount(0);
+  await expect(shop.getByTestId('quote-toggle')).toHaveText(/^품목/); // 휴대폰: [품목] (금액 없음)
   await shop.setViewportSize({ width: 1280, height: 800 }); // 주문서도 금액 — 감춤 (2026-10-22 "주문서를 누르면 가격이 나온다")
   await shop.getByTestId('request-sheet-toggle').click(); // 사진 보드로
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6'); // 실측 보기 = 파랑

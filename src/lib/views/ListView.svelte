@@ -1,5 +1,6 @@
 <!-- 사인물 리스트 뷰: 모든 사인물을 원근 보정해 실제 mm 축척으로 펼친 전개도 + 견적 -->
 <script lang="ts">
+  import { itemDetail } from '../core/priceFormat';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
@@ -295,11 +296,11 @@
   {#if app.compact}
     <!-- 휴대폰 하단 탭 -->
     <nav class="ltabs" data-testid="list-tabs">
-      <!-- 실측 보기(가게 사장 보드)는 금액 없음 — 견적·주문·주문서 감춤 (2026-10-22 "주문서를 누르면 가격이 나온다") -->
-      {#if !app.noPrices}
+      <!-- 실측 보기(가게 사장 보드)는 금액 없음 — [품목]만, 주문·주문서 감춤 (2026-10-22 "주문서를 누르면 가격이 나온다" → "금액이 빠진 품목 리스트") -->
       <button class="qt" class:on={quoteMode !== 'closed'} data-testid="quote-toggle" onclick={() => (quoteMode = quoteMode === 'closed' ? 'half' : 'closed')}>
-        견적 {quoteMode === 'closed' ? '▲' : '▼'}<b>{won(quote.total)}</b>
+        {app.noPrices ? '품목' : '견적'} {quoteMode === 'closed' ? '▲' : '▼'}{#if !app.noPrices}<b>{won(quote.total)}</b>{/if}
       </button>
+      {#if !app.noPrices}
       {#if app.canEdit}<button data-testid="tab-prices" onclick={() => (app.pricesOpen = true)}>단가</button>{/if}
       <button data-testid="tab-order" onclick={() => (app.orderOpen = true)}>주문</button>
       <button data-testid="tab-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서</button>
@@ -308,16 +309,15 @@
       <button title="전개도 맞춤" onclick={fit}>⤢</button>
     </nav>
   {/if}
-  {#if !app.noPrices}
   <aside class="quote" class:hidden={app.compact && quoteMode === 'closed'} class:full={app.compact && quoteMode === 'full'} data-testid="quote-panel" data-mode={app.compact ? quoteMode : 'side'}>
     <header>
-      <h2>견적{#if app.consumer}<small class="ref" data-testid="quote-reference" title="예시 단가로 계산한 참고 금액 — 간판집마다 다릅니다"> 참고 금액</small>{/if}</h2>
+      <h2>{app.noPrices ? '품목 리스트' : '견적'}{#if app.noPrices}<small class="ref" data-testid="quote-items-only" title="가게 사장 보드에는 단가가 없어 금액은 빼고 품목만 — 내 프로젝트로 가져오면 내 단가로 견적"> 금액 없음</small>{/if}{#if app.consumer}<small class="ref" data-testid="quote-reference" title="예시 단가로 계산한 참고 금액 — 간판집마다 다릅니다"> 참고 금액</small>{/if}</h2>
       {#if app.compact}
         <button class="icon" data-testid="quote-size" title={quoteMode === 'full' ? '줄이기' : '크게'} onclick={() => (quoteMode = quoteMode === 'full' ? 'half' : 'full')}>{quoteMode === 'full' ? '⤡' : '⤢'}</button>
         <button class="icon" title="접기" data-testid="quote-close" onclick={() => (quoteMode = 'closed')}>✕</button>
       {/if}
       <span class="actions" class:hidden={app.compact}>
-        {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 단가·주문서가 없다 -->
+        {#if !app.consumer && !app.noPrices}<!-- 소비자 견적 요청 모드(2026-10-21)·실측 보기(2026-10-22)에는 단가·주문서가 없다 -->
         {#if app.canEdit}<button class="btn small" data-testid="open-prices" onclick={() => (app.pricesOpen = true)}>단가 설정</button>{/if}
         <button class="btn small" data-testid="open-order" onclick={() => (app.orderOpen = true)}>주문 정보</button>
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
@@ -350,12 +350,13 @@
       {/if}
       {#each quote.lines as l, i (i)}
         <div class="line" class:zero={!l.amount} class:loss={app.seesMargin && l.loss} data-testid="quote-line" data-key={l.key}>
-          <button class="info" data-testid="line-open" disabled={!app.seesMargin} onclick={() => (openObj = openObj === l.objectId ? null : l.objectId)}><span>{l.label}</span><small>{l.detail}</small>
+          <button class="info" data-testid="line-open" disabled={!app.seesMargin} onclick={() => (openObj = openObj === l.objectId ? null : l.objectId)}><span>{l.label}</span><small>{app.noPrices ? itemDetail(l.detail) : l.detail}</small>
             {#if app.seesMargin && l.cost !== undefined && !l.needsInput}
               <small class="mg" data-testid="line-margin">{app.seesCost ? `원가 ${won(l.cost)} · ` : ''}이익율 {pct(l.amount ? (l.amount - l.cost) / l.amount : null)}{#if l.loss} <b class="lossb" data-testid="line-loss">손해</b>{/if}</small>
             {/if}
           </button>
-          {#if app.canEdit}
+          {#if app.noPrices}<span class="muted"></span>
+          {:else if app.canEdit}
             <span class="amtcell">
               <input class="amt" data-testid="line-amount" type="number" min="0" step="1000" value={l.needsInput ? '' : l.amount} placeholder="금액 입력" title={`자동 금액 ${won(l.auto ?? 0)}`} onchange={(e) => setLine(l.key, e.currentTarget.value)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
               {#if l.manual}<button class="btn small" data-testid="line-auto" title={`자동 금액 ${won(l.auto ?? 0)}으로`} onclick={() => app.setLineAmount(l.key, 'auto')}>자동</button>{:else}<span class="autob" data-testid="line-is-auto">자동</span>{/if}
@@ -380,6 +381,7 @@
       {:else}
         <p class="hint">종류·시트를 지정한 사인물이 없습니다.</p>
       {/each}
+      {#if !app.noPrices}
       <div class="line" data-testid="quote-install">
         <div><span>설치·운반비</span>{#if app.canEdit}<small>비우면 단가표 기본값 ({won(app.prices.install)})</small>{/if}</div>
         {#if app.canEdit}
@@ -398,6 +400,7 @@
         </div>
       {/each}
       {#if app.canEdit}<button class="link" data-testid="extra-add" onclick={addExtra}>+ 추가 항목·할인</button>{/if}
+      {/if}
       {#if pending.length}
         <div class="pending">
           <b>치수 필요 {pending.length}건</b>
@@ -405,6 +408,9 @@
         </div>
       {/if}
     </div>
+    {#if app.noPrices}
+    <footer><p class="hint" data-testid="quote-items-hint">품목 {quote.lines.length}줄 — 금액은 [내 프로젝트로 가져오기] 뒤 내 단가로 계산됩니다.</p></footer>
+    {:else}
     <footer>
       {#if quote.vatIncluded}
         <div class="sum"><span data-testid="quote-vat-note">부가세 {won(quote.vat)} 포함</span><span></span></div>
@@ -424,8 +430,8 @@
       <button class="btn small" onclick={copyQuote}>견적 텍스트 복사</button>
       <p class="hint">{app.settings.prices ? '이 프로젝트의 단가표 기준' : '※ 예시 단가 — 단가 설정에서 바꾸세요'}</p>
     </footer>
+    {/if}
   </aside>
-  {/if}
 </div>
 
 <style>
