@@ -92,8 +92,9 @@ const hasText = (t?: string) => !!(t ?? '').trim();
  * 조합형 4단계 (2026-10-16 사용자: "4단계 진행해"): 구성 요소의 객체를 정면도 위치 그대로 — 사인물 mm 를 그린 자리(p) 비율로 줄여서.
  * 채널·스카시 글자 = 입체 글자(구성 요소별 두께·조명), 그림·시트 글자 = 앞면에 평면으로
  */
-function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, letterSpacing: number): Pick<SignSpec, 'letterItems' | 'faceItems'> {
-  const sx = p.w / (o.widthMm || p.w), sy = p.h / (o.heightMm || p.h);
+function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, letterSpacing: number, est?: { w: number; h: number }): Pick<SignSpec, 'letterItems' | 'faceItems'> {
+  // 치수가 없으면 추정 치수로 글자·면 축척 (2026-10-22 "3d에서 … 비정상적으로 커지는거") — 없으면 그린 자리 그대로
+  const sx = p.w / (o.widthMm || est?.w || p.w), sy = p.h / (o.heightMm || est?.h || p.h);
   const letterItems: NonNullable<SignSpec['letterItems']> = [];
   const faceItems: NonNullable<SignSpec['faceItems']> = [];
   // 레이어 트리를 걸으며 깊이 누적 (2단계): 채널 앞면 위 시트의 글자·그림은 채널 두께만큼 앞에, 시트 위 시트는 그대로. 그룹은 오프셋만
@@ -120,7 +121,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
   }
   // 글자 없는 면 시트 = 올라간 면 전체 (2026-10-22 "시트 2d 3d에서 안나온다") — 저장된 레이어 트리는 그대로 두고 그 시트만 앞면 객체로
   const all = drawnParts(o, partsOf(o));
-  for (const part of withSheetAreas(o, all, { w: o.widthMm || p.w, h: o.heightMm || p.h })) { // 치수가 없으면 그린 자리 크기
+  for (const part of withSheetAreas(o, all, { w: o.widthMm || est?.w || p.w, h: o.heightMm || est?.h || p.h })) { // 치수가 없으면 그린 자리 크기
     const src = all.find((x) => x.id === part.id);
     if (!src || src.items.length || !part.items.length) continue;
     const host = part.on && part.on !== 'frame' ? all.find((x) => x.id === part.on) : undefined;
@@ -133,7 +134,8 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
 }
 
 /** 사인물을 벽면 위 3D 간판으로. 채널 + 문구 = 입체 글자, 그 외 = 박스(보드) / 얇은 면(시트) / 분류 없음 = 회색 판 */
-export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
+/** est: 치수를 넣지 않은 사인물의 추정 치수(mm, 실측) — 글자·시트 면 축척에만 쓴다(자리·원근은 그대로) */
+export function renderSpecOf(o: SignObject, p: Placement, est?: { w: number; h: number } | null): SignSpec | null {
   // 분류가 없어도 자리를 보여 준다 (회색 얇은 판) — 사진마다 그린 사인물이 3D 에서 빠지지 않게 (2026-10-14 사용자: "4개 사진에서 3D 사인물이 1개 사진에서만 나온다")
   const cat = categoryOf(o);
   const { bodyId, channelId, scashiId } = signParts(o); // 간판 = 몸통 + 채널·스카시 옵션
@@ -155,7 +157,7 @@ export function renderSpecOf(o: SignObject, p: Placement): SignSpec | null {
   const d = { ...DEFAULT_LETTER3D, ...(l ?? {}) };
   // 면 시트는 치수가 없어도·옛 시트(sheetIds)여도 그린 자리 크기로 (2026-10-22 "시트가 2d 3d에 적용이 안됐어")
   if ((o.parts && (o.widthMm || o.heightMm)) || hasPartsToDraw(o)) {
-    const comp = composedOf(o, p, d, base.letterSpacing);
+    const comp = composedOf(o, p, d, base.letterSpacing, est ?? undefined);
     if (comp.letterItems || comp.faceItems) {
       // 몸통 없음·옛 채널 제품·스카시 분류 = 상자 없이 글자만 (사인물 자체가 글자)
       const bodyless = bodyId === 'body-none' || isChannelProduct(o.productId) || SCASHI_IDS.has(o.productId ?? '');

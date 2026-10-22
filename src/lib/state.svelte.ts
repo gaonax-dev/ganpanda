@@ -1590,6 +1590,8 @@ class AppState {
   }
 
   /** 견적·전개도용 치수: 입력값 우선, 없으면 판독 추정값 */
+  /** 3D 글자·시트 면 축척용: 치수를 넣지 않은 사인물이면 실측 추정 치수, 넣었으면 null (2026-10-22 "3d에서 … 비정상적으로 커지는거") */
+  estSize = (o: SignObject): { w: number; h: number } | null => { if (o.widthMm && o.heightMm) return null; const s = this.sizeOf(o); return s ? { w: s.w, h: s.h } : null; };
   sizeOf(o: SignObject): { w: number; h: number; estimated: boolean } | null {
     if (o.widthMm && o.heightMm) return { w: o.widthMm, h: o.heightMm, estimated: false };
     const e = this.measures.get(o.id)?.estimate;

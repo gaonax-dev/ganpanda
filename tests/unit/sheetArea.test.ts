@@ -42,3 +42,13 @@ describe('글자 없는 시트 = 올라간 면 전체', () => {
     expect(spec?.faceItems?.some((f) => f.kind === 'shape' && f.fill === '#d9d9d9' && Math.abs(f.w - 2400) < 1)).toBe(true);
   });
 });
+
+// 2026-10-22 사용자: "3d에서 문제가 있어 비정상적으로 커지는거" — 치수 없는 사인물의 글자가 3D 에서 추정 치수로 줄지 않았다
+describe('3D: 치수 없는 사인물은 추정 치수로 글자·면 축척', () => {
+  it('추정 치수를 넘기면 글자 높이 = 글자 mm × (그린 폭 / 추정 폭)', () => {
+    const unsized = { ...o([{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [{ id: 't', kind: 'text', text: '푸르미도그', x: 0, y: 0, h: 171 }] }]), widthMm: undefined, heightMm: undefined };
+    const spec = renderSpecOf(unsized, { cx: 0, cy: 0, w: 500, h: 500 } as never, { w: 2000, h: 2000 });
+    const t = spec!.faceItems!.find((f) => f.kind === 'text')!;
+    expect(t.h).toBeCloseTo(171 * (500 / 2000));
+  });
+});

@@ -40,7 +40,7 @@
         const objs = app.objects.filter((o) => o.photoId === p.id);
         const plane = wallPlaneOf(objs, app.calibrations.get(p.id));
         if (!plane) continue;
-        const { day, night } = await renderPhotoPngs(p, objs, plane, app.sources, font);
+        const { day, night } = await renderPhotoPngs(p, objs, plane, app.sources, font, app.estSize);
         busy = `${p.name} 이미지 올리는 중…`;
         const [dayId, nightId] = await Promise.all([putAsset(await dataUrlToBlob(day)), putAsset(await dataUrlToBlob(night))]);
         renders.push({ photoId: p.id, day: dayId, night: nightId });

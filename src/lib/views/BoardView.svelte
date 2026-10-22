@@ -217,7 +217,7 @@
         if (!plane) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없는 사진은 원본 그대로
         stageRenderer ??= new StageRenderer();
         app.stageBusy++;
-        try { app.stageRenders[id] = { key, url: await stageRenderer.render(p, objs, plane, app.sources, stageFont) }; }
+        try { app.stageRenders[id] = { key, url: await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize) }; }
         catch (e) { console.warn('3D 단계 합성 실패', e); app.stageRenders[id] = { key, url: '' }; }
         finally { app.stageBusy--; }
       }

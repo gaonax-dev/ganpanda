@@ -91,7 +91,7 @@
     const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
     v.applyProjection(projectionFromPlane(p, photo.w, photo.h), poseOfPlane(p, photo.w, photo.h), maxX, maxY); // 그린 영역에 정확히 맞물림
     const items = await Promise.all(placed.map(async ({ o, plane: own, at, corners }) => {
-      const spec = renderSpecOf(o, sizedAt(o, at, p)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
+      const spec = renderSpecOf(o, sizedAt(o, at, p), app.estSize(o)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15), 치수 없으면 추정 치수로 글자 축척 (2026-10-22)
       if (!spec) return null;
       const face = spec.kind === 'lightbox' ? await faceOf(o) : undefined;
       const images = spec.faceItems ? await loadItemImages(o, app.sources) : undefined; // 조합형 그림 객체 (4단계)

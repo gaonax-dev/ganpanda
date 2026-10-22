@@ -22,7 +22,9 @@ async function faceOf(o: SignObject, sources: DesignSource[]): Promise<FaceImage
 }
 
 /** 뷰어 하나에 사진·사인물을 올린다 (호출자가 뷰어를 재사용하거나 버린다). designs=false 면 디자인 이미지를 입히지 않아 가볍다 */
-async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, opts: { designs: boolean; maxW: number; maxH: number }): Promise<BuiltSign[]> {
+/** estOf: 치수를 넣지 않은 사인물의 추정 치수 — 글자·시트 면 축척에만 (2026-10-22 "3d에서 … 비정상적으로 커지는거") */
+export type EstOf = (o: SignObject) => { w: number; h: number } | null;
+async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, opts: { designs: boolean; maxW: number; maxH: number; estOf?: EstOf }): Promise<BuiltSign[]> {
   const built: BuiltSign[] = [];
   v.showGrid(false);
   v.clearSignCameras();
@@ -37,7 +39,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
   const maxY = Math.max(1000, ...placed.map((x) => x.at.cy + x.at.h / 2));
   v.applyProjection(projectionFromPlane(plane, photo.w, photo.h), poseOfPlane(plane, photo.w, photo.h), maxX, maxY);
   for (const { o, plane: own, at } of placed) {
-    const spec = renderSpecOf(o, sizedAt(o, at, plane)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
+    const spec = renderSpecOf(o, sizedAt(o, at, plane), opts.estOf?.(o)); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
     if (!spec) continue;
     const face = opts.designs && spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
     const images = opts.designs && spec.faceItems ? await loadItemImages(o, sources) : undefined;
@@ -59,12 +61,12 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
 const hiddenHost = () => { const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:600px;'; document.body.appendChild(host); return host; };
 
 /** 사진 + 벽면 + 사인물 → 주간·야간 PNG 데이터 URL (제안 이미지, 디자인 포함). 격자는 끈다 */
-export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font): Promise<{ day: string; night: string }> {
+export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf): Promise<{ day: string; night: string }> {
   const host = hiddenHost();
   const v = new Viewer(host);
   let built: BuiltSign[] = [];
   try {
-    built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 800, maxH: 600 });
+    built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 800, maxH: 600, estOf });
     v.setNight(false); for (const b of built) b.setNight(false);
     const day = v.exportPng(photo.w, photo.h);
     v.setNight(true); for (const b of built) b.setNight(true);
@@ -84,12 +86,12 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
 export class StageRenderer {
   private host: HTMLDivElement | null = null;
   private viewer: Viewer | null = null;
-  async render(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font): Promise<string> {
+  async render(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf): Promise<string> {
     if (!this.viewer) { this.host = hiddenHost(); this.viewer = new Viewer(this.host); }
     const v = this.viewer;
     let built: BuiltSign[] = [];
     try {
-      built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480 }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
+      built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
       v.setNight(false); for (const b of built) b.setNight(false);
       return v.exportPng(Math.min(photo.w, 1280), Math.min(photo.w, 1280) * (photo.h / photo.w));
     } finally {
