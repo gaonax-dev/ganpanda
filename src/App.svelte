@@ -110,6 +110,7 @@
     if (!app.compact) return;
     const t = e.target as Element | null;
     gesture = t?.closest?.('g.sign, [data-testid="board-card"], [data-testid="board-standalone"]') ? { x: e.clientX, y: e.clientY, moved: false } : null;
+    if (gesture) app.pressing = true;
   }
   function gestureMove(e: PointerEvent) {
     if (!gesture || gesture.moved || Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) < 8) return;
@@ -119,6 +120,7 @@
   function gestureUp() {
     if (gesture && !gesture.moved) app.dragHideId = null; // 탭 — 속성창
     gesture = null;
+    app.pressing = false;
   }
 </script>
 
@@ -288,8 +290,9 @@
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
         <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
         {#if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
-        {:else if app.compact && !app.panelOpen && app.dragHideId === app.selected.id}<!-- 끌어서 고른 것: 속성창 없음 (2026-10-22) -->
-        {:else if app.compact && !app.panelOpen}<QuickBar obj={app.selected} />
+        {:else if app.compact && !app.panelOpen}
+          <!-- 누르는 동안·끌어서 고른 것은 숨김 — 뗄 때(탭) 나온다 (2026-10-22 "터치 업에 속성창나오게"). 지우지 않고 숨겨 사이즈 입력 줄 등 상태는 그대로 -->
+          <div class="qb" hidden={app.pressing || app.dragHideId === app.selected.id}><QuickBar obj={app.selected} /></div>
         {:else}{#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}{/if}
       {:else if app.selectedPin && app.view === 'board'}
         {#key app.selectedPin.id}<PinPanel pin={app.selectedPin} />{/key}
@@ -414,4 +417,5 @@
     .reqs { padding: 1px 2px 1px 6px; gap: 3px; font-size: 11px; }
     .reqs b { padding: 0 5px; font-size: 11px; }
   }
+  .qb[hidden] { display: none; }
 </style>

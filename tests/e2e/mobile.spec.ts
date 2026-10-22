@@ -555,9 +555,20 @@ test('휴대폰: 사인물을 탭하면 속성창, 끌면(드래그) 속성창�
   await page.mouse.move(cx + 60, cy + 20, { steps: 6 });
   await page.mouse.up();
   await expect.poll(() => page.evaluate((i) => JSON.stringify((window as unknown as { __ganpanda: { objects: { id: string; quad: unknown }[] } }).__ganpanda.objects.find((o) => o.id === i)!.quad), id)).not.toBe(quad0);
-  await expect(page.getByTestId('quick-bar')).toHaveCount(0);
-  // 탭: 속성창
+  await expect(page.getByTestId('quick-bar')).toBeHidden();
+  // 탭: 누르고 있는 동안에는 없고, 뗄 때(터치 업) 속성창 — 끌기로 바뀌어도 벌컥 떴다 사라지지 않게 (2026-10-22 "터치 업에 속성창나오게 현재 벌컥거린다")
   const b2 = (await shape.boundingBox())!;
-  await page.touchscreen.tap(b2.x + b2.width / 2, b2.y + b2.height / 2);
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(150);
+  await expect(page.getByTestId('quick-bar')).toBeHidden();
+  await page.mouse.up();
   await expect(page.getByTestId('quick-bar')).toBeVisible();
+  // 고른 상태에서 다시 끌어도 속성창이 벌컥 나오지 않는다
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + b2.height / 2);
+  await page.mouse.down();
+  await expect(page.getByTestId('quick-bar')).toBeHidden();
+  await page.mouse.move(b2.x + b2.width / 2 + 40, b2.y + b2.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.getByTestId('quick-bar')).toBeHidden();
 });

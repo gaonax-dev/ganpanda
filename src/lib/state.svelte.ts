@@ -181,6 +181,8 @@ class AppState {
   confirmMode = $state(false);
   /** 휴대폰: 끌어서(드래그) 고른 사인물 — 속성창(빠른 막대)을 띄우지 않는다. 다시 탭하면 풀린다 (2026-10-22 "터치시 속성창 나온다. 터치드레그에는 속성창 나오지 않는다") */
   dragHideId = $state<string | null>(null);
+  /** 휴대폰: 사인물을 누르고 있는 동안 — 속성창은 뗄 때(탭) 나온다, 벌컥 떴다 사라지지 않게 (2026-10-22 "터치 업에 속성창나오게 현재 벌컥거린다") */
+  pressing = $state(false);
   /** 컨펌에서 뺀 사인물 (진행 동의할 때 함께 보낸다) */
   confirmExcluded = $state<string[]>([]);
   get tab(): 'board' | 'design' | 'list' | 'confirm' {
