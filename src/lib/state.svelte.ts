@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeLikePhotos, homeOf } from './core/arrange';
+import { arrangeByAxisGrid, homeOf, type GridCard } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type PriceTable } from './core/pricing';
@@ -30,7 +30,7 @@ import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
+import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -1175,15 +1175,31 @@ class AppState {
     const s = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 1 / k; // mm / 보드 px
     const photos = this.photos.map((p) => ({ x: p.x * s, y: p.y * s, w: p.width * s, h: p.width * (p.h / p.w) * s, imgW: p.w, imgH: p.h }));
     const idx = new Map(this.photos.map((p, i) => [p.id, i]));
-    const cards = this.flatCards.map(({ o, w, h }) => {
-      // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21 — 사선 사진에서 먼저 그리면 카드가 사선 사진 아래로 갔다)
+    // 사진별 벽면 (원근이 있으면): 정면 사인물을 벽 mm 로 편다 — 축 격자 재정렬 (2026-10-23 "원근으로 정의된 각축의 격자를 기준으로 정면 판정된 사인물들을 묶어 랩핑")
+    const planes = new Map(this.photos.map((p) => [p.id, wallPlaneOf(this.objects.filter((o) => o.photoId === p.id), this.calibrations.get(p.id))]));
+    const cards: GridCard[] = this.flatCards.map(({ o, w, h }) => {
+      // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21)
       const inst = [o, ...this.objects.filter((x) => x.sameAs === o.id)].filter((x) => x.quad.length === 4 && idx.has(x.photoId));
-      const home = inst.length ? homeOf(inst.map((x) => ({ photoId: x.photoId, quad: x.quad.map((q) => [q[0], q[1]] as [number, number]) }))) : null;
-      if (!home) return { id: o.id, w, h, photo: null, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
+      const home = inst.length ? homeOf(inst as (SignObject & { quad: [number, number][] })[]) : null;
+      if (!home) return { id: o.id, w, h, photo: null, group: 'front', box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
+      const photo = this.photos.find((p) => p.id === home.photoId)!;
       const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
-      return { id: o.id, w, h, photo: idx.get(home.photoId)!, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+      const pxBox = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+      const plane = planes.get(home.photoId) ?? null;
+      const face = plane?.source === 'calibration' ? faceOf(home, plane) : null;
+      // 옆면(x)은 사진 가운데 기준 왼쪽·오른쪽, 위아래면(z)은 아래 묶음 — 그 면끼리는 사진 속 위치로 순서
+      if (face && face.axis === 'x') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: (pxBox.x0 + pxBox.x1) / 2 < photo.w / 2 ? 'left' : 'right', box: pxBox };
+      if (face && face.axis === 'z') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'bottom', box: pxBox };
+      // 정면: 원근(실측 벽면)이 있으면 벽 mm 로 펴서(축선이 수평·수직), 없으면 사진 px 그대로(이미 정면)
+      let box = pxBox;
+      if (plane?.source === 'calibration') {
+        const q = quadOnWall(plane, home);
+        const wx = q.map((p) => p[0]), wy = q.map((p) => -p[1]); // 벽 y(위 +) → 아래 +
+        box = { x0: Math.min(...wx), y0: Math.min(...wy), x1: Math.max(...wx), y1: Math.max(...wy) };
+      }
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'front', box };
     });
-    const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
+    const at = arrangeByAxisGrid(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
     // ✥ 를 기본 자리로, 축척도 사진과 같은 비율로 (2026-10-22 사용자 스크린샷 "상태가 점점 심각해지고 있어": 저장된 축척 572% 로 그려 카드가 사진의 몇 배로 흩어졌다)

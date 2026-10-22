@@ -146,3 +146,84 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
   for (const c of cards.filter((i) => i.photo === null || !photos[i.photo])) { out.set(c.id, { x, y }); x += c.w + gap; }
   return out;
 }
+
+/**
+ * 축 격자 재정렬 (2026-10-23 사용자: "원근으로 정의된 각축의 격자를 기준으로 정면 판정된 사인물들을 묶어 랩핑하고 축선을 평행하게 그리고 수직하게 그리드화",
+ * "가장먼 곳을 기준으로 … 각 사인물의 순서와 배열치 그리고 겹침도 모두 해결", "사인물과 사인물이 겹친경우는 그대로 겹치게 놓는건 좋지않아").
+ * 카드 = 사진의 면 묶음(정면 / 왼쪽·오른쪽 옆면 / 아래면) 안의 펴진 상자(box: 정면은 벽 mm 를 아래로 + 로, 펴지 못한 면·원근 없는 사진은 사진 px).
+ * 묶음 안: 끝선을 묶어 행·열(gridOf — 겹친 사인물은 같은 열 바로 아래 새 행), 열 너비·행 높이 = 그 칸 카드 중 가장 큰 것 + 간격 → 수평·수직으로 반듯하게, 겹침 없음.
+ * 사진 하나 = [왼쪽 옆면][정면][오른쪽 옆면] 위 줄 + 정면 아래 아래면. 사진 묶음은 사진 순서(행·열)대로, 되도록 자기 사진 아래 자리에. 사진 없는 카드는 맨 아래 한 줄
+ */
+export interface GridCard { id: string; w: number; h: number; photo: number | null; group: 'front' | 'left' | 'right' | 'bottom'; box: Box }
+interface Block { pos: Map<string, { x: number; y: number }>; w: number; h: number }
+
+function layoutGroup(cards: GridCard[], gap: number, labelMm: number): Block {
+  const pos = new Map<string, { x: number; y: number }>();
+  if (!cards.length) return { pos, w: 0, h: 0 };
+  const W = Math.max(1, Math.max(...cards.map((c) => c.box.x1)) - Math.min(...cards.map((c) => c.box.x0)));
+  const H = Math.max(1, Math.max(...cards.map((c) => c.box.y1)) - Math.min(...cards.map((c) => c.box.y0)));
+  const spans = gridOf(cards.map((c) => ({ id: c.id, box: c.box })), W, H);
+  // 칸 겹침 정리: gridOf 가 끼워 넣은 사이 행을 여러 행에 걸친 카드가 덮을 수 있다 → 큰 카드부터 칸을 차지하고, 찬 칸이면 빈 곳까지 아래로
+  const taken = new Set<string>();
+  for (const c of [...cards].sort((a, b) => b.w * b.h - a.w * a.h)) {
+    const sp = spans.get(c.id)!, hs = sp.r1 - sp.r0;
+    const busy = (r: number) => { for (let i = r; i < r + hs; i++) for (let k = sp.c0; k < sp.c1; k++) if (taken.has(`${i}:${k}`)) return true; return false; };
+    let r = sp.r0;
+    while (busy(r)) r++;
+    spans.set(c.id, { ...sp, r0: r, r1: r + hs });
+    for (let i = r; i < r + hs; i++) for (let k = sp.c0; k < sp.c1; k++) taken.add(`${i}:${k}`);
+  }
+  const ncols = Math.max(...[...spans.values()].map((s) => s.c1)), nrows = Math.max(...[...spans.values()].map((s) => s.r1));
+  const colW = Array<number>(ncols).fill(0), rowH = Array<number>(nrows).fill(0);
+  for (const c of cards) {
+    const s = spans.get(c.id)!;
+    for (let k = s.c0; k < s.c1; k++) colW[k] = Math.max(colW[k], c.w / (s.c1 - s.c0));
+    for (let k = s.r0; k < s.r1; k++) rowH[k] = Math.max(rowH[k], (c.h + labelMm) / (s.r1 - s.r0));
+  }
+  const colX: number[] = [], rowY: number[] = [];
+  colW.reduce((x, w, k) => { colX[k] = x; return x + w + gap; }, 0);
+  rowH.reduce((y, h, k) => { rowY[k] = y; return y + h + gap; }, 0);
+  for (const c of cards) { const s = spans.get(c.id)!; pos.set(c.id, { x: colX[s.c0], y: rowY[s.r0] }); }
+  const w = colW.reduce((a, b) => a + b, 0) + gap * (ncols - 1), h = rowH.reduce((a, b) => a + b, 0) + gap * (nrows - 1);
+  return { pos, w, h };
+}
+
+export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: number; w: number; h: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {
+  const out = new Map<string, { x: number; y: number }>();
+  const used = [...new Set(cards.map((c) => c.photo).filter((p): p is number => p !== null && !!photos[p]))];
+  // 사진 하나의 묶음 블록
+  const blocks = new Map<number, Block>();
+  for (const p of used) {
+    const of = (g: GridCard['group']) => layoutGroup(cards.filter((c) => c.photo === p && c.group === g), gap, labelMm);
+    const L = of('left'), F = of('front'), R = of('right'), B = of('bottom');
+    const pos = new Map<string, { x: number; y: number }>();
+    let x = 0;
+    const put = (b: Block, bx: number, by: number) => { for (const [id, q] of b.pos) pos.set(id, { x: q.x + bx, y: q.y + by }); };
+    if (L.pos.size) { put(L, 0, 0); x = L.w + gap * 2; }
+    const fx = x;
+    if (F.pos.size) { put(F, fx, 0); x = fx + F.w + gap * 2; }
+    if (R.pos.size) { put(R, x, 0); x += R.w + gap * 2; }
+    const topH = Math.max(L.h, F.h, R.h);
+    if (B.pos.size) put(B, fx, topH ? topH + gap * 2 : 0);
+    const w = Math.max(x - gap * 2, fx + B.w), h = topH + (B.pos.size ? (topH ? gap * 2 : 0) + B.h : 0);
+    blocks.set(p, { pos, w, h });
+  }
+  // 사진 묶음: 사진 행·열 순서로, 되도록 자기 사진 아래(사진의 왼쪽 위치)에 — 앞 묶음과 겹치면 오른쪽, 사진 행이 바뀌면 아래 줄
+  const pg = photoGrid(photos);
+  const left0 = photos.length ? Math.min(...photos.map((p) => p.x)) : 0; // 모든 사진 중 가장 왼쪽 = 평면 구역 기준 (카드 없는 사진이 앞에 있어도 자기 사진 아래로)
+  const order = [...used].sort((a, b) => pg[a].r - pg[b].r || photos[a].x - photos[b].x);
+  let row = -1, rowTop = 0, rowBottom = 0, right = -Infinity, bottom = 0;
+  for (const p of order) {
+    const b = blocks.get(p)!;
+    if (pg[p].r !== row) { if (row !== -1) rowTop = rowBottom + gap * 2; row = pg[p].r; right = -Infinity; }
+    const bx = Math.max(photos[p].x - left0, right === -Infinity ? -Infinity : right + gap * 2, 0);
+    for (const [id, q] of b.pos) out.set(id, { x: Math.round(q.x + bx), y: Math.round(q.y + rowTop) });
+    right = bx + b.w;
+    rowBottom = Math.max(rowBottom, rowTop + b.h);
+    bottom = Math.max(bottom, rowBottom);
+  }
+  let x = 0;
+  const y = out.size ? bottom + gap * 2 : 0;
+  for (const c of cards.filter((i) => i.photo === null || !photos[i.photo])) { out.set(c.id, { x, y }); x += c.w + gap; }
+  return out;
+}
