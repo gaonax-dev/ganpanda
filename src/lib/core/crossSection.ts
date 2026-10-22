@@ -4,7 +4,7 @@
 import type { SignObject, SignPart } from './model';
 import { componentOf } from './components';
 import { productById } from './catalog';
-import { stackFromLegacy, stackMaterialLabel } from './stack';
+import { stackMaterialLabel } from './stack';
 
 export interface CsLayer { label: string; thickness: number; material: string }
 export interface CsItem { part: SignPart; label: string; tier: number; x0: number; x1: number; y0: number; y1: number; z0: number; depth: number; layers: CsLayer[] }
@@ -28,10 +28,8 @@ function itemsRange(p: SignPart, w: number, h: number): { x0: number; x1: number
 
 function layersOfPart(p: SignPart, o: SignObject): CsLayer[] {
   const c = componentOf(p.kind);
-  if (p.kind === 'scashi') {
-    const st = p.stack ?? stackFromLegacy(p.type, p.options);
-    return st.map((l) => ({ label: stackMaterialLabel(l.material), thickness: l.thickness, material: l.material }));
-  }
+  const st = c.stack?.(p);
+  if (st) return st.map((l) => ({ label: stackMaterialLabel(l.material), thickness: l.thickness, material: l.material }));
   return [{ label: c.typeLabel(p), thickness: c.depthMm(p, o), material: p.kind }];
 }
 

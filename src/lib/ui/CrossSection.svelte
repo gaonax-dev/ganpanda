@@ -42,7 +42,7 @@
       const surf = surfaceOf(it.part);
       const seg = it.layers.map((l, i) => {
         const top = i === it.layers.length - 1;
-        const c = it.part.kind === 'sheet' ? MAT_COLOR.sheet : (top && surf.face) || MAT_COLOR[l.material] || componentOf(it.part.kind).color;
+        const c = (top && surf.face) || MAT_COLOR[l.material] || componentOf(it.part.kind).color;
         return { px: px(l.thickness || 0.1), color: c, side: surf.side || shade(c) };
       });
       blocksMm.push({ item: it, tier: t.n, x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, seg });
@@ -136,7 +136,7 @@
                 </button>
                 {#if openPart === it.part.id}
                   <!-- 재료 층 목록 (앞이 위). 고칠 수 있으면 아래 편집기의 [재료 층]이 같은 것을 보여 주므로 보기 권한·재료 층 없는 종류만 -->
-                  {#if ro || it.part.kind !== 'scashi'}<ol class="layers" data-testid="cs-layers">
+                  {#if ro || !componentOf(it.part.kind).stack}<ol class="layers" data-testid="cs-layers">
                     {#each [...it.layers].reverse() as l, li (li)}<li data-testid="cs-layer">{l.label} <b>{fmtT(l.thickness)}</b></li>{/each}
                   </ol>{/if}
                   <PartsEditor {obj} {ro} {update} {kinds} partId={it.part.id} />

@@ -2,7 +2,7 @@
 // 결정: 0·1단계, 몸통도 프레임 레이어). 설계: docs/architecture/composition-layers.md
 // 컴포넌트 = "무엇을 어떻게 만드나": 종류마다 모듈 하나가 이름·세부 종류·옵션 스키마·단가·요약·2D 색·3D 만드는 법을 가진다.
 // 코어·UI·3D 는 종류 이름으로 분기하지 않고 registry 만 본다 — 새 종류 = 모듈 하나 + 테스트 하나.
-import type { SignObject, SignPart } from '../model';
+import type { MaterialLayer, SignObject, SignPart } from '../model';
 import type { OptionField } from '../optionSchema';
 import type { PriceTable } from '../pricing';
 import type { Lighting } from '../../sim/types';
@@ -62,6 +62,8 @@ export interface Component {
   paint: { face: string; side: string };
   /** 재료 층이 있는 종류(2026-10-21): 앞면·옆면 색을 층의 마감에서 (없으면 paint 키로) — components/index.ts surfaceOf */
   surface?(part: SignPart): { face: string | null; side: string | null; faceSheet?: string } | null;
+  /** 재료 층(뒤→앞)이 있는 종류: 그 층들 (단면 쌓기가 층마다 그린다, 2026-10-22). 없으면 한 덩어리 */
+  stack?(part: SignPart): MaterialLayer[];
   /** 글자·그림·도형 객체를 받나 (상단 조명은 아님) */
   takesItems: boolean;
   /** 견적 줄 키 (없으면 `<사인물>:part:<구성 요소>`) — 옛 키를 이어 써서 수동 금액을 지킨다 */
