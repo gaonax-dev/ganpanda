@@ -488,10 +488,12 @@
       <button class="x" class:set={confirmsOpen} data-testid="photo-confirms" title="완료한 말풍선" onpointerdown={(e) => e.stopPropagation()} onclick={() => (confirmsOpen = !confirmsOpen)}>✓ 완료 {pins.filter((p) => p.resolved).length}</button>
     {/if}
     <!-- 사진 설정 (2026-10-21 "x 마크 대신 설정버튼으로 사진교체, 이미지 조절, 삭제") -->
-    {#if editable && !tiny}<button class="x" class:set={menuOpen} data-testid="photo-menu" title="사진 설정 — 교체 · 이미지 조절 · 삭제" aria-label="사진 설정" onpointerdown={(e) => e.stopPropagation()} onclick={() => (menuOpen = !menuOpen)}>⚙</button>{/if}
+    {#if editable && !tiny}<button class="x" class:set={menuOpen} data-testid="photo-menu" title="사진 설정 — 이름 변경 · 교체 · 이미지 조절 · 삭제" aria-label="사진 설정" onpointerdown={(e) => e.stopPropagation()} onclick={() => (menuOpen = !menuOpen)}>⚙</button>{/if}
   </div>
   {#if menuOpen && editable}
     <div class="confirms menu" data-testid="photo-menu-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
+      <!-- 이름 변경 (2026-10-22 "사진도 사진이름으로 사진 설정에 이름변경추가") — 톡 링크·목록에 이 이름이 보인다 -->
+      <button class="citem" data-testid="photo-rename" onclick={() => { menuOpen = false; const n = prompt('사진 이름', photo.name); if (n !== null) app.renamePhoto(photo.id, n); }}>이름 변경 <span>톡 링크·목록에 보이는 이름</span></button>
       {#if onreplace}<button class="citem" data-testid="photo-replace" onclick={() => { menuOpen = false; onreplace(); }}>사진 교체 <span>같은 자리에서 다시 찍은 사진으로 — 영역·원근은 그대로</span></button>{/if}
       {#if onadjust}<button class="citem" data-testid="photo-adjust" onclick={() => { menuOpen = false; onadjust(); }}>이미지 조절 <span>크롭(여백 더하기도)·밝기</span></button>{/if}
       <button class="citem danger" data-testid="photo-delete" onclick={() => { menuOpen = false; ondelete(); }}>사진 삭제 <span>사인물·말풍선도 함께</span></button>

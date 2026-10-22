@@ -3,14 +3,20 @@
 import type { Message, TalkRef, TalkRoom } from './model';
 
 /** 기본 방: 회사 멤버 (편집 권한이 있는 사람 = 회사 쪽). 저장하지 않는 고정 방 */
-export const TEAM_ROOM: TalkRoom = { id: 'team', name: '회사 멤버', members: [], createdBy: '', createdAt: 0 };
+export const TEAM_ROOM: TalkRoom = { id: 'team', name: '회사 멤버', memberIds: [], memberNames: {}, createdById: '', createdBy: '', createdAt: 0 };
 
 export const roomKey = (roomId: string) => `talk:${roomId}`;
 export const roomIdOf = (objectId: string): string | null => (objectId.startsWith('talk:') ? objectId.slice(5) : null);
 
-const inRoom = (r: TalkRoom, me: string) => r.createdBy === me || r.members.includes(me);
+/** me = 내 아이디 */
+const inRoom = (r: TalkRoom, me: string) => r.createdById === me || (r.memberIds ?? []).includes(me);
 
-/** 내가 볼 수 있는 방 — 회사 멤버 방(회사 쪽만)이 맨 앞, 나머지는 만든 순서 */
+/** 멤버 표시 이름: 지금 이름(접속자·팀·대화에서 안 것) > 만들 때 이름 > 손님 */
+export function memberLabel(r: TalkRoom, id: string, known: Record<string, string>): string {
+  return known[id] || r.memberNames?.[id] || (id === r.createdById ? r.createdBy : '') || '손님';
+}
+
+/** 내가(아이디) 볼 수 있는 방 — 회사 멤버 방(회사 쪽만)이 맨 앞, 나머지는 만든 순서 */
 export function visibleRooms(rooms: TalkRoom[], me: string, isCompany: boolean): TalkRoom[] {
   const mine = rooms.filter((r) => r.id !== TEAM_ROOM.id && inRoom(r, me)).sort((a, b) => a.createdAt - b.createdAt);
   return isCompany ? [TEAM_ROOM, ...mine] : mine;

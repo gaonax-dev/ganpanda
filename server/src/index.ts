@@ -1,6 +1,7 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
 export { Account } from './account';
+import { handleMyTalks, syncTalkIndex } from './talk';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
@@ -150,7 +151,7 @@ function parseAttachments(v: unknown): { assetId: string; name: string; type: st
 }
 
 /** viewer 는 문서를 편집할 수 없으므로 대화는 서버가 대신 기록한다 (다른 역할도 사용 가능). DELETE = 지우기 (viewer 는 자기 글만, 2026-10-18) */
-async function postMessage(req: Request, env: Env, room: string, role: Role): Promise<Response> {
+async function postMessage(req: Request, env: Env, room: string, role: Role, accountId?: string): Promise<Response> {
   if (req.method === 'DELETE') {
     const b = await readJson<{ id?: string; author?: string }>(req);
     const id = typeof b?.id === 'string' ? b.id : '';
@@ -160,7 +161,7 @@ async function postMessage(req: Request, env: Env, room: string, role: Role): Pr
     return st === 200 ? json({ ok: true }) : text(st === 403 ? 'not yours' : 'not found', st);
   }
   if (req.method !== 'POST') return text('method not allowed', 405);
-  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string; attachments?: unknown; refs?: unknown }>(req);
+  const b = await readJson<{ objectId?: string; author?: string; authorId?: string; text?: string; kind?: string; attachments?: unknown; refs?: unknown }>(req);
   const txt = typeof b?.text === 'string' ? b.text.trim().slice(0, MESSAGE_MAX) : '';
   const objectId = typeof b?.objectId === 'string' ? b.objectId : '';
   const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
@@ -170,7 +171,10 @@ async function postMessage(req: Request, env: Env, room: string, role: Role): Pr
   if (!attachments || (!txt && !attachments.length && !refs.length) || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
   // 톡 (2026-10-22): 회사 멤버 방은 회사 쪽(편집 권한)만 — 고객 링크(viewer)는 쓸 수 없다
   if (objectId === 'talk:team' && role === 'viewer') return text('team only', 403);
-  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment' | 'voice', attachments, refs);
+  // 보낸 사람 아이디: 로그인했으면 계정, 아니면 손님 아이디(g:…)만 받는다 (2026-10-22 "아이디로 연결")
+  const authorId = accountId ?? (typeof b?.authorId === 'string' && /^g:[A-Za-z0-9_-]{6,40}$/.test(b.authorId) ? b.authorId : undefined);
+  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment' | 'voice', attachments, refs, authorId);
+  if (objectId.startsWith('talk:')) await syncTalkIndex(env, room);
   return json({ message: msg }, 201);
 }
 
@@ -271,6 +275,7 @@ export default {
     if (pathname.startsWith('/api/me/stores')) return withCors(await handleStores(req, env, pathname)); // 가게 사장의 사업자 (2026-10-22)
     if (pathname === '/api/estimate/project') return withCors(await handleEstimateProject(req, env)); // 소비자 견적 초안 방 (2026-10-22)
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
+    if (pathname.startsWith('/api/me/talks')) return withCors(await handleMyTalks(req, env, pathname)); // 메인 화면 톡 (2026-10-22)
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
@@ -283,7 +288,7 @@ export default {
     const landing = pathname.match(/^\/p\/([^/]+)\/([^/]+?)(\/image\.png)?$/);
     if (landing) return withCors(await proposalLanding(req, env, decodeURIComponent(landing[1]), decodeURIComponent(landing[2]), !!landing[3], url));
 
-    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages|\/pins|\/approvals)?$/);
+    const room = pathname.match(/^\/api\/rooms\/([^/]+?)(\/ws|\/messages|\/pins|\/approvals|\/talk-sync)?$/);
     if (room) {
       const name = decodeURIComponent(room[1]);
       if (!ROOM_RE.test(name)) return withCors(text('bad room', 400));
@@ -291,7 +296,8 @@ export default {
       const access = await resolveAccess(authed, env, name, url.searchParams.get('invite'));
       if (typeof access === 'number') return withCors(text('no access', access));
       if (access.project.kind === 'request' && room[2]) return withCors(text('read only', 403)); // 요청 프로젝트에는 대화·말풍선·승인 없음 (간판집끼리 섞이지 않게)
-      if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role));
+      if (room[2] === '/messages') return withCors(await postMessage(req, env, name, access.role, access.account?.id));
+      if (room[2] === '/talk-sync') { await syncTalkIndex(env, name); return withCors(json({ ok: true })); } // 톡방을 만들거나 톡을 보낸 뒤 (2026-10-22)
       if (room[2] === '/pins') return withCors(await postPin(req, env, name));
       if (room[2] === '/approvals') return withCors(await postApproval(req, env, name));
       if (req.headers.get('Upgrade') !== 'websocket') return withCors(text('expected websocket', 426));

@@ -16,7 +16,7 @@
 | `sources` | `Y.Map<id, Y.Map>` | 디자인 소스(파일 + 페이지 이미지) → [uv-view.md](../features/uv-view.md) |
 | `settings` | `Y.Map<키, JSON>` | 단가표(`prices`), 설치비(`installFee`), 추가 항목(`extras`), 주문 정보(`order`), 제안(`proposal`: 실사 에셋·해시·한마디), 승인 기록(`approvals[]`: 이름·시각·해시·스냅샷, 서버가 추가) — [sign-list-quote.md](../features/sign-list-quote.md), [order.md](../features/order.md), [proposal.md](../features/proposal.md) |
 | `messages` | `Y.Array<Message>` | 모든 사인물·핀의 대화·코멘트 (`objectId` = 사인물 또는 핀 id, 톡 메시지는 `talk:<방 id>` + 링크 `refs`) |
-| `talks` | `Y.Map<Y.Map>` | 톡방 `{id, name, members(닉네임), createdBy, createdAt}` (2026-10-22). 회사 멤버 방(`team`)은 저장하지 않는 고정 방 |
+| `talks` | `Y.Map<Y.Map>` | 톡방 `{id, name, memberIds, memberNames, createdById, createdBy, createdAt}` (2026-10-22, 멤버는 계정 id·손님 g:… 아이디). 회사 멤버 방(`team`)은 저장하지 않는 고정 방. 서버 D1 `talk_index` 가 메인 화면용 색인 |
 
 ### Photo
 | 필드 | 설명 |

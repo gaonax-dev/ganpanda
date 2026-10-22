@@ -8,6 +8,7 @@
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
   import { splitShelf } from '../core/projectShelf';
+  import HomeTalks from './HomeTalks.svelte';
   import { listMyRequests, type MyRequest } from '../requests';
   import { SERVER_URL } from '../sync';
   // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
@@ -247,6 +248,8 @@
         {/each}
       </section>
     {/if}
+    <!-- 톡 (2026-10-22): 내가 멤버인 모든 프로젝트의 톡방 — 여기서 읽고 답하고, 링크를 누르면 그 프로젝트의 그 자리로 -->
+    <HomeTalks />
     <!-- 운영자는 요청이 없어도 자리를 보인다 (2026-10-22 "받은 요청 페이지가 어디에 있나?") -->
     {#if !app.consumerAccount}
     <section data-testid="project-list">

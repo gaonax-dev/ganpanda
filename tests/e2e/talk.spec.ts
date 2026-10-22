@@ -101,3 +101,60 @@ test('휴대폰 톡: 창은 아래쪽 약 40% — 위에서 보드를 보며 사
   await expect(page.getByTestId('talk-pending-ref')).toHaveText(/간판/);
   await expect(page.getByTestId('quick-bar')).toHaveCount(0);
 });
+
+import { apiLogin } from './helpers';
+type G2 = { __ganpanda: { selectedId: string | null; setNickname(n: string): void; photos: { name: string }[] } };
+
+// 2026-10-22 사용자: "닉은 사용하는데 아이디로 연결하라는 거지", "링크를 사인물이름으로 … 사진도 사진이름으로 사진 설정에 이름변경추가 메인화면에서 모든 톡방을 열어서 확이하고 링크를 누르면 해당 프로젝트의 링크로 이동"
+test('톡 멤버는 아이디로 — 이름을 바꿔도 방에 남고, 메인 화면에서 방을 읽고 링크를 누르면 초대 링크 없이 그 프로젝트의 그 사인물로 간다', async ({ page, request, browser }) => {
+  const { session, projectId } = await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const signId = await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    return a.project.addObject({ photoId: a.photos[0].id, name: '돌출 간판', shape: 'rect', quad: [[300, 200], [1100, 200], [1100, 420], [300, 420]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
+  });
+  const cusSession = await apiLogin(request);
+  const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'), '고객', cusSession);
+
+  // 사진 이름 변경 → 사진 링크도 그 이름
+  page.once('dialog', (d) => d.accept('정면'));
+  await page.getByTestId('photo-menu').click();
+  await page.getByTestId('photo-rename').click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as G2).__ganpanda.photos[0].name)).toBe('정면');
+
+  await page.getByTestId('talk-open').click();
+  await page.getByTestId('talk-new').click();
+  await page.getByTestId('talk-new-name').fill('고객 상담');
+  await page.locator('[data-testid="talk-member"][value="고객"]').check();
+  await page.getByTestId('talk-create').click();
+  await page.getByTestId('sign-shape').first().click();
+  await expect(page.getByTestId('talk-pending-ref')).toHaveText(/🔗 돌출 간판/);
+  await page.getByTestId('chat-input').fill('여기 보세요');
+  await page.getByTestId('chat-send').click();
+  await expect(page.getByTestId('talk-ref')).toHaveCount(1);
+
+  // 고객이 이름을 바꿔도 아이디로 남는다
+  await guest.evaluate(() => (window as unknown as G2).__ganpanda.setNickname('김사장'));
+  await guest.getByTestId('talk-open').click();
+  await expect(guest.getByTestId('talk-room')).toContainText('고객 상담');
+
+  // 메인 화면: 내 모든 톡방 → 읽기 → 링크 누르면 그 프로젝트(초대 링크 없이)의 방과 사인물
+  await expect(async () => {
+    await guest.goto('/');
+    await expect(guest.getByTestId('home-talk')).toHaveCount(1, { timeout: 1500 });
+  }).toPass({ timeout: 10_000 });
+  await expect(guest.getByTestId('home-talk')).toContainText('고객 상담');
+  await expect(guest.getByTestId('home-talk-new')).toBeVisible();
+  await guest.getByTestId('home-talk').click();
+  await expect(guest.getByTestId('home-talk-text')).toHaveText('여기 보세요');
+  await expect(guest.getByTestId('home-talk-new')).toHaveCount(0);
+  await guest.getByTestId('home-talk-input').fill('네 봤어요');
+  await guest.getByTestId('home-talk-send').click();
+  await expect(guest.getByTestId('home-talk-text')).toHaveCount(2);
+  await expect(page.getByTestId('chat-bubble')).toHaveCount(2); // 프로젝트의 방에 바로
+  await guest.getByTestId('home-talk-ref').click();
+  await expect(guest).toHaveURL(new RegExp(`room=${projectId}.*talk=.*focus=object`));
+  await expect(guest.getByTestId('talk-title')).toHaveText('고객 상담');
+  await expect.poll(() => guest.evaluate(() => (window as unknown as G2).__ganpanda.selectedId)).toBe(signId);
+  await guest.ctx.close();
+});

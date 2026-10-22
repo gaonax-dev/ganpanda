@@ -7,23 +7,32 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { listTeam } from '../projects';
-  import { roomKey } from '../core/talk';
+  import { memberLabel, roomKey } from '../core/talk';
+  import type { TalkRoom } from '../core/model';
   import Chat from './Chat.svelte';
 
   let creating = $state(false);
   let name = $state('');
+  /** 고른 아이디 */
   let picked = $state<string[]>([]);
-  let extra = $state('');
-  let teamNames = $state<string[]>([]);
+  let team = $state<{ id: string; name: string }[]>([]);
 
   const room = $derived(app.talkRooms.find((r) => r.id === app.talkRoomId) ?? null);
   const unread = $derived(app.talkUnreadInfo.byRoom);
-  /** 대화 상대 후보: 프로젝트에 들어온 사람·대화한 사람 + 내 팀 멤버 */
-  const candidates = $derived([...new Set([...app.participants, ...teamNames])].filter((n) => n && n !== app.nickname).sort((a, b) => a.localeCompare(b, 'ko')));
+  /** 대화 상대 후보 (아이디로 연결, 화면은 닉네임 — 2026-10-22): 지금 접속한 사람·이 프로젝트에서 대화한 사람 + 내 팀 멤버 */
+  const candidates = $derived.by(() => {
+    const by = new Map<string, string>();
+    for (const t of team) by.set(t.id, t.name);
+    for (const [id, name] of Object.entries(app.talkNames)) by.set(id, name);
+    by.delete(app.myId);
+    return [...by.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  });
+  /** 방 사람들 (나 빼고) 이름 */
+  const people = (r: TalkRoom) => [r.createdById, ...r.memberIds].filter((id) => id && id !== app.myId).map((id) => memberLabel(r, id, app.talkNames)).join(', ');
 
   $effect(() => {
     if (!creating || !app.account) return;
-    listTeam().then((ms) => (teamNames = ms.map((m) => m.name || m.email.split('@')[0]))).catch(() => {});
+    listTeam().then((ms) => (team = ms.map((m) => ({ id: m.accountId, name: m.name || m.email.split('@')[0] })))).catch(() => {});
   });
 
   // 열린 방의 새 메시지는 읽은 것으로
@@ -34,17 +43,16 @@
   });
 
   function create() {
-    const members = [...picked, ...extra.split(',').map((s) => s.trim())].filter(Boolean);
-    if (app.createTalk(name, members)) { creating = false; name = ''; picked = []; extra = ''; }
+    if (app.createTalk(name, candidates.filter((c) => picked.includes(c.id)))) { creating = false; name = ''; picked = []; }
   }
-  const toggle = (n: string) => (picked = picked.includes(n) ? picked.filter((x) => x !== n) : [...picked, n]);
+  const toggle = (id: string) => (picked = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
 </script>
 
 <aside class="talk" data-testid="talk-panel">
   <header>
     {#if room || creating}<button class="back" data-testid="talk-back" title="방 목록" onclick={() => { creating = false; app.talkRoomId = null; app.talkRefs = []; }}>←</button>{/if}
     <b data-testid="talk-title">{creating ? '새 톡방' : room ? room.name : '톡'}</b>
-    {#if room && room.id !== 'team'}<span class="who" title={[room.createdBy, ...room.members].join(', ')}>{[room.createdBy, ...room.members].filter((n) => n !== app.nickname).join(', ')}</span>{/if}
+    {#if room && room.id !== 'team'}<span class="who" title={people(room)}>{people(room)}</span>{/if}
     <span class="sp"></span>
     {#if room}<button class="pin" data-testid="talk-pin" class:on={app.tool === 'pin'} title="📍 사진에 번호를 찍어 링크로" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>📍</button>{/if}
     <button class="x" data-testid="talk-close" title="닫기" onclick={() => app.closeTalk()}>✕</button>
@@ -55,13 +63,13 @@
       <label>방 이름<input data-testid="talk-new-name" bind:value={name} maxlength="40" placeholder="예: 고객 상담, 시공팀" /></label>
       <div class="lbl">대화 상대</div>
       <div class="cands">
-        {#each candidates as n (n)}
-          <label class="cand"><input type="checkbox" data-testid="talk-member" value={n} checked={picked.includes(n)} onchange={() => toggle(n)} /> {n}</label>
+        {#each candidates as c (c.id)}
+          <label class="cand"><input type="checkbox" data-testid="talk-member" value={c.name} data-id={c.id} checked={picked.includes(c.id)} onchange={() => toggle(c.id)} /> {c.name}</label>
         {:else}
-          <p class="hint">아직 이 프로젝트에 들어온 사람이 없습니다. 아래에 이름을 적어 주세요.</p>
+          <p class="hint">아직 고를 사람이 없습니다.</p>
         {/each}
       </div>
-      <label>이름으로 추가 (쉼표로 구분)<input data-testid="talk-new-extra" bind:value={extra} placeholder="예: 김고객, 디자이너" /></label>
+      <p class="hint">목록에 없는 사람은 초대 링크로 이 프로젝트에 한 번 들어오면 나옵니다. 이름을 바꿔도 아이디로 이어져 방에 남습니다.</p>
       <button type="submit" class="primary" data-testid="talk-create" disabled={!name.trim()}>만들기</button>
     </form>
   {:else if room}
@@ -71,7 +79,7 @@
       {#each app.talkRooms as r (r.id)}
         <li><button data-testid="talk-room" data-id={r.id} onclick={() => app.openTalk(r.id)}>
           <span class="nm">{r.id === 'team' ? '🏢 ' : '💬 '}{r.name}</span>
-          <span class="mem">{r.id === 'team' ? '편집 권한이 있는 회사 사람 모두' : [r.createdBy, ...r.members].filter((n) => n !== app.nickname).join(', ')}</span>
+          <span class="mem">{r.id === 'team' ? '편집 권한이 있는 회사 사람 모두' : people(r)}</span>
           {#if unread[r.id]}<span class="badge" data-testid="talk-room-unread">{unread[r.id]}</span>{/if}
         </button></li>
       {:else}

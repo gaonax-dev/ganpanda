@@ -21,7 +21,7 @@ const SEAT_RENEW = 30_000;
 /** 소켓에 붙여 두는 정보 (Hibernation 뒤에도 유지) */
 interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: number }
 export interface Attachment { assetId: string; name: string; type: string; size: number }
-export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[]; refs?: { kind: 'object' | 'photo' | 'pin'; id: string; label: string }[] }
+export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[]; refs?: { kind: 'object' | 'photo' | 'pin'; id: string; label: string }[]; /** 보낸 사람 아이디 (계정 id 또는 손님 g:…, 2026-10-22) */ authorId?: string }
 /** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
 export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string; /** 진행 동의에서 뺀 사인물 (2026-10-22) */ excluded?: string[] }
 type AwRow = { client_id: number; sock: string; clock: number; state: string; updated_at?: number };
@@ -278,9 +278,30 @@ export class Room extends DurableObject<Env> {
     return typeof id === 'string' ? id : null;
   }
 
+  /** 톡 색인용 (2026-10-22): 방들(회사 멤버 방은 대화가 있을 때만)과 방별 마지막 메시지 */
+  async talkIndex(): Promise<{ id: string; name: string; memberIds: string[]; createdById: string; last: { ts: number; text: string; author: string } | null }[]> {
+    const last = new Map<string, { ts: number; text: string; author: string }>();
+    for (const m of this.doc.getArray<Message>('messages').toArray()) {
+      if (!m.objectId.startsWith('talk:')) continue;
+      const id = m.objectId.slice(5), prev = last.get(id);
+      if (!prev || m.ts >= prev.ts) last.set(id, { ts: m.ts, text: (m.text || (m.refs?.length ? m.refs.map((r) => r.label).join(', ') : m.attachments?.length ? '첨부' : '')).slice(0, 80), author: m.author });
+    }
+    const rooms = [...this.doc.getMap<Y.Map<unknown>>('talks').values()].map((t) => ({
+      id: String(t.get('id') ?? ''), name: String(t.get('name') ?? ''), memberIds: ((t.get('memberIds') as string[] | undefined) ?? []).filter((x) => typeof x === 'string'), createdById: String(t.get('createdById') ?? ''),
+    })).filter((r) => r.id);
+    const out = rooms.map((r) => ({ ...r, last: last.get(r.id) ?? null }));
+    if (last.has('team')) out.unshift({ id: 'team', name: '회사 멤버', memberIds: [], createdById: '', last: last.get('team')! });
+    return out;
+  }
+
+  /** 한 톡방의 메시지 (메인 화면에서 읽기, 2026-10-22) */
+  async talkMessages(roomId: string): Promise<Message[]> {
+    return this.doc.getArray<Message>('messages').toArray().filter((m) => m.objectId === `talk:${roomId}`).slice(-200);
+  }
+
   /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */
-  async addMessage(objectId: string, author: string, text: string, kind: Message['kind'], attachments?: Attachment[], refs?: Message['refs']): Promise<Message> {
-    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}) };
+  async addMessage(objectId: string, author: string, text: string, kind: Message['kind'], attachments?: Attachment[], refs?: Message['refs'], authorId?: string): Promise<Message> {
+    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}), ...(authorId ? { authorId } : {}) };
     this.doc.getArray<Message>('messages').push([msg]);
     return msg;
   }

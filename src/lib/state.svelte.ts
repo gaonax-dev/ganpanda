@@ -40,7 +40,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
-import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
+import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
@@ -384,8 +384,20 @@ class AppState {
   /** 톡 (2026-10-22): 방 목록·열린 방·보낼 링크. 회사 쪽 = 편집 권한(viewer 아님) */
   talks = $derived.by(() => (this.version, this.project.allTalks()));
   get isCompany() { return this.role !== 'viewer'; }
-  talkRooms = $derived(visibleRooms(this.talks, this.nickname, this.isCompany));
+  /** 내 아이디: 계정 id, 로그인 안 한 손님은 기기 아이디 g:… (톡 멤버 연결, 2026-10-22 "닉은 사용하는데 아이디로 연결하라는 거지") */
+  get myId(): string { return this.account?.id ?? `g:${guestId()}`; }
+  talkRooms = $derived(visibleRooms(this.talks, this.myId, this.isCompany));
+  /** 아이디 → 지금 이름 (접속자·보낸 메시지에서) */
+  talkNames = $derived.by(() => {
+    const out: Record<string, string> = {};
+    for (const m of this.messages) if (m.authorId) out[m.authorId] = m.author;
+    for (const p of this.peers) if (p.id) out[p.id] = p.name;
+    out[this.myId] = this.nickname;
+    return out;
+  });
   talkOpen = $state(false);
+  private startTalk: string | null = null;
+  private startFocus: TalkRef | null = null;
   talkRoomId = $state<string | null>(null);
   talkRefs = $state<TalkRef[]>([]);
   /** 링크를 눌러 고른 선택은 다시 링크로 붙이지 않는다 */
@@ -416,7 +428,7 @@ class AppState {
   /** 사인물·번호 대화의 안 읽은 수 (톡은 따로 → talkUnreadInfo) */
   unreadTotal = $derived(Object.entries(this.unread).reduce((a, [k, n]) => (roomIdOf(k) === null ? a + n : a), 0));
   /** 톡: 보이는 방의 안 읽은 수 (상단 [톡] 단추) */
-  talkUnreadInfo = $derived(talkUnread(this.unread, this.talks, this.nickname, this.isCompany));
+  talkUnreadInfo = $derived(talkUnread(this.unread, this.talks, this.myId, this.isCompany));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
   canEdit = $derived((this.role === 'owner' || this.role === 'editor') && !this.consumerLocked);
@@ -445,6 +457,10 @@ class AppState {
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
     this.safeMode = url.searchParams.get('safe') === '1'; // 진단용: 무거운 겹침(2D 바탕·디자인·카드 얼굴)을 끈다 (2026-10-18 휴대폰 크래시 원인 가르기)
+    // 메인 화면 톡에서 들어옴 (2026-10-22): ?talk=방&focus=종류:id — 열리면 그 방을 열고 그 대상을 화면에 잡는다
+    this.startTalk = url.searchParams.get('talk');
+    const f = url.searchParams.get('focus')?.match(/^(object|photo|pin):(.+)$/);
+    this.startFocus = f ? { kind: f[1] as TalkRef['kind'], id: f[2], label: '' } : null;
     const v = url.searchParams.get('view'); // 홈 그룹의 프로젝트 링크 → 바로 리스트 뷰(견적 세부)
     if (v === 'list' || v === 'uv' || v === 'board') this.view = v;
     if (this.room && inviteParam) {
@@ -916,7 +932,18 @@ class AppState {
       // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")
       if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.consumer ? null : this.accountPrices), quoteMode: this.consumer ? 'auto' : 'manual' }); // 소비자 초안은 예시 단가 자동 계산 = "참고 금액"
     });
-    this.client.setName(this.nickname);
+    this.client.setName(this.nickname, this.myId);
+    if (this.startTalk || this.startFocus) this.client.whenOnline(() => this.applyStartTalk());
+  }
+  /** 문서가 들어올 때까지 잠깐 기다렸다가 방 열기·대상 잡기 (최대 약 6초) */
+  private applyStartTalk(tries = 0) {
+    const room = this.startTalk, focus = this.startFocus;
+    const roomReady = !room || this.talkRooms.some((r) => r.id === room);
+    const focusReady = !focus || (focus.kind === 'object' ? this.objects.some((o) => o.id === focus.id || o.sameAs === focus.id) : focus.kind === 'photo' ? this.photos.some((p) => p.id === focus.id) : this.pins.some((p) => p.id === focus.id));
+    if ((!roomReady || !focusReady) && tries < 30) { setTimeout(() => this.applyStartTalk(tries + 1), 200); return; }
+    this.startTalk = null; this.startFocus = null;
+    if (room) this.openTalk(room);
+    if (focus && focusReady) this.focusRef(focus);
   }
 
   /** 표시 이름: 계정 이름 > 기기에 정한 이름 > 이메일 앞부분 */
@@ -964,7 +991,7 @@ class AppState {
       if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' && !this.proposalMode ? this.selectedId : null, hidden: document.hidden })) continue;
       const pin = this.project.pin(m.objectId);
       if (pin && !pinVisibleTo(pin, this.nickname, this.role)) continue; // 남에게 보낸 말풍선의 대화는 알리지 않는다 (2026-10-17)
-      if (!canSeeTalkMessage(m, this.talks, this.nickname, this.isCompany)) continue; // 톡: 같은 방 사람에게만 (2026-10-22)
+      if (!canSeeTalkMessage(m, this.talks, this.myId, this.isCompany)) continue; // 톡: 같은 방 사람에게만 (2026-10-22)
       if (this.talkOpen && this.talkRoomId === roomIdOf(m.objectId) && !document.hidden) continue; // 보고 있는 방
       const text = m.text || describeAttachments(m.attachments ?? []);
       this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text }];
@@ -1426,11 +1453,19 @@ class AppState {
   }
   closeTalk() { this.talkOpen = false; this.talkRefs = []; }
   /** 방 만들기 — 회사 쪽만 (문서에 저장). 만든 방을 연다 */
-  createTalk(name: string, members: string[]): string | null {
+  createTalk(name: string, members: { id: string; name: string }[]): string | null {
     if (!this.isCompany || !name.trim()) return null;
-    const id = this.project.addTalk({ name: name.trim().slice(0, 40), members: [...new Set(members.filter((m) => m && m !== this.nickname))], createdBy: this.nickname });
+    const ms = members.filter((m, i) => m.id && m.id !== this.myId && members.findIndex((x) => x.id === m.id) === i);
+    const id = this.project.addTalk({ name: name.trim().slice(0, 40), memberIds: ms.map((m) => m.id), memberNames: Object.fromEntries(ms.map((m) => [m.id, m.name])), createdById: this.myId, createdBy: this.nickname });
     this.openTalk(id);
+    this.syncTalks();
     return id;
+  }
+  /** 서버 톡 색인 갱신 (메인 화면 톡 목록·방 멤버 접근) — 문서가 서버에 닿은 뒤 */
+  private syncTalks() {
+    const room = this.room;
+    if (!room) return;
+    setTimeout(() => void talkSync(room, this.invite).catch(() => {}), 600);
   }
   /** 사인물을 고르면 열린 방의 보낼 링크로 */
   talkPickObject(id: string | null) {
@@ -1445,14 +1480,27 @@ class AppState {
     const p = this.photos.find((x) => x.id === photoId);
     if (p) this.talkRefs = addRef(this.talkRefs, { kind: 'photo', id: p.id, label: p.name || '사진' });
   }
+  /** 링크 글: 지금 이름으로 (사인물 이름·사진 이름이 바뀌면 따라 바뀜, 지워졌으면 보낼 때 이름) — 2026-10-22 "링크를 사인물이름으로 … 사진도 사진이름으로" */
+  refText(r: TalkRef): string {
+    if (r.kind === 'object') return (this.objects.find((x) => x.id === r.id) ?? this.objects.find((x) => x.sameAs === r.id))?.name || r.label;
+    if (r.kind === 'photo') return this.photos.find((p) => p.id === r.id)?.name || r.label;
+    const pin = this.pins.find((p) => p.id === r.id);
+    return pin ? `#${pin.number}` : r.label;
+  }
+  /** 사진 이름 바꾸기 (사진 설정, 2026-10-22) */
+  renamePhoto(id: string, name: string) {
+    const n = name.trim().slice(0, 40);
+    if (!n || !this.canEdit) return;
+    this.editBoundary(); this.project.updatePhoto(id, { name: n }); this.editBoundary();
+  }
   removeTalkRef(r: TalkRef) { this.talkRefs = this.talkRefs.filter((x) => !(x.kind === r.kind && x.id === r.id)); }
   async sendTalk(text: string, attachments: Attachment[] = []) {
     const roomId = this.talkRoomId;
     const refs = this.talkRefs;
     if (!roomId || (!text.trim() && !refs.length && !attachments.length)) return;
     const objectId = roomKey(roomId);
-    if (this.role === 'viewer' && this.room) await postMessage(this.room, this.invite, { objectId, author: this.nickname, text: text.trim(), kind: 'chat', attachments, refs });
-    else this.project.addMessage(objectId, this.nickname, text.trim(), 'chat', attachments, refs);
+    if (this.role === 'viewer' && this.room) await postMessage(this.room, this.invite, { objectId, author: this.nickname, authorId: this.myId, text: text.trim(), kind: 'chat', attachments, refs });
+    else { this.project.addMessage(objectId, this.nickname, text.trim(), 'chat', attachments, refs, this.myId); this.syncTalks(); }
     this.talkRefs = [];
     this.markSeen(objectId);
   }
@@ -1487,7 +1535,7 @@ class AppState {
 
   applyAccount(a: Account | null) {
     this.account = a;
-    if (a) this.setNickname(a.name || this.nickname || a.email.split('@')[0], false);
+    if (a) this.setNickname(a.name || this.nickname || a.email.split('@')[0], false); else this.client?.setName(this.nickname, this.myId);
   }
 
   async renameAccount(name: string) {
@@ -1504,9 +1552,9 @@ class AppState {
   /** 대화·코멘트: viewer 는 서버 API 로, 그 외는 문서에 직접 */
   async sendMessage(objectId: string, text: string, kind: 'chat' | 'comment' | 'voice', attachments: Attachment[] = []) {
     if (this.role === 'viewer' && this.room) {
-      await postMessage(this.room, this.invite, { objectId, author: this.nickname, text, kind, attachments });
+      await postMessage(this.room, this.invite, { objectId, author: this.nickname, authorId: this.myId, text, kind, attachments });
     } else {
-      this.project.addMessage(objectId, this.nickname, text, kind, attachments);
+      this.project.addMessage(objectId, this.nickname, text, kind, attachments, undefined, this.myId);
     }
   }
 
@@ -1527,7 +1575,7 @@ class AppState {
 
   setNickname(n: string, persist = true) {
     this.nickname = n;
-    this.client?.setName(n);
+    this.client?.setName(n, this.myId);
     if (persist) save('ganpanda.nickname', n);
   }
 

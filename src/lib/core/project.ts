@@ -40,13 +40,13 @@ export class Project {
     this.talks = doc.getMap('talks');
   }
 
-  addTalk(t: { name: string; members: string[]; createdBy: string }): string {
+  addTalk(t: Pick<TalkRoom, 'name' | 'memberIds' | 'memberNames' | 'createdById' | 'createdBy'>): string {
     const id = uid();
     this.talks.set(id, toYMap({ ...t, id, createdAt: Date.now() }));
     return id;
   }
 
-  updateTalk(id: string, patch: Partial<Pick<TalkRoom, 'name' | 'members'>>) {
+  updateTalk(id: string, patch: Partial<Pick<TalkRoom, 'name' | 'memberIds' | 'memberNames'>>) {
     this.patch(this.talks.get(id), patch);
   }
 
@@ -246,8 +246,8 @@ export class Project {
     for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === objectId) this.messages.delete(i, 1);
   }
 
-  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat', attachments?: Attachment[], refs?: TalkRef[]) {
-    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}) }]);
+  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat', attachments?: Attachment[], refs?: TalkRef[], authorId?: string) {
+    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}), ...(authorId ? { authorId } : {}) }]);
   }
 
   /** 메시지 하나 지우기 (2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다") — 대화·코멘트·음성 메모 모두. 없으면 false */

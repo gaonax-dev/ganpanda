@@ -39,10 +39,12 @@ export class SyncClient {
   }
 
   private name: string | null = null;
-  setName(name: string) {
+  private myId = '';
+  setName(name: string, id = this.myId) {
     this.name = name;
+    this.myId = id;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return; // 숨겨진 동안은 표시하지 않는다
-    this.provider?.awareness.setLocalState({ name, color: colorFor(name), cursor: this.provider.awareness.getLocalState()?.cursor });
+    this.provider?.awareness.setLocalState({ name, color: colorFor(name), cursor: this.provider.awareness.getLocalState()?.cursor, ...(id ? { id } : {}) });
   }
   /** 내 표시 지우기 (상대 화면에서 바로 사라짐) */
   private away() { this.provider?.awareness.setLocalState(null); }

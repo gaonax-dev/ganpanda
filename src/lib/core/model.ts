@@ -231,10 +231,13 @@ export interface Message {
   attachments?: Attachment[];
   /** 톡 메시지의 사인물·사진·번호 링크 (2026-10-22) — 누르면 그 대상이 화면에 잡힌다 */
   refs?: TalkRef[];
+  /** 보낸 사람 아이디 (계정 id 또는 손님 g:…, 2026-10-22) */
+  authorId?: string;
 }
 
 /** 톡 링크 대상 */
 export interface TalkRef { kind: 'object' | 'photo' | 'pin'; id: string; label: string }
 
-/** 톡방 (2026-10-22): 프로젝트 안에서 대화 상대를 골라 만든 방. 회사 멤버 방은 고정(core/talk.ts TEAM_ROOM) */
-export interface TalkRoom { id: string; name: string; /** 닉네임 */ members: string[]; createdBy: string; createdAt: number }
+/** 톡방 (2026-10-22): 프로젝트 안에서 대화 상대를 골라 만든 방. 회사 멤버 방은 고정(core/talk.ts TEAM_ROOM).
+ *  멤버는 아이디(계정 id, 로그인 안 한 손님은 g:…)로 연결하고 화면에는 닉네임 ("닉은 사용하는데 아이디로 연결하라는 거지") */
+export interface TalkRoom { id: string; name: string; memberIds: string[]; /** 만들 때의 닉네임 (지금 이름을 모를 때 표시) */ memberNames: Record<string, string>; createdById: string; createdBy: string; createdAt: number }

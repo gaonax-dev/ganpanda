@@ -1,4 +1,5 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
+import { talkMember } from './talk';
 import { authenticate, type Account } from './auth';
 import { teamAccess } from './team';
 import { json, randomToken, readJson, sha256hex, text } from './http';
@@ -45,7 +46,7 @@ function detailSets(body: Record<string, unknown>): Record<string, unknown> | nu
 
 const amount = (v: unknown): number | null | undefined => (v === undefined ? undefined : typeof v === 'number' && isFinite(v) && v >= 0 ? Math.round(v) : null);
 
-const getProject = (env: Env, id: string) => env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first<ProjectRow>();
+export const getProject = (env: Env, id: string) => env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first<ProjectRow>();
 
 async function inviteByToken(env: Env, token: string): Promise<InviteRow | null> {
   const row = await env.DB.prepare('SELECT * FROM invites WHERE token_hash = ?').bind(await sha256hex(token)).first<InviteRow>();
@@ -69,6 +70,10 @@ export async function resolveAccess(req: Request, env: Env, projectId: string, i
     return r && (await shopCanSee(env, account, r)) ? { role: 'viewer', project, account } : 403;
   }
   if (account && account.id === project.owner_id) return { role: 'owner', project, account };
+  // 톡방 멤버는 초대 링크 없이 들어온다 (2026-10-22 "링크를 누르면 해당 프로젝트의 링크로 이동"): 회사 멤버(팀) = editor, 그 밖 = viewer
+  if (!inviteToken && account && (await talkMember(env, account.id, project.id))) {
+    return { role: (await teamAccess(env, project.owner_id, account)) ? 'editor' : 'viewer', project, account };
+  }
   if (inviteToken) {
     const inv = await inviteByToken(env, inviteToken);
     if (!inv) return account ? 403 : 401;

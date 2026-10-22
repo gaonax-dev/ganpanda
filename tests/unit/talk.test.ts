@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { TEAM_ROOM, roomKey, roomIdOf, visibleRooms, talkUnread, canSeeTalkMessage, addRef, refLabel } from '../../src/lib/core/talk';
+import { TEAM_ROOM, memberLabel, roomKey, roomIdOf, visibleRooms, talkUnread, canSeeTalkMessage, addRef, refLabel } from '../../src/lib/core/talk';
 import type { Message, TalkRoom } from '../../src/lib/core/model';
 
-const room = (id: string, members: string[], createdBy = '사장'): TalkRoom => ({ id, name: id, members, createdBy, createdAt: 1 });
+// 멤버는 아이디로 연결, 화면은 닉네임 (2026-10-22 "닉은 사용하는데 아이디로 연결하라는 거지")
+const room = (id: string, memberIds: string[], createdById = 'u-boss'): TalkRoom => ({ id, name: id, memberIds, memberNames: {}, createdById, createdBy: '사장', createdAt: 1 });
 const msg = (objectId: string, author: string, ts: number): Message => ({ id: `${objectId}${ts}`, objectId, author, text: 'x', kind: 'chat', ts });
 
 describe('톡방 (2026-10-22)', () => {
@@ -13,30 +14,37 @@ describe('톡방 (2026-10-22)', () => {
   });
 
   it('회사 멤버 방은 언제나 맨 앞, 회사 쪽(편집 권한)만 본다', () => {
-    const rooms = [room('r1', ['고객'])];
-    expect(visibleRooms(rooms, '사장', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1']);
-    expect(visibleRooms(rooms, '고객', false).map((r) => r.id)).toEqual(['r1']);
+    const rooms = [room('r1', ['u-cus'])];
+    expect(visibleRooms(rooms, 'u-boss', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1']);
+    expect(visibleRooms(rooms, 'u-cus', false).map((r) => r.id)).toEqual(['r1']);
+  });
+
+  it('이름이 바뀌어도 아이디로 남는다', () => {
+    const rooms = [room('r1', ['u-cus'])];
+    expect(visibleRooms(rooms, 'u-cus', false).map((r) => r.id)).toEqual(['r1']);
+    expect(memberLabel(rooms[0], 'u-cus', { 'u-cus': '새이름' })).toBe('새이름');
+    expect(memberLabel({ ...rooms[0], memberNames: { 'u-cus': '옛이름' } }, 'u-cus', {})).toBe('옛이름');
   });
 
   it('만든 사람과 멤버만 방을 본다', () => {
-    const rooms = [room('r1', ['직원'], '사장'), room('r2', ['고객'], '직원')];
-    expect(visibleRooms(rooms, '직원', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1', 'r2']);
-    expect(visibleRooms(rooms, '사장', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1']);
-    expect(visibleRooms(rooms, '남', false)).toEqual([]);
+    const rooms = [room('r1', ['u-staff'], 'u-boss'), room('r2', ['u-cus'], 'u-staff')];
+    expect(visibleRooms(rooms, 'u-staff', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1', 'r2']);
+    expect(visibleRooms(rooms, 'u-boss', true).map((r) => r.id)).toEqual([TEAM_ROOM.id, 'r1']);
+    expect(visibleRooms(rooms, 'u-x', false)).toEqual([]);
   });
 
   it('보이는 방의 메시지만 알린다 — 사인물 대화는 그대로', () => {
-    const rooms = [room('r1', ['직원'])];
-    expect(canSeeTalkMessage(msg('talk:r1', '사장', 1), rooms, '직원', true)).toBe(true);
-    expect(canSeeTalkMessage(msg('talk:r1', '사장', 1), rooms, '고객', false)).toBe(false);
-    expect(canSeeTalkMessage(msg('talk:team', '사장', 1), rooms, '고객', false)).toBe(false);
-    expect(canSeeTalkMessage(msg('sign1', '사장', 1), rooms, '고객', false)).toBe(true);
+    const rooms = [room('r1', ['u-staff'])];
+    expect(canSeeTalkMessage(msg('talk:r1', '사장', 1), rooms, 'u-staff', true)).toBe(true);
+    expect(canSeeTalkMessage(msg('talk:r1', '사장', 1), rooms, 'u-cus', false)).toBe(false);
+    expect(canSeeTalkMessage(msg('talk:team', '사장', 1), rooms, 'u-cus', false)).toBe(false);
+    expect(canSeeTalkMessage(msg('sign1', '사장', 1), rooms, 'u-cus', false)).toBe(true);
   });
 
   it('방별 안 읽은 수 — 보이는 방만 합한다', () => {
-    const rooms = [room('r1', ['직원']), room('r2', ['고객'])];
+    const rooms = [room('r1', ['u-staff']), room('r2', ['u-cus'])];
     const unread = { 'talk:r1': 2, 'talk:r2': 5, 'talk:team': 1, sign1: 3 };
-    expect(talkUnread(unread, rooms, '직원', true)).toEqual({ total: 3, byRoom: { team: 1, r1: 2 } });
+    expect(talkUnread(unread, rooms, 'u-staff', true)).toEqual({ total: 3, byRoom: { team: 1, r1: 2 } });
   });
 
   it('사인물·사진 링크는 한 번만 붙는다', () => {
@@ -53,12 +61,12 @@ import { Project } from '../../src/lib/core/project';
 describe('Project 톡방', () => {
   it('방을 만들고, 링크가 붙은 메시지를 보낸다', () => {
     const p = new Project();
-    const id = p.addTalk({ name: '고객 상담', members: ['고객'], createdBy: '사장' });
-    expect(p.allTalks()).toMatchObject([{ id, name: '고객 상담', members: ['고객'], createdBy: '사장' }]);
-    p.addMessage(`talk:${id}`, '사장', '이거 보세요', 'chat', [], [{ kind: 'object', id: 'o1', label: '간판' }]);
-    expect(p.messagesOf(`talk:${id}`)[0].refs).toEqual([{ kind: 'object', id: 'o1', label: '간판' }]);
-    p.updateTalk(id, { name: '상담', members: ['고객', '직원'] });
-    expect(p.allTalks()[0]).toMatchObject({ name: '상담', members: ['고객', '직원'] });
+    const id = p.addTalk({ name: '고객 상담', memberIds: ['u-cus'], memberNames: { 'u-cus': '고객' }, createdById: 'u-boss', createdBy: '사장' });
+    expect(p.allTalks()).toMatchObject([{ id, name: '고객 상담', memberIds: ['u-cus'], createdById: 'u-boss' }]);
+    p.addMessage(`talk:${id}`, '사장', '이거 보세요', 'chat', [], [{ kind: 'object', id: 'o1', label: '간판' }], 'u-boss');
+    expect(p.messagesOf(`talk:${id}`)[0]).toMatchObject({ refs: [{ kind: 'object', id: 'o1', label: '간판' }], authorId: 'u-boss' });
+    p.updateTalk(id, { name: '상담', memberIds: ['u-cus', 'u-staff'] });
+    expect(p.allTalks()[0]).toMatchObject({ name: '상담', memberIds: ['u-cus', 'u-staff'] });
   });
 });
 

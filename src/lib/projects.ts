@@ -1,7 +1,7 @@
 // 프로젝트·초대·방 접근 API 클라이언트 (1-2b)
 import { SERVER_URL } from './sync';
 import { AuthError, loadSession } from './auth';
-import type { Attachment, TalkRef } from './core/model';
+import type { Attachment, Message, TalkRef } from './core/model';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 export type ProjectStatus = 'waiting' | 'ongoing' | 'paused' | 'done';
@@ -72,8 +72,15 @@ export const createInvite = (room: string, role: 'viewer' | 'editor', kind?: 'pr
 export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api/projects/${room}/invites/${inviteId}`, { method: 'DELETE' });
 
 /** viewer 의 대화: 서버가 문서에 기록 */
-export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[]; refs?: TalkRef[] }) =>
+export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[]; refs?: TalkRef[]; authorId?: string }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
+
+/** 톡 (2026-10-22): 서버 톡 색인 갱신 · 메인 화면 톡 목록 · 한 방 읽기/보내기 */
+export const talkSync = (room: string, invite: string | null) => call<void>(`/api/rooms/${room}/talk-sync${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: '{}' });
+export interface TalkSummary { projectId: string; projectName: string; roomId: string; roomName: string; last: { ts: number; text: string; author: string } | null }
+export const listMyTalks = () => call<{ talks: TalkSummary[] }>('/api/me/talks').then((r) => r.talks);
+export const readTalk = (projectId: string, roomId: string) => call<{ messages: Message[] }>(`/api/me/talks/${projectId}/${roomId}`).then((r) => r.messages);
+export const sendTalkFromHome = (projectId: string, roomId: string, text: string) => call<void>(`/api/me/talks/${projectId}/${roomId}`, { method: 'POST', body: JSON.stringify({ text }) });
 
 /** 사양 글 개인 사전 (2026-10-18 V1) */
 export const getSpecRules = () => call<{ rules: { phrase: string; meaning: unknown[] }[] }>('/api/me/spec-rules').then((r) => r.rules);

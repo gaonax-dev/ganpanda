@@ -80,7 +80,7 @@
           <div class="bubble" class:mine data-testid="chat-bubble">
             {#if m.attachments?.length}<div class="atts">{#each m.attachments as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}</div>{/if}
             {#if m.text}{m.text}{/if}
-            {#if m.refs?.length}<div class="refs">{#each m.refs as r (r.kind + r.id)}<button type="button" class="ref" data-testid="talk-ref" data-kind={r.kind} onclick={() => app.focusRef(r)}>{refLabel(r)}</button>{/each}</div>{/if}
+            {#if m.refs?.length}<div class="refs">{#each m.refs as r (r.kind + r.id)}<button type="button" class="ref" data-testid="talk-ref" data-kind={r.kind} title={r.label !== app.refText(r) ? `보낼 때 이름: ${r.label}` : undefined} onclick={() => app.focusRef(r)}>{refLabel({ ...r, label: app.refText(r) })}</button>{/each}</div>{/if}
           </div>
           <span class="t">{time(m.ts)}</span>
           {#if app.canDeleteMessage(m)}<button class="del" data-testid="chat-delete" title="지우기" onclick={() => del(m)}>✕</button>{/if}
@@ -97,7 +97,7 @@
 </div>
 {#if pending.length || uploading || attachError || (talk && app.talkRefs.length)}
   <div class="pending">
-    {#if talk}{#each app.talkRefs as r (r.kind + r.id)}<span class="chip" data-testid="talk-pending-ref">{refLabel(r)}<button title="빼기" onclick={() => app.removeTalkRef(r)}>×</button></span>{/each}{/if}
+    {#if talk}{#each app.talkRefs as r (r.kind + r.id)}<span class="chip" data-testid="talk-pending-ref">{refLabel({ ...r, label: app.refText(r) })}<button title="빼기" onclick={() => app.removeTalkRef(r)}>×</button></span>{/each}{/if}
     {#each pending as a (a.assetId + a.name)}
       <span class="chip" data-testid="chat-pending">{a.type.startsWith('image/') ? '🖼' : '📄'} {a.name}<button title="빼기" onclick={() => (pending = pending.filter((x) => x !== a))}>×</button></span>
     {/each}
