@@ -123,6 +123,16 @@ const MESSAGE_MAX = 2000;
 const ATTACH_MAX = 5;
 
 /** 첨부 목록 검증: 에셋 ID 형식·허용 형식·개수 */
+/** 톡 링크 (사인물·사진·번호) — 모르는 종류는 버린다 */
+function parseRefs(v: unknown): { kind: 'object' | 'photo' | 'pin'; id: string; label: string }[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((r) => {
+    const x = r as { kind?: unknown; id?: unknown; label?: unknown };
+    if ((x.kind !== 'object' && x.kind !== 'photo' && x.kind !== 'pin') || typeof x.id !== 'string' || !x.id) return [];
+    return [{ kind: x.kind as 'object' | 'photo' | 'pin', id: x.id.slice(0, 64), label: typeof x.label === 'string' ? x.label.slice(0, 60) : '' }];
+  }).slice(0, 20);
+}
+
 function parseAttachments(v: unknown): { assetId: string; name: string; type: string; size: number }[] | null {
   if (v === undefined) return [];
   if (!Array.isArray(v) || v.length > ATTACH_MAX) return null;
@@ -150,14 +160,17 @@ async function postMessage(req: Request, env: Env, room: string, role: Role): Pr
     return st === 200 ? json({ ok: true }) : text(st === 403 ? 'not yours' : 'not found', st);
   }
   if (req.method !== 'POST') return text('method not allowed', 405);
-  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string; attachments?: unknown }>(req);
+  const b = await readJson<{ objectId?: string; author?: string; text?: string; kind?: string; attachments?: unknown; refs?: unknown }>(req);
   const txt = typeof b?.text === 'string' ? b.text.trim().slice(0, MESSAGE_MAX) : '';
   const objectId = typeof b?.objectId === 'string' ? b.objectId : '';
   const author = typeof b?.author === 'string' ? b.author.trim().slice(0, 40) : '';
   const kind = b?.kind ?? 'chat';
   const attachments = parseAttachments(b?.attachments);
-  if (!attachments || (!txt && !attachments.length) || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
-  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment' | 'voice', attachments);
+  const refs = parseRefs(b?.refs);
+  if (!attachments || (!txt && !attachments.length && !refs.length) || !objectId || !author || !MESSAGE_KINDS.has(kind)) return text('bad message', 400);
+  // 톡 (2026-10-22): 회사 멤버 방은 회사 쪽(편집 권한)만 — 고객 링크(viewer)는 쓸 수 없다
+  if (objectId === 'talk:team' && role === 'viewer') return text('team only', 403);
+  const msg = await env.ROOM.getByName(room).addMessage(objectId, author, txt, kind as 'chat' | 'comment' | 'voice', attachments, refs);
   return json({ message: msg }, 201);
 }
 

@@ -1,7 +1,7 @@
 // 프로젝트·초대·방 접근 API 클라이언트 (1-2b)
 import { SERVER_URL } from './sync';
 import { AuthError, loadSession } from './auth';
-import type { Attachment } from './core/model';
+import type { Attachment, TalkRef } from './core/model';
 
 export type Role = 'owner' | 'editor' | 'viewer';
 export type ProjectStatus = 'waiting' | 'ongoing' | 'paused' | 'done';
@@ -72,7 +72,7 @@ export const createInvite = (room: string, role: 'viewer' | 'editor', kind?: 'pr
 export const revokeInvite = (room: string, inviteId: string) => call<void>(`/api/projects/${room}/invites/${inviteId}`, { method: 'DELETE' });
 
 /** viewer 의 대화: 서버가 문서에 기록 */
-export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[] }) =>
+export const postMessage = (room: string, invite: string | null, body: { objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'voice'; attachments?: Attachment[]; refs?: TalkRef[] }) =>
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 /** 사양 글 개인 사전 (2026-10-18 V1) */

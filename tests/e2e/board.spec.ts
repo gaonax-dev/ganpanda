@@ -135,7 +135,7 @@ test('하단 도구 막대 순서: 선택·다중(2026-10-22)·말풍선 | 존·
   // 2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기 / 언두 리두 아이콘 일반적인 모양으로 사진은 사진기 아이콘으로"
   await uploadPhoto(page);
   const ids = await page.locator('.tools[role="toolbar"] > [data-testid]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-pin', 'tool-zone', 'undo', 'redo', 'tool-rect', 'tool-ellipse', 'tool-photo', 'zoom-fit', 'zoom-label']);
+  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-zone', 'undo', 'redo', 'tool-rect', 'tool-ellipse', 'tool-photo', 'zoom-fit', 'zoom-label']);
   await expect(page.getByTestId('tool-magic')).toHaveCount(0);
   await expect(page.getByTestId('tool-ellipse')).toContainText('타원');
   for (const t of ['undo', 'redo', 'tool-photo']) await expect(page.getByTestId(t).locator('svg')).toHaveCount(1);

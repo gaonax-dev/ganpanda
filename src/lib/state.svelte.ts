@@ -9,7 +9,8 @@ import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
 import { arrangeLikePhotos, homeOf } from './core/arrange';
-import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject } from './core/model';
+import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
+import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type PriceTable } from './core/pricing';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
@@ -40,7 +41,7 @@ import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAss
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, type Role } from './projects';
-import { markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
+import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
@@ -240,7 +241,7 @@ class AppState {
   /** 새 배포가 있음 (오래 열어 둔 탭) → 새로고침 안내 */
   updateAvailable = $state(false);
   /** 보드가 이 사진을 화면에 맞추라는 요청 (리스트에서 사진에 올린 뒤) */
-  reveal = $state<{ photoId: string; n: number } | null>(null);
+  reveal = $state<{ photoId: string; n: number; /** 톡 링크: 이 사인물·번호에 맞춘다 */ objectId?: string; pinId?: string } | null>(null);
   /** 사인물별 내가 마지막으로 본 메시지 시각 (기기 저장) */
   seen = $state<SeenMap>({});
   /** 새 메시지 토스트 (최근 것이 뒤) */
@@ -380,6 +381,15 @@ class AppState {
   visiblePins = $derived(this.pins.filter((p) => pinVisibleTo(p, this.nickname, this.role)));
   selectedPin = $derived.by(() => (this.version, this.selectedPinId ? this.project.pin(this.selectedPinId) ?? null : null));
   messages = $derived.by(() => (this.version, this.project.allMessages()));
+  /** 톡 (2026-10-22): 방 목록·열린 방·보낼 링크. 회사 쪽 = 편집 권한(viewer 아님) */
+  talks = $derived.by(() => (this.version, this.project.allTalks()));
+  get isCompany() { return this.role !== 'viewer'; }
+  talkRooms = $derived(visibleRooms(this.talks, this.nickname, this.isCompany));
+  talkOpen = $state(false);
+  talkRoomId = $state<string | null>(null);
+  talkRefs = $state<TalkRef[]>([]);
+  /** 링크를 눌러 고른 선택은 다시 링크로 붙이지 않는다 */
+  private talkSkipId: string | null = null;
   /** 말풍선 받는 사람 후보 */
   participants = $derived(participantsOf(this.peers.map((p) => p.name), this.messages, this.pins, this.nickname));
   sources = $derived.by(() => (this.version, this.project.allSources()));
@@ -395,13 +405,18 @@ class AppState {
     this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null, mode: this.settings.quoteMode ?? 'auto', lineAmounts: this.settings.lineAmounts ?? {} },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
+  /** 대상별 대화 수 — 말풍선 숫자 (2026-10-22) */
+  chatCounts = $derived(countByObject(this.messages));
   /** 사인물(대화 id)별 음성 메모 수 — 카드·상세의 🎙 (2026-10-18) */
   voiceCounts = $derived(voiceCounts(this.messages));
   /** 승인 대상 내용의 해시 (사인물 규격·치수·디자인·금액) */
   contentHash = $derived(contentHash(this.signs, (o) => this.sizeOf(o), this.quote));
   /** 최신 승인과 현재 내용의 관계 */
   approval = $derived(approvalState(this.settings.approvals, this.contentHash));
-  unreadTotal = $derived(Object.values(this.unread).reduce((a, b) => a + b, 0));
+  /** 사인물·번호 대화의 안 읽은 수 (톡은 따로 → talkUnreadInfo) */
+  unreadTotal = $derived(Object.entries(this.unread).reduce((a, [k, n]) => (roomIdOf(k) === null ? a + n : a), 0));
+  /** 톡: 보이는 방의 안 읽은 수 (상단 [톡] 단추) */
+  talkUnreadInfo = $derived(talkUnread(this.unread, this.talks, this.nickname, this.isCompany));
   role = $derived<Role | null>(this.access.status === 'ok' ? this.access.role : null);
   /** 편집 가능 여부 (viewer 는 보기·대화만). 서버 없는 로컬 모드는 항상 편집 가능 */
   canEdit = $derived((this.role === 'owner' || this.role === 'editor') && !this.consumerLocked);
@@ -949,6 +964,8 @@ class AppState {
       if (!shouldNotify(m, { me: this.nickname, viewingObjectId: this.view === 'board' && !this.proposalMode ? this.selectedId : null, hidden: document.hidden })) continue;
       const pin = this.project.pin(m.objectId);
       if (pin && !pinVisibleTo(pin, this.nickname, this.role)) continue; // 남에게 보낸 말풍선의 대화는 알리지 않는다 (2026-10-17)
+      if (!canSeeTalkMessage(m, this.talks, this.nickname, this.isCompany)) continue; // 톡: 같은 방 사람에게만 (2026-10-22)
+      if (this.talkOpen && this.talkRoomId === roomIdOf(m.objectId) && !document.hidden) continue; // 보고 있는 방
       const text = m.text || describeAttachments(m.attachments ?? []);
       this.toasts = [...this.toasts.slice(-3), { id: m.id, objectId: m.objectId, author: m.author, text }];
       setTimeout(() => this.dismissToast(m.id), 8000);
@@ -963,6 +980,8 @@ class AppState {
   /** 토스트를 누르면 그 사인물·핀의 대화를 연다 */
   openFromToast(t: Toast) {
     this.dismissToast(t.id);
+    const rid = roomIdOf(t.objectId);
+    if (rid) { this.openTalk(rid); return; }
     this.view = 'board';
     if (this.project.pin(t.objectId)) this.selectPin(t.objectId); else this.openChat(t.objectId); // 사인물이면 말풍선 창 (2026-10-18)
   }
@@ -1288,6 +1307,7 @@ class AppState {
   }
 
   selectObject(id: string | null, kind: 'shape' | 'card' = 'shape') {
+    if (id) this.talkPickObject(id); // 톡이 열려 있으면 고른 사인물이 대화 링크로 (2026-10-22)
     // 다중 선택 중에는 다른 길로 골라도(손잡이 잡기·대화 열기·새로 그리기) 풀리지 않고 그것을 주 선택으로 더한다 (2026-10-22 "다중선택 중간에 해제되는 경우도 알아봐줘") — 끝내기는 null(✕·정리)·[다중] 끄기
     if (this.multiMode && id && (!this.selectedId || kind === this.selectionKind)) {
       const all = new Set(this.selectionIds);
@@ -1312,13 +1332,13 @@ class AppState {
    * 빈 곳 누름: 선택은 **탭일 때만** 푼다 (2026-10-22 사용자: "개별선택시 화면 팬이나 줌시 선택유지 되게") — 6px 넘게 움직이면(팬), 두 번째 손가락이 닿으면(핀치 줌),
    * 취소되면 그대로. 전에는 누르는 순간 풀고 팬을 시작해 화면만 옮겨도 선택이 사라졌다
    */
-  clearSelectionOnTap(e: PointerEvent) {
+  clearSelectionOnTap(e: PointerEvent, onTap?: () => void) {
     const sx = e.clientX, sy = e.clientY;
     let tap = true;
     const move = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) tap = false; };
     const second = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) tap = false; };
     const done = () => { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerdown', second, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', cancel, true); };
-    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); } };
+    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); onTap?.(); } };
     const cancel = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) done(); };
     window.addEventListener('pointermove', move, true); window.addEventListener('pointerdown', second, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
   }
@@ -1390,7 +1410,69 @@ class AppState {
     if (this.role === 'viewer' && this.room) id = (await postPin(this.room, this.invite, body)).pin.id;
     else { this.editBoundary(); id = this.project.addPin(body); this.editBoundary(); }
     this.tool = 'select';
+    if (this.talkOpen && this.talkRoomId) { // 톡에서 찍은 번호는 대화 링크로 (2026-10-22)
+      const pin = this.project.pin(id);
+      this.talkRefs = addRef(this.talkRefs, { kind: 'pin', id, label: pin ? `#${pin.number}` : '#' });
+      return;
+    }
     this.selectPin(id);
+  }
+
+  // ── 톡 (2026-10-22 사용자: "톡방이 켜진 상태에서 사인물을 선택하면 대화에 사인물 링크가 생기고 대화에서 해당 링크를 누르면 해당 링크가 화면에 잡힌다") ──
+  openTalk(roomId: string | null = this.talkRoomId) {
+    this.talkOpen = true;
+    this.talkRoomId = roomId && this.talkRooms.some((r) => r.id === roomId) ? roomId : null;
+    if (this.talkRoomId) this.markSeen(roomKey(this.talkRoomId));
+  }
+  closeTalk() { this.talkOpen = false; this.talkRefs = []; }
+  /** 방 만들기 — 회사 쪽만 (문서에 저장). 만든 방을 연다 */
+  createTalk(name: string, members: string[]): string | null {
+    if (!this.isCompany || !name.trim()) return null;
+    const id = this.project.addTalk({ name: name.trim().slice(0, 40), members: [...new Set(members.filter((m) => m && m !== this.nickname))], createdBy: this.nickname });
+    this.openTalk(id);
+    return id;
+  }
+  /** 사인물을 고르면 열린 방의 보낼 링크로 */
+  talkPickObject(id: string | null) {
+    if (!id || !this.talkOpen || !this.talkRoomId) return;
+    if (this.talkSkipId === id) { this.talkSkipId = null; return; }
+    const o = this.objects.find((x) => x.id === id);
+    if (o) this.talkRefs = addRef(this.talkRefs, { kind: 'object', id: o.sameAs ?? o.id, label: o.name || '사인물' });
+  }
+  /** 사진 빈 곳을 탭하면 그 사진을 링크로 */
+  talkPickPhoto(photoId: string) {
+    if (!this.talkOpen || !this.talkRoomId) return;
+    const p = this.photos.find((x) => x.id === photoId);
+    if (p) this.talkRefs = addRef(this.talkRefs, { kind: 'photo', id: p.id, label: p.name || '사진' });
+  }
+  removeTalkRef(r: TalkRef) { this.talkRefs = this.talkRefs.filter((x) => !(x.kind === r.kind && x.id === r.id)); }
+  async sendTalk(text: string, attachments: Attachment[] = []) {
+    const roomId = this.talkRoomId;
+    const refs = this.talkRefs;
+    if (!roomId || (!text.trim() && !refs.length && !attachments.length)) return;
+    const objectId = roomKey(roomId);
+    if (this.role === 'viewer' && this.room) await postMessage(this.room, this.invite, { objectId, author: this.nickname, text: text.trim(), kind: 'chat', attachments, refs });
+    else this.project.addMessage(objectId, this.nickname, text.trim(), 'chat', attachments, refs);
+    this.talkRefs = [];
+    this.markSeen(objectId);
+  }
+  /** 링크 누르기: 그 대상을 화면에 잡는다 (사진보드로, 고르고, 맞춘다) */
+  focusRef(r: TalkRef) {
+    if (this.view !== 'board') this.view = 'board';
+    if (r.kind === 'object') {
+      const o = this.objects.find((x) => x.id === r.id) ?? this.objects.find((x) => x.sameAs === r.id);
+      if (!o) { this.notice = '지워진 사인물입니다.'; return; }
+      this.talkSkipId = o.id;
+      this.selectObject(o.id);
+      this.reveal = { photoId: o.photoId, n: (this.reveal?.n ?? 0) + 1, objectId: o.id };
+    } else if (r.kind === 'pin') {
+      const pin = this.project.pin(r.id);
+      if (!pin) { this.notice = '지워진 번호입니다.'; return; }
+      this.reveal = { photoId: pin.photoId, n: (this.reveal?.n ?? 0) + 1, pinId: pin.id };
+    } else {
+      if (!this.photos.some((p) => p.id === r.id)) { this.notice = '지워진 사진입니다.'; return; }
+      this.reveal = { photoId: r.id, n: (this.reveal?.n ?? 0) + 1 };
+    }
   }
 
   private browserNotify(author: string, text: string) {

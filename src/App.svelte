@@ -17,6 +17,7 @@
   import InviteDialog from './lib/ui/InviteDialog.svelte';
   import VersionsDialog from './lib/ui/VersionsDialog.svelte';
   import PinPanel from './lib/ui/PinPanel.svelte';
+  import TalkPanel from './lib/ui/TalkPanel.svelte';
   import QuickBar from './lib/ui/QuickBar.svelte';
   import { recording } from './lib/recording.svelte';
   import { recordingLabel } from './lib/core/attachments';
@@ -192,6 +193,8 @@
       <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"). 받은 요청 페이지 안에서는 감춘다 — 페이지에 받은/보낸 탭이 있다 ("견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘") -->
       {#if app.sentShown && !app.consumer && !app.inbox}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">{app.compact ? '보냄' : '보낸 요청'} <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
       {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">{app.compact ? '요청' : '견적 요청'} <b data-testid="request-count">{app.requestCount}</b></a>{/if}
+      <!-- 톡 (2026-10-22 "톡은 메인화면의 상단에 톡버튼") -->
+      {#if app.room && app.access.status === 'ok' && !app.inbox}<button class="talkbtn" class:on={app.talkOpen} data-testid="talk-open" title="톡 — 회사 멤버·고객과 방별 대화" onclick={() => (app.talkOpen ? app.closeTalk() : app.openTalk())}>톡{#if app.talkUnreadInfo.total}<b data-testid="talk-unread">{app.talkUnreadInfo.total}</b>{/if}</button>{/if}
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="peers">
         {#each app.peers as p (p.name)}
@@ -286,7 +289,10 @@
       <div class="view" hidden={app.view !== 'board' && !app.boardOnly}><BoardView /></div>
       {#if app.view === 'list' && !app.boardOnly}<div class="view"><ListView /></div>{/if}
       {#if app.view === 'uv' && !app.isCustomer}<div class="view"><UvView /></div>{/if}
-      {#if app.selected && app.chatObjectId === app.selected.id && app.view === 'list'}
+      {#if app.talkOpen}
+        <!-- 톡이 열려 있으면 사인물을 골라도 속성창 대신 대화 링크로 (2026-10-22) -->
+        <TalkPanel />
+      {:else if app.selected && app.chatObjectId === app.selected.id && app.view === 'list'}
         <!-- 리스트 뷰의 정면도 말풍선에서 연 대화 (2026-10-18) -->
         {#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
       {:else if app.selected && (app.view === 'board' || app.boardOnly)}
@@ -369,6 +375,9 @@
     border: 1px solid rgba(185, 164, 255, 0.6); box-shadow: 0 0 24px rgba(160, 130, 255, 0.55), 0 8px 30px rgba(0, 0, 0, 0.45); animation: flash-in 3.2s ease-out both; }
   @keyframes flash-in { 0% { opacity: 0; transform: translate(-50%, -12px) scale(0.96); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+  .talkbtn { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 3px 11px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .talkbtn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .talkbtn b { background: #ef4444; color: #fff; border-radius: 9px; padding: 0 6px; font-size: 11px; }
   .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
   .toast { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 300px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
   .toast span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -392,7 +401,7 @@
   /* (스타일 끝에 두어 같은 우선순위의 위 규칙들을 덮는다) */
   /* 휴대폰 폭: 두 줄(위 = 프로젝트·버튼·계정, 아래 = 뷰 탭), 라벨은 축약, 접속자·역할은 숨김 */
   @media (max-width: 720px) {
-    .top { flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
+    .top { flex-wrap: wrap; gap: 6px 4px; padding: 6px 8px; }
     /* 위 줄은 한 줄로 (2026-10-22 "모바일 헤더 최상단이 2줄이 되었다. 한줄로"): 프로젝트 이름이 먼저 줄어든다(기준 폭 0 — 줄바꿈 계산에 안 잡히게), 알약은 아이콘+숫자, 숨은 탭은 자리도 없게 */
     .project { flex: 1 1 0; min-width: 40px; max-width: 40vw; font-size: 13px; }
     .views.hidden { display: none; }
@@ -418,6 +427,8 @@
   @media (max-width: 720px) {
     .reqs { padding: 1px 2px 1px 6px; gap: 3px; font-size: 11px; }
     .reqs b { padding: 0 5px; font-size: 11px; }
+    .talkbtn { padding: 1px 5px; font-size: 11px; gap: 3px; }
+    .talkbtn b { padding: 0 4px; font-size: 10px; }
   }
   .qb[hidden] { display: none; }
   .designbar .up { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 7px; font-size: 13px; color: var(--accent); cursor: pointer; font-weight: 600; }

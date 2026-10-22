@@ -229,4 +229,12 @@ export interface Message {
   ts: number;
   /** 사진·PDF 첨부 (에셋 ID 로 참조) */
   attachments?: Attachment[];
+  /** 톡 메시지의 사인물·사진·번호 링크 (2026-10-22) — 누르면 그 대상이 화면에 잡힌다 */
+  refs?: TalkRef[];
 }
+
+/** 톡 링크 대상 */
+export interface TalkRef { kind: 'object' | 'photo' | 'pin'; id: string; label: string }
+
+/** 톡방 (2026-10-22): 프로젝트 안에서 대화 상대를 골라 만든 방. 회사 멤버 방은 고정(core/talk.ts TEAM_ROOM) */
+export interface TalkRoom { id: string; name: string; /** 닉네임 */ members: string[]; createdBy: string; createdAt: number }

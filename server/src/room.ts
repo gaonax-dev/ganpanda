@@ -21,7 +21,7 @@ const SEAT_RENEW = 30_000;
 /** 소켓에 붙여 두는 정보 (Hibernation 뒤에도 유지) */
 interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: number }
 export interface Attachment { assetId: string; name: string; type: string; size: number }
-export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[] }
+export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[]; refs?: { kind: 'object' | 'photo' | 'pin'; id: string; label: string }[] }
 /** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
 export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string; /** 진행 동의에서 뺀 사인물 (2026-10-22) */ excluded?: string[] }
 type AwRow = { client_id: number; sock: string; clock: number; state: string; updated_at?: number };
@@ -279,8 +279,8 @@ export class Room extends DurableObject<Env> {
   }
 
   /** 대화·코멘트 추가 (RPC). 앱의 Project.addMessage 와 같은 구조로 messages 배열에 넣는다 */
-  async addMessage(objectId: string, author: string, text: string, kind: Message['kind'], attachments?: Attachment[]): Promise<Message> {
-    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}) };
+  async addMessage(objectId: string, author: string, text: string, kind: Message['kind'], attachments?: Attachment[], refs?: Message['refs']): Promise<Message> {
+    const msg: Message = { id: crypto.randomUUID(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}) };
     this.doc.getArray<Message>('messages').push([msg]);
     return msg;
   }

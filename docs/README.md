@@ -43,7 +43,7 @@
   - [confirm.md](features/confirm.md) — 컨펌: 표시 없는 사진보드(사인물·디자인이 사진 위에)·진행 동의 → 제작·완료 사진첩·참고 이미지(고객 AI 이미지) (설계, 2026-10-22)
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
   - [requests.md](features/requests.md) — 요청판(9차): 고객 견적 요청 → 지역 간판사 → 제안 링크, 홍보자 코드
-  - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
+  - [communication.md](features/communication.md) — 톡(방별 대화·사인물 링크), 오브젝트별 대화·코멘트, 말풍선(숫자)
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴
   - [projects-invites.md](features/projects-invites.md) — 프로젝트 소유, 초대 링크 역할(owner/editor/viewer)
   - [auto-segment.md](features/auto-segment.md) — AI 자동 분리(SlimSAM), 모델 호스팅, 마스크→다각형

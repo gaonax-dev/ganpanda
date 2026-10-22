@@ -15,7 +15,7 @@
   import { applyHomography, projectPoint, solveHomography } from '../core/homography';
   import { boxDirOf, boxLocalDirOf, faceOf, projectionFromPlane, signPlaneOf, wallPlaneOf } from '../core/wallPlane';
   import type { Calibration } from '../core/calibration';
-  import { bubbleLabel, lastStateOf } from '../core/bubbles';
+  import { lastStateOf } from '../core/bubbles';
   import { depthMmOf, thicknessOf } from '../core/render';
   import { DEFAULT_TIP, UNIT_RECT } from '../core/bubbleShape';
   import BubbleShape from '../ui/BubbleShape.svelte';
@@ -350,7 +350,7 @@
       return;
     }
     if (tool === 'select' && app.multiMode) return; // 다중 선택 중 빈 곳을 잘못 눌러도 선택이 풀리지 않게 — 끝내기는 [정리]
-    if (tool === 'select') { app.clearSelectionOnTap(e); return; } // 이벤트 전파 → 캔버스 이동. 선택은 탭일 때만 푼다 — 팬·줌에는 유지 (2026-10-22)
+    if (tool === 'select') { app.clearSelectionOnTap(e, () => app.talkPickPhoto(photo.id)); return; } // 이벤트 전파 → 캔버스 이동. 선택은 탭일 때만 푼다 — 팬·줌에는 유지 (2026-10-22)
     e.stopPropagation();
     const p = clamp(toPhoto(e.clientX, e.clientY));
     draft = { start: p, end: p };
@@ -667,27 +667,21 @@
           {@const tipP = applyHomography(H, tipL)}
           {@const bodyP = (o.bubble?.body ? applyHomography(H, o.bubble.body) : [tipP[0] + 56 * u, tipP[1] - 48 * u]) as Pt}
           {@const saveBubble = (tp: Pt, bp: Pt) => onbubble?.(o.id, { tip: applyHomography(Hi, tp).map((v) => Math.round(v * 1e4) / 1e4) as [number, number], body: applyHomography(Hi, bp).map((v) => Math.round(v * 1e4) / 1e4) as [number, number] })}
-          <BubbleShape tip={tipP} body={bodyP} label={bubbleLabel({ last: lastMsg, me: app.nickname })} badge={unread[chatId] ?? 0} color={colorFor(lastMsg.author)} {u} {editable} testid="object-bubble" attrs={{ 'data-id': o.id }}
+          <BubbleShape tip={tipP} num={String(app.chatCounts[chatId] ?? 0)} badge={unread[chatId] ?? 0} color={colorFor(lastMsg.author)} {u} {editable} testid="object-bubble" attrs={{ 'data-id': o.id }}
             onclick={() => (onchat ?? onselect)(o.id)}
             onwhole={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], [bodyP[0] + dx, bodyP[1] + dy])}
-            onbody={(dx, dy) => saveBubble(tipP, [bodyP[0] + dx, bodyP[1] + dy])}
-            ontip={(dx, dy) => saveBubble([tipP[0] + dx, tipP[1] + dy], bodyP)}
             ondragend={() => onpinmoveend?.()} />
         {/if}
       </g>
     {/each}
     <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
     {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
-      {@const last = bubbleLabel({ resolved: pin.resolved, last: lastStateOf(app.messages, pin.id), me: app.nickname })}
       {@const tip = [pin.x, pin.y] as Pt}
-      {@const bodyAt = (pin.bx !== undefined && pin.by !== undefined ? [pin.x + pin.bx, pin.y + pin.by] : [pin.x + 56 * u, pin.y - 48 * u]) as Pt}
-      <!-- 지점 말풍선 (2026-10-18 모양): 몸통 안에 번호·받는 사람·마지막 상태, 꼭지는 사진 지점. 안쪽 끌기 = 전체, 변 끌기 = 몸통만, 꼭지 손잡이 = 꼭지만 -->
-      <BubbleShape {tip} body={bodyAt} label={last} number={`#${pin.number}${pin.to ? ' →' : ''}`} badge={unread[pin.id] ?? 0} color={colorFor(pin.author)} {u}
+      <!-- 지점 말풍선 = 번호 원 (2026-10-22 "말풍선 숫자만 사용한다"). 끌면 지점 이동, 누르면 대화 -->
+      <BubbleShape {tip} num={String(pin.number)} arrow={!!pin.to} badge={unread[pin.id] ?? 0} color={colorFor(pin.author)} {u}
         selected={pin.id === selectedPinId} resolved={pin.resolved} {editable} testid="pin" attrs={{ 'data-resolved': String(pin.resolved), 'data-to': pin.to || undefined }} title="{pin.author} → {pin.to || '모두'}"
         onclick={() => onselectpin?.(pin.id)}
         onwhole={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy) })}
-        onbody={(dx, dy) => onpinpatch?.(pin.id, { bx: Math.round(bodyAt[0] + dx - pin.x), by: Math.round(bodyAt[1] + dy - pin.y) })}
-        ontip={(dx, dy) => onpinpatch?.(pin.id, { x: Math.round(pin.x + dx), y: Math.round(pin.y + dy), bx: Math.round(bodyAt[0] - pin.x - dx), by: Math.round(bodyAt[1] - pin.y - dy) })}
         ondragend={() => onpinmoveend?.()} />
     {/each}
     <!-- 선택한 사인물의 조작 손잡이(변·꼭짓점 손잡이·면 막대·매니퓰레이터·원근 맞추기)는 모든 사인물·말풍선보다 위 — 겹쳐도 가장 먼저 눌린다

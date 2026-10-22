@@ -82,6 +82,17 @@ describe('방 접속 권한 (WebSocket)', () => {
     o.close();
   });
 
+  it('톡 (2026-10-22): viewer 의 톡 메시지는 링크(refs)와 함께 전달되고, 회사 멤버 방에는 쓸 수 없다', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const r = await json(`/api/rooms/${project.id}/messages?invite=${inv.token}`, { objectId: 'talk:r1', author: '고객', text: '', kind: 'chat', refs: [{ kind: 'object', id: 'o1', label: '간판' }, { kind: 'bad', id: 'x', label: 'x' }] });
+    expect(r.status).toBe(201);
+    await until(() => o.doc.getArray('messages').length === 1);
+    expect((o.doc.getArray('messages').get(0) as Record<string, unknown>).refs).toEqual([{ kind: 'object', id: 'o1', label: '간판' }]);
+    expect((await json(`/api/rooms/${project.id}/messages?invite=${inv.token}`, { objectId: 'talk:team', author: '고객', text: 'hi', kind: 'chat' })).status).toBe(403);
+    o.close();
+  });
+
   it('메시지 API: 자격 없으면 401, 빈 글은 400, 잘못된 종류는 400', async () => {
     const inv = await createInvite(owner, project.id, 'viewer');
     expect((await json(`/api/rooms/${project.id}/messages`, { objectId: 'x', author: 'a', text: 'hi', kind: 'chat' })).status).toBe(401);

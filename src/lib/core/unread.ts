@@ -26,3 +26,10 @@ export function shouldNotify(m: Message, ctx: { me: string; viewingObjectId: str
   if (m.author === ctx.me) return false;
   return ctx.hidden || ctx.viewingObjectId !== m.objectId;
 }
+
+/** 대상별 대화 수 (말풍선 = 숫자, 2026-10-22) — 음성 메모·승인 기록은 빼고 */
+export function countByObject(messages: Message[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const m of messages) if (m.kind === 'chat' || m.kind === 'comment') out[m.objectId] = (out[m.objectId] ?? 0) + 1;
+  return out;
+}

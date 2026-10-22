@@ -9,7 +9,9 @@
   import { recording } from '../recording.svelte';
   import { recordingLabel } from '../core/attachments';
 
-  let { objectId }: { objectId: string } = $props();
+  import { refLabel } from '../core/talk';
+  /** talk = 톡방 대화 (2026-10-22): 탭·녹음 없이, 사인물·사진 링크를 붙여 보낸다 */
+  let { objectId, talk = false }: { objectId: string; talk?: boolean } = $props();
   let text = $state('');
   let kind = $state<'chat' | 'comment'>('chat');
   let list: HTMLDivElement;
@@ -47,7 +49,7 @@
 
   function send() {
     const t = text.trim();
-    if ((!t && !pending.length) || uploading) return;
+    if ((!t && !pending.length && !(talk && app.talkRefs.length)) || uploading) return;
     let name = app.nickname;
     if (!name) {
       name = prompt('대화에 표시할 이름을 입력하세요', '') ?? '';
@@ -57,16 +59,16 @@
     const atts = pending;
     text = ''; pending = [];
     app.requestNotifyPermission();
-    app.sendMessage(objectId, t, kind, atts).catch(() => { text = t; pending = atts; });
+    (talk ? app.sendTalk(t, atts) : app.sendMessage(objectId, t, kind, atts)).catch(() => { text = t; pending = atts; });
   }
 
   const time = (ts: number) => new Date(ts).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
 </script>
 
-<div class="tabs">
+{#if !talk}<div class="tabs">
   <button class:on={kind === 'chat'} onclick={() => (kind = 'chat')}>대화 {counts.chat || ''}</button>
   <button class:on={kind === 'comment'} onclick={() => (kind = 'comment')}>코멘트 {counts.comment || ''}</button>
-</div>
+</div>{/if}
 <div class="list" class:comments={kind === 'comment'} bind:this={list}>
   {#each shown as m, i (m.id)}
     {@const mine = m.author === app.nickname}
@@ -78,6 +80,7 @@
           <div class="bubble" class:mine data-testid="chat-bubble">
             {#if m.attachments?.length}<div class="atts">{#each m.attachments as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}</div>{/if}
             {#if m.text}{m.text}{/if}
+            {#if m.refs?.length}<div class="refs">{#each m.refs as r (r.kind + r.id)}<button type="button" class="ref" data-testid="talk-ref" data-kind={r.kind} onclick={() => app.focusRef(r)}>{refLabel(r)}</button>{/each}</div>{/if}
           </div>
           <span class="t">{time(m.ts)}</span>
           {#if app.canDeleteMessage(m)}<button class="del" data-testid="chat-delete" title="지우기" onclick={() => del(m)}>✕</button>{/if}
@@ -89,11 +92,12 @@
         {#if m.text}<p>{m.text}</p>{/if}</div>
     {/if}
   {:else}
-    <p class="none">{kind === 'chat' ? '이 사인물에 대해 대화를 시작하세요.' : '검토 코멘트를 남기세요.'}</p>
+    <p class="none">{talk ? '대화를 시작하세요. 창이 열린 채로 사인물을 누르거나 사진 빈 곳을 탭하면 링크가 붙습니다.' : kind === 'chat' ? '이 사인물에 대해 대화를 시작하세요.' : '검토 코멘트를 남기세요.'}</p>
   {/each}
 </div>
-{#if pending.length || uploading || attachError}
+{#if pending.length || uploading || attachError || (talk && app.talkRefs.length)}
   <div class="pending">
+    {#if talk}{#each app.talkRefs as r (r.kind + r.id)}<span class="chip" data-testid="talk-pending-ref">{refLabel(r)}<button title="빼기" onclick={() => app.removeTalkRef(r)}>×</button></span>{/each}{/if}
     {#each pending as a (a.assetId + a.name)}
       <span class="chip" data-testid="chat-pending">{a.type.startsWith('image/') ? '🖼' : '📄'} {a.name}<button title="빼기" onclick={() => (pending = pending.filter((x) => x !== a))}>×</button></span>
     {/each}
@@ -103,7 +107,7 @@
 {/if}
 <form class="input" onsubmit={(e) => { e.preventDefault(); send(); }}>
   <!-- 녹음 (2026-10-20 "말풍선 속성창에 녹음도 추가"): 사인물이면 음성 메모(🎙 목록), 지점 말풍선이면 이 대화에 음성 첨부. 상단 메뉴와 같은 녹음 하나 -->
-  {#if !app.isCustomer}
+  {#if !app.isCustomer && !talk}
     {@const mine = !!recording.recorder && recording.target === objectId}
     <button type="button" class="rec" class:on={mine} data-testid="chat-record" disabled={recording.busy || (!!recording.recorder && !mine)}
       title={mine ? '녹음 마침 — 저장' : app.objects.some((o) => o.id === objectId) ? '녹음 — 이 사인물에 음성 메모' : '녹음 — 이 대화에 음성으로'}
@@ -118,7 +122,7 @@
     onkeydown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } }}
     onpaste={(e) => { const fs = [...(e.clipboardData?.files ?? [])]; if (fs.length) { e.preventDefault(); addFiles(fs); } }}
   ></textarea>
-  <button type="submit" data-testid="chat-send" disabled={(!text.trim() && !pending.length) || uploading > 0}>전송</button>
+  <button type="submit" data-testid="chat-send" disabled={(!text.trim() && !pending.length && !(talk && app.talkRefs.length)) || uploading > 0}>전송</button>
 </form>
 
 <style>
@@ -134,6 +138,8 @@
   .row.mine .line { flex-direction: row-reverse; }
   .bubble { background: #fff; color: #191919; padding: 7px 10px; border-radius: 4px 14px 14px 14px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   .bubble.mine { background: #fee500; border-radius: 14px 4px 14px 14px; }
+  .refs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .ref { background: rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.18); color: #1d4ed8; border-radius: 10px; padding: 2px 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
   .del { background: none; border: 0; color: var(--muted); font-size: 11px; cursor: pointer; padding: 2px 4px; opacity: 0.55; align-self: center; }
   .del:hover { opacity: 1; color: var(--danger, #ff6b6b); }
   .t { font-size: 10px; color: var(--chat-who); white-space: nowrap; }

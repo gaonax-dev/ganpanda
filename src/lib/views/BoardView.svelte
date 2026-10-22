@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { nextPhotoName } from '../core/photoName';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import PhotoZone from './PhotoZone.svelte';
@@ -47,7 +48,22 @@
     if (!r) return;
     const p = app.photos.find((x) => x.id === r.photoId);
     if (!p || !canvas) return;
-    const { w, h } = canvas.size();
+    let { w, h } = canvas.size();
+    // 톡 창이 열려 있으면 가려지지 않는 쪽에 맞춘다 (데스크톱 오른쪽 · 휴대폰 아래, 2026-10-22)
+    const talkEl = untrack(() => app.talkOpen) ? document.querySelector('[data-testid="talk-panel"]') : null;
+    if (talkEl) { const b = talkEl.getBoundingClientRect(); if (b.top > h * 0.3) h = Math.max(160, b.top - 50); else w = Math.max(200, b.left); }
+    const s = p.width / p.w;
+    const target = r.objectId ? untrack(() => app.objects.find((o) => o.id === r.objectId)) : null;
+    const pin = r.pinId ? untrack(() => app.pins.find((x) => x.id === r.pinId)) : null;
+    const pts = target ? target.quad : pin ? [[pin.x, pin.y]] : null;
+    if (pts?.length) {
+      // 톡 링크 (2026-10-22): 그 사인물·번호를 화면 가운데에 크게 — 둘레를 넉넉히 띄운다
+      const xs = pts.map((q) => p.x + q[0] * s), ys = pts.map((q) => p.y + q[1] * s);
+      const bw = Math.max(...xs) - Math.min(...xs), bh = Math.max(...ys) - Math.min(...ys);
+      const m = Math.max(bw, bh, p.width * 0.15) * 0.6;
+      viewport = fitRect({ x: Math.min(...xs) - m, y: Math.min(...ys) - m, w: bw + 2 * m, h: bh + 2 * m }, w, h, 20);
+      return;
+    }
     viewport = fitRect({ x: p.x, y: p.y - 40, w: p.width, h: p.width * (p.h / p.w) + 40 }, w, h, 40);
   });
 
@@ -512,7 +528,7 @@
           <!-- 다중 선택은 [선택] 옆 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 켜 두면 탭할 때마다 더하기/빼기, 끄거나 ✕ 로 끝 -->
           <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
           {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
-          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트, 받는 사람 지정 가능 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>💬<span class="lbl"> 말풍선</span></button>
+          <!-- 말풍선 단추는 상단 [톡]으로 (2026-10-22 "툴의 말풍선은 톡으로 변경한다") — 위치 번호는 톡의 📍 또는 단축키 -->
           <span class="sep"></span>
           <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
           {/if}
@@ -522,7 +538,6 @@
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="타원 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>⬭<span class="lbl"> 타원</span></button>
           <label class="file" data-testid="tool-photo" title="사진 추가"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} /></label>
         {:else}
-          <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트 ({hint('toolPin')})" onclick={() => (app.tool = app.tool === 'pin' ? 'select' : 'pin')}>💬 말풍선</button>
           <span class="readonly">보기·대화만 가능</span>
         {/if}
         <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={() => fitAll(true)}>⤢</button>

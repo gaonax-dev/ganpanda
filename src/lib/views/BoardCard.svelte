@@ -7,7 +7,7 @@
   import { faceBadge, faceClip } from '../core/cardFace';
   import { bodyLook } from '../core/render';
   import { app } from '../state.svelte';
-  import { bubbleLabel, lastStateOf } from '../core/bubbles';
+  import { lastStateOf } from '../core/bubbles';
   import { DEFAULT_TIP } from '../core/bubbleShape';
   import { colorFor } from '../core/presence';
   import BubbleShape from '../ui/BubbleShape.svelte';
@@ -62,11 +62,9 @@
   </div>
   {#if lastMsg}
     <svg class="bubbles" width={w} height={h} viewBox="0 0 {w} {h}" overflow="visible">
-      <BubbleShape tip={tipC} body={bodyC} label={bubbleLabel({ last: lastMsg, me: app.nickname })} badge={app.unread[chatId] ?? 0} color={colorFor(lastMsg.author)} u={inv} editable={app.canEdit} testid="card-bubble" attrs={{ 'data-id': o.id }}
+      <BubbleShape tip={tipC} num={String(app.chatCounts[chatId] ?? 0)} badge={app.unread[chatId] ?? 0} color={colorFor(lastMsg.author)} u={inv} editable={app.canEdit} testid="card-bubble" attrs={{ 'data-id': o.id }}
         onclick={() => app.openChat(o.id)}
         onwhole={(dx, dy) => saveBubble([tipC[0] + dx, tipC[1] + dy], [bodyC[0] + dx, bodyC[1] + dy])}
-        onbody={(dx, dy) => saveBubble(tipC, [bodyC[0] + dx, bodyC[1] + dy])}
-        ontip={(dx, dy) => saveBubble([tipC[0] + dx, tipC[1] + dy], bodyC)}
         ondragend={() => app.editBoundary()} />
     </svg>
   {/if}

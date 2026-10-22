@@ -27,7 +27,7 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'toolSelect', label: '선택 도구', group: '도구' },
   { id: 'toolRect', label: '사각 영역', group: '도구' },
   { id: 'toolEllipse', label: '원형 영역', group: '도구' },
-  { id: 'toolPin', label: '말풍선 (위치 코멘트)', group: '도구' },
+  { id: 'toolPin', label: '위치 번호 (말풍선 숫자)', group: '도구' },
   { id: 'toolMagic', label: '자동 분리 (AI)', group: '도구' },
   { id: 'toolZone', label: '작업 존', group: '도구' },
   { id: 'gizmoMove', label: '매니퓰레이터: 기본 (면 직각 막대)', group: '도구' },

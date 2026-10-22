@@ -1,7 +1,7 @@
 // 프로젝트 문서 = Yjs CRDT. 오프라인·실시간 협업 모두 같은 모델로 동작한다.
 import * as Y from 'yjs';
 import { isSpecField, specOf } from './link';
-import type { Attachment, DesignSource, Message, Photo, Pin, ProjectSettings, SignObject } from './model';
+import type { Attachment, DesignSource, Message, Photo, Pin, ProjectSettings, SignObject, TalkRef, TalkRoom } from './model';
 
 import { mapObjectPts, mapPhotoPts, mapPinPts, type PtMap } from './photoEdit';
 
@@ -26,6 +26,8 @@ export class Project {
   readonly settingsMap: Y.Map<unknown>;
   /** 모든 대화를 한 배열에 — 키별 배열을 동시 생성하면 한쪽이 유실되므로 */
   readonly messages: Y.Array<Message>;
+  /** 톡방 (2026-10-22). 회사 멤버 방은 고정이라 저장하지 않는다 → core/talk.ts */
+  readonly talks: Y.Map<Y.Map<unknown>>;
 
   constructor(doc = new Y.Doc()) {
     this.doc = doc;
@@ -35,6 +37,21 @@ export class Project {
     this.sources = doc.getMap('sources');
     this.settingsMap = doc.getMap('settings');
     this.messages = doc.getArray('messages');
+    this.talks = doc.getMap('talks');
+  }
+
+  addTalk(t: { name: string; members: string[]; createdBy: string }): string {
+    const id = uid();
+    this.talks.set(id, toYMap({ ...t, id, createdAt: Date.now() }));
+    return id;
+  }
+
+  updateTalk(id: string, patch: Partial<Pick<TalkRoom, 'name' | 'members'>>) {
+    this.patch(this.talks.get(id), patch);
+  }
+
+  allTalks(): TalkRoom[] {
+    return [...this.talks.values()].map((m) => fromYMap<TalkRoom>(m));
   }
 
   addPhoto(p: Fields<Photo>): string {
@@ -229,8 +246,8 @@ export class Project {
     for (let i = arr.length - 1; i >= 0; i--) if (arr[i].objectId === objectId) this.messages.delete(i, 1);
   }
 
-  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat', attachments?: Attachment[]) {
-    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}) }]);
+  addMessage(objectId: string, author: string, text: string, kind: Message['kind'] = 'chat', attachments?: Attachment[], refs?: TalkRef[]) {
+    this.messages.push([{ id: uid(), objectId, author, text, kind, ts: Date.now(), ...(attachments?.length ? { attachments } : {}), ...(refs?.length ? { refs } : {}) }]);
   }
 
   /** 메시지 하나 지우기 (2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다") — 대화·코멘트·음성 메모 모두. 없으면 false */
