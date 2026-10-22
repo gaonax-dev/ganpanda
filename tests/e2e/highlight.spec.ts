@@ -71,3 +71,22 @@ test('다중 선택은 도구 막대 [선택] 옆, 켜 두면 중간에 풀리�
   await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
   expect(await count()).toBe(1);
 });
+
+// 2026-10-22 사용자: "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘"
+test('[다중]은 선택 도구에서만 켜진다 — 켜면 ✓, 다른 도구를 고르면 꺼지고, 다른 도구 중에 누르면 선택 도구로 바뀌며 켜진다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const multi = page.getByTestId('tool-multi');
+  await multi.click();
+  await expect(multi).toHaveClass(/on/);
+  await expect(multi).toContainText('✓');
+  await page.getByTestId('tool-rect').click();
+  await expect(multi).not.toHaveClass(/on/);
+  await expect(multi).not.toContainText('✓');
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { multiMode: boolean } }).__ganpanda.multiMode)).toBe(false);
+  await multi.click();
+  await expect(multi).toHaveClass(/on/);
+  await expect(page.getByTestId('tool-select')).toHaveClass(/on/);
+  await page.keyboard.press('o'); // 타원 단축키도 같다
+  await expect(multi).not.toHaveClass(/on/);
+});

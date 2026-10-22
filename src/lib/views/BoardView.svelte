@@ -233,6 +233,8 @@
     stageTimer = window.setTimeout(() => { for (const id of stale) if (!stageQueue.includes(id)) stageQueue.push(id); pumpStage(); }, 300);
   });
   // 3D 단계에서는 편집 도구를 쓰지 않는다
+  // [다중]은 선택 도구에서만 — 다른 도구를 고르면 꺼진다 (2026-10-22 "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘")
+  $effect(() => { if (app.tool !== 'select' && untrack(() => app.multiMode)) app.setMultiMode(false); });
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
   /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
   const no3d = $derived(app.stage === '3d');
@@ -530,7 +532,7 @@
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
           <!-- 다중 선택은 [선택] 옆 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 켜 두면 탭할 때마다 더하기/빼기, 끄거나 ✕ 로 끝 -->
-          <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
+          <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => { if (!app.multiMode) app.tool = 'select'; app.setMultiMode(!app.multiMode); }}>{app.multiMode ? '✓ ' : ''}다중</button>
           {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
           <!-- 말풍선 단추는 상단 [톡]으로 (2026-10-22 "툴의 말풍선은 톡으로 변경한다") — 위치 번호는 톡의 📍 또는 단축키 -->
           <span class="sep"></span>
