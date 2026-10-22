@@ -13,6 +13,9 @@
 ## 휴대폰 입력칸 (2026-10-21)
 - 사용자: "모바일에서 입력기 등 사용으로 화면이 줌인된 후 입력을 마치면 다시 원래 줌으로 돌아오게". iOS 사파리는 글자 **16px 미만** 입력칸에 포커스하면 페이지를 확대하고 끝나도 두지 않는다. `style.css` 가 터치 기기(`hover: none, pointer: coarse`)에서 모든 입력칸을 16px `!important` 로 두어 **확대 자체를 막고**, 그래도 확대돼 있으면(날짜 입력기·사용자 핀치) `src/lib/pageZoom.ts` 가 입력칸 `focusout`(다음 포커스가 입력칸이 아닐 때)에 viewport meta 에 `maximum-scale=1` 을 300ms 넣었다 빼서 1배로 되돌린다(판단·문자열은 `core/pageZoom.ts`, `tests/unit/pageZoom.test.ts`). 새 입력칸에 13px 같은 글자 크기를 주어도 휴대폰에선 16px 이 된다 — 좁은 칸은 폭으로 조절한다.
 
+## iOS 글자 자동 인식 (2026-10-22)
+- iOS WebKit(사파리·아이폰 크롬)은 열고 잠시 뒤 전화번호·날짜·주소·메일처럼 보이는 글자를 링크로 바꾼다. SVG 안의 글자(정면도·2D 사인물·단면 쌓기)는 이때 **사라진다**(실제 사례: 스카시 "010-2344-6788"). `index.html` 의 `<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">` 로 끈다 — 지우지 말 것(`tests/unit/indexHtml.test.ts`).
+
 ## 커밋
 - 커밋 메시지는 한국어로 씁니다. 첫 줄에 요약을 적습니다.
 - 코드 변경과 관련 문서 변경을 같은 커밋에 넣습니다.
