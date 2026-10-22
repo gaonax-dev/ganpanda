@@ -179,6 +179,8 @@ class AppState {
   designStage = $state<'2d' | '3d'>('2d');
   /** 컨펌 탭 (2026-10-22 "사진보드와 같은데 이런저런 표시없이 … 여기에 진행동의를 누르면 제작을 한다"): 표시 없는 사진보드 + 진행 동의 */
   confirmMode = $state(false);
+  /** 휴대폰: 끌어서(드래그) 고른 사인물 — 속성창(빠른 막대)을 띄우지 않는다. 다시 탭하면 풀린다 (2026-10-22 "터치시 속성창 나온다. 터치드레그에는 속성창 나오지 않는다") */
+  dragHideId = $state<string | null>(null);
   /** 컨펌에서 뺀 사인물 (진행 동의할 때 함께 보낸다) */
   confirmExcluded = $state<string[]>([]);
   get tab(): 'board' | 'design' | 'list' | 'confirm' {

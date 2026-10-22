@@ -103,7 +103,26 @@
   $effect(() => { document.documentElement.classList.toggle('survey', !!app.requestView); });
   // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
   $effect(() => { document.documentElement.classList.toggle('outsource', app.outsourceParam || (app.access.status === 'ok' && !!app.access.outsource)); });
+  // 휴대폰: 탭 = 속성창, 끌기 = 속성창 없음 (2026-10-22 "모바일에서 사인물을 선택하는 시기를 구분할 필요가 있다. 터치시 속성창 나온다. 터치드레그에는 속성창 나오지 않는다")
+  // 사인물(사진 외곽선·손잡이·정면도 카드)에서 시작한 누름만 본다 — 8px 넘게 움직이면 끌기, 아니면 탭
+  let gesture: { x: number; y: number; moved: boolean } | null = null;
+  function gestureDown(e: PointerEvent) {
+    if (!app.compact) return;
+    const t = e.target as Element | null;
+    gesture = t?.closest?.('g.sign, [data-testid="board-card"], [data-testid="board-standalone"]') ? { x: e.clientX, y: e.clientY, moved: false } : null;
+  }
+  function gestureMove(e: PointerEvent) {
+    if (!gesture || gesture.moved || Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) < 8) return;
+    gesture.moved = true;
+    app.dragHideId = app.selectedId;
+  }
+  function gestureUp() {
+    if (gesture && !gesture.moved) app.dragHideId = null; // 탭 — 속성창
+    gesture = null;
+  }
 </script>
+
+<svelte:window onpointerdowncapture={gestureDown} onpointermovecapture={gestureMove} onpointerupcapture={gestureUp} onpointercancelcapture={gestureUp} />
 
 <div class="shell">
   <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->
@@ -269,6 +288,7 @@
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
         <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
         {#if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
+        {:else if app.compact && !app.panelOpen && app.dragHideId === app.selected.id}<!-- 끌어서 고른 것: 속성창 없음 (2026-10-22) -->
         {:else if app.compact && !app.panelOpen}<QuickBar obj={app.selected} />
         {:else}{#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}{/if}
       {:else if app.selectedPin && app.view === 'board'}

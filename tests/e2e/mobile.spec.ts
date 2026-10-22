@@ -535,3 +535,29 @@ test('휴대폰 상단 바: 위 줄은 한 줄(로고·프로젝트·단추·견
   expect((await page.getByTestId('top-nav').boundingBox())!.height).toBeLessThan(56); // 홈은 한 줄
 });
 
+
+test('휴대폰: 사인물을 탭하면 속성창, 끌면(드래그) 속성창이 나오지 않는다 — 끈 뒤 다시 탭하면 나온다 (2026-10-22 "터치시 속성창 나온다. 터치드레그에는 속성창 나오지 않는다")', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    return a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[300, 300], [900, 300], [900, 600], [300, 600]], sheetIds: [], widthMm: 3000, heightMm: 1000 });
+  });
+  const shape = page.locator(`[data-testid="sign-shape"][data-id="${id}"]`);
+  const b = (await shape.boundingBox())!;
+  const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+  // 끌기: 선택되어 움직이지만 속성창(빠른 막대)은 없다
+  const quad0 = await page.evaluate((i) => JSON.stringify((window as unknown as { __ganpanda: { objects: { id: string; quad: unknown }[] } }).__ganpanda.objects.find((o) => o.id === i)!.quad), id);
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 30, cy + 10, { steps: 6 });
+  await page.mouse.move(cx + 60, cy + 20, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate((i) => JSON.stringify((window as unknown as { __ganpanda: { objects: { id: string; quad: unknown }[] } }).__ganpanda.objects.find((o) => o.id === i)!.quad), id)).not.toBe(quad0);
+  await expect(page.getByTestId('quick-bar')).toHaveCount(0);
+  // 탭: 속성창
+  const b2 = (await shape.boundingBox())!;
+  await page.touchscreen.tap(b2.x + b2.width / 2, b2.y + b2.height / 2);
+  await expect(page.getByTestId('quick-bar')).toBeVisible();
+});
