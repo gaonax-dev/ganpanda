@@ -290,8 +290,8 @@
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.versionsOpen && app.room}<VersionsDialog />{/if}
 {#if app.pricesOpen}<PricesDialog />{/if}
-{#if app.quoteSheetOpen}<QuoteSheet />{/if}
-{#if app.orderOpen}<OrderDialog />{/if}
+{#if app.quoteSheetOpen && !app.noPrices}<QuoteSheet />{/if}
+{#if app.orderOpen && !app.noPrices}<OrderDialog />{/if}
 {#if app.proposalOpen}{#await lazyProposal()}<Loading text="제안 도구 불러오는 중…" />{:then m}<m.default />{/await}{/if}
 {#if app.adjustPhoto}{#key app.adjustPhoto.id}{#await lazyPhotoAdjust()}<Loading text="이미지 조절 불러오는 중…" />{:then m}<m.default photo={app.adjustPhoto} />{/await}{/key}{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}{#await lazyCamera()}<Loading text="원근 맞추기 불러오는 중…" />{:then m}<m.default photo={app.cameraPhoto} />{/await}{/key}{/if}

@@ -295,12 +295,15 @@
   {#if app.compact}
     <!-- 휴대폰 하단 탭 -->
     <nav class="ltabs" data-testid="list-tabs">
+      <!-- 실측 보기(가게 사장 보드)는 금액 없음 — 견적·주문·주문서 감춤 (2026-10-22 "주문서를 누르면 가격이 나온다") -->
+      {#if !app.noPrices}
       <button class="qt" class:on={quoteMode !== 'closed'} data-testid="quote-toggle" onclick={() => (quoteMode = quoteMode === 'closed' ? 'half' : 'closed')}>
         견적 {quoteMode === 'closed' ? '▲' : '▼'}<b>{won(quote.total)}</b>
       </button>
       {#if app.canEdit}<button data-testid="tab-prices" onclick={() => (app.pricesOpen = true)}>단가</button>{/if}
       <button data-testid="tab-order" onclick={() => (app.orderOpen = true)}>주문</button>
       <button data-testid="tab-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서</button>
+      {/if}
       <button data-testid="tab-pdf" disabled={!exportable.length} onclick={exportPdf}>PDF</button>
       <button title="전개도 맞춤" onclick={fit}>⤢</button>
     </nav>
