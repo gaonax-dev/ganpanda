@@ -412,7 +412,7 @@
         oncreate={(shape, quad) => create(p.id, shape, quad)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
         onchat={(id) => app.openChat(id)}
-        multiIds={app.selectionKind === 'card' ? app.selectionIds : app.shapeMulti}
+        multiIds={app.photoHighlightIds}
         ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}

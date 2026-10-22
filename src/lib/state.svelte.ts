@@ -286,6 +286,16 @@ class AppState {
     const root = s.sameAs ?? s.id;
     return this.objects.filter((o) => o.id !== s.id && (o.id === root || o.sameAs === root)).map((o) => o.id);
   });
+  /**
+   * 사진 위 강조할 사인물 (2026-10-22 사용자: "사인물카드 선택시 사진의 사인물 하일라이팅이 다르다. 모두 진하게" → "다중선택도 문제가 있다"):
+   * 고른 사인물 모두(카드·외곽선, 주·다중) + 각자의 연결 영역(같은 사인물) — 모두 같은 진한 강조. 외곽선 주 선택은 손잡이가 붙는 sel 이라 뺀다
+   */
+  photoHighlightIds = $derived.by(() => {
+    const picked = new Set(this.selectionIds);
+    const roots = new Set(this.objects.filter((o) => picked.has(o.id)).map((o) => o.sameAs ?? o.id));
+    const out = this.objects.filter((o) => roots.has(o.sameAs ?? o.id)).map((o) => o.id);
+    return this.selectionKind === 'shape' ? out.filter((id) => id !== this.selectedId) : out;
+  });
   /** 사진별 카메라 (사진에 저장된 설정을 풀어서) */
   cameras = $derived.by(() => {
     const out = new Map<string, CameraSolution>();

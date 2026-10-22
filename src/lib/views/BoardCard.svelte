@@ -107,7 +107,7 @@
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); }
   .sel .face { outline: 2px solid var(--accent); }
-  .multi .face { outline: 2px dashed var(--accent); }
+  .multi .face { outline: 2px solid var(--accent); } /* 다중 선택도 진하게 (2026-10-22) */
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }

@@ -649,7 +649,7 @@
           data-id={o.id}
           data-shape={o.shape}
           data-selected={sel || undefined}
-          data-same={same || undefined}
+          data-same={(!sel && sameIds.includes(o.id)) || undefined}
           points={outline(o.shape, q, o.polygon, o.corner)}
           data-corner={o.shape === 'rect' ? (o.corner ?? 0) : undefined}
           stroke-width={2 * u}
@@ -859,7 +859,7 @@
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); }
-  .sign.same polygon { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-dasharray: 6 4; }
+  .sign.same polygon { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); } /* 연결 영역도 고른 것과 같은 진하기 (2026-10-22) */
   /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
   .sign polygon.touch-outline, .sign.sel polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
@@ -919,7 +919,7 @@
   .gizmo .gh.uni { fill: var(--accent); stroke: #333; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
   svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
-  svg.ghost .sign.sel polygon { stroke: var(--accent); stroke-dasharray: 6 4; }
+  svg.ghost .sign.sel polygon { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") */
   svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
   .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
