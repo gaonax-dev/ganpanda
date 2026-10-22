@@ -49,7 +49,7 @@
 - **외주 폴더**: 홈 프로젝트 ⋯ 속성창의 **[다른 업체에 외주 요청]**(`details-outsource`, 소유자만) → `PATCH /api/projects/:id {outsource: true}`(`projects.outsource`) → 홈의 **외주** 접이(`outsource-folder`, 핑크 제목)로 옮겨진다. 같은 단추가 [외주 해제]. **만들기에서 바로**: 새 프로젝트 칸을 누르면 펼쳐지는 줄의 **[외주 (B2B)]** 체크(`new-outsource`, `POST /api/projects {outsource: true}`)로 처음부터 외주 폴더에 만든다(2026-10-22 "만들기에서 외주체크하면 바로 생성할 수 있다").
 - **외주 프로젝트를 열면 핫핑크**(`:root.outsource { --accent: #ff3d9a }`, access 응답 `outsource`) + 상단 바 **B2B 외주** 배지(`outsource-badge`) + **[외주 요청]**(`outsource-request`) → 같은 대화식 요청 창(제목 "외주 견적 요청 (B2B)"). 간판집은 설정에서 확인한 **자기 사업자**(`est-account-pick`, 요청 `accountBusiness: true` → `businesses` 로 사업자 확인)나 등록한 사업자·일반 주문 중에서 고른다. 보내면 보드 복제(소비자와 같음) + `requests.b2b = 1`. 간판집 프로젝트는 **잠그지 않는다**(요청은 그 순간의 복제라 계속 고쳐도 됨) — 상단 바는 "외주 요청 중 · 요청 보기 · 요청 취소".
 - **복제는 보드 배치만**: 요청 프로젝트·간판집 가져오기 모두 설정은 `flatScale·flatOffset·flatGap` 만 옮긴다(`DISPLAY_SETTINGS`). 단가표·원가·견적 줄·주문 정보는 절대 옮기지 않는다 — 외주 요청은 다른 간판집이 읽기 때문.
-- **헤더 "보낸 요청 M"**(`request-sent-link`·`sent-count`, 진행 중인 내 요청 수, 보낸 요청이 있으면 보임) → `/requests?tab=sent`. 받은 요청 페이지는 **받은 요청 / 보낸 요청** 탭(`inbox-tab-*`, `sent-item` → 요청 페이지). 내가 보낸 요청은 받은 목록에 나오지 않는다(서버가 뺌).
+- **헤더 "보낸 요청 M"**(`request-sent-link`·`sent-count`, 진행 중인 내 요청 수, 보낸 요청이 있으면 보임) → `/requests?tab=sent`. 받은 요청 페이지(`/requests`) 안에서는 헤더의 "견적 요청 N"·"보낸 요청 M" 링크를 감춘다 — 페이지에 받은/보낸 탭이 있어 겹친다(2026-10-22 "견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘"). 받은 요청 페이지는 **받은 요청 / 보낸 요청** 탭(`inbox-tab-*`, `sent-item` → 요청 페이지). 내가 보낸 요청은 받은 목록에 나오지 않는다(서버가 뺌).
 - **받는 쪽 B2B 표시**: 받은 요청 목록·요청 정보 줄·요청 페이지에 **B2B**(`request-b2b`). 외주 요청 페이지(`/r/…`)와 그 보드(`?o=1`)는 핫핑크, 받는 간판집이 여는 요청 보드는 노랑.
 
 ## 간판집 확정 (2026-10-22)

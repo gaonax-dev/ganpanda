@@ -166,9 +166,9 @@
       {/each}
     </div>
     <div class="right">
-      <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게") -->
-      {#if app.sentShown && !app.consumer}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">보낸 요청 <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
-      {#if app.requestInboxShown && !app.consumer}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">견적 요청 <b data-testid="request-count">{app.requestCount}</b></a>{/if}
+      <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"). 받은 요청 페이지 안에서는 감춘다 — 페이지에 받은/보낸 탭이 있다 ("견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘") -->
+      {#if app.sentShown && !app.consumer && !app.inbox}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">보낸 요청 <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
+      {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">견적 요청 <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="peers">
         {#each app.peers as p (p.name)}

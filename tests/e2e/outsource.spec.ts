@@ -54,6 +54,8 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await expect(page.getByTestId('sent-count')).toHaveText('1');
   await page.getByTestId('request-sent-link').click();
   await expect(page).toHaveURL(/\/requests\?tab=sent$/);
+  await expect(page.getByTestId('request-sent-link')).toHaveCount(0); // 받은 요청 페이지 안에서는 헤더 링크를 감춘다 (2026-10-22)
+  await expect(page.getByTestId('request-inbox-link')).toHaveCount(0);
   await expect(page.getByTestId('sent-item').filter({ hasText: name })).toContainText('B2B');
   // 받는 간판집: B2B 표시
   const ctx = await browser.newContext();
