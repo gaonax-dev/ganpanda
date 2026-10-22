@@ -15,13 +15,16 @@
   import { faceUrl } from '../photoDisplay';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
+  import { customerSignState, memberCheckState } from '../core/proposal';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, confirm = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
     /** 치수 없는 사인물의 임시 카드 (2026-10-22) */
     placeholder?: boolean;
+    /** 컨펌 화면: 카드 아래 사인물별 멤버 확인·고객 진행 동의 (2026-10-22 "정면도 사인물 카드에 컨펌이 있어야한다 … 사인물마다. 고객과 맴버 컨펌") */
+    confirm?: boolean;
     photo?: Photo; zoom: number; selected: boolean;
     /** 다중 선택에 들어 있음(주 선택 아님) */
     multi?: boolean;
@@ -34,6 +37,15 @@
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   // 카드 안에서의 사진 크기: 카드 px 기준으로 사진 원본을 정면 보정하므로 faceWarp 는 mm 가 아니라 카드 px 로
   const inv = $derived(1 / zoom);
+  // 사인물별 컨펌 (2026-10-22)
+  const myHash = $derived(confirm ? app.signHashes[o.id] ?? '' : '');
+  const members = $derived(confirm ? memberCheckState(app.settings.signChecks?.[o.id], myHash) : { valid: [], stale: [] });
+  const me = $derived(app.nickname || app.account?.name || '멤버');
+  const iChecked = $derived(members.valid.some((c) => c.by === me));
+  const cust = $derived(confirm ? customerSignState(app.approval.status === 'none' ? undefined : app.approval.approval, o.id, myHash, app.approval.status === 'approved') : 'none');
+  const skipped = $derived(app.confirmExcluded.includes(o.id));
+  const CUST_LABEL = { none: '고객 동의 전', ok: '고객 ✓ 진행', excluded: '고객 제외', changed: '고객 다시 동의 필요' } as const;
+  function toggleSkip(e: Event) { e.stopPropagation(); app.confirmExcluded = skipped ? app.confirmExcluded.filter((x) => x !== o.id) : [...app.confirmExcluded, o.id]; }
   // 얼굴: 사진 영역을 펼친 작은 그림 (원본을 matrix3d 로 겹치면 휴대폰 메모리가 넘친다)
   let face = $state<string | undefined>(undefined);
   // 바탕색(2026-10-17 "정면도에도 배경색 나오게"): 2D 무대의 sign-fill 과 같은 색·투명도를 사진 얼굴 위에
@@ -76,6 +88,14 @@
     <b>{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
+    {#if confirm}
+      <span class="cf" data-testid="card-confirm" role="presentation" onpointerdown={(e) => e.stopPropagation()}>
+        <span class="m" data-testid="card-member" data-state={members.valid.length ? 'ok' : members.stale.length ? 'changed' : 'none'}>멤버 {#if members.valid.length}✓ {members.valid.map((c) => c.by).join(', ')}{:else if members.stale.length}⚠ 다시 확인{:else}확인 전{/if}</span>
+        {#if app.canEdit && !iChecked}<button class="mini" data-testid="card-member-check" onclick={(e) => { e.stopPropagation(); app.memberCheckSign(o.id); }}>확인</button>{/if}
+        <span class="c {cust}" data-testid="card-customer" data-state={cust}>{CUST_LABEL[cust]}</span>
+        {#if app.canEdit}<button class="mini" class:on={skipped} data-testid="card-skip" title={skipped ? '다음 진행 동의에서 다시 포함' : '다음 진행 동의에서 빼기'} onclick={toggleSkip}>{skipped ? '포함' : '빼기'}</button>{/if}
+      </span>
+    {/if}
   </div>
   {/if}
 </div>
@@ -99,4 +119,11 @@
   .label { position: absolute; left: 0; top: 100%; margin-top: 4px; transform-origin: 0 0; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); white-space: nowrap; pointer-events: none; }
   .label b { font-size: 12px; }
   .muted { color: var(--muted); }
+  .cf { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 3px; font-size: 11px; pointer-events: auto; }
+  .cf .m, .cf .c { border-radius: 999px; padding: 0 7px; border: 1px solid var(--line); background: var(--panel); white-space: nowrap; }
+  .cf .m[data-state='ok'], .cf .c.ok { color: var(--ok); border-color: currentColor; }
+  .cf .m[data-state='changed'], .cf .c.changed { color: var(--warn); border-color: currentColor; }
+  .cf .c.excluded { color: var(--muted); text-decoration: line-through; }
+  .cf .mini { font: inherit; font-size: 11px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--accent); background: var(--panel); color: var(--text); cursor: pointer; }
+  .cf .mini.on { background: var(--accent); color: var(--accent-ink); }
 </style>

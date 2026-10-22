@@ -14,3 +14,24 @@ describe('멤버 확인', () => {
     expect(memberCheckState(undefined, 'h2')).toEqual({ valid: [], stale: [] });
   });
 });
+
+describe('사인물마다 컨펌 (2026-10-22 "정면도 사인물 카드에 컨펌이 있어야한다 … 사인물마다. 고객과 맴버 컨펌")', async () => {
+  const { signHash, customerSignState } = await import('../../src/lib/core/proposal');
+  const base = { id: 'a', name: '간판', photoId: 'p', shape: 'rect' as const, quad: [], sheetIds: [], createdAt: 1, widthMm: 3000, heightMm: 600 };
+  it('사인물 지문은 그 사인물 내용만 — 다른 사인물이나 자리(listX)가 바뀌어도 그대로, 크기·구성이 바뀌면 바뀐다', () => {
+    const h = signHash(base, { w: 3000, h: 600 }, 500000);
+    expect(signHash({ ...base, listX: 900 }, { w: 3000, h: 600 }, 500000)).toBe(h);
+    expect(signHash(base, { w: 3200, h: 600 }, 500000)).not.toBe(h);
+    expect(signHash({ ...base, parts: [{ id: 'x', kind: 'channel', type: 'ch-front', items: [] }] } as never, { w: 3000, h: 600 }, 500000)).not.toBe(h);
+  });
+  it('고객 상태: 동의 전 · 진행 · 제외 · 그 사인물만 바뀌면 다시 동의 필요 (옛 동의는 전체 기준)', () => {
+    const ap = (o: Record<string, unknown> = {}) => ({ id: '1', at: 1, by: '홍', hash: 'H', snapshot: { items: [], subtotal: 0, vat: 0, total: 0, vatIncluded: true, signHashes: { a: 'ha', b: 'hb' } }, ...o });
+    expect(customerSignState(undefined, 'a', 'ha', false)).toBe('none');
+    expect(customerSignState(ap(), 'a', 'ha', false)).toBe('ok');
+    expect(customerSignState(ap(), 'a', 'ha2', false)).toBe('changed');
+    expect(customerSignState(ap({ excluded: ['a'] }), 'a', 'ha', false)).toBe('excluded');
+    const old = { id: '1', at: 1, by: '홍', hash: 'H', snapshot: { items: [], subtotal: 0, vat: 0, total: 0, vatIncluded: true } };
+    expect(customerSignState(old, 'a', 'x', true)).toBe('ok');
+    expect(customerSignState(old, 'a', 'x', false)).toBe('changed');
+  });
+});

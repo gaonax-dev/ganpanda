@@ -28,7 +28,7 @@ import { formatBytes } from './core/format';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
-import { addMemberCheck, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
+import { signHash, addMemberCheck, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -826,15 +826,22 @@ class AppState {
 
   /** 단가표·설치비·추가 항목 수정 (편집 권한) */
   /** 제안 승인 ([이걸로 할게요]): 현재 내용 스냅샷 + 해시 + 이름을 서버가 문서에 기록 */
-  /** 멤버 확인 (2026-10-22): 팀 안에서 컨펌 화면을 보고 확인 — 이름·시각·내용 해시 */
-  memberCheck() {
+  /** 사인물마다 내용 지문 (2026-10-22 사인물별 컨펌) — 바뀐 사인물만 "다시 확인" */
+  get signHashes(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const o of this.signs) { const sz = this.sizeOf(o); out[o.id] = signHash(o, sz ? { w: sz.w, h: sz.h } : null, this.quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0)); }
+    return out;
+  }
+  /** 사인물 멤버 확인 (2026-10-22 "정면도 사인물 카드에 컨펌 … 사인물마다. 고객과 맴버 컨펌") */
+  memberCheckSign(id: string) {
     if (!this.canEdit) return;
-    this.updateSettings({ memberChecks: addMemberCheck(this.settings.memberChecks, { by: this.nickname || this.account?.name || '멤버', at: Date.now(), hash: this.contentHash }) });
+    const cur = this.settings.signChecks ?? {};
+    this.updateSettings({ signChecks: { ...cur, [id]: addMemberCheck(cur[id], { by: this.nickname || this.account?.name || '멤버', at: Date.now(), hash: this.signHashes[id] ?? '' }) } });
   }
   async approve(by: string, excluded: string[] = []) {
     if (!this.room) throw new Error('방이 없습니다');
     this.setNickname(by);
-    const snapshot = snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources);
+    const snapshot = { ...snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), signHashes: this.signHashes };
     await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: this.contentHash, snapshot, proposalId: this.settings.proposal?.id, ...(excluded.length ? { excluded } : {}) });
   }
 

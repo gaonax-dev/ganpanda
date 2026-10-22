@@ -23,20 +23,30 @@ test('탭은 사진보드 · 디자인 · 사인물리스트 · 컨펌 — 처�
   await expect(page.getByTestId('tool-rect')).toBeHidden(); // 도구 없음
   await expect(page.getByTestId('photo-zone').locator('.header')).toBeHidden(); // 사진 머리 없음
   await expect(page.getByTestId('confirm-state')).toContainText('진행 동의 전');
-  // 멤버 확인 (2026-10-22 "컨펌에 맴버컴펌도 필요하다") — 팀 안 확인, 내용이 바뀌면 다시 확인
-  await page.getByTestId('member-check').click();
-  await expect(page.getByTestId('member-check-ok')).toHaveCount(1);
-  await expect(page.getByTestId('member-check')).toHaveCount(0);
-  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects[0].id, { widthMm: 3500 }); });
-  await expect(page.getByTestId('member-check-stale')).toContainText('다시 확인');
-  await page.getByTestId('member-check').click();
-  await expect(page.getByTestId('member-check-ok')).toHaveCount(1);
-  await page.getByTestId('confirm-sign').filter({ hasText: '돌출' }).click(); // 빼기
+  // 사인물마다 멤버·고객 컨펌은 정면도 카드 아래 (2026-10-22 "정면도 사인물 카드에 컨펌이 있어야한다 … 사인물마다. 고객과 맴버 컨펌")
+  const card = (name: string) => page.getByTestId('board-card').filter({ hasText: name });
+  await expect(page.getByTestId('board-card')).toHaveCount(2);
+  await expect(card('간판').getByTestId('card-member')).toHaveAttribute('data-state', 'none');
+  await card('간판').getByTestId('card-member-check').click();
+  await expect(card('간판').getByTestId('card-member')).toHaveAttribute('data-state', 'ok');
+  await expect(card('돌출').getByTestId('card-member')).toHaveAttribute('data-state', 'none');
+  await expect(page.getByTestId('confirm-member-sum')).toHaveText('멤버 확인 1/2');
+  // 다른 사인물(돌출)이 바뀌어도 간판의 확인은 그대로, 간판이 바뀌면 간판만 다시 확인
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects.find((o) => o.name === '돌출')!.id, { widthMm: 1800 }); });
+  await expect(card('간판').getByTestId('card-member')).toHaveAttribute('data-state', 'ok');
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects.find((o) => o.name === '간판')!.id, { widthMm: 3500 }); });
+  await expect(card('간판').getByTestId('card-member')).toHaveAttribute('data-state', 'changed');
+  await card('간판').getByTestId('card-member-check').click();
+  await expect(card('간판').getByTestId('card-member')).toHaveAttribute('data-state', 'ok');
+  await card('돌출').getByTestId('card-skip').click(); // 빼기
   page.once('dialog', (d) => d.accept());
   await page.getByTestId('confirm-consent').click();
   await expect(page.getByTestId('confirm-bar')).toHaveAttribute('data-status', 'approved');
   await expect(page.getByTestId('confirm-state')).toContainText('1개 제외');
   await expect(page.getByTestId('confirm-state')).toContainText('제작');
+  await expect(card('간판').getByTestId('card-customer')).toHaveAttribute('data-state', 'ok');
+  await expect(card('돌출').getByTestId('card-customer')).toHaveAttribute('data-state', 'excluded');
+  await expect(page.getByTestId('confirm-customer-sum')).toHaveText('고객 동의 1/2');
   await page.getByTestId('view-board').click();
   await expect(page.getByTestId('confirm-bar')).toHaveCount(0);
   await expect(page.getByTestId('photo-zone')).not.toHaveAttribute('data-clean', 'true');

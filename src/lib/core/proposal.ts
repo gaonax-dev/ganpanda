@@ -23,7 +23,7 @@ export interface SnapshotItem {
   id: string; name: string; category: string; type: string; sheets: string[]; options: string[];
   size?: { w: number; h: number; estimated: boolean }; text?: string; design?: string; amount: number;
 }
-export interface Snapshot { items: SnapshotItem[]; subtotal: number; vat: number; total: number; vatIncluded: boolean }
+export interface Snapshot { items: SnapshotItem[]; subtotal: number; vat: number; total: number; vatIncluded: boolean; /** 사인물마다 내용 지문 (2026-10-22 사인물별 컨펌) — 옛 동의에는 없음 */ signHashes?: Record<string, string> }
 
 export interface Approval {
   id: string;
@@ -119,4 +119,25 @@ export function addMemberCheck(checks: MemberCheck[] | undefined, c: MemberCheck
 export function memberCheckState(checks: MemberCheck[] | undefined, currentHash: string): { valid: MemberCheck[]; stale: MemberCheck[] } {
   const list = checks ?? [];
   return { valid: list.filter((c) => c.hash === currentHash), stale: list.filter((c) => c.hash !== currentHash) };
+}
+
+/**
+ * 사인물마다 컨펌 (2026-10-22 사용자: "컨펌에 정면도 사인물 카드에 컨펌이 있어야한다. 현재방식은 대상을 파악하기 어렵다. 사인물마다. 고객과 맴버 컨펌"):
+ * 사인물 하나의 내용 지문 — 종류·옵션·문구·크기·디자인·구성 요소(parts)·그 사인물 금액. 자리(listX/listY)·말풍선은 빼서 옮겨도 그대로
+ */
+export function signHash(o: SignObject, size: { w: number; h: number } | null, amount: number): string {
+  return fnv1a(JSON.stringify({
+    id: o.id, name: o.name, p: o.productId ?? null, s: [...o.sheetIds].sort(), opt: o.options ?? {}, t: o.text ?? null,
+    w: size ? Math.round(size.w) : null, h: size ? Math.round(size.h) : null, dp: o.depthMm ?? null, corner: o.corner ?? null,
+    d: o.design ? `${o.design.sourceId}/${o.design.page}/${o.design.crop.x},${o.design.crop.y},${o.design.crop.w},${o.design.crop.h}` : null,
+    parts: o.parts ?? null, amt: amount,
+  }));
+}
+/** 고객 진행 동의의 그 사인물 상태. 지문이 없는 옛 동의는 전체 동의 상태(globalOk)를 따른다 */
+export function customerSignState(approval: Approval | undefined, id: string, hash: string, globalOk: boolean): 'none' | 'ok' | 'excluded' | 'changed' {
+  if (!approval) return 'none';
+  if (approval.excluded?.includes(id)) return 'excluded';
+  const h = approval.snapshot.signHashes;
+  if (!h) return globalOk ? 'ok' : 'changed';
+  return h[id] === hash ? 'ok' : 'changed';
 }

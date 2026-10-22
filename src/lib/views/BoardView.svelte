@@ -62,10 +62,14 @@
     viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, w, h, 60);
     // 카드 묶음 아래 도구 줄(flat-label)과 하단 도구 막대 자리 — 화면 약 120px 를 더 비워 다시 맞춘다 (2026-10-22)
     if (withCards && bounds) {
-      const bottom = Math.max(...ys) + 120 / viewport.zoom;
+      const bottom = Math.max(...ys) + (app.confirmMode ? 190 : 120) / viewport.zoom; // 컨펌은 아래 진행 동의 줄 자리까지
       viewport = fitRect({ x, y, w: Math.max(...xs) - x, h: bottom - y }, w, h, 60);
     }
   }
+
+  // 컨펌에 들어가면 사진·정면도 카드가 모두 진행 동의 줄 위로 보이게 (2026-10-22)
+  let wasConfirm = false;
+  $effect(() => { const c = app.confirmMode; if (c && !wasConfirm) queueMicrotask(() => fitAll(true)); wasConfirm = c; });
 
   // 사진 교체 (2026-10-21): 메뉴 [사진 교체] → 파일 고르기 → app.replacePhoto
   let replaceInput = $state<HTMLInputElement | null>(null);
@@ -463,7 +467,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} confirm={app.confirmMode} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => app.confirmMode ? undefined : cardDown(e, o)} />
     {/each}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
@@ -590,5 +594,5 @@
     .empty p { font-size: 15px; text-align: center; padding: 0 16px; }
   }
   /* 컨펌: 도구·평면도 카드·다중 선택 막대 없이 (2026-10-22) */
-  .board[data-clean] .flat-label, .board[data-clean] .flat-handle, .board[data-clean] .flat-outline, .board[data-clean] :global([data-testid='board-card']), .board[data-clean] :global([data-testid='board-standalone']) { display: none; }
+  .board[data-clean] .flat-label, .board[data-clean] .flat-handle, .board[data-clean] .flat-outline { display: none; }
 </style>
