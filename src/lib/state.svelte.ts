@@ -1152,6 +1152,11 @@ class AppState {
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY })), this.flatGap));
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
   flatArrange = $state(false);
+  /** 상단 막대의 축척 −/+ 요청 (보드가 피봇을 지키며 적용) — 2026-10-23 도구를 헤더로 */
+  flatScaleStep = $state<{ factor: number; n: number } | null>(null);
+  scaleFlat(factor: number) { this.flatScaleStep = { factor, n: (this.flatScaleStep?.n ?? 0) + 1 }; }
+  get flatLocked() { return !!this.settings.flatLocked; }
+  setFlatLocked(v: boolean) { this.updateSettings({ flatLocked: v }); }
   /**
    * 카드 재정렬 — 사진과 같은 비율 (2026-10-22 사용자: "재정렬 예전에 똑똑하게 잘된거 같은데 자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다"; 2026-10-20 그리드는 대체됨):
    * 보드 px → mm 는 **실제 벽 축척**(치수 있는 사인물의 mm ÷ 사진 속 폭(보드 px), 중앙값 — 없으면 1/축척)으로 바꿔 사진 배치를 mm 로 옮기고, 카드 가운데 = 사진 속 사인물 가운데(core/arrange.ts arrangeLikePhotos).
@@ -1366,7 +1371,7 @@ class AppState {
     const move = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) tap = false; };
     const second = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) tap = false; };
     const done = () => { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerdown', second, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', cancel, true); };
-    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); onTap?.(); } };
+    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; onTap?.(); } }; // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
     const cancel = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) done(); };
     window.addEventListener('pointermove', move, true); window.addEventListener('pointerdown', second, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
   }
