@@ -6,7 +6,7 @@ const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((win
 
 test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레임 테는 2D 사진 위 고리로 (평면도 카드에는 테두리 없음)', async ({ page, request }) => {
   await openOwnedProject(page, request, '프레임 색');
-  await page.getByTestId('view-design').click(); // 2D 는 디자인 탭 (2026-10-22 작업 탭)
+  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

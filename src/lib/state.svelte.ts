@@ -28,7 +28,7 @@ import { formatBytes } from './core/format';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
-import { signHash, addMemberCheck, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
+import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -173,32 +173,27 @@ class AppState {
   /** 보드 단계 (2026-10-17 사용자: "원본 2d 3d 이렇게 해줘. 2d가 현재 보여주는 형식이고 원본은 실측만 나오게"): original = 외곽선·치수만, 2d = 바탕색·디자인·글자 겹침(기본), 3d = 합성 */
   stage = $state<'original' | '2d' | '3d'>('original');
   /**
-   * 작업 탭 (2026-10-22 사용자: "사진보드, 러프디자인(2d,3d),사인물리스트, 컨펌 으로" → "러프를 디자인으로 변경하고 거기에 포함"):
-   * 사진보드 = 실측(stage original) · 디자인 = 2D·3D·디자인 파일 · 사인물리스트 · 컨펌 = 제안 미리보기(proposalMode). 처음은 사진보드
+   * 작업 탭 (2026-10-22 사용자: "상단탭 실측,2d,3d,디자인,사인물리스트 / 디자인은 디자이너와 소통하는 곳으로 사진보드 그대로인데 사인물 디자인파일 연결하는 곳이다.
+   * 여기에 디자이너가 일러스트 파일도 올린다. 기존의 컨펌은 제거한다"): 실측(stage original) · 2D · 3D · 디자인(사진보드 2D + 디자인 파일 올리기·연결) · 사인물리스트.
+   * (같은 날 앞선 [사진보드 · 디자인(2D·3D·파일) · 사인물리스트 · 컨펌]은 대체됨)
    */
-  designStage = $state<'2d' | '3d'>('2d');
-  /** 컨펌 탭 (2026-10-22 "사진보드와 같은데 이런저런 표시없이 … 여기에 진행동의를 누르면 제작을 한다"): 표시 없는 사진보드 + 진행 동의 */
-  confirmMode = $state(false);
+  designMode = $state(false);
   /** 휴대폰: 끌어서(드래그) 고른 사인물 — 속성창(빠른 막대)을 띄우지 않는다. 다시 탭하면 풀린다 (2026-10-22 "터치시 속성창 나온다. 터치드레그에는 속성창 나오지 않는다") */
   dragHideId = $state<string | null>(null);
   /** 휴대폰: 사인물을 누르고 있는 동안 — 속성창은 뗄 때(탭) 나온다, 벌컥 떴다 사라지지 않게 (2026-10-22 "터치 업에 속성창나오게 현재 벌컥거린다") */
   pressing = $state(false);
-  /** 컨펌에서 뺀 사인물 (진행 동의할 때 함께 보낸다) */
-  confirmExcluded = $state<string[]>([]);
-  get tab(): 'board' | 'design' | 'list' | 'confirm' {
-    if (this.confirmMode || this.proposalMode) return 'confirm';
+  get tab(): 'measure' | '2d' | '3d' | 'design' | 'list' {
     if (this.view === 'list') return 'list';
-    if (this.view === 'uv' || this.stage !== 'original') return 'design';
-    return 'board';
+    if (this.view === 'uv' || this.designMode) return 'design';
+    return this.stage === 'original' ? 'measure' : this.stage;
   }
-  setTab(t: 'board' | 'design' | 'list' | 'confirm') {
-    if (t === 'confirm') { this.proposalMode = false; this.confirmMode = true; this.view = 'board'; this.stage = this.designStage; this.selectObject(null); return; }
-    this.proposalMode = false; this.confirmMode = false;
-    if (t === 'list') this.view = 'list';
-    else if (t === 'board') { this.view = 'board'; this.stage = 'original'; }
-    else { this.view = 'board'; this.stage = this.designStage; }
+  setTab(t: 'measure' | '2d' | '3d' | 'design' | 'list') {
+    this.proposalMode = false;
+    this.designMode = t === 'design';
+    if (t === 'list') { this.view = 'list'; return; }
+    this.view = 'board';
+    this.stage = t === 'measure' ? 'original' : t === 'design' ? '2d' : t;
   }
-  setDesignStage(s: '2d' | '3d') { this.designStage = s; this.view = 'board'; this.stage = s; }
   /** ?safe=1 — 휴대폰 크래시 원인 가르기용 (2026-10-18): 2D 겹침·카드 얼굴을 그리지 않는다 */
   safeMode = $state(false);
   /** 3D 단계의 사진별 합성 결과 (내용 키 + 데이터 URL) */
@@ -846,12 +841,6 @@ class AppState {
     for (const o of this.signs) { const sz = this.sizeOf(o); out[o.id] = signHash(o, sz ? { w: sz.w, h: sz.h } : null, this.quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0)); }
     return out;
   }
-  /** 사인물 멤버 확인 (2026-10-22 "정면도 사인물 카드에 컨펌 … 사인물마다. 고객과 맴버 컨펌") */
-  memberCheckSign(id: string) {
-    if (!this.canEdit) return;
-    const cur = this.settings.signChecks ?? {};
-    this.updateSettings({ signChecks: { ...cur, [id]: addMemberCheck(cur[id], { by: this.nickname || this.account?.name || '멤버', at: Date.now(), hash: this.signHashes[id] ?? '' }) } });
-  }
   async approve(by: string, excluded: string[] = []) {
     if (!this.room) throw new Error('방이 없습니다');
     this.setNickname(by);
@@ -1318,6 +1307,21 @@ class AppState {
 
   /** 다중 선택 모드는 켠 채 다른 종류(카드↔외곽선)로 새로 시작 */
   private restartSelection(id: string, kind: 'shape' | 'card') { const on = this.multiMode; this.multiMode = false; this.selectObject(id, kind); this.multiMode = on; }
+
+  /**
+   * 빈 곳 누름: 선택은 **탭일 때만** 푼다 (2026-10-22 사용자: "개별선택시 화면 팬이나 줌시 선택유지 되게") — 6px 넘게 움직이면(팬), 두 번째 손가락이 닿으면(핀치 줌),
+   * 취소되면 그대로. 전에는 누르는 순간 풀고 팬을 시작해 화면만 옮겨도 선택이 사라졌다
+   */
+  clearSelectionOnTap(e: PointerEvent) {
+    const sx = e.clientX, sy = e.clientY;
+    let tap = true;
+    const move = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) tap = false; };
+    const second = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) tap = false; };
+    const done = () => { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerdown', second, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', cancel, true); };
+    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); } };
+    const cancel = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) done(); };
+    window.addEventListener('pointermove', move, true); window.addEventListener('pointerdown', second, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
+  }
 
   selectPin(id: string | null) {
     this.selectedPinId = id;

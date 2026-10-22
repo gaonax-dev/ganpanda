@@ -40,7 +40,7 @@ test('두 손가락을 벌리면 보드가 확대되고, 모으면 축소된다 
 test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되어 화면을 넘치지 않는다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await expect(page.getByTestId('view-board')).toHaveText(/^\s*보드\s*$/);
+  await expect(page.getByTestId('view-board')).toHaveText(/^\s*실측\s*$/);
   await expect(page.getByTestId('view-list')).toContainText('리스트');
   await expect(page.getByTestId('proposal-button')).toHaveText('제안');
   await expect(page.getByTestId('invite-button')).toHaveText('초대');
@@ -183,7 +183,7 @@ test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르
     app.project.addObject({ photoId: app.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex' });
   });
   await page.getByTestId('view-design').click(); // 디자인 탭 안의 [파일] (2026-10-22)
-  await expect(page.getByTestId('view-uv')).toHaveText('파일');
+  await expect(page.getByTestId('view-uv')).toContainText('디자인 파일');
   await page.getByTestId('view-uv').click();
   const panel = page.getByTestId('link-panel');
   await expect(panel).toBeHidden();

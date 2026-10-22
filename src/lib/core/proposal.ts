@@ -109,19 +109,6 @@ export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { 
 }
 
 /**
- * 멤버 확인 (2026-10-22 사용자: "컨펌에 맴버컴펌도 필요하다"): 고객에게 보내기 전 팀 안에서 컨펌 화면을 보고 확인 — 설정 `memberChecks`.
- * 같은 사람은 마지막 것만. 확인 뒤 내용(해시)이 바뀌면 "다시 확인"
- */
-export interface MemberCheck { by: string; at: number; hash: string }
-export function addMemberCheck(checks: MemberCheck[] | undefined, c: MemberCheck): MemberCheck[] {
-  return [...(checks ?? []).filter((x) => x.by !== c.by), c];
-}
-export function memberCheckState(checks: MemberCheck[] | undefined, currentHash: string): { valid: MemberCheck[]; stale: MemberCheck[] } {
-  const list = checks ?? [];
-  return { valid: list.filter((c) => c.hash === currentHash), stale: list.filter((c) => c.hash !== currentHash) };
-}
-
-/**
  * 사인물마다 컨펌 (2026-10-22 사용자: "컨펌에 정면도 사인물 카드에 컨펌이 있어야한다. 현재방식은 대상을 파악하기 어렵다. 사인물마다. 고객과 맴버 컨펌"):
  * 사인물 하나의 내용 지문 — 종류·옵션·문구·크기·디자인·구성 요소(parts)·그 사인물 금액. 자리(listX/listY)·말풍선은 빼서 옮겨도 그대로
  */
@@ -132,12 +119,4 @@ export function signHash(o: SignObject, size: { w: number; h: number } | null, a
     d: o.design ? `${o.design.sourceId}/${o.design.page}/${o.design.crop.x},${o.design.crop.y},${o.design.crop.w},${o.design.crop.h}` : null,
     parts: o.parts ?? null, amt: amount,
   }));
-}
-/** 고객 진행 동의의 그 사인물 상태. 지문이 없는 옛 동의는 전체 동의 상태(globalOk)를 따른다 */
-export function customerSignState(approval: Approval | undefined, id: string, hash: string, globalOk: boolean): 'none' | 'ok' | 'excluded' | 'changed' {
-  if (!approval) return 'none';
-  if (approval.excluded?.includes(id)) return 'excluded';
-  const h = approval.snapshot.signHashes;
-  if (!h) return globalOk ? 'ok' : 'changed';
-  return h[id] === hash ? 'ok' : 'changed';
 }

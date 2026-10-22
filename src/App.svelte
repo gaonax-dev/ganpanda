@@ -34,7 +34,6 @@
   import EstimateLock from './lib/ui/EstimateLock.svelte';
   import RequestBar from './lib/ui/RequestBar.svelte';
   import RequestInbox from './lib/ui/RequestInbox.svelte';
-  import ConfirmBar from './lib/ui/ConfirmBar.svelte';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -86,19 +85,20 @@
   });
 
   /** 휴대폰 폭에서는 짧은 라벨 (short) */
-  // 작업 탭 (2026-10-22 "사진보드, 러프디자인(2d,3d),사인물리스트, 컨펌 으로" → "러프를 디자인으로 변경하고 거기에 포함"): 디자인 탭 안에 2D·3D·디자인 파일
-  const TABS: { id: 'board' | 'design' | 'list' | 'confirm'; label: string; short: string }[] = [
-    { id: 'board', label: '사진보드', short: '보드' },
-    { id: 'design', label: '디자인', short: '디자인' },
-    { id: 'list', label: '사인물리스트', short: '리스트' },
-    { id: 'confirm', label: '컨펌', short: '컨펌' },
+  // 작업 탭 (2026-10-22 "상단탭 실측,2d,3d,디자인,사인물리스트" — 테스트 이름은 예전 것을 그대로: 실측 view-board, 2D stage-2d, 3D stage-3d)
+  const TABS: { id: 'measure' | '2d' | '3d' | 'design' | 'list'; tid: string; label: string; short: string }[] = [
+    { id: 'measure', tid: 'view-board', label: '실측', short: '실측' },
+    { id: '2d', tid: 'stage-2d', label: '2D', short: '2D' },
+    { id: '3d', tid: 'stage-3d', label: '3D', short: '3D' },
+    { id: 'design', tid: 'view-design', label: '디자인', short: '디자인' },
+    { id: 'list', tid: 'view-list', label: '사인물리스트', short: '리스트' },
   ];
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
   // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
   $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
   // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
-  $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode || app.confirmMode); }); // 컨펌도 파랑
+  $effect(() => { document.documentElement.classList.toggle('proposal', app.proposalMode); });
   // 실측 보기(받은 요청 보드)는 파랑 — 가져온 내 프로젝트는 노랑 (2026-10-22 "프로젝트가져오기 버튼을 사용하면 노랑색으로 변경하고 소비자 초대해 제안한다")
   $effect(() => { document.documentElement.classList.toggle('survey', !!app.requestView); });
   // 외주(B2B) 색 (2026-10-22): 외주 프로젝트·그 요청 보드는 핫핑크
@@ -165,23 +165,25 @@
         </div>
       {:else}
       {#if app.tab === 'design'}
-      <!-- 디자인 탭 안: 2D(사진 위 평면) · 3D(합성) · 디자인 파일(일러스트·SVG 연결) -->
-      <div class="views stage" data-testid="stage">
-        <button data-testid="stage-2d" class:on={app.view === 'board' && app.stage === '2d'} title="바탕색·디자인·글자를 사진 위에 평면으로" onclick={() => app.setDesignStage('2d')}>2D</button>
-        <button data-testid="stage-3d" class:on={app.view === 'board' && app.stage === '3d'} onclick={() => app.setDesignStage('3d')}>3D</button>
-        {#if !app.boardOnly}<button data-testid="view-uv" class:on={app.view === 'uv'} title="일러스트·SVG 디자인 파일을 올려 사인물에 연결" onclick={() => (app.view = 'uv')}>{app.compact ? '파일' : '디자인 파일'}</button>{/if}
+      <!-- 디자인 탭 (2026-10-22 "디자인은 디자이너와 소통하는 곳으로 사진보드 그대로인데 사인물 디자인파일 연결하는 곳이다. 여기에 디자이너가 일러스트 파일도 올린다"):
+           사진보드(2D) 그대로 + 디자인 파일 올리기 · 파일 보기·연결 · 고른 사인물에 연결 -->
+      <div class="views stage designbar" data-testid="design-bar">
+        {#if app.canEdit && !app.boardOnly}<label class="up" data-testid="design-upload" title="일러스트(.ai, PDF 호환)·PDF·SVG·그림">＋ {app.compact ? '파일' : '일러스트·SVG 올리기'}<input data-testid="design-upload-input" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
+        <button data-testid="view-uv" class:on={app.view === 'uv'} title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { if (app.view === 'uv') { app.view = 'board'; } else { app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>
+        {#if app.selected && app.view === 'board' && app.canEdit}<button data-testid="design-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => (app.view = 'uv')}>이 사인물에 연결</button>{/if}
+        {#if app.converting}<span class="muted">변환 중…</span>{/if}
       </div>
       {/if}
       {/if}
     {/if}
     <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
-    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode && !app.confirmMode)}>
-      {#each TABS.filter((t) => (app.isCustomer ? t.id === 'board' || (!!app.requestView && t.id === 'list') : t.id !== 'confirm' || (app.canEdit && !app.consumer))) as t (t.id)}
-        <button data-testid="view-{t.id}" class:on={app.tab === t.id} title={t.id === 'board' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === 'design' ? '2D · 3D · 디자인 파일' : t.id === 'confirm' ? '고객이 볼 제안 화면 — 확인하고 보내기' : ''} onclick={() => app.setTab(t.id)}>
+    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
+      {#each TABS.filter((t) => (app.isCustomer ? t.id !== 'design' && (t.id !== 'list' || !!app.requestView) : true)) as t (t.id)}
+        <button data-testid={t.tid} class:on={app.tab === t.id} title={t.id === 'measure' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === '2d' ? '바탕색·디자인·글자를 사진 위에 평면으로' : t.id === '3d' ? '사진 위 입체 합성' : t.id === 'design' ? '디자이너와 소통 — 사진보드 그대로, 사인물에 디자인 파일(일러스트·SVG) 연결' : ''} onclick={() => app.setTab(t.id)}>
           {app.compact ? t.short : t.label}
-          {#if t.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
-          {#if t.id === 'board' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
-          {#if t.id === 'board' && app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}
+          {#if t.id === 'measure' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
+          {#if t.id === 'measure' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
+          {#if t.id === 'measure' && app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}
           {#if t.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
         </button>
       {/each}
@@ -321,7 +323,6 @@
 {#if app.pricesOpen}<PricesDialog />{/if}
 {#if app.quoteSheetOpen && !app.noPrices}<QuoteSheet />{/if}
 {#if app.orderOpen && !app.noPrices}<OrderDialog />{/if}
-{#if app.confirmMode && app.room && app.access.status === 'ok'}<ConfirmBar />{/if}
 {#if app.proposalOpen}{#await lazyProposal()}<Loading text="제안 도구 불러오는 중…" />{:then m}<m.default />{/await}{/if}
 {#if app.adjustPhoto}{#key app.adjustPhoto.id}{#await lazyPhotoAdjust()}<Loading text="이미지 조절 불러오는 중…" />{:then m}<m.default photo={app.adjustPhoto} />{/await}{/key}{/if}
 {#if app.cameraPhoto && app.cameraDraft}{#key app.cameraPhoto.id}{#await lazyCamera()}<Loading text="원근 맞추기 불러오는 중…" />{:then m}<m.default photo={app.cameraPhoto} />{/await}{/key}{/if}
@@ -419,4 +420,6 @@
     .reqs b { padding: 0 5px; font-size: 11px; }
   }
   .qb[hidden] { display: none; }
+  .designbar .up { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 7px; font-size: 13px; color: var(--accent); cursor: pointer; font-weight: 600; }
+  .designbar .muted { color: var(--muted); font-size: 12px; align-self: center; }
 </style>
