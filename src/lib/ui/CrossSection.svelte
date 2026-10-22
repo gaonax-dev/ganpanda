@@ -32,7 +32,7 @@
   // 두께는 모든 층이 같은 비율 (2026-10-22 "각각의 레이어는 지정된 비율로 굵기도 지정값을 반영한다") — 비율은 그림 아래 "두께 ×N"
   const VW = 560, M = 14, F = 1, GAP = 22;
   const COS = Math.cos(Math.PI / 6), SIN = Math.sin(Math.PI / 6);
-  const MAT_COLOR: Record<string, string> = { iron: '#8b9096', rubber: '#3b3b3f', alu: '#c4cad0', 'alu-gold': '#d4b25e', 'alu-silver': '#d9dde1', stain: '#dfe3e7', titan: '#b9a46c', acrylic: '#cfe6ff', foamex: '#f3f3f3', channel: '#eef2f6', sheet: '#7cc0ff' };
+  const MAT_COLOR: Record<string, string> = { iron: '#8b9096', rubber: '#3b3b3f', alu: '#c4cad0', 'alu-gold': '#d4b25e', 'alu-silver': '#d9dde1', stain: '#dfe3e7', titan: '#b9a46c', acrylic: '#cfe6ff', foamex: '#f3f3f3', galva: '#a9b0b8', led: '#fff1a0', channel: '#eef2f6', sheet: '#7cc0ff' };
   interface Slab { item: CsItem | null; tier: number; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; color: string; side: string; /** 컷팅 모양(글자)을 그리나 */ cut: boolean; empty?: boolean }
   const draw = $derived.by(() => {
     const W = cs.width, H = cs.height;
@@ -152,7 +152,7 @@
   // 새로 더한 구성 요소의 층을 펼친다
   $effect(() => { if (openPart && openTier === null) { const t = cs.tiers.find((x) => x.items.some((i) => i.part.id === openPart)); if (t) openTier = t.n; } });
   const fmtT = (t: number) => `${Math.round(t * 10) / 10}T`;
-  const layerText = (it: CsItem) => it.layers.map((l) => `${l.label} ${fmtT(l.thickness)}`).join(' + ');
+  const layerText = (it: CsItem) => it.layers.map((l) => (l.thickness ? `${l.label} ${fmtT(l.thickness)}` : l.label)).join(' + '); // 두께 없는 층(LED)은 이름만
   const addKinds = $derived(kinds.filter((k) => componentOf(k).takesItems));
 </script>
 
@@ -228,7 +228,7 @@
                 {#if openPart === it.part.id}
                   <!-- 재료 층 목록 (앞이 위). 고칠 수 있으면 아래 편집기의 [재료 층]이 같은 것을 보여 주므로 보기 권한·재료 층 없는 종류만 -->
                   {#if ro || !componentOf(it.part.kind).stack}<ol class="layers" data-testid="cs-layers">
-                    {#each [...it.layers].reverse() as l, li (li)}<li data-testid="cs-layer">{l.label} <b>{fmtT(l.thickness)}</b></li>{/each}
+                    {#each [...it.layers].reverse() as l, li (li)}<li data-testid="cs-layer">{l.label}{#if l.thickness} <b>{fmtT(l.thickness)}</b>{/if}</li>{/each}
                   </ol>{/if}
                   <PartsEditor {obj} {ro} {update} {kinds} partId={it.part.id} />
                   {#if !ro && componentOf(it.part.kind).host}

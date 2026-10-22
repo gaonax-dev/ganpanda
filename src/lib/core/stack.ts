@@ -18,9 +18,12 @@ export const STACK_MATERIALS: StackMaterial[] = [
   { id: 'titan', label: '티타늄판', paintable: false },
   { id: 'acrylic', label: '아크릴', paintable: true },
   { id: 'foamex', label: '포맥스', paintable: true },
+  // 채널 재료 (S2, 2026-10-22): 갈바 판 · LED 모듈(두께 없음 — 몸통 안)
+  { id: 'galva', label: '갈바', paintable: true },
+  { id: 'led', label: 'LED', paintable: false },
 ];
 /** 재료를 올릴 때의 기본 두께 (T, 확인 필요 — 흔한 값) */
-export const STACK_DEFAULT_T: Record<string, number> = { iron: 1.5, rubber: 20, alu: 1, 'alu-gold': 1, 'alu-silver': 1, stain: 1.2, titan: 1.2, acrylic: 8, foamex: 10 };
+export const STACK_DEFAULT_T: Record<string, number> = { iron: 1.5, rubber: 20, alu: 1, 'alu-gold': 1, 'alu-silver': 1, stain: 1.2, titan: 1.2, acrylic: 8, foamex: 10, galva: 1.2, led: 0 };
 /** 스카시 컷팅 (2026-10-22 "컷팅이 스카시에 붙어서 하위 재료가 모두 적용된다") — 스카시 옵션 cut */
 export const SCASHI_CUTS: { id: string; label: string }[] = [
   { id: '', label: '컷팅 미정' }, { id: 'laser', label: '레이저 컷팅' }, { id: 'cnc', label: 'CNC 라우터' }, { id: 'waterjet', label: '워터젯' }, { id: 'knife', label: '칼(플로터) 컷팅' },
@@ -50,6 +53,24 @@ export function defaultStack(type: string, bodyThickness?: number): MaterialLaye
   return [mk({ material: 'iron', thickness: 1.5, role: 'base' }), mk({ material: 'rubber', thickness: bodyThickness ?? 20, role: 'body', face: facePaint })];
 }
 
+/**
+ * 채널 재료 층 기본 묶음 (S2, 2026-10-22 — 확인 필요: 흔한 구성으로): 뒤(벽 쪽) → 앞. 두께 합 = 채널 깊이
+ * 전광 = 갈바 뒷판 1.2T · LED · 알루미늄 옆판 · 아크릴 앞판 3T / 후광 = 아크릴 뒷판 3T · LED · 갈바 옆판 · 갈바 앞판 1.2T /
+ * 전후광 = 아크릴 뒷판 · LED · 알루미늄 옆판 · 아크릴 앞판 / 갈바 에폭시(비조명) = 갈바 세 겹 / 통아크릴 = LED · 아크릴 몸통 / 벌브 = 갈바 뒷판 · LED · 갈바 옆판(앞이 열림)
+ */
+export function defaultChannelStack(type: string, depth = 80): MaterialLayer[] {
+  const L = (material: string, thickness: number, role?: MaterialLayer['role']) => mk({ material, thickness: Math.max(0, Math.round(thickness * 10) / 10), ...(role ? { role } : {}) });
+  const led = L('led', 0);
+  switch (type) {
+    case 'ch-front': return [L('galva', 1.2, 'base'), led, L('alu', depth - 4.2, 'body'), L('acrylic', 3, 'face')];
+    case 'ch-halo': return [L('acrylic', 3, 'base'), led, L('galva', depth - 4.2, 'body'), L('galva', 1.2, 'face')];
+    case 'ch-both': return [L('acrylic', 3, 'base'), led, L('alu', depth - 6, 'body'), L('acrylic', 3, 'face')];
+    case 'ch-acrylic': return [led, L('acrylic', depth, 'body')];
+    case 'ch-bulb': return [L('galva', 1.2, 'base'), led, L('galva', depth - 1.2, 'body')];
+    default: return [L('galva', 1.2, 'base'), L('galva', depth - 2.4, 'body'), L('galva', 1.2, 'face')];
+  }
+}
+
 export const stackDepth = (stack: MaterialLayer[]) => stack.reduce((t, l) => t + (Number.isFinite(l.thickness) ? l.thickness : 0), 0);
 const fmtT = (t: number) => `${Math.round(t * 10) / 10}T`;
 /** 몸통 층: role body, 없으면 맨 위 */
@@ -77,7 +98,7 @@ export function finishLabel(layer: MaterialLayer, where: 'face' | 'side', opts: 
 }
 /** "철판 1.5T + 고무 20T · 앞면 재질 시트 · 옆면 도색 검정" (opts 가 있으면 마감도) */
 export function stackLabel(stack: MaterialLayer[], opts?: Record<string, unknown>): string {
-  const mats = stack.map((l) => `${stackMaterialLabel(l.material)} ${fmtT(l.thickness)}`).join(' + ');
+  const mats = stack.map((l) => (l.thickness ? `${stackMaterialLabel(l.material)} ${fmtT(l.thickness)}` : stackMaterialLabel(l.material))).join(' + '); // 두께 없는 층(LED)은 이름만
   if (!opts) return mats;
   const ext: string[] = [];
   for (const l of stack) { const f = finishLabel(l, 'face', opts); if (f) ext.push(`앞면 ${f}`); }

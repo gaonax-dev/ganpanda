@@ -6,6 +6,10 @@ import { CHANNEL_FIELDS, LED_KELVIN } from '../optionSchema';
 import { paintLabel } from '../materials';
 import { DEFAULT_LETTER3D, lightingOf } from '../letter3d';
 import { lettersPrice } from './letters';
+import { defaultChannelStack, stackDepth } from '../stack';
+
+/** 3D 글자 깊이 (사인물 letter3d) */
+const letterDepth = (o?: SignObject) => ({ ...DEFAULT_LETTER3D, ...(o?.letter3d ?? {}) }).depthMm;
 
 const typeLabel = (type: string) => CHANNEL_OPTIONS.find((c) => c.id === type)?.label ?? productById(type)?.name ?? type;
 
@@ -14,6 +18,9 @@ export const channel: Component = {
   termKey: 'product',
   takesItems: true,
   hasSpec: false, sits: false, layer: 100, itemWidth: false, extrude: true,
+  // 재료 층 (S2, 2026-10-22): 저장된 재료 층이 없으면 3D 깊이(letter3d)로 종류의 기본 묶음을 보인다 — 층을 고치는 순간 저장(깊이 = 두께 합)
+  stack: (p, o) => p.stack ?? defaultChannelStack(p.type, letterDepth(o)),
+  presetStack: (type, o) => defaultChannelStack(type, letterDepth(o)),
   typeLabel: (p) => typeLabel(p.type),
   spec: (p) => typeLabel(p.type),
   chip: (p) => { const led = p.options?.ledColor as string | undefined; return { text: `${typeLabel(p.type).replace(' 채널', '')}${led ? ` ${LED_KELVIN[led] ?? led}` : ''}`, color: paintLabel(p.options, 'body') }; },
@@ -23,7 +30,7 @@ export const channel: Component = {
     return CHANNEL_FIELDS.slice(1).filter((f) => f.key !== 'chHeight' && (!f.when || f.when(ctx, {} as SignObject)));
   },
   host: (p) => `${typeLabel(p.type)} 앞면`,
-  depthMm: (_p, o) => ({ ...DEFAULT_LETTER3D, ...(o.letter3d ?? {}) }).depthMm,
+  depthMm: (p, o) => (p.stack?.length ? stackDepth(p.stack) : letterDepth(o)), // 재료 층이 있으면 두께 합
   lighting: (p) => lightingOf(p.type),
   paint: { face: 'face', side: 'body' }, // 앞면 색(시트) · 몸통 도색 (3D 글자 옆면)
   price: (p, ctx) => lettersPrice(p, `${ctx.o.name} · ${ctx.term(`product:${p.type}`, typeLabel(p.type))}`, ctx),

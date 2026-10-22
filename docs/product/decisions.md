@@ -297,3 +297,4 @@
 | 2026-10-22 | 안개 시트 블러 **40px**(60px 대체) | 사용자: "안개 40으로 변경해줘봐" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트 블러 **30px**(40px 대체) | 사용자: "30으로 변경해줘" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 휴대폰 3D: 고른 사인물은 외곽선만 실선 — 터치 띠(보이지 않는 굵은 선)는 칠하지 않는다(굵은 노란 띠로 보이던 것 고침) | 사용자: "3d에서 사인물 선택하면 선택상태가 이상" → [../features/photo-board.md](../features/photo-board.md) |
+| 2026-10-22 | **S2 시작: 채널도 재료 층**(뒷판·LED·옆판·앞판, 종류별 기본 묶음 — 확인 필요). 저장 전엔 3D 깊이의 기본 묶음을 보이고 고치는 순간 저장(깊이 = 두께 합) — 3D 창에서 정한 깊이를 깨지 않게 | 사용자: "진행해줘" (다음 작업 추천: S2) → [../features/material-stack.md](../features/material-stack.md) |

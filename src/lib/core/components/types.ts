@@ -71,7 +71,9 @@ export interface Component {
   /** 새로 만들 때의 세부 종류 (없으면 types[0]). 스카시는 '' = 종류 없이 재료를 올려 만든다 (2026-10-22) */
   defaultType?: string;
   /** 재료 층(뒤→앞)이 있는 종류: 그 층들 (단면 쌓기가 층마다 그린다, 2026-10-22). 없으면 한 덩어리 */
-  stack?(part: SignPart): MaterialLayer[];
+  stack?(part: SignPart, o?: SignObject): MaterialLayer[];
+  /** 세부 종류의 기본 재료 층 묶음 (종류를 고르면 불러온다) */
+  presetStack?(type: string, o?: SignObject): MaterialLayer[];
   /** 글자·그림·도형 객체를 받나 (상단 조명은 아님) */
   takesItems: boolean;
   /** 견적 줄 키 (없으면 `<사인물>:part:<구성 요소>`) — 옛 키를 이어 써서 수동 금액을 지킨다 */

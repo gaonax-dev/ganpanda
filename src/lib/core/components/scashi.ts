@@ -38,6 +38,7 @@ export const scashi: Component = {
   },
   depthMm: (p) => stackDepth(stackOf(p)),
   stack: (p) => stackOf(p),
+  presetStack: (type) => (type ? defaultStack(type) : []),
   lighting: () => 'none',
   paint: { face: 'paint', side: 'paint' },
   surface: (p) => surfaceOf(stackOf(p), p.options),
