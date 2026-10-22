@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { SERVER, openOwnedProject, uploadPhoto } from './helpers';
 
 /** 휴대폰 폭(390px, 터치) — 핀치 확대와 축약 라벨 */
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -519,3 +519,20 @@ test('계정 메뉴가 휴대폰에서 가려지지 않는다 — 로그아웃 �
   const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), [b.x + b.width / 2, b.y + b.height / 2]);
   expect(hit).toBe('logout');
 });
+
+test('휴대폰 상단 바: 위 줄은 한 줄(로고·프로젝트·단추·견적 요청·계정), 아래 줄은 작업 탭 — 홈에는 탭 자리도 없다 (2026-10-22 "모바일 헤더 최상단이 2줄이 되었다. 한줄로 가능한가?")', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { session } = await openOwnedProject(page, request);
+  await request.put(`${SERVER}/api/me/request-settings`, { data: { receive: true, regions: ['경기 광주시'] }, headers: { authorization: `Bearer ${session}` } });
+  await page.reload();
+  await expect(page.getByTestId('request-inbox-link')).toBeVisible();
+  const y = async (id: string) => (await page.getByTestId(id).boundingBox())!.y;
+  const top = await y('go-projects');
+  for (const id of ['project-title', 'proposal-button', 'request-inbox-link', 'account-menu']) expect(Math.abs((await y(id)) - top)).toBeLessThan(12);
+  expect(await y('work-tabs')).toBeGreaterThan(top + 20); // 탭은 아래 줄
+  expect((await page.getByTestId('top-nav').boundingBox())!.height).toBeLessThan(90);
+  await page.goto('/');
+  await expect(page.getByTestId('request-inbox-link')).toBeVisible();
+  expect((await page.getByTestId('top-nav').boundingBox())!.height).toBeLessThan(56); // 홈은 한 줄
+});
+

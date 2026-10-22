@@ -167,8 +167,8 @@
     </div>
     <div class="right">
       <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"). 받은 요청 페이지 안에서는 감춘다 — 페이지에 받은/보낸 탭이 있다 ("견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘") -->
-      {#if app.sentShown && !app.consumer && !app.inbox}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">보낸 요청 <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
-      {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">견적 요청 <b data-testid="request-count">{app.requestCount}</b></a>{/if}
+      {#if app.sentShown && !app.consumer && !app.inbox}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">{app.compact ? '보냄' : '보낸 요청'} <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
+      {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">{app.compact ? '요청' : '견적 요청'} <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>
       <span class="peers">
         {#each app.peers as p (p.name)}
@@ -368,14 +368,16 @@
   /* (스타일 끝에 두어 같은 우선순위의 위 규칙들을 덮는다) */
   /* 휴대폰 폭: 두 줄(위 = 프로젝트·버튼·계정, 아래 = 뷰 탭), 라벨은 축약, 접속자·역할은 숨김 */
   @media (max-width: 720px) {
-    .top { flex-wrap: wrap; gap: 8px; padding: 6px 10px; }
-    .project { flex: 1 1 auto; min-width: 48px; max-width: 40vw; font-size: 13px; }
+    .top { flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
+    /* 위 줄은 한 줄로 (2026-10-22 "모바일 헤더 최상단이 2줄이 되었다. 한줄로"): 프로젝트 이름이 먼저 줄어든다(기준 폭 0 — 줄바꿈 계산에 안 잡히게), 알약은 아이콘+숫자, 숨은 탭은 자리도 없게 */
+    .project { flex: 1 1 0; min-width: 40px; max-width: 40vw; font-size: 13px; }
+    .views.hidden { display: none; }
     .right { min-width: 0; }
     .role, .peers { display: none; }
     .views { order: 10; flex-basis: 100%; justify-content: stretch; }
     .views.stage { order: 11; }
     .views button { flex: 1; justify-content: center; padding: 6px 8px; }
-    .right { gap: 6px; }
+    .right { gap: 4px; }
     .who { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
     .toasts { left: 12px; right: 12px; bottom: 76px; }
     .flash { top: 136px; font-size: 14px; } /* 휴대폰: 여러 줄 상단 바 아래 */
@@ -388,4 +390,9 @@
   .b2b { font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
   .banner.next { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; }
   .banner.lost { justify-content: flex-start; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  /* 휴대폰: 견적 요청 알약은 짧게 — 위 .reqs 기본 규칙보다 뒤에 둬야 이긴다 (2026-10-22 "모바일 헤더 최상단이 2줄") */
+  @media (max-width: 720px) {
+    .reqs { padding: 1px 2px 1px 6px; gap: 3px; font-size: 11px; }
+    .reqs b { padding: 0 5px; font-size: 11px; }
+  }
 </style>
