@@ -301,7 +301,55 @@
 
   // ---------- 보드 빈 곳에 사인물 만들기 (사각 도구로 끌기) ----------
   let draft: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
+  // ---------- 끌어서 다중 선택 (2026-10-23 "데스크탑에서 드래그로 다중선택" → "사인물카드와 사진의 사인물은 같이 선택할 이유가 없다 … 다른 사진의 사인물도 같이 선택되면 안된다.
+  // 드래그로 먼저 영역에 잡힌 사인물 소속이 같은 것만"): 데스크톱 마우스 · 선택 도구 · 다중 모드([다중] 또는 Shift)일 때만. 아니면 빈 곳 끌기 = 화면 이동 그대로
+  let marquee: { x0: number; y0: number; x1: number; y1: number } | null = $state(null);
+  type Owner = { kind: 'shape'; photoId: string } | { kind: 'card' };
+  /** 사각형 안에 완전히 든 것 (보드 좌표) */
+  function caught(m: { x0: number; y0: number; x1: number; y1: number }) {
+    const L = Math.min(m.x0, m.x1), R = Math.max(m.x0, m.x1), T = Math.min(m.y0, m.y1), B = Math.max(m.y0, m.y1);
+    const inside = (x0: number, y0: number, x1: number, y1: number) => x0 >= L && x1 <= R && y0 >= T && y1 <= B;
+    const shapes: { id: string; photoId: string }[] = [];
+    for (const o of app.objects) {
+      const p = app.photos.find((x) => x.id === o.photoId);
+      if (!p || !o.quad.length) continue;
+      const f = p.width / p.w, xs = o.quad.map((q) => p.x + q[0] * f), ys = o.quad.map((q) => p.y + q[1] * f);
+      if (inside(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys))) shapes.push({ id: o.id, photoId: o.photoId });
+    }
+    const cards: string[] = [];
+    for (const { o, w, h } of app.flatCards) {
+      const pl = app.flatPlaced.get(o.id);
+      if (!pl) continue;
+      const at = listToBoard(origin, pl.x, pl.y, k);
+      if (inside(at.x, at.y, at.x + w * k, at.y + h * k)) cards.push(o.id);
+    }
+    return { shapes, cards };
+  }
+  function marqueeDown(e: PointerEvent, world: { x: number; y: number }): boolean {
+    if (app.tool !== 'select' || !app.multiMode || e.pointerType !== 'mouse' || e.button !== 0) return false;
+    marquee = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
+    let owner: Owner | null = null; // 먼저 잡힌 것의 소속 — 그 뒤로는 이 소속만
+    const move = (ev: PointerEvent) => {
+      const w = canvas.clientToWorld(ev.clientX, ev.clientY);
+      marquee = { ...marquee!, x1: w.x, y1: w.y };
+      if (!owner) { const c = caught(marquee); owner = c.shapes.length ? { kind: 'shape', photoId: c.shapes[0].photoId } : c.cards.length ? { kind: 'card' } : null; }
+    };
+    const end = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+      const m = marquee!; marquee = null;
+      if (ev.type !== 'pointerup' || !owner) return;
+      const c = caught(m);
+      const ids = owner.kind === 'card' ? c.cards : c.shapes.filter((x) => x.photoId === (owner as { photoId: string }).photoId).map((x) => x.id);
+      const kind = owner.kind;
+      if (app.selectedId && app.selectionKind !== kind) app.selectObject(null); // 다른 종류가 골라져 있으면 새로 (섞지 않음)
+      for (const id of ids) if (!app.selectionIds.includes(id)) app.selectObject(id, kind);
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+    return true;
+  }
+
   function backgroundDown(_e: PointerEvent, world: { x: number; y: number }) {
+    if (marqueeDown(_e, world)) return true;
     if (!app.multiMode) app.clearSelectionOnTap(_e); // 탭일 때만 푼다 — 팬·줌에는 선택 유지 (2026-10-22 "개별선택시 화면 팬이나 줌시 선택유지 되게"). 다중 선택 중에는 그대로
     if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false;
     draft = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
@@ -485,6 +533,9 @@
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
       <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
+    {#if marquee}
+      <div class="draft marquee" data-testid="marquee" style:left="{Math.min(marquee.x0, marquee.x1)}px" style:top="{Math.min(marquee.y0, marquee.y1)}px" style:width="{Math.abs(marquee.x1 - marquee.x0)}px" style:height="{Math.abs(marquee.y1 - marquee.y0)}px" style:border-width="{1 / viewport.zoom}px"></div>
+    {/if}
     {#if draft}
       <div class="draft" data-testid="board-draft" style:left="{Math.min(draft.x0, draft.x1)}px" style:top="{Math.min(draft.y0, draft.y1)}px" style:width="{Math.abs(draft.x1 - draft.x0)}px" style:height="{Math.abs(draft.y1 - draft.y0)}px"></div>
     {/if}
