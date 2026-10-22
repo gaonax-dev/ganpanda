@@ -27,7 +27,7 @@
   // ── 2.5D 그림: 판을 눕혀 위로 쌓는다 (2026-10-22 "레이어 쌓기가 현재 방향이 아니고 위로 쌓기고 펼침도 위아래로 벌리는 방향이다") ──
   // 간판 면(가로 x·세로 y)은 바닥에 누운 판 — x 는 그대로, y 는 비스듬히 뒤로(30°, 줄여서), 두께(z)는 위로. 아래 층부터 그려 위 층이 덮는다
   // 두께는 모든 층이 같은 비율 (2026-10-22 "각각의 레이어는 지정된 비율로 굵기도 지정값을 반영한다") — 비율은 그림 아래 "두께 ×N"
-  const VW = 560, M = 14, F = 1, GAP = 22, Z_TARGET = 70;
+  const VW = 560, M = 14, F = 1, GAP = 22;
   const COS = Math.cos(Math.PI / 6), SIN = Math.sin(Math.PI / 6);
   const MAT_COLOR: Record<string, string> = { iron: '#8b9096', rubber: '#3b3b3f', alu: '#c4cad0', 'alu-gold': '#d4b25e', 'alu-silver': '#d9dde1', stain: '#dfe3e7', titan: '#b9a46c', acrylic: '#cfe6ff', foamex: '#f3f3f3', channel: '#eef2f6', sheet: '#7cc0ff' };
   interface Slab { item: CsItem | null; tier: number; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; color: string; side: string; /** 컷팅 모양(글자)을 그리나 */ cut: boolean; empty?: boolean }
@@ -57,7 +57,7 @@
       top.set(it.part.id, { zm, level });
     }
     const Dm = Math.max(1, ...slabs.map((b) => b.zm1));
-    const zs = Z_TARGET / Dm; // 같은 비율 (px/mm)
+    const zs = s; // 실제 비율 — 가로·세로·두께 같은 축척 (2026-10-22 "가로 세로 두께를 적용해 사실적으로 표시해줘")
     const levels = Math.max(0, ...slabs.map((b) => b.level));
     const zTot = Dm * zs + (explode ? levels * GAP : 0);
     const out: Slab[] = slabs.map((b) => ({ ...b, z0: b.zm0 * zs + (explode ? b.level * GAP : 0), z1: b.zm1 * zs + (explode ? b.level * GAP : 0) }));
@@ -72,7 +72,16 @@
       // 판 위(z) 평면에 글자를 그리는 변환: 글자 좌표 (u 오른쪽, v 아래 = -y)
       plane: (z: number) => `matrix(${s} 0 ${-s * F * COS} ${s * F * SIN} ${ox + (W / 2) * s + (H / 2) * s * F * COS} ${oy - (H / 2) * s * F * SIN - z})`,
     }));
-    return { polys, ratio: Math.round(zs / s), w: Math.ceil(ox + W * s + H * s * F * COS + M), h: Math.ceil(oy + M) };
+    // 구성 요소마다 화면 범위 (고르면 그 부분을 확대)
+    const boxes = new Map<string, { x0: number; y0: number; x1: number; y1: number }>();
+    for (const b of out) {
+      const id = b.item?.part.id ?? 'frame';
+      const ps = [P(b.x0, b.y0, b.z0), P(b.x1, b.y0, b.z0), P(b.x1, b.y1, b.z1), P(b.x0, b.y1, b.z1), P(b.x0, b.y0, b.z1), P(b.x1, b.y1, b.z0)];
+      const r = boxes.get(id) ?? { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      for (const [x, y] of ps) { r.x0 = Math.min(r.x0, x); r.y0 = Math.min(r.y0, y); r.x1 = Math.max(r.x1, x); r.y1 = Math.max(r.y1, y); }
+      boxes.set(id, r);
+    }
+    return { polys, boxes, w: Math.ceil(ox + W * s + H * s * F * COS + M), h: Math.ceil(oy + M) };
   });
   function shade(hex: string) {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -80,6 +89,17 @@
     const n = parseInt(m[1], 16), f = 0.72;
     return `#${[16, 8, 0].map((sh) => Math.round(((n >> sh) & 255) * f).toString(16).padStart(2, '0')).join('')}`;
   }
+  /** 보기 범위: 전체, 또는 고른 구성 요소 둘레 (실제 비율이라 얇은 층은 확대해서 본다) */
+  let zoomAll = $state(false);
+  const viewBox = $derived.by(() => {
+    const full = `0 0 ${draw.w} ${draw.h}`;
+    const r = openPart && !zoomAll ? draw.boxes.get(openPart) : undefined;
+    if (!r) return full;
+    const w = Math.max(80, (r.x1 - r.x0) * 1.5), h = Math.max(50, (r.y1 - r.y0) * 1.8);
+    const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+    return `${(cx - w / 2).toFixed(1)} ${(cy - h / 2).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}`;
+  });
+  $effect(() => { void openPart; zoomAll = false; }); // 다른 것을 고르면 다시 확대
   /** 컷팅 모양 = 글자 객체 (판 평면 좌표) */
   const glyphs = (p: SignPart) => p.items.filter((i) => i.kind === 'text' && i.text?.trim());
   /** 두께를 보이게 글자를 바닥~위 사이에 몇 겹 */
@@ -109,7 +129,7 @@
 
 <div class="cs" data-testid="cross-section">
   <div class="figure">
-    <svg data-testid="cs-figure" viewBox="0 0 {draw.w} {draw.h}" width="100%" style:max-height="320px" role="img" aria-label="단면 쌓기">
+    <svg data-testid="cs-figure" viewBox={viewBox} width="100%" style:max-height="320px" role="img" aria-label="단면 쌓기">
       {#each draw.polys as p, i (i)}
         {@const b = p.b}
         <g class="blk" class:sel={isSel(b)} data-testid="cs-block" data-tier={b.tier} data-part={b.item?.part.id ?? 'frame'} role="button" tabindex="-1"
@@ -139,7 +159,8 @@
       {/each}
     </svg>
     <div class="figbar">
-      <span class="hint" data-testid="cs-ratio">층을 누르면 아래 속성이 펼쳐집니다 · 두께 ×{draw.ratio} (모든 층 같은 비율)</span>
+      <span class="hint" data-testid="cs-ratio">실제 비율 — 가로·세로·두께 같은 축척 · 층을 누르면 그 부분을 확대하고 아래 속성이 펼쳐집니다</span>
+      {#if openPart && !zoomAll}<button class="btn small" data-testid="cs-zoom-all" onclick={() => (zoomAll = true)}>전체</button>{/if}
       <button class="btn small" data-testid="cs-explode" class:on={explode} onclick={() => (explode = !explode)}>{explode ? '붙임' : '펼침'}</button>
     </div>
   </div>

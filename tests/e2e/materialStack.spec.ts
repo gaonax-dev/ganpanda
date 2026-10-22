@@ -91,3 +91,21 @@ test('새 스카시는 빈 상태 — 고무를 올리고 그 위에 철판, 컷
   const [r1, i1] = await ys();
   expect(r1 - i1).toBeGreaterThan(r0 - i0 + 10);
 });
+
+// 2026-10-22 사용자: "가로 세로 두께를 적용해 사실적으로 표시해줘"
+test('단면은 실제 비율(가로·세로·두께 같은 축척) — 구성 요소를 고르면 그 부분을 확대하고, [전체]로 돌아온다', async ({ page, request }) => {
+  await setup(page, request);
+  await expect(page.getByTestId('cs-ratio')).toContainText('실제 비율');
+  const vb = async () => (await page.getByTestId('cs-figure').getAttribute('viewBox'))!.split(' ').map(Number);
+  const full = await vb();
+  // 같은 축척: 프레임 앞면 다각형의 두께(화면 세로) / 가로(화면 가로) = 60 / 4000
+  const pts = (await page.locator('[data-testid="cs-block"][data-part="frame"] polygon').first().getAttribute('points'))!.split(' ').map((p) => p.split(',').map(Number));
+  const wpx = Math.max(...pts.map((p) => p[0])) - Math.min(...pts.map((p) => p[0]));
+  const hpx = Math.max(...pts.map((p) => p[1])) - Math.min(...pts.map((p) => p[1]));
+  expect(hpx / wpx).toBeCloseTo(60 / 4000, 2);
+  await page.locator('[data-testid="cs-block"][data-part="sc"]').last().click();
+  const zoomed = await vb();
+  expect(zoomed[2]).toBeLessThan(full[2] * 0.7);
+  await page.getByTestId('cs-zoom-all').click();
+  expect((await vb())[2]).toBeCloseTo(full[2], 0);
+});
