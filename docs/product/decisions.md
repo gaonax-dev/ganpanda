@@ -295,3 +295,4 @@
 | 2026-10-22 | **안개 시트 = 뒤를 블러**(2D·3D, 면은 아주 옅게) — 앞의 "안개 반투명"은 대체됨 | 사용자: "안개는 블러처리하면되는데" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트: **흰색 없이 블러 60px**(앞의 6px·옅은 흰색은 대체됨) | 사용자: "안개는 화이트 없이 지금 블러에 10배" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트 블러 **40px**(60px 대체) | 사용자: "안개 40으로 변경해줘봐" → [../features/composition.md](../features/composition.md) |
+| 2026-10-22 | 안개 시트 블러 **30px**(40px 대체) | 사용자: "30으로 변경해줘" → [../features/composition.md](../features/composition.md) |
