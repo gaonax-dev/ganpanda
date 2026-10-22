@@ -38,7 +38,7 @@ test('설정 창 첫 화면은 단면 쌓기 — 갈바 위의 채널·스카시
   await page.locator('[data-testid="cs-block"][data-part="sc"]').last().click();
   await expect(page.locator('[data-testid="cs-part"][data-part="sc"]')).toHaveClass(/open/);
   await expect(page.locator('[data-testid="cs-part"][data-part="sc"] [data-testid="cs-part-sum"]')).toContainText('아크릴 8T');
-  await expect(page.locator('[data-testid="cs-part"][data-part="ch"] [data-testid="cs-part-sum"]')).toContainText('채널');
+  await expect(page.locator('[data-testid="cs-part"][data-part="ch"] [data-testid="cs-part-sum"]')).toContainText('아크릴 3T'); // 채널도 재료 층 (S2)
   // 펼침(분해도) 단추
   await page.getByTestId('cs-explode').click();
   await expect(page.getByTestId('cs-explode')).toHaveText('붙임');
@@ -261,4 +261,24 @@ test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트�
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
   await expect(page.getByTestId('frost')).toHaveCount(1);
+});
+
+// 재료 조합 S2 (2026-10-22): 채널도 재료 층 — 저장 전엔 3D 깊이의 기본 묶음을 보이고, 고치면 저장(깊이 = 두께 합)
+test('채널 재료 층: 뒷판·LED·옆판·앞판이 보이고, 층을 고치면 저장되어 깊이가 두께 합이 된다', async ({ page, request }) => {
+  const id = await setup(page, request);
+  await page.locator('[data-testid="cs-tier"][data-n="2"] [data-testid="cs-tier-row"]').click();
+  await page.locator('[data-testid="cs-part"][data-part="ch"] [data-testid="cs-part-row"]').click();
+  const card = page.locator('[data-testid="cs-part"][data-part="ch"]');
+  await expect(card.getByTestId('cs-part-sum')).toHaveText('갈바 1.2T + LED + 알루미늄 75.8T + 아크릴 3T');
+  const layers = card.getByTestId('stack-layer');
+  await expect(layers).toHaveCount(4);
+  await expect(layers.first()).toHaveAttribute('data-material', 'acrylic'); // 위가 앞
+  // 옆판(알루미늄) 두께를 100 으로 → 저장, 깊이 = 1.2 + 0 + 100 + 3
+  await layers.nth(1).getByTestId('layer-thickness').fill('100');
+  await layers.nth(1).getByTestId('layer-thickness').press('Enter');
+  await expect.poll(() => page.evaluate((oid) => {
+    const o = (window as unknown as G).__ganpanda.objects.find((x) => x.id === oid)!;
+    const ch = o.parts!.find((p) => p.id === 'ch')!;
+    return ch.stack ? ch.stack.reduce((t, l) => t + l.thickness, 0) : null;
+  }, id)).toBeCloseTo(104.2);
 });

@@ -28,7 +28,7 @@ function itemsRange(p: SignPart, w: number, h: number): { x0: number; x1: number
 
 function layersOfPart(p: SignPart, o: SignObject): CsLayer[] {
   const c = componentOf(p.kind);
-  const st = c.stack?.(p);
+  const st = c.stack?.(p, o);
   if (st) return st.map((l) => ({ label: stackMaterialLabel(l.material), thickness: l.thickness, material: l.material }));
   return [{ label: c.typeLabel(p), thickness: c.depthMm(p, o), material: p.kind }];
 }
