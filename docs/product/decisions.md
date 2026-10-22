@@ -294,3 +294,4 @@
 | 2026-10-22 | 3D: **시트만 붙는 사인물은 바탕 투명**(흰 판 없음 — 컷 글자만, 유리 너머 그대로), **안개 시트는 반투명**(2D·3D). 컷팅 없는 재질 시트·UV 출력은 불투명 | 사용자: "3d에서는 시트를 무조건 힌회색으로 막는다. 투명이 없어" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | **안개 시트 = 뒤를 블러**(2D·3D, 면은 아주 옅게) — 앞의 "안개 반투명"은 대체됨 | 사용자: "안개는 블러처리하면되는데" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트: **흰색 없이 블러 60px**(앞의 6px·옅은 흰색은 대체됨) | 사용자: "안개는 화이트 없이 지금 블러에 10배" → [../features/composition.md](../features/composition.md) |
+| 2026-10-22 | 안개 시트 블러 **40px**(60px 대체) | 사용자: "안개 40으로 변경해줘봐" → [../features/composition.md](../features/composition.md) |

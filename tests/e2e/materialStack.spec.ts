@@ -257,7 +257,7 @@ test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트�
   await expect(page.getByTestId('frost')).toHaveCount(0); // 실측(원본)에는 없음
   await page.getByTestId('stage-2d').click();
   await expect(page.getByTestId('frost')).toHaveCount(1);
-  expect(await page.getByTestId('frost').evaluate((e) => getComputedStyle(e).filter)).toBe('blur(60px)'); // 흰색 없이 블러만, 10배 (2026-10-22)
+  expect(await page.getByTestId('frost').evaluate((e) => getComputedStyle(e).filter)).toBe('blur(40px)'); // 흰색 없이 블러만 (2026-10-22 "안개 40으로")
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
   await expect(page.getByTestId('frost')).toHaveCount(1);
