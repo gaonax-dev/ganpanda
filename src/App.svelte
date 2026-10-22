@@ -132,6 +132,8 @@
     gesture = null;
     app.pressing = false;
   }
+  /** 정면도 카드 배열 막대 (2026-10-23): 배열 모드 · 사진 보드 · 편집 권한 */
+  const flatBar = $derived(app.flatArrange && app.canEdit && app.view === 'board' && app.flatCards.length > 0);
 </script>
 
 <svelte:window onpointerdowncapture={gestureDown} onpointermovecapture={gestureMove} onpointerupcapture={gestureUp} onpointercancelcapture={gestureUp} />
@@ -173,6 +175,19 @@
           <button class="rec" class:on={!!recording.recorder} data-testid="mobile-record" title={recording.recorder ? '녹음 마침 — 음성 메모로 저장' : '녹음 — 이 사인물에 음성 메모'} disabled={recording.busy || (!!recording.recorder && recording.target !== (app.selected?.sameAs ?? app.selected?.id))} onclick={() => recording.toggle(app.selected!.sameAs ?? app.selected!.id)}>{recording.recorder ? recordingLabel(recording.sec) : '🎙 녹음'}</button>
           {/if}
         </div>
+      {:else if flatBar}
+      <!-- 정면도 카드 배열 도구 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동해줘 여기에 정면도 사인물 고정 토글버튼도"): 배열 모드일 때 작업 탭 자리에 -->
+      <div class="views stage flatbar" data-testid="flat-bar" title="정면도 카드 배열 — 카드는 끌어서 배치(리스트와 같은 배치)">
+        <button class="primary" data-testid="flat-rearrange" title="사진 순서대로, 사진 구도대로 다시 배열 (옆면·아랫면 사인물은 펴서)" onclick={() => app.arrangeFlatCards()}>재정렬</button>
+        <span class="grp" title="카드 간격 (mm) — 바꾸면 그 간격으로 다시 배열">↔
+          <button class="sq" data-testid="flat-gap-down" onclick={() => app.setFlatGap(app.flatGap - 100)}>−</button><span data-testid="flat-gap-value">{app.flatGap}</span><button class="sq" data-testid="flat-gap-up" onclick={() => app.setFlatGap(app.flatGap + 100)}>+</button>
+        </span>
+        <button data-testid="flat-lock" class:on={app.flatLocked} title={app.flatLocked ? '고정 풀기 — 카드를 끌어 옮길 수 있게' : '고정 — 카드를 끌어도 움직이지 않게 (모두에게 같음)'} onclick={() => app.setFlatLocked(!app.flatLocked)}>{app.flatLocked ? '🔒 고정' : '🔓 고정'}</button>
+        <span class="grp" data-testid="flat-scale" title="평면 구역 전체 크기 (모두에게 같음)">
+          <button class="sq" data-testid="flat-scale-down" title="작게" onclick={() => app.scaleFlat(1 / 1.25)}>−</button><span data-testid="flat-scale-value">{Math.round((app.flatScale / 0.1) * 100)}%</span><button class="sq" data-testid="flat-scale-up" title="크게" onclick={() => app.scaleFlat(1.25)}>+</button>
+        </span>
+        <button data-testid="flat-arrange-done" onclick={() => (app.flatArrange = false)}>완료</button>
+      </div>
       {:else}
       {#if app.tab === 'design'}
       <!-- 디자인 탭 (2026-10-22 "디자인은 디자이너와 소통하는 곳으로 사진보드 그대로인데 사인물 디자인파일 연결하는 곳이다. 여기에 디자이너가 일러스트 파일도 올린다"):
@@ -187,7 +202,7 @@
       {/if}
     {/if}
     <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
-    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
+    <div class="views" data-testid="work-tabs" class:hidden={flatBar || !app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
       {#each TABS.filter((t) => (app.isCustomer ? t.id !== 'design' && (t.id !== 'list' || !!app.requestView) : true)) as t (t.id)}
         <button data-testid={t.tid} class:on={app.tab === t.id} title={t.id === 'measure' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === '2d' ? '바탕색·디자인·글자를 사진 위에 평면으로' : t.id === '3d' ? '사진 위 입체 합성' : t.id === 'design' ? '디자이너와 소통 — 사진보드 그대로, 사인물에 디자인 파일(일러스트·SVG) 연결' : ''} onclick={() => app.setTab(t.id)}>
           {app.compact ? t.short : t.label}
@@ -439,9 +454,18 @@
     .reqs { padding: 1px 2px 1px 6px; gap: 3px; font-size: 11px; }
     .reqs b { padding: 0 5px; font-size: 11px; }
     .talkbtn { padding: 1px 5px; font-size: 11px; gap: 3px; }
+    .views.flatbar { flex: 1 1 100%; overflow-x: auto; gap: 4px; } .views.flatbar button { padding: 6px 7px; }
     .talkbtn b { padding: 0 4px; font-size: 10px; }
   }
   .qb[hidden] { display: none; }
   .designbar .up { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 7px; font-size: 13px; color: var(--accent); cursor: pointer; font-weight: 600; }
+  .views.flatbar { gap: 2px; align-items: center; flex-wrap: nowrap; flex: 0 0 auto; overflow: visible; } /* 데스크톱: 막대는 줄지 않고 프로젝트 이름이 먼저 준다 */
+  .flatbar .grp { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .flatbar .grp span { color: var(--text); min-width: 32px; text-align: center; }
+  .views.flatbar button { padding: 4px 8px; font-size: 12px; }
+  .views.flatbar .sq { width: 22px; padding: 4px 0; justify-content: center; }
+  .flatbar .grp span { min-width: 30px; }
+  .flatbar .primary { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .flatbar button.on { background: var(--accent); color: var(--accent-ink); }
   .designbar .muted { color: var(--muted); font-size: 12px; align-self: center; }
 </style>

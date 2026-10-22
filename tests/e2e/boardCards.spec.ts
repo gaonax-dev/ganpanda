@@ -120,6 +120,9 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(pos[1]).toBeGreaterThan(0);
   // 평면 구역 전체 크기 (2026-10-17): [+] 로 1.25배, 카드 폭도 1.25배. 손잡이를 끌면 비율대로
   const before = (await card.boundingBox())!.width;
+  // 축척 −/+ 는 상단 막대에 (2026-10-23) — ✥ 를 눌러 배열 모드
+  { const mv = (await page.getByTestId('flat-move').boundingBox())!; await page.mouse.click(mv.x + mv.width / 2, mv.y + mv.height / 2); }
+  await expect(page.getByTestId('flat-bar')).toBeVisible();
   const pctBefore = parseInt(await page.getByTestId('flat-scale-value').innerText()); // 처음 축척은 사진 속 사인물 크기에서 (2026-10-22)
   await page.getByTestId('flat-scale-up').click();
   await expect.poll(async () => parseInt(await page.getByTestId('flat-scale-value').innerText()) / pctBefore).toBeCloseTo(1.25, 1);
@@ -151,6 +154,7 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   await expect.poll(async () => (await card.boundingBox())!.x - cb.x).toBeGreaterThan(40);
   expect(await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master)).toEqual(posBefore);
   // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY) — 축척·이동은 보드 그리기만 바꾸고 mm 배치는 그대로
+  await page.getByTestId('flat-arrange-done').click(); // 배열 막대가 작업 탭 자리를 쓰므로 먼저 닫는다 (2026-10-23)
   await page.getByTestId('view-list').click();
   const listPos = await page.evaluate(() => { const el = document.querySelector('[data-testid="list-card"]') as HTMLElement; return [parseFloat(el.style.left), parseFloat(el.style.top)]; });
   expect(listPos).toEqual(pos);

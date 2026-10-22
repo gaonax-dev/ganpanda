@@ -284,13 +284,18 @@
     const up = (ev: PointerEvent) => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); if (moved) app.editBoundary(); else if (ev.type === 'pointerup') app.flatArrange = !app.flatArrange; };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up); // 두 손가락이 먼저 — 취소면 끝냄
   }
+  // 상단 막대의 축척 −/+ (피봇 = ✥ 그대로)
+  $effect(() => { const st = app.flatScaleStep; if (st) untrack(() => setScale(k * st.factor)); });
   function handleDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
     const cards = flatCardsPlaced();
     const pivot = { x: bounds!.x, y: bounds!.y }, kBase = k, baseOffset = { ...app.flatOffset }; // 끄는 동안 피봇은 고정
-    const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(pivot, cards, w.x), kBase, baseOffset, cards); };
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); app.editBoundary(); };
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const move = (ev: PointerEvent) => { if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return; moved = true; const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(pivot, cards, w.x), kBase, baseOffset, cards); };
+    // 끌지 않고 떼면 ✥ 처럼 카드 배열 모드 켜기/끄기 (2026-10-23 "선택과 해제를 두 컨트롤러 모두에게")
+    const up = (ev: PointerEvent) => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); if (moved) app.editBoundary(); else if (ev.type === 'pointerup') app.flatArrange = !app.flatArrange; };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
@@ -330,7 +335,7 @@
     // 선택에 든 카드를 끌면 선택 전체가 함께 움직인다 (2026-10-17 "정면도들을 다중선택하고 이동하게")
     const group = app.cardDragIds(o.id);
     if (group.length === 1) app.selectObject(o.id, 'card');
-    if (!app.canEdit) return;
+    if (!app.canEdit || app.flatLocked) return; // 고정 (2026-10-23): 고르기만, 끌지 않음
     endCardDrag?.();
     const w = canvas.clientToWorld(e.clientX, e.clientY);
     const p = app.flatPlaced.get(o.id);
@@ -465,29 +470,7 @@
     {/each}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
-      <!-- 도구 줄은 카드 묶음 바로 아래 (2026-10-22: 사진 아래 고정 거리면 축소했을 때 사진 위로 겹쳤다) -->
-      <div class="flat-label" data-testid="flat-label" style:left="{bounds ? bounds.x : origin.x}px" style:top="{bounds ? bounds.y + bounds.h : origin.y}px" style:transform="scale({1 / viewport.zoom}) translate(0, 14px)" style:transform-origin="0 0">
-        평면도 · 끌어서 배치 (리스트와 같은 배치)
-        {#if app.canEdit}
-          {#if app.flatArrange}
-            <!-- 카드 배열 (2026-10-20): [재정렬] = 사진 순서·사진 구도대로(다른 축은 펴서), 간격 −/+ 는 그 간격으로 다시 정렬. 카드는 언제든 끌어 옮긴다 -->
-            <span class="arrange" data-testid="flat-arrange">
-              <button class="btn small primary" data-testid="flat-rearrange" title="사진 순서대로, 사진 구도대로 다시 배열 (옆면·아랫면 사인물은 펴서)" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.arrangeFlatCards()}>재정렬</button>
-              <span class="gap" title="카드 간격 (mm) — 바꾸면 그 간격으로 다시 배열">간격
-                <button class="icon" data-testid="flat-gap-down" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.setFlatGap(app.flatGap - 100)}>−</button>
-                <span data-testid="flat-gap-value">{app.flatGap}</span>
-                <button class="icon" data-testid="flat-gap-up" onpointerdown={(e) => e.stopPropagation()} onclick={() => app.setFlatGap(app.flatGap + 100)}>+</button>
-              </span>
-              <button class="btn small" data-testid="flat-arrange-done" onpointerdown={(e) => e.stopPropagation()} onclick={() => (app.flatArrange = false)}>완료</button>
-            </span>
-          {/if}
-          <span class="scale" data-testid="flat-scale" title="평면 구역 전체 크기 (모두에게 같음)">
-            <button class="icon" data-testid="flat-scale-down" title="작게" onpointerdown={(e) => e.stopPropagation()} onclick={() => setScale(k / 1.25)}>−</button>
-            <span data-testid="flat-scale-value">{Math.round((k / 0.1) * 100)}%</span>
-            <button class="icon" data-testid="flat-scale-up" title="크게" onpointerdown={(e) => e.stopPropagation()} onclick={() => setScale(k * 1.25)}>+</button>
-          </span>
-        {/if}
-      </div>
+      <!-- 글·단추(재정렬·간격·고정·축척·완료)는 상단 헤더 막대로 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동") — App.svelte flat-bar -->
       {#if bounds && app.canEdit && app.flatArrange}
         <div class="flat-outline" data-testid="flat-outline" style:left="{bounds.x}px" style:top="{bounds.y}px" style:width="{bounds.w}px" style:height="{bounds.h}px" style:border-width="{2 / viewport.zoom}px"></div>
       {/if}
@@ -575,14 +558,8 @@
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
-  .flat-label { position: absolute; color: var(--muted); font-size: 11px; white-space: nowrap; pointer-events: none; display: flex; align-items: center; gap: 8px; }
-  .flat-label .arrange { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; }
-  .flat-label .arrange .gap { display: inline-flex; align-items: center; gap: 2px; color: var(--text); }
-  .flat-label .arrange .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
   .flat-outline { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-sizing: content-box; margin: -8px 0 0 -8px; padding: 8px; z-index: 2; }
   .flat-handle.move.on { outline: 2px solid #fff; }
-  .flat-label .scale { pointer-events: auto; display: inline-flex; align-items: center; gap: 2px; }
-  .flat-label .scale .icon { width: 20px; height: 20px; padding: 0; font-size: 13px; }
   .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid var(--accent-ink); cursor: nwse-resize; z-index: 3; }
   .flat-handle.move { width: 18px; height: 18px; cursor: move; display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--accent-ink); }
   .empty {

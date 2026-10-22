@@ -210,6 +210,8 @@ export interface ProjectSettings {
   restored?: { by: string; at: number; version: string };
   /** 보드 카드 간격 (mm, 기본 600 — 2026-10-20 "상단 버튼에 카드 간격 + -") — 재정렬·자동 배치에 쓴다 */
   flatGap?: number;
+  /** 정면도 사인물 카드 고정 (2026-10-23 "정면도 사인물 고정 토글버튼") — 켜면 카드를 끌어도 움직이지 않는다 */
+  flatLocked?: boolean;
   /** 소비자 견적 요청 폼의 적던 내용 (견적 초안 방에만; 2026-10-22 "사업자등록기록이 다른 기기에서 연동되지 않는다" — 기기 localStorage 에서 옮김). 보내면 지운다 */
   estimateDraft?: EstimateDraft;
   /** 보낸 견적 요청 (견적 초안 방, 2026-10-22 "견적이 요청되면 수정이 불가능하다"): 있으면 보드는 잠김 — 취소하면 지운다 */

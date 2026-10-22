@@ -88,6 +88,23 @@ export function photoGrid(photos: { x: number; y: number; w: number; h: number }
 
 interface Rect { x: number; y: number; w: number; h: number }
 /**
+ * 원하는 자리(x, y)에서 가장 가까운 빈 자리 — 이미 놓인 것들과 간격(gap)까지 겹치지 않게 (2026-10-23 "재정렬하면 마지막 사진에서 겹쳐지고":
+ * 전엔 겹친 것 하나씩 덜 움직이는 쪽으로 최대 300번 비켰는데, 좁은 자리에 큰 카드가 몰리면 좌우로 오가다 겹친 채 끝났다).
+ * 후보 = 원래 x·y 와 놓인 것들의 옆(오른쪽·왼쪽)·위아래 자리의 모든 조합. 가장 오른쪽 것의 오른쪽은 늘 비어 있어 반드시 찾는다
+ */
+function freeSpot(placed: Rect[], x: number, y: number, w: number, h: number, gap: number): { x: number; y: number } {
+  const free = (cx: number, cy: number) => !placed.some((q) => cx < q.x + q.w + gap && q.x < cx + w + gap && cy < q.y + q.h + gap && q.y < cy + h + gap);
+  if (free(x, y)) return { x, y };
+  const xs = [x, ...placed.flatMap((q) => [q.x + q.w + gap, q.x - gap - w])];
+  const ys = [y, ...placed.flatMap((q) => [q.y + q.h + gap, q.y - gap - h])];
+  let best: { x: number; y: number } | null = null, bd = Infinity;
+  for (const cx of xs) for (const cy of ys) {
+    const d = Math.hypot(cx - x, cy - y);
+    if (d < bd && free(cx, cy)) { best = { x: cx, y: cy }; bd = d; }
+  }
+  return best ?? { x: Math.max(...placed.map((q) => q.x + q.w)) + gap, y };
+}
+/**
  * 카드 정렬 = **사진과 같은 비율** (2026-10-22): photos 는 평면 mm(보드 px × 실제 벽 축척 — 호출자가 치수 있는 사인물로 구한다), 카드 가운데 = 그 사진 속 사인물 가운데.
  * 카드는 실제 mm 크기라 사진 속 넓이와 다르므로 겹치면 큰 카드부터 자리를 잡고, 겹친 카드는 오른쪽·왼쪽·아래·위 중 덜 움직이는 쪽으로 간격(gap)을 두고 비킨다(이름 줄 labelMm 도 겹침으로).
  * 사진 묶음은 사진 자리 그대로(행·열) — 묶음끼리 겹치면 오른쪽·아래로. 결과: x 는 가장 왼쪽 사진 기준, 맨 위 = 0 → ✥(카드 묶음 왼쪽 위)가 기본 자리(호출자가 flatOffset 도 0 으로).
@@ -103,15 +120,7 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const want = cards.filter((c) => c.photo === p).map((c) => ({ c, x: ph.x - left0 + ((c.box.x0 + c.box.x1) / 2) * sx - c.w / 2, y: ph.y + ((c.box.y0 + c.box.y1) / 2) * sy - c.h / 2 }));
     const placed: (Rect & { id: string })[] = [];
     for (const t of [...want].sort((a, b) => b.c.w * b.c.h - a.c.w * a.c.h || a.x - b.x)) {
-      const r = { id: t.c.id, x: t.x, y: t.y, w: t.c.w, h: t.c.h + labelMm };
-      for (let guard = 0; guard < 300; guard++) {
-        const hit = placed.find((q) => r.x < q.x + q.w + gap && q.x < r.x + r.w + gap && r.y < q.y + q.h + gap && q.y < r.y + r.h + gap);
-        if (!hit) break;
-        // 오른쪽·왼쪽·아래·위 중 가장 덜 움직이는 쪽 (사진에서 왼쪽에 있던 카드가 오른쪽 아래로 멀리 밀려나지 않게)
-        const moves: [number, number][] = [[hit.x + hit.w + gap - r.x, 0], [hit.x - gap - (r.x + r.w), 0], [0, hit.y + hit.h + gap - r.y], [0, hit.y - gap - (r.y + r.h)]];
-        const [mx, my] = moves.reduce((m, v) => (Math.abs(v[0]) + Math.abs(v[1]) < Math.abs(m[0]) + Math.abs(m[1]) ? v : m));
-        r.x += mx; r.y += my;
-      }
+      const r = { id: t.c.id, ...freeSpot(placed, t.x, t.y, t.c.w, t.c.h + labelMm, gap), w: t.c.w, h: t.c.h + labelMm };
       placed.push(r);
     }
     groups.set(p, placed);
