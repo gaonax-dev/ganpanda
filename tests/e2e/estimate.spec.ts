@@ -148,11 +148,12 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await item.getByTestId('request-view').click();
   await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('request-respond')).toHaveText('내 프로젝트로 가져오기');
-  // 견적 요청서 표 (2026-10-22 "견적요청서 리스트가 있어야 견적이 쉽다")
-  await expect(shop.getByTestId('request-sheet-row')).toHaveCount(1);
-  await expect(shop.getByTestId('request-sheet-row')).toContainText('4,000 × 700');
-  await expect(shop.getByTestId('request-sheet-total')).toContainText('2.8㎡');
-  await expect(shop.getByTestId('request-sheet-need')).toContainText('예산 200만 원');
+  // 견적 요청서 = 사인물 리스트 뷰 (2026-10-22 "견적요청서 리스트가 있어야 견적이 쉽다" → "모바일에서는 … 사인물 리스트를 사용하면 안되나?") — 금액은 없음
+  await shop.getByTestId('request-sheet-toggle').click();
+  await expect(shop.getByTestId('list-card')).toHaveCount(1);
+  await expect(shop.getByTestId('quote-panel')).toHaveCount(0);
+  await expect(shop.getByTestId('list-card').locator('.price')).toHaveCount(0);
+  await shop.getByTestId('request-sheet-toggle').click(); // 사진 보드로
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6'); // 실측 보기 = 파랑
   await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1);

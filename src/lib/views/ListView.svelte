@@ -270,7 +270,7 @@
           <b><span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{o.name}</b>
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
           <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
-          {#if placeholder}<span class="price unsized" data-testid="list-unsized">치수 없음</span>{:else}<span class="price">{won(amount)}</span>{/if}
+          {#if placeholder}<span class="price unsized" data-testid="list-unsized">치수 없음</span>{:else if !app.noPrices}<span class="price">{won(amount)}</span>{/if}
           {#if app.canEdit && app.photos.length}
             <!-- 사진 보드에 올리기: 사진이 하나면 바로, 여럿이면 고른다 (같은 사인물로 연결) -->
             {#if app.photos.length === 1}
@@ -305,6 +305,7 @@
       <button title="전개도 맞춤" onclick={fit}>⤢</button>
     </nav>
   {/if}
+  {#if !app.noPrices}
   <aside class="quote" class:hidden={app.compact && quoteMode === 'closed'} class:full={app.compact && quoteMode === 'full'} data-testid="quote-panel" data-mode={app.compact ? quoteMode : 'side'}>
     <header>
       <h2>견적{#if app.consumer}<small class="ref" data-testid="quote-reference" title="예시 단가로 계산한 참고 금액 — 간판집마다 다릅니다"> 참고 금액</small>{/if}</h2>
@@ -421,6 +422,7 @@
       <p class="hint">{app.settings.prices ? '이 프로젝트의 단가표 기준' : '※ 예시 단가 — 단가 설정에서 바꾸세요'}</p>
     </footer>
   </aside>
+  {/if}
 </div>
 
 <style>

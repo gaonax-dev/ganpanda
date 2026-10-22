@@ -104,6 +104,10 @@ class AppState {
   consumerBlocked = $state(false);
   /** 가게 사장 계정 (2026-10-22): 프로젝트 대신 견적 요청만 */
   get consumerAccount(): boolean { return this.account?.kind === 'consumer'; }
+  /** 사진 보드만 (보기 초대 고객). 실측 보기(간판집이 연 요청 보드)는 리스트도 본다 — 사인물 목록으로 견적 (2026-10-22 "모바일에서는 문제가 있는데 사인물 리스트를 사용하면 안되나?") */
+  get boardOnly(): boolean { return this.isCustomer && !this.requestView; }
+  /** 금액을 안 보이는 화면: 실측 보기 (가게 사장 보드에는 단가표가 없다) */
+  get noPrices(): boolean { return !!this.requestView; }
   readonly inbox = typeof location !== 'undefined' && location.pathname === '/requests';
   /** 헤더의 "견적 요청 N": 답 안 한 열린 요청 수, 보일지 */
   requestCount = $state(0);

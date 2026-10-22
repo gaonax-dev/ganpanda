@@ -149,8 +149,8 @@
       </div>
       {/if}
     {/if}
-    <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode || app.isCustomer}>
-      {#each VIEWS.filter((v) => !app.isCustomer || v.id === 'board') as v (v.id)}
+    <div class="views" class:hidden={!app.room || app.access.status !== 'ok' || app.proposalMode || app.boardOnly}>
+      {#each VIEWS.filter((v) => (!app.isCustomer || v.id === 'board' || (app.requestView && v.id === 'list'))) as v (v.id)}
         <button data-testid="view-{v.id}" class:on={app.view === v.id} onclick={() => (app.view = v.id)}>
           {app.compact ? v.short : v.label}
           {#if v.id === 'board' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
@@ -254,13 +254,13 @@
     {:else if app.access.status === 'ok'}
       <!-- 뷰는 전환해도 캔버스 위치를 유지하도록 숨김 처리 -->
       <!-- 고객(viewer)은 사진 보드만 (2026-10-16) -->
-      <div class="view" hidden={app.view !== 'board' && !app.isCustomer}><BoardView /></div>
-      {#if app.view === 'list' && !app.isCustomer}<div class="view"><ListView /></div>{/if}
+      <div class="view" hidden={app.view !== 'board' && !app.boardOnly}><BoardView /></div>
+      {#if app.view === 'list' && !app.boardOnly}<div class="view"><ListView /></div>{/if}
       {#if app.view === 'uv' && !app.isCustomer}<div class="view"><UvView /></div>{/if}
       {#if app.selected && app.chatObjectId === app.selected.id && app.view === 'list'}
         <!-- 리스트 뷰의 정면도 말풍선에서 연 대화 (2026-10-18) -->
         {#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
-      {:else if app.selected && (app.view === 'board' || app.isCustomer)}
+      {:else if app.selected && (app.view === 'board' || app.boardOnly)}
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
         <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
         {#if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
