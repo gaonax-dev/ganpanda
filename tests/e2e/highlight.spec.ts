@@ -90,3 +90,27 @@ test('[다중]은 선택 도구에서만 켜진다 — 켜면 ✓, 다른 도구
   await page.keyboard.press('o'); // 타원 단축키도 같다
   await expect(multi).not.toHaveClass(/on/);
 });
+
+// 2026-10-22 사용자: "선택에서 데스크탑의 시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"
+test('선택 도구에서 Shift 를 누르는 동안만 [다중]이 켜지고(고른 것은 떼도 남는다), 단추로 켠 다중은 Shift 를 떼도 그대로', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const multi = page.getByTestId('tool-multi');
+  const mode = () => page.evaluate(() => (window as unknown as { __ganpanda: { multiMode: boolean } }).__ganpanda.multiMode);
+  await page.keyboard.down('Shift');
+  await expect(multi).toHaveClass(/on/);
+  await page.keyboard.up('Shift');
+  await expect(multi).not.toHaveClass(/on/);
+  expect(await mode()).toBe(false);
+  // 단추로 켜면 Shift 를 눌렀다 떼도 그대로
+  await multi.click();
+  await page.keyboard.down('Shift');
+  await page.keyboard.up('Shift');
+  await expect(multi).toHaveClass(/on/);
+  await multi.click();
+  // 다른 도구에서는 Shift 로 켜지지 않는다, 입력 칸에서도
+  await page.getByTestId('tool-rect').click();
+  await page.keyboard.down('Shift');
+  await expect(multi).not.toHaveClass(/on/);
+  await page.keyboard.up('Shift');
+});

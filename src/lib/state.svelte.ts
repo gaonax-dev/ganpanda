@@ -1275,9 +1275,10 @@ class AppState {
     this.multi = [...all]; this.objectSettingsOpen = false; this.panelOpen = false; this.selectedId = id;
   }
   /** 다중 선택 모드 켜기/끄기 — 켤 때는 대화·패널을 닫고, 끌 때는 마지막 선택만 남긴다 */
-  setMultiMode(on: boolean) {
+  /** keep = 끄되 고른 것은 그대로 (Shift 를 뗄 때, 2026-10-22) */
+  setMultiMode(on: boolean, keep = false) {
     this.multiMode = on; // 아무것도 안 골라도 켤 수 있다 — 도구 막대 [다중] (2026-10-22)
-    if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else this.multi = [];
+    if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else if (!keep) this.multi = [];
   }
   /** 선택한 사인물 모두를 한 분류로 (2026-10-19 "한번에 종류 선택 및 변경"). 이미 그 분류인 것은 그대로 — 한 번의 되돌리기 */
   applyCategoryToSelection(g: Group) {
