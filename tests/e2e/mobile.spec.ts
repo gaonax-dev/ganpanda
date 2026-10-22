@@ -590,3 +590,20 @@ test('휴대폰: 사인물을 탭해도 화면(사진)이 움직이지 않는다
   await expect(page.getByTestId('work-tabs')).toBeVisible(); // 정리하면 탭이 돌아온다
   expect((await page.getByTestId('top-nav').boundingBox())!.height).toBe(nav0);
 });
+
+// 2026-10-22 사용자: "3d에서 사인물 선택하면 선택상태가 이상" — 휴대폰 터치 띠(굵은 투명 선)가 3D 선택 실선 규칙에 칠해져 굵은 노란 띠로 보였다
+test('휴대폰 3D: 고른 사인물의 터치 띠는 보이지 않고, 외곽선만 실선', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[200, 200], [1000, 200], [1000, 450], [200, 450]], sheetIds: [], widthMm: 4000, heightMm: 900, productId: 'board-flex' });
+  });
+  await page.getByTestId('stage-3d').click(); // 고르면 작업 탭 자리에 편집 막대가 나오므로 먼저
+  await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; selectObject(id: string): void } }).__ganpanda; a.selectObject(a.objects[0].id); });
+  const band = page.getByTestId('sign-touch-outline');
+  await expect(band).toHaveCount(1);
+  expect(await band.evaluate((e) => getComputedStyle(e).stroke)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+});

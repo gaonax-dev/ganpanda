@@ -296,3 +296,4 @@
 | 2026-10-22 | 안개 시트: **흰색 없이 블러 60px**(앞의 6px·옅은 흰색은 대체됨) | 사용자: "안개는 화이트 없이 지금 블러에 10배" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트 블러 **40px**(60px 대체) | 사용자: "안개 40으로 변경해줘봐" → [../features/composition.md](../features/composition.md) |
 | 2026-10-22 | 안개 시트 블러 **30px**(40px 대체) | 사용자: "30으로 변경해줘" → [../features/composition.md](../features/composition.md) |
+| 2026-10-22 | 휴대폰 3D: 고른 사인물은 외곽선만 실선 — 터치 띠(보이지 않는 굵은 선)는 칠하지 않는다(굵은 노란 띠로 보이던 것 고침) | 사용자: "3d에서 사인물 선택하면 선택상태가 이상" → [../features/photo-board.md](../features/photo-board.md) |

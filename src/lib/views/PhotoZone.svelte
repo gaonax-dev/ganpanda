@@ -935,7 +935,7 @@
   .gizmo .gh.uni { fill: var(--accent); stroke: #333; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
   svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
-  svg.ghost .sign.sel polygon { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") */
+  svg.ghost .sign.sel polygon:not(.touch-outline) { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") — 휴대폰 터치 띠는 빼고 (같은 날 "3d에서 사인물 선택하면 선택상태가 이상": 굵은 노란 띠) */
   svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
   .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
