@@ -49,7 +49,8 @@
       const host = it.part.on && it.part.on !== 'frame' ? top.get(it.part.on) : undefined;
       let { zm, level } = host ?? base;
       const surf = surfaceOf(it.part);
-      const cut = it.part.items.some((x) => x.kind === 'text') && componentOf(it.part.kind).extrude;
+      // 글자가 있으면 컷팅 모양 — 스카시·채널·시트 커팅 모두 같게 (2026-10-22 "시트 커팅도 스카시와 같게")
+      const cut = it.part.items.some((x) => x.kind === 'text' && !!x.text?.trim());
       if (!it.layers.length) slabs.push({ item: it, tier: t.n, x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, zm0: zm, zm1: zm, level, color: 'transparent', side: 'transparent', cut: false, empty: true });
       it.layers.forEach((l, i) => {
         const last = i === it.layers.length - 1;

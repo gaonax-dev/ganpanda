@@ -143,3 +143,36 @@ test('층 정면도: 그 층만 고치고(바탕 = 올라간 면), 아래 층은
   await expect(dlg.getByTestId('front-area')).toHaveCount(1);
   await expect(dlg.getByTestId('front-base')).toHaveCount(1);
 });
+
+// 2026-10-22 사용자: "시트 커팅에 글자를 넣었다. 그런데 커팅글자가 나오지 않앗어"
+test('단면 그림: 시트(커팅)에 넣은 글자도 컷팅 모양으로 보인다 — 바운드 박스 + 글자', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const id = a.project.addObject({ photoId: a.photos[0].id, name: '유리 시트', shape: 'rect', quad: [[100, 100], [900, 100], [900, 300], [100, 300]], sheetIds: [], widthMm: 2000, heightMm: 1000, depthMm: 5, productId: 'board-foamex',
+      parts: [{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [{ id: 't', kind: 'text', text: '오픈세일', x: 0, y: 0, h: 300 }] }] });
+    a.selectObject(id);
+  });
+  await page.getByTestId('object-settings-open').click();
+  await page.getByTestId('object-settings').waitFor();
+  const sheet = page.locator('[data-testid="cs-block"][data-part="sh"]');
+  await expect(sheet.locator('text').filter({ hasText: '오픈세일' }).first()).toBeAttached();
+});
+
+// 2026-10-22 사용자: "시트 커팅에 글자를 넣었다. 그런데 커팅글자가 나오지 않앗어" → "시트 커팅도 스카시와 같게"
+test('단면 그림: 시트 커팅도 스카시처럼 바운드 박스 + 컷팅 글자로 보인다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const id = a.project.addObject({ photoId: a.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[100, 100], [900, 100], [900, 300], [100, 300]], sheetIds: [], widthMm: 2000, heightMm: 1000, depthMm: 40, productId: 'board-galva',
+      parts: [{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [{ id: 't', kind: 'text', text: '오픈세일', x: 0, y: 0, h: 300 }] }] });
+    a.selectObject(id);
+  });
+  await page.getByTestId('object-settings-open').click();
+  await page.getByTestId('object-settings').waitFor();
+  const sheet = page.locator('[data-testid="cs-block"][data-part="sh"]');
+  await expect(sheet.locator('text', { hasText: '오픈세일' }).first()).toBeAttached();
+  await expect(sheet.locator('polygon.bbox').first()).toBeAttached();
+});
