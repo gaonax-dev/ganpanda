@@ -1,7 +1,7 @@
 <!--
   단면 쌓기 (재료 조합 S1, 2026-10-22 사용자: "단면 쌓기는 2.5d가 좋을것 같아", "단면 하단에 폴딩으로 속성은", "단면쌓기는 인터페이스야",
   "갈바 위에 체널과 아크릴스카시가 있다면 두개가 같은 층에 있다", "해당 층을 클릭하면 정면도로 활용 가능하다") — 설계 docs/features/material-stack.md
-  · 위: 2.5D 경사 투영 단면 (가로·세로 그대로, 깊이는 오른쪽 위 30°, 두께는 과장해서 얇은 판도 보이게). 앞이 아래·왼쪽
+  · 위: 2.5D — 판을 눕혀 위로 쌓는다(간판 면 = 바닥에 누운 판, 두께 = 위로, 같은 비율). 펼침 = 위아래로 벌림. 컷팅되는 것(스카시·채널 글자)은 바운드 박스(점선) + 컷팅 모양
   · 아래: 접이 속성 — 층 줄 > 구성 요소 줄 > 재료 층·속성. 그림에서 고르면 접이가 펼쳐지고, 접이를 펼치면 그림에서 강조 (한 번에 하나)
   · 층의 [정면도] = 배치 탭(정면도 편집), 고치기는 지금의 구성 요소 편집기(PartsEditor) 그대로
 -->
@@ -24,63 +24,72 @@
   let openPart = $state<string | null>(null);
   let explode = $state(false);
 
-  // ── 2.5D 그림 ──
-  const VW = 560, M = 16, K = 4, MIN_PX = 5, GAP = 16;
+  // ── 2.5D 그림: 판을 눕혀 위로 쌓는다 (2026-10-22 "레이어 쌓기가 현재 방향이 아니고 위로 쌓기고 펼침도 위아래로 벌리는 방향이다") ──
+  // 간판 면(가로 x·세로 y)은 바닥에 누운 판 — x 는 그대로, y 는 비스듬히 뒤로(30°, 줄여서), 두께(z)는 위로. 아래 층부터 그려 위 층이 덮는다
+  // 두께는 모든 층이 같은 비율 (2026-10-22 "각각의 레이어는 지정된 비율로 굵기도 지정값을 반영한다") — 비율은 그림 아래 "두께 ×N"
+  const VW = 560, M = 14, F = 1, GAP = 22, Z_TARGET = 70;
   const COS = Math.cos(Math.PI / 6), SIN = Math.sin(Math.PI / 6);
   const MAT_COLOR: Record<string, string> = { iron: '#8b9096', rubber: '#3b3b3f', alu: '#c4cad0', 'alu-gold': '#d4b25e', 'alu-silver': '#d9dde1', stain: '#dfe3e7', titan: '#b9a46c', acrylic: '#cfe6ff', foamex: '#f3f3f3', channel: '#eef2f6', sheet: '#7cc0ff' };
-  interface Block { item: CsItem | null; tier: number; x0: number; x1: number; y0: number; y1: number; zp0: number; zp1: number; color: string; side: string; label: string }
+  interface Slab { item: CsItem | null; tier: number; x0: number; x1: number; y0: number; y1: number; z0: number; z1: number; color: string; side: string; /** 컷팅 모양(글자)을 그리나 */ cut: boolean; empty?: boolean }
   const draw = $derived.by(() => {
-    const blocksMm: { item: CsItem | null; tier: number; x0: number; x1: number; y0: number; y1: number; seg: { px: number; color: string; side: string }[] }[] = [];
-    const s0 = (VW - 2 * M) / (cs.width * 1.25);
-    const s = Math.min(s0, 150 / cs.height); // 세로가 너무 크지 않게
-    const px = (mm: number) => Math.max(MIN_PX, mm * s * K);
-    // 깊이 px: 프레임 → 구성 요소 (올린 곳 앞에서 시작)
-    const start = new Map<string, number>();
-    const framePx = cs.frame ? px(cs.frame.depth || 1) : 0;
-    if (cs.frame) blocksMm.push({ item: null, tier: 1, x0: -cs.width / 2, x1: cs.width / 2, y0: -cs.height / 2, y1: cs.height / 2, seg: [{ px: framePx, color: '#c9ced4', side: '#aab1b8' }] });
+    const W = cs.width, H = cs.height;
+    const s = (VW - 2 * M) / (W + H * F * COS); // mm → px (가로)
+    // 층 쌓기: 프레임(0) → 올린 곳 위로. z 는 mm, 펼치면 단(level)마다 GAP px
+    const slabs: (Omit<Slab, 'z0' | 'z1'> & { zm0: number; zm1: number; level: number })[] = [];
+    const top = new Map<string, { zm: number; level: number }>();
+    let base = { zm: 0, level: 0 };
+    if (cs.frame) {
+      slabs.push({ item: null, tier: 1, x0: -W / 2, x1: W / 2, y0: -H / 2, y1: H / 2, zm0: 0, zm1: cs.frame.depth || 0, level: 0, color: '#c9ced4', side: '#aab1b8', cut: false });
+      base = { zm: cs.frame.depth || 0, level: 1 };
+    }
     for (const t of cs.tiers) for (const it of t.items) {
+      const host = it.part.on && it.part.on !== 'frame' ? top.get(it.part.on) : undefined;
+      let { zm, level } = host ?? base;
       const surf = surfaceOf(it.part);
-      const seg = it.layers.map((l, i) => {
-        const top = i === it.layers.length - 1;
-        const c = (top && surf.face) || MAT_COLOR[l.material] || componentOf(it.part.kind).color;
-        return { px: px(l.thickness || 0.1), color: c, side: surf.side || shade(c) };
+      const cut = it.part.items.some((x) => x.kind === 'text') && componentOf(it.part.kind).extrude;
+      if (!it.layers.length) slabs.push({ item: it, tier: t.n, x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, zm0: zm, zm1: zm, level, color: 'transparent', side: 'transparent', cut: false, empty: true });
+      it.layers.forEach((l, i) => {
+        const last = i === it.layers.length - 1;
+        const c = (last && surf.face) || MAT_COLOR[l.material] || componentOf(it.part.kind).color;
+        slabs.push({ item: it, tier: t.n, x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, zm0: zm, zm1: zm + (l.thickness || 0), level, color: c, side: surf.side || shade(c), cut });
+        zm += l.thickness || 0; level++;
       });
-      blocksMm.push({ item: it, tier: t.n, x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, seg });
+      top.set(it.part.id, { zm, level });
     }
-    // 시작 깊이: 올린 곳의 끝 (펼치면 층 사이를 띄운다)
-    const out: Block[] = [];
-    for (const b of blocksMm) {
-      const host = b.item?.part.on && b.item.part.on !== 'frame' ? b.item.part.on : null;
-      let z = b.item ? (host && start.has(host) ? start.get(host)! : framePx) : 0;
-      if (b.item && explode) z += GAP * (b.tier - (cs.frame ? 1 : 0));
-      for (const sg of b.seg) { out.push({ item: b.item, tier: b.tier, x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, zp0: z, zp1: z + sg.px, color: sg.color, side: sg.side, label: b.item?.label ?? cs.frame?.label ?? '' }); z += sg.px; }
-      if (b.item) start.set(b.item.part.id, z);
-    }
-    const D = Math.max(1, ...out.map((b) => b.zp1));
-    const fw = cs.width * s, fh = cs.height * s;
-    const ox = M, oy = M + D * SIN; // 앞면 왼쪽 위 기준
-    const toScreen = (xmm: number, ymm: number, zp: number): [number, number] => [ox + (xmm + cs.width / 2) * s + (D - zp) * COS, oy + (cs.height / 2 - ymm) * s - (D - zp) * SIN];
-    const polys = out.sort((a, b) => a.zp1 - b.zp1 || a.x0 - b.x0).map((b) => {
-      const ftl = toScreen(b.x0, b.y1, b.zp1), ftr = toScreen(b.x1, b.y1, b.zp1), fbr = toScreen(b.x1, b.y0, b.zp1), fbl = toScreen(b.x0, b.y0, b.zp1);
-      const btl = toScreen(b.x0, b.y1, b.zp0), btr = toScreen(b.x1, b.y1, b.zp0), bbr = toScreen(b.x1, b.y0, b.zp0);
-      const pts = (ps: [number, number][]) => ps.map((p) => p.map((v) => Math.round(v * 10) / 10).join(',')).join(' ');
-      return { b, top: pts([ftl, ftr, btr, btl]), side: pts([ftr, fbr, bbr, btr]), front: pts([ftl, ftr, fbr, fbl]), cx: (ftl[0] + fbr[0]) / 2, cy: (ftl[1] + fbr[1]) / 2, fw: ftr[0] - ftl[0], fh: fbl[1] - ftl[1] };
-    });
-    return { polys, w: Math.ceil(ox + fw + D * COS + M), h: Math.ceil(oy + fh + M) };
+    const Dm = Math.max(1, ...slabs.map((b) => b.zm1));
+    const zs = Z_TARGET / Dm; // 같은 비율 (px/mm)
+    const levels = Math.max(0, ...slabs.map((b) => b.level));
+    const zTot = Dm * zs + (explode ? levels * GAP : 0);
+    const out: Slab[] = slabs.map((b) => ({ ...b, z0: b.zm0 * zs + (explode ? b.level * GAP : 0), z1: b.zm1 * zs + (explode ? b.level * GAP : 0) }));
+    const ox = M, oy = M + H * s * F * SIN + zTot; // 앞(가까운) 아래 모서리의 왼쪽 = 바닥선
+    const P = (x: number, y: number, z: number): [number, number] => [ox + (x + W / 2) * s + (y + H / 2) * s * F * COS, oy - (y + H / 2) * s * F * SIN - z];
+    const pts = (ps: [number, number][]) => ps.map((p) => p.map((v) => Math.round(v * 10) / 10).join(',')).join(' ');
+    const polys = out.sort((a, b) => a.z0 - b.z0 || b.y0 - a.y0 || a.x0 - b.x0).map((b) => ({
+      b,
+      top: pts([P(b.x0, b.y0, b.z1), P(b.x1, b.y0, b.z1), P(b.x1, b.y1, b.z1), P(b.x0, b.y1, b.z1)]),
+      front: pts([P(b.x0, b.y0, b.z1), P(b.x1, b.y0, b.z1), P(b.x1, b.y0, b.z0), P(b.x0, b.y0, b.z0)]),
+      side: pts([P(b.x1, b.y0, b.z1), P(b.x1, b.y1, b.z1), P(b.x1, b.y1, b.z0), P(b.x1, b.y0, b.z0)]),
+      // 판 위(z) 평면에 글자를 그리는 변환: 글자 좌표 (u 오른쪽, v 아래 = -y)
+      plane: (z: number) => `matrix(${s} 0 ${-s * F * COS} ${s * F * SIN} ${ox + (W / 2) * s + (H / 2) * s * F * COS} ${oy - (H / 2) * s * F * SIN - z})`,
+    }));
+    return { polys, ratio: Math.round(zs / s), w: Math.ceil(ox + W * s + H * s * F * COS + M), h: Math.ceil(oy + M) };
   });
   function shade(hex: string) {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
     if (!m) return '#888';
-    const n = parseInt(m[1], 16), f = 0.78;
+    const n = parseInt(m[1], 16), f = 0.72;
     return `#${[16, 8, 0].map((sh) => Math.round(((n >> sh) & 255) * f).toString(16).padStart(2, '0')).join('')}`;
   }
-  const firstText = (p: SignPart) => p.items.find((i) => i.kind === 'text')?.text?.trim().slice(0, 6) ?? '';
+  /** 컷팅 모양 = 글자 객체 (판 평면 좌표) */
+  const glyphs = (p: SignPart) => p.items.filter((i) => i.kind === 'text' && i.text?.trim());
+  /** 두께를 보이게 글자를 바닥~위 사이에 몇 겹 */
+  const steps = (b: Slab) => { const n = Math.min(48, Math.max(1, Math.ceil((b.z1 - b.z0) / 0.6))); return Array.from({ length: n }, (_, i) => b.z0 + ((b.z1 - b.z0) * i) / n); };
 
   function pick(item: CsItem | null, tier: number) {
     if (!item) { openTier = openTier === 1 && cs.frame ? null : 1; openPart = null; return; }
     openTier = tier; openPart = item.part.id;
   }
-  const isSel = (b: Block) => (b.item ? openPart === b.item.part.id : openTier === 1 && !!cs.frame && !openPart);
+  const isSel = (b: Slab) => (b.item ? openPart === b.item.part.id : openTier === 1 && !!cs.frame && !openPart);
 
   function add(kind: SignPart['kind'], on?: string, type?: string) {
     const ps: SignPart[] = JSON.parse(JSON.stringify(parts));
@@ -100,21 +109,37 @@
 
 <div class="cs" data-testid="cross-section">
   <div class="figure">
-    <svg data-testid="cs-figure" viewBox="0 0 {draw.w} {draw.h}" width="100%" style:max-height="260px" role="img" aria-label="단면 쌓기">
+    <svg data-testid="cs-figure" viewBox="0 0 {draw.w} {draw.h}" width="100%" style:max-height="320px" role="img" aria-label="단면 쌓기">
       {#each draw.polys as p, i (i)}
-        <g class="blk" class:sel={isSel(p.b)} data-testid="cs-block" data-tier={p.b.tier} data-part={p.b.item?.part.id ?? 'frame'} role="button" tabindex="-1"
-          onclick={() => pick(p.b.item, p.b.tier)} onkeydown={(e) => { if (e.key === 'Enter') pick(p.b.item, p.b.tier); }}>
-          <polygon points={p.top} fill={p.b.color} stroke="#0006" stroke-width="0.6" />
-          <polygon points={p.side} fill={p.b.side} stroke="#0006" stroke-width="0.6" />
-          <polygon class="front" points={p.front} fill={p.b.color} stroke="#0008" stroke-width="0.8" />
-          {#if p.b.item && p.fw > 24 && p.fh > 10 && firstText(p.b.item.part)}
-            <text x={p.cx} y={p.cy} font-size={Math.min(14, p.fh * 0.6)} text-anchor="middle" dominant-baseline="central" fill="#222" pointer-events="none">{firstText(p.b.item.part)}</text>
+        {@const b = p.b}
+        <g class="blk" class:sel={isSel(b)} data-testid="cs-block" data-tier={b.tier} data-part={b.item?.part.id ?? 'frame'} role="button" tabindex="-1"
+          onclick={() => pick(b.item, b.tier)} onkeydown={(e) => { if (e.key === 'Enter') pick(b.item, b.tier); }}>
+          {#if b.empty}
+            <!-- 재료가 아직 없는 스카시: 바운드 박스만 -->
+            <polygon class="bbox" points={p.top} fill="#00000008" stroke="#0009" stroke-dasharray="4 3" stroke-width="1" />
+          {:else if b.cut && b.item}
+            <!-- 바운드 박스(점선) + 컷팅된 모양(글자)을 함께 (2026-10-22 "스카시의 경우 바운드 박스와 커팅된 상태가 같이 나오게") -->
+            <polygon class="bbox" points={p.front} fill="none" stroke="#0007" stroke-dasharray="3 3" stroke-width="0.8" />
+            <polygon class="bbox" points={p.side} fill="none" stroke="#0007" stroke-dasharray="3 3" stroke-width="0.8" />
+            {#each steps(b) as z (z)}
+              {#each glyphs(b.item.part) as g (g.id)}
+                <text transform={p.plane(z)} x={g.x} y={-g.y} font-size={g.h} font-weight="800" text-anchor="middle" dominant-baseline="central" fill={b.side} pointer-events="none">{g.text}</text>
+              {/each}
+            {/each}
+            {#each glyphs(b.item.part) as g (g.id)}
+              <text class="cutface" transform={p.plane(b.z1)} x={g.x} y={-g.y} font-size={g.h} font-weight="800" text-anchor="middle" dominant-baseline="central" fill={b.color} stroke="#0007" stroke-width={g.h * 0.02} pointer-events="none">{g.text}</text>
+            {/each}
+            <polygon class="bbox top" points={p.top} fill="#00000006" stroke="#000a" stroke-dasharray="4 3" stroke-width="1" />
+          {:else}
+            <polygon points={p.front} fill={b.side} stroke="#0006" stroke-width="0.6" />
+            <polygon points={p.side} fill={shade(b.side)} stroke="#0006" stroke-width="0.6" />
+            <polygon class="face" points={p.top} fill={b.color} fill-opacity={b.item && !b.cut && b.z1 - b.z0 < 1 ? 0.75 : 1} stroke="#0008" stroke-width="0.8" />
           {/if}
         </g>
       {/each}
     </svg>
     <div class="figbar">
-      <span class="hint">층을 누르면 아래 속성이 펼쳐집니다 · 두께는 보기 좋게 과장</span>
+      <span class="hint" data-testid="cs-ratio">층을 누르면 아래 속성이 펼쳐집니다 · 두께 ×{draw.ratio} (모든 층 같은 비율)</span>
       <button class="btn small" data-testid="cs-explode" class:on={explode} onclick={() => (explode = !explode)}>{explode ? '붙임' : '펼침'}</button>
     </div>
   </div>
@@ -180,11 +205,14 @@
 
 <style>
   .cs { display: flex; flex-direction: column; gap: 10px; }
+  /* 그림은 밝은 도면 바탕 (어두운 재료도 보이게) */
   .figure { background: var(--input); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+  .figure svg { background: #eef1f4; border-radius: 6px; }
   .figbar { display: flex; align-items: center; gap: 8px; justify-content: space-between; margin-top: 4px; }
   .blk { cursor: pointer; }
-  .blk.sel .front { stroke: var(--accent); stroke-width: 2.4; }
-  .blk:hover .front { stroke: var(--accent); }
+  .blk.sel .face, .blk.sel .bbox.top { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; }
+  .blk.sel .cutface { stroke: var(--accent); }
+  .blk:hover .face, .blk:hover .bbox.top { stroke: var(--accent); }
   .fold { display: flex; flex-direction: column; gap: 6px; }
   .tier { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
   .tier.open { border-color: var(--accent); }

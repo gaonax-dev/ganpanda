@@ -15,7 +15,7 @@
   import { layersOf } from '../core/layers';
   import { commitLayers } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
-  import { STACK_MATERIALS, addLayer, defaultStack, finishOption, removeLayer, setFinish, stackDepth, updateLayer } from '../core/stack';
+  import { STACK_DEFAULT_T, STACK_MATERIALS, addLayer, defaultStack, finishOption, removeLayer, setFinish, stackDepth, updateLayer } from '../core/stack';
   import { sheetsForPicker } from '../core/catalog';
   import type { Finish, MaterialLayer } from '../core/model';
   import { charCountOf } from '../core/quote';
@@ -105,9 +105,11 @@
     <div class="card" data-testid="part-card">
       <div class="head" data-kind={p.kind}>
         <b>{comp.label}</b>{#if comp.hasSpec}<span class="spec" data-testid="part-spec">{partSpecOf(p)}</span>{/if}
-        <select data-testid="part-type" value={p.type} disabled={ro} onchange={(e) => setPart(i, { type: e.currentTarget.value, options: {} })}>
-          {#each comp.types as t (t.id)}<option value={t.id}>{t.label}</option>{/each}
-          {#if !comp.types.some((t) => t.id === p.type)}<option value={p.type}>{partLabel(p)}</option>{/if}
+        <!-- 재료 층 종류(스카시)는 [직접 쌓기]가 맨 앞, 종류를 고르면 그 기본 묶음을 불러온다 (2026-10-22 "스카시라는 허상에 재료나 구성을 추가") -->
+        <select data-testid="part-type" value={p.type} disabled={ro} onchange={(e) => { const t = e.currentTarget.value; setPart(i, comp.stack ? { type: t, options: p.options?.cut ? { cut: p.options.cut } : {}, stack: t ? defaultStack(t) : p.stack ?? [] } : { type: t, options: {} }); }}>
+          {#if comp.stack}<option value="">직접 쌓기</option>{/if}
+          {#each comp.types as t (t.id)}<option value={t.id}>{comp.stack ? `${t.label} 묶음` : t.label}</option>{/each}
+          {#if p.type && !comp.types.some((t) => t.id === p.type)}<option value={p.type}>{partLabel(p)}</option>{/if}
         </select>
         {#if comp.sits}
           <label class="on">올릴 곳
@@ -122,8 +124,8 @@
       {#if p.stack}
         <!-- 재료 층 (2026-10-21): 뒤(맨 아래 줄)에서 앞(맨 위 줄)으로 — 밑판 철판 + 고무 … 층을 빼고 더하고, 층마다 앞면·옆면 마감(도색·시트) -->
         <div class="stack" data-testid="part-stack">
-          <div class="stack-head"><b>재료 층</b><small>두께 합 {Math.round(stackDepth(p.stack) * 10) / 10}T · 아래가 뒤(벽 쪽), 위가 앞</small>
-            {#if !ro}<button class="btn small" data-testid="stack-reset" title="종류의 기본 묶음으로" onclick={() => setStack(i, defaultStack(p.type))}>기본으로</button>{/if}</div>
+          <div class="stack-head"><b>재료 층</b><small>{p.stack.length ? `두께 합 ${Math.round(stackDepth(p.stack) * 10) / 10}T · 아래가 뒤(벽 쪽), 위가 앞` : '아래 재료를 눌러 올리세요 — 먼저 올린 것이 아래'}</small>
+            {#if !ro && p.type}<button class="btn small" data-testid="stack-reset" title="종류의 기본 묶음으로" onclick={() => setStack(i, defaultStack(p.type))}>기본으로</button>{/if}</div>
           {#each [...p.stack].reverse() as l (l.id)}
             <div class="layer" data-testid="stack-layer" data-role={l.role ?? ''} data-material={l.material}>
               <select data-testid="layer-material" value={l.material} disabled={ro} onchange={(e) => setStack(i, updateLayer(p.stack!, l.id, { material: e.currentTarget.value }))}>
@@ -141,10 +143,14 @@
                   <option value="none">마감 없음</option><option value="paint">도색</option>
                 </select>
               </label>
-              {#if !ro}<button class="icon del" data-testid="layer-delete" title="이 층 빼기 (예: 철판 없이 고무만)" disabled={p.stack.length <= 1} onclick={() => setStack(i, removeLayer(p.stack!, l.id))}>✕</button>{/if}
+              {#if !ro}<button class="icon del" data-testid="layer-delete" title="이 층 빼기 (예: 철판 없이 고무만)" disabled={p.stack.length <= 1 && !!p.type} onclick={() => setStack(i, removeLayer(p.stack!, l.id))}>✕</button>{/if}
             </div>
           {/each}
           {#if !ro}
+            <!-- 재료 올리기 (2026-10-22 "고무를 사용하고 철판을 레이어로 올리고"): 누른 재료가 맨 위(앞)에 기본 두께로 -->
+            <div class="row mats" data-testid="stack-add-materials"><small>올리기</small>
+              {#each STACK_MATERIALS as m (m.id)}<button class="btn small" data-testid="stack-add-{m.id}" onclick={() => setStack(i, addLayer(p.stack!, { material: m.id, thickness: STACK_DEFAULT_T[m.id] ?? 1 }, 'top'))}>+ {m.label}</button>{/each}
+            </div>
             <div class="row">
               <button class="btn small" data-testid="stack-add-top" title="맨 앞에 면판 더하기" onclick={() => setStack(i, addLayer(p.stack!, { material: 'alu', thickness: 1, role: 'face' }, 'top'))}>+ 앞에 면판</button>
               <button class="btn small" data-testid="stack-add-bottom" title="맨 뒤에 밑판 더하기" onclick={() => setStack(i, addLayer(p.stack!, { material: 'iron', thickness: 1.5, role: 'base' }, 'bottom'))}>+ 뒤에 밑판</button>
@@ -241,6 +247,8 @@
   .layer .t input { width: 56px; text-align: right; }
   .layer .fin { display: flex; align-items: center; gap: 4px; color: var(--muted); }
   .stack .row { display: flex; gap: 6px; }
+  .stack .row.mats { flex-wrap: wrap; align-items: center; }
+  .stack .row.mats small { color: var(--muted); }
   .opt { display: flex; flex-direction: row; align-items: center; font-size: 12px; gap: 6px; } /* 가로 한 줄 (2026-10-18) */
   .opt > select, .opt > input { min-width: 0; }
   .check { font-size: 12px; display: flex; align-items: center; gap: 4px; }

@@ -26,7 +26,7 @@ describe('주문 사양 옵션 스키마', () => {
     expect(rubber[0].fields.map((f) => f.key)).toEqual(['paperTemplate', 'acrylicGuide', 'frontSheetAttached']);
     const partKeys = (id: string) => partOptionFields(partsOf(obj({ productId: id }))[0]).map((f) => f.key);
     // 두께·면판은 재료 층(core/stack.ts, 2026-10-21) — 옵션엔 도색(맨 위 층 앞면)·티타늄 마감·아크릴 종류만
-    expect(partKeys('ch-rubber')).toEqual(['paintSystem']);
+    expect(partKeys('ch-rubber')).toEqual(['cut', 'paintSystem']); // 컷팅은 스카시에 (2026-10-22, 모든 재료 층)
     expect(partKeys('sc-titan')).toContain('finish');
     expect(partKeys('ch-scashi')).toEqual(expect.arrayContaining(['material', 'script', 'paintSystem']));
     expect(partKeys('ch-scashi')).not.toContain('thickness');

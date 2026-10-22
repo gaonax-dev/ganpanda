@@ -19,6 +19,20 @@ export const STACK_MATERIALS: StackMaterial[] = [
   { id: 'acrylic', label: '아크릴', paintable: true },
   { id: 'foamex', label: '포맥스', paintable: true },
 ];
+/** 재료를 올릴 때의 기본 두께 (T, 확인 필요 — 흔한 값) */
+export const STACK_DEFAULT_T: Record<string, number> = { iron: 1.5, rubber: 20, alu: 1, 'alu-gold': 1, 'alu-silver': 1, stain: 1.2, titan: 1.2, acrylic: 8, foamex: 10 };
+/** 스카시 컷팅 (2026-10-22 "컷팅이 스카시에 붙어서 하위 재료가 모두 적용된다") — 스카시 옵션 cut */
+export const SCASHI_CUTS: { id: string; label: string }[] = [
+  { id: '', label: '컷팅 미정' }, { id: 'laser', label: '레이저 컷팅' }, { id: 'cnc', label: 'CNC 라우터' }, { id: 'waterjet', label: '워터젯' }, { id: 'knife', label: '칼(플로터) 컷팅' },
+];
+export const cutLabel = (id: unknown) => SCASHI_CUTS.find((c) => c.id === id && c.id)?.label ?? null;
+/** 견적 종류(단가표 제품)를 올린 재료로: 티타늄이 있으면 티타늄 스카시, 가장 두꺼운 층이 아크릴이면 아크릴 스카시, 그 밖은 고무 스카시. 재료가 없으면 null */
+export function inferScashiType(stack: MaterialLayer[]): string | null {
+  if (!stack.length) return null;
+  if (stack.some((l) => l.material === 'titan')) return 'sc-titan';
+  const thick = stack.reduce((a, l) => (l.thickness > a.thickness ? l : a), stack[0]);
+  return thick.material === 'acrylic' ? 'ch-scashi' : 'ch-rubber';
+}
 export const stackMaterialLabel = (id: string) => STACK_MATERIALS.find((m) => m.id === id)?.label ?? id;
 
 const uid = () => Math.random().toString(36).slice(2, 10);

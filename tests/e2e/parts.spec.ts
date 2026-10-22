@@ -37,6 +37,8 @@ test('간판 프레임 아래 구성 요소: 채널·스카시·시트를 추가
   await page.getByTestId('add-part-scashi').click();
   const sc = page.getByTestId('part-card').filter({ has: page.locator('[data-kind="scashi"]') });
   await expect(sc.getByTestId('part-stack')).toBeVisible(); // 두께·면판은 재료 층 (2026-10-21)
+  await expect(sc.getByTestId('stack-layer')).toHaveCount(0); // 새 스카시는 빈 상태 — 재료를 올리거나 묶음을 고른다 (2026-10-22)
+  await sc.getByTestId('part-type').selectOption('ch-rubber'); // 고무 스카시 묶음
   await expect(sc.getByTestId('stack-layer')).toHaveCount(2); // 철판 + 고무
   await sc.getByTestId('add-item-image').click();
   await sc.getByTestId('item-image-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: await makePhoto(page) });

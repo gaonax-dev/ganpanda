@@ -35,7 +35,7 @@ test('설정 창 첫 화면은 단면 쌓기 — 갈바 위의 채널·스카시
   await expect(page.locator('[data-testid="cs-tier"][data-n="2"]')).toContainText('채널, 스카시');
   await expect(page.locator('[data-testid="cs-tier"][data-n="1"]')).toContainText('갈바');
   // 그림에서 스카시를 누르면 2층·스카시가 펼쳐지고 재료 층이 보인다
-  await page.locator('[data-testid="cs-block"][data-part="sc"]').first().click();
+  await page.locator('[data-testid="cs-block"][data-part="sc"]').last().click();
   await expect(page.locator('[data-testid="cs-part"][data-part="sc"]')).toHaveClass(/open/);
   await expect(page.locator('[data-testid="cs-part"][data-part="sc"] [data-testid="cs-part-sum"]')).toContainText('아크릴 8T');
   await expect(page.locator('[data-testid="cs-part"][data-part="ch"] [data-testid="cs-part-sum"]')).toContainText('채널');
@@ -60,4 +60,34 @@ test('단면에서 쌓기: 프레임 면 위에 스카시 더하기, 채널 위�
   const parts = await page.evaluate((oid) => (window as unknown as G).__ganpanda.objects.find((o) => o.id === oid)!.parts!, id);
   expect(parts.filter((p) => p.kind === 'scashi')).toHaveLength(2);
   expect(parts.filter((p) => p.kind === 'sheet' && p.on === 'ch')).toHaveLength(2);
+});
+
+// 2026-10-22 사용자: "스카시는 아직도 고무 스카시가 기본으로 나온다. 우선 스카시라는 허상에 재료나 구성을 추가해야한다. 고무를 사용하고 철판을 레이어로 올리고 그런데 컷팅이 스카시에 붙어서 하위 재료가 모두 적용된다."
+// "레이어 쌓기가 … 위로 쌓기고 펼침도 위아래로 벌리는 방향", "스카시의 경우 바운드 박스와 커팅된 상태가 같이 나오게"
+test('새 스카시는 빈 상태 — 고무를 올리고 그 위에 철판, 컷팅은 스카시에 붙어 모든 층에. 단면은 위로 쌓이고 펼치면 위아래로 벌어진다', async ({ page, request }) => {
+  const id = await setup(page, request);
+  await page.locator('[data-testid="cs-tier"][data-n="1"] [data-testid="cs-tier-row"]').click();
+  await page.getByTestId('cs-add-scashi').click();
+  const card = page.locator('[data-testid="cs-part"].open');
+  await expect(card.getByTestId('part-type')).toHaveValue(''); // 직접 쌓기
+  await expect(card.getByTestId('stack-layer')).toHaveCount(0);
+  await card.getByTestId('stack-add-rubber').click();
+  await card.getByTestId('stack-add-iron').click();
+  await expect(card.getByTestId('stack-layer')).toHaveCount(2);
+  await expect(card.getByTestId('stack-layer').first()).toHaveAttribute('data-material', 'iron'); // 위가 나중에 올린 것
+  await card.getByTestId('part-option-cut').selectOption('laser');
+  await expect(card.getByTestId('cs-part-sum')).toHaveText('고무 20T + 철판 1.5T');
+  await expect(card.getByTestId('part-spec')).toContainText('레이저 컷팅 — 모든 층');
+  const parts = await page.evaluate((oid) => (window as unknown as G).__ganpanda.objects.find((o) => o.id === oid)!.parts!, id);
+  const sc = parts.filter((p) => p.kind === 'scashi').at(-1)!;
+  expect(sc.stack!.map((l) => [l.material, l.thickness])).toEqual([['rubber', 20], ['iron', 1.5]]);
+  // 그림: 고무가 아래, 철판이 위 — 펼치면 사이가 벌어진다 (화면 y 가 작을수록 위)
+  const blocks = page.locator(`[data-testid="cs-block"][data-part="${(sc as { id: string }).id}"]`);
+  await expect(blocks).toHaveCount(2);
+  const ys = async () => Promise.all([0, 1].map(async (i) => (await blocks.nth(i).boundingBox())!.y));
+  const [r0, i0] = await ys();
+  expect(i0).toBeLessThan(r0);
+  await page.getByTestId('cs-explode').click();
+  const [r1, i1] = await ys();
+  expect(r1 - i1).toBeGreaterThan(r0 - i0 + 10);
 });

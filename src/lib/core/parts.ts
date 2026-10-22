@@ -34,7 +34,7 @@ export const PART_KIND_LABEL: Record<SignPart['kind'], string> = Object.fromEntr
 export const PART_TYPES: Record<SignPart['kind'], { id: string; label: string }[]> = Object.fromEntries(COMPONENTS.map((c) => [c.kind, c.types])) as Record<SignPart['kind'], { id: string; label: string }[]>;
 
 const uid = () => (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
-export function newPart(kind: SignPart['kind'], type = componentOf(kind).types[0].id): SignPart {
+export function newPart(kind: SignPart['kind'], type = componentOf(kind).defaultType ?? componentOf(kind).types[0].id): SignPart {
   const c = componentOf(kind);
   const p: SignPart = { id: uid(), kind, type, items: [] };
   return c.init ? c.init(p) : p;
