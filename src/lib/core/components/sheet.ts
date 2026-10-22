@@ -29,6 +29,8 @@ const normalize = (p: SignPart): SignPart => {
   }
   return changed ? { ...p, options: op } : p;
 };
+/** 안개 시트 (옛 안개 종류 · 재질 안개) */
+const isFrost = (p: SignPart) => p.type === 'sh-frost' || p.options?.sheetMat === '안개';
 /** 미리보기 색 (#hex) */
 const previewOf = (p: SignPart): string | null => { const v = p.options?.previewColor; return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null; };
 /** 구성내역 (2026-10-16 사용자: "문구가 없으면 구성내역을 문자에 넣는다. uv출력 돔보컷팅 완컷") */
@@ -65,8 +67,9 @@ export const sheet: Component = {
   depthMm: () => SHEET_THICKNESS_MM,
   // 면 전체 시트의 색 (2026-10-22 "시트 2d 3d에서 안나온다"): 안개 = 밝은 반투명 느낌, UV 출력 = 디자인 전 연회색, 재질 시트 = 고른 시트 색(없으면 흰색)
   areaFill: (p) => (included(p) ? '' : previewOf(normalize(p)) ?? (p.type === 'sh-frost' || p.options?.sheetMat === '안개' ? '#e9f0f5' : p.type === 'sh-print' ? '#d9d9d9' : '#ffffff')),
-  // 안개 시트는 반투명 — 붙인 유리 너머가 비친다 (2026-10-22 "투명이 없어")
-  areaOpacity: (p) => (p.type === 'sh-frost' || p.options?.sheetMat === '안개' ? 0.55 : undefined),
+  // 안개 시트: 면은 아주 옅게, 뒤는 화면 블러 층이 흐리게 (2026-10-22 "투명이 없어" → "안개는 블러처리하면되는데")
+  areaOpacity: (p) => (isFrost(p) ? 0.2 : undefined),
+  areaBlur: (p) => isFrost(p),
   // 2D·3D 색 = 미리보기 색 (도색 없음)
   surface: (p) => { const c = previewOf(normalize(p)); return { face: c, side: c }; }, // 시트 두께 1mm (2026-10-22 사용자: "시트 두께 1mm") — 단면·3D 층 깊이
   lighting: () => 'none',

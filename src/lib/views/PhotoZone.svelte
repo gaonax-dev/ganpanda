@@ -9,7 +9,7 @@
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
-  import { hasPartsToDraw } from '../core/sheetArea';
+  import { hasFrost, hasPartsToDraw } from '../core/sheetArea';
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
@@ -518,6 +518,15 @@
   {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
+    <!-- 안개 시트 = 뒤를 흐리게 (2026-10-22 "안개는 블러처리하면되는데"): 2D·3D 단계에서 사진(3D 면 합성 그림) 위에 외곽선 모양 블러 층 -->
+    {#if twoD || overlay}
+      <div class="designs frosts" style:width="{photo.w * scale}px" style:height="{photo.h * scale}px">
+        {#each objects.filter((o) => hasFrost(o)) as o (o.id)}
+          <!-- 같은 그림(2D 사진 · 3D 합성)을 흐리게 해 외곽선 모양으로 자른다 — backdrop-filter 는 확대 변환 안·아이폰에서 불안정 -->
+          <img class="frost" data-testid="frost" src={overlay ?? url} alt="" draggable="false" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" />
+        {/each}
+      </div>
+    {/if}
     <!-- 입힌 디자인: 사진 px 좌표계에서 잘라낸 영역을 원근 사각형으로 변형 -->
     {#if twoD && !overlay}
     <!-- 겹침 층은 사진 원본 px 가 아니라 **표시 px** 크기로 (2026-10-18 아이폰 크롬 크래시: 4000×3000 CSS px 층을 transform 으로 줄이면 층마다 원본 크기 메모리를 잡아 사진 여러 장이면 수백 MB). 좌표는 모두 scale 을 곱해 넣는다 -->
@@ -858,6 +867,7 @@
   .header .x { white-space: nowrap; flex-shrink: 0; }
   .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .designs.hidden { display: none; }
+  .frost { position: absolute; left: 0; top: 0; width: 100%; height: 100%; filter: blur(6px) brightness(1.12) saturate(0.85); pointer-events: none; }
   svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
@@ -900,6 +910,7 @@
   .handle { fill: #fff; stroke: var(--accent); cursor: grab; }
   svg { z-index: 2; } /* 편집 층은 3D 합성 그림(.overlay)보다 항상 위 */
   .overlay { z-index: 1; }
+  .frosts { z-index: 1; } /* 안개 블러 = 3D 합성 그림 위(같은 층, 뒤에 놓임), 편집 층 아래 */
   /* 입체 매니퓰레이터 */
   /* 3D 그림·밝은 사인물 위에서도 보이게: 모든 선 밑에 어두운 테두리, 손잡이는 어두운 외곽선 (2026-10-15 사용자: "매니퓰레이터가 3D 에 가려진다. 항상 보이게") */
   /* 상자 가이드: 흰 상자 = 3D 가 그릴 상자 */

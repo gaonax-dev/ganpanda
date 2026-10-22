@@ -241,3 +241,24 @@ test('치수 없는 시트 사인물도 2D 에 면·글자가 칠해진다 (추�
   await expect.poll(fills).toEqual(expect.arrayContaining(['#ffffff', '#d9d9d9']));
   await expect(page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] text', { hasText: '푸르미도그' }).first()).toBeAttached();
 });
+
+// 2026-10-22 사용자: "안개는 블러처리하면되는데"
+test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트에는 블러 없음', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const pid = a.photos[0].id;
+    const q = (x: number) => [[x, 680], [x + 300, 680], [x + 300, 980], [x, 980]];
+    a.project.addObject({ photoId: pid, name: '안개', shape: 'rect', quad: q(400), sheetIds: [], widthMm: 1000, heightMm: 1000, parts: [{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }] });
+    a.project.addObject({ photoId: pid, name: '통시트', shape: 'rect', quad: q(800), sheetIds: [], widthMm: 1000, heightMm: 1000, parts: [{ id: 'c', kind: 'sheet', type: 'sh-cut', on: 'frame', options: { cut: '컷팅 없음' }, items: [] }] });
+  });
+  await page.getByTestId('view-board').click();
+  await expect(page.getByTestId('frost')).toHaveCount(0); // 실측(원본)에는 없음
+  await page.getByTestId('stage-2d').click();
+  await expect(page.getByTestId('frost')).toHaveCount(1);
+  expect(await page.getByTestId('frost').evaluate((e) => getComputedStyle(e).filter)).toContain('blur');
+  await page.getByTestId('stage-3d').click();
+  await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.getByTestId('frost')).toHaveCount(1);
+});

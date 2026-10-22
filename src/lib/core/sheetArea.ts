@@ -32,3 +32,8 @@ export function hasPartsToDraw(o: SignObject): boolean { // 치수는 따지지 
   if (o.parts?.some((p) => p.items.length)) return true;
   return partsOf(o).some((p) => !p.items.length && !!componentOf(p.kind).areaFill?.(p));
 }
+
+/** 안개 시트처럼 뒤를 흐리게 하는 면 시트가 있나 (프레임 면 위 — 사인물 외곽선 전체를 블러) */
+export function hasFrost(o: SignObject): boolean {
+  return partsOf(o).some((p) => !p.items.length && (!p.on || p.on === 'frame') && !!componentOf(p.kind).areaBlur?.(p));
+}
