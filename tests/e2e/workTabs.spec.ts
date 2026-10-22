@@ -23,6 +23,14 @@ test('탭은 사진보드 · 디자인 · 사인물리스트 · 컨펌 — 처�
   await expect(page.getByTestId('tool-rect')).toBeHidden(); // 도구 없음
   await expect(page.getByTestId('photo-zone').locator('.header')).toBeHidden(); // 사진 머리 없음
   await expect(page.getByTestId('confirm-state')).toContainText('진행 동의 전');
+  // 멤버 확인 (2026-10-22 "컨펌에 맴버컴펌도 필요하다") — 팀 안 확인, 내용이 바뀌면 다시 확인
+  await page.getByTestId('member-check').click();
+  await expect(page.getByTestId('member-check-ok')).toHaveCount(1);
+  await expect(page.getByTestId('member-check')).toHaveCount(0);
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects[0].id, { widthMm: 3500 }); });
+  await expect(page.getByTestId('member-check-stale')).toContainText('다시 확인');
+  await page.getByTestId('member-check').click();
+  await expect(page.getByTestId('member-check-ok')).toHaveCount(1);
   await page.getByTestId('confirm-sign').filter({ hasText: '돌출' }).click(); // 빼기
   page.once('dialog', (d) => d.accept());
   await page.getByTestId('confirm-consent').click();

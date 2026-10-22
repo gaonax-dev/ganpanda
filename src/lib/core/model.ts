@@ -214,6 +214,8 @@ export interface ProjectSettings {
   estimateRequest?: { id: string; url: string; at: number };
   /** 고른 신원: 사업자(stores id) 또는 'general'(일반 주문) — 기기 사이 같이 */
   estimateIdentity?: string;
+  /** 멤버 확인 (2026-10-22 "컨펌에 맴버컴펌도 필요하다") — 고객에게 보내기 전 팀 안 확인 → core/proposal.ts */
+  memberChecks?: import('./proposal').MemberCheck[];
 }
 
 /** 견적 요청 폼 글 칸 (파일(사본)은 못 남긴다) */

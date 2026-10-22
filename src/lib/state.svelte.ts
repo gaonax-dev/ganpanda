@@ -28,7 +28,7 @@ import { formatBytes } from './core/format';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
-import { approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
+import { addMemberCheck, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -826,6 +826,11 @@ class AppState {
 
   /** 단가표·설치비·추가 항목 수정 (편집 권한) */
   /** 제안 승인 ([이걸로 할게요]): 현재 내용 스냅샷 + 해시 + 이름을 서버가 문서에 기록 */
+  /** 멤버 확인 (2026-10-22): 팀 안에서 컨펌 화면을 보고 확인 — 이름·시각·내용 해시 */
+  memberCheck() {
+    if (!this.canEdit) return;
+    this.updateSettings({ memberChecks: addMemberCheck(this.settings.memberChecks, { by: this.nickname || this.account?.name || '멤버', at: Date.now(), hash: this.contentHash }) });
+  }
   async approve(by: string, excluded: string[] = []) {
     if (!this.room) throw new Error('방이 없습니다');
     this.setNickname(by);

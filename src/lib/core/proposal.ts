@@ -107,3 +107,16 @@ export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { 
   for (const id of photoIds) if (!threeDOk(id)) out.push('사인물이 있는 사진의 3D(원근)가 준비되지 않았습니다. [원근 맞추기]를 하거나 치수를 넣으세요.');
   return [...new Set(out)];
 }
+
+/**
+ * 멤버 확인 (2026-10-22 사용자: "컨펌에 맴버컴펌도 필요하다"): 고객에게 보내기 전 팀 안에서 컨펌 화면을 보고 확인 — 설정 `memberChecks`.
+ * 같은 사람은 마지막 것만. 확인 뒤 내용(해시)이 바뀌면 "다시 확인"
+ */
+export interface MemberCheck { by: string; at: number; hash: string }
+export function addMemberCheck(checks: MemberCheck[] | undefined, c: MemberCheck): MemberCheck[] {
+  return [...(checks ?? []).filter((x) => x.by !== c.by), c];
+}
+export function memberCheckState(checks: MemberCheck[] | undefined, currentHash: string): { valid: MemberCheck[]; stale: MemberCheck[] } {
+  const list = checks ?? [];
+  return { valid: list.filter((c) => c.hash === currentHash), stale: list.filter((c) => c.hash !== currentHash) };
+}
