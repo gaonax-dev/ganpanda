@@ -40,7 +40,7 @@
   - [color-library.md](features/color-library.md) — 색 라이브러리: 컬러 카드(페인트·시트·천·필름 + 이름·hex·공급사·코드), 계정 저장, 색 피커·사양 글에서 선택
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [material-stack.md](features/material-stack.md) — 재료 조합 사인물: 2.5D 단면 쌓기(아래 접이 속성)·재료 카드·레시피 라이브러리 (설계, 2026-10-22)
-  - [confirm.md](features/confirm.md) — 컨펌: 사진 뷰어(가장 앞선 단계)·사인물별 진행 동의·완료 사진첩·참고 이미지(고객 AI 이미지) (설계, 2026-10-22)
+  - [confirm.md](features/confirm.md) — 컨펌: 표시 없는 사진보드(사인물·디자인이 사진 위에)·진행 동의 → 제작·완료 사진첩·참고 이미지(고객 AI 이미지) (설계, 2026-10-22)
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
   - [requests.md](features/requests.md) — 요청판(9차): 고객 견적 요청 → 지역 간판사 → 제안 링크, 홍보자 코드
   - [communication.md](features/communication.md) — 오브젝트별 대화·코멘트
