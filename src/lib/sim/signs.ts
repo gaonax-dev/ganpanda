@@ -435,8 +435,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   canvas.width = Math.ceil(w * s);
   canvas.height = Math.ceil(h * s);
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = spec.faceColor;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!spec.clearFace) { ctx.fillStyle = spec.faceColor; ctx.fillRect(0, 0, canvas.width, canvas.height); } // 시트만 = 바탕 투명 (2026-10-22)
   if (face) ctx.drawImage(face.image, face.sx, face.sy, face.sw, face.sh, 0, 0, canvas.width, canvas.height);
   const text = spec.text.trim();
   if (text && !face) {
@@ -476,13 +475,14 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
 
   const lit = spec.lighting !== 'none';
   const front = new THREE.MeshPhysicalMaterial({
+    ...(spec.clearFace ? { transparent: true, depthWrite: false } : {}),
     map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.75, clearcoat: 0.05, // 앞면 반사광이 디자인·글자를 덮지 않게
   });
-  const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.5, roughness: 0.55 });
+  const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.5, roughness: 0.55, ...(spec.clearFace ? { visible: false } : {}) }); // 시트만 = 옆면 없음
   const geo = lightboxGeometry(w, h, d, spec.corner);
   // 그룹 0 = 앞·뒷면, 1 = 옆면 (뒷면은 벽에 붙어 보이지 않음)
   const mesh = new THREE.Mesh(geo, [front, frame]);
-  mesh.castShadow = true;
+  mesh.castShadow = !spec.clearFace; // 시트는 그림자 없음
   mesh.userData.signId = spec.id;
   mesh.visible = !spec.bodyless; // 몸통 없음: 상자는 자리만 (글자만 보임)
   group.add(mesh);
@@ -519,6 +519,7 @@ function drawFaceItem(ctx: CanvasRenderingContext2D, it: FaceItem, left: number,
   if (it.kind === 'shape') {
     const fill = it.fill ?? null, stroke = it.stroke ?? (it.fill ? null : it.color);
     ctx.save();
+    if (it.opacity !== undefined) ctx.globalAlpha = Math.max(0, Math.min(1, it.opacity)); // 안개 시트 반투명
     ctx.lineWidth = Math.max(1, Math.max(w, h) * 0.02);
     if (it.shape === 'line') { ctx.strokeStyle = it.stroke ?? it.fill ?? it.color; ctx.lineWidth = Math.max(1, h * 0.5); ctx.beginPath(); ctx.moveTo(left, top + h / 2); ctx.lineTo(left + w, top + h / 2); ctx.stroke(); ctx.restore(); return; }
     ctx.beginPath();

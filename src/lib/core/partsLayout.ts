@@ -19,7 +19,7 @@ export interface LaidItem {
   text?: string;
   image?: PartItem['image'];
   /** 도형 (2단계) */
-  shape?: PartItem['shape']; fill?: string; stroke?: string;
+  shape?: PartItem['shape']; fill?: string; stroke?: string; /** 채움 불투명도 (안개 시트) */ opacity?: number;
   color: string;
   /** 왼쪽 위 (그릴 곳 단위, y 아래 +) */
   x: number; y: number; w: number; h: number;
@@ -34,7 +34,7 @@ export function layoutParts(o: SignObject, mmW: number, mmH: number, W: number, 
   return layerOrder(withSheetAreas(o, drawnParts(o, base), { w: mmW, h: mmH })).flatMap((p) => p.items.map((it) => { // 아래 시트부터 그린다 (디자인 파일이 있으면 미리보기 글자·그림은 뺌)
     const b = itemBox(it);
     return {
-      id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),
+      id: it.id, partKind: p.kind, kind: it.kind, ...(it.text !== undefined ? { text: it.text } : {}), ...(it.image ? { image: it.image } : {}), ...(it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.opacity !== undefined ? { opacity: it.opacity } : {}), ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) } : {}),
       // 채널은 앞면 색(시트), 스카시는 도색을 골랐으면 그 색 (2026-10-17)
       color: surfaceOf(p).face ?? componentOf(p.kind).color, // 채널 앞면·시트 색·스카시 도색 — 재료 층 마감 > 종류 모듈의 도색 키 (2026-10-21)
       x: W / 2 + (b.x - b.w / 2) * sx, y: H / 2 - (b.y + b.h / 2) * sy, w: b.w * sx, h: b.h * sy,
@@ -63,12 +63,13 @@ export function partsSvg(items: LaidItem[], hrefOf: (l: LaidItem) => string | un
 }
 
 /** 도형 SVG (2단계): 사각 · 원(타원) · 선(왼쪽 아래→오른쪽 위 대각선은 아니고 상자 가로 가운데 선). 채움·선 색이 없으면 종류 색의 점선 상자 */
-export function shapeSvg(l: Pick<LaidItem, 'shape' | 'fill' | 'stroke' | 'w' | 'h' | 'color'>, x: number, y: number): string {
+export function shapeSvg(l: Pick<LaidItem, 'shape' | 'fill' | 'stroke' | 'w' | 'h' | 'color' | 'opacity'>, x: number, y: number): string {
   const fill = l.fill ?? 'none', stroke = l.stroke ?? (l.fill ? 'none' : l.color);
+  const fo = l.opacity !== undefined ? ` fill-opacity="${f(l.opacity)}"` : '';
   const sw = f(Math.max(0.5, Math.max(l.w, l.h) * 0.02));
   const dash = l.fill || l.stroke ? '' : ` stroke-dasharray="${f(Math.max(l.w, l.h) * 0.04)}"`;
   if (l.shape === 'ellipse') return `<ellipse cx="${f(x + l.w / 2)}" cy="${f(y + l.h / 2)}" rx="${f(l.w / 2)}" ry="${f(l.h / 2)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
   if (l.shape === 'line') return `<line x1="${f(x)}" y1="${f(y + l.h / 2)}" x2="${f(x + l.w)}" y2="${f(y + l.h / 2)}" stroke="${l.stroke ?? l.fill ?? l.color}" stroke-width="${f(Math.max(0.5, l.h * 0.5))}"/>`;
-  return `<rect x="${f(x)}" y="${f(y)}" width="${f(l.w)}" height="${f(l.h)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
+  return `<rect x="${f(x)}" y="${f(y)}" width="${f(l.w)}" height="${f(l.h)}" fill="${fill}"${fo} stroke="${stroke}" stroke-width="${sw}"${dash}/>`;
 }
 

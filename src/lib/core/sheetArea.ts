@@ -21,7 +21,8 @@ export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o), si
       const y0 = Math.min(...bs.map((b) => b.y - b.h / 2)), y1 = Math.max(...bs.map((b) => b.y + b.h / 2));
       box = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
     }
-    const area: PartItem = { id: `${p.id}:area`, kind: 'shape', shape: 'rect', fill, ...box };
+    const op = componentOf(p.kind).areaOpacity?.(p);
+    const area: PartItem = { id: `${p.id}:area`, kind: 'shape', shape: 'rect', fill, ...box, ...(op !== undefined ? { opacity: op } : {}) };
     return { ...p, items: [area] };
   });
 }

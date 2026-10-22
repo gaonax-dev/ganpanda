@@ -64,6 +64,8 @@ export interface Component {
   surface?(part: SignPart): { face: string | null; side: string | null; faceSheet?: string } | null;
   /** 글자·그림 없이 면 전체에 붙는 종류(시트): 그 면을 칠할 색 — 2D·3D 가 올라간 면 전체를 그린다 (core/sheetArea.ts, 2026-10-22) */
   areaFill?(part: SignPart): string;
+  /** 그 면의 불투명도 (안개 시트 반투명) — 없으면 불투명 */
+  areaOpacity?(part: SignPart): number | undefined;
   /** 새로 만들 때의 세부 종류 (없으면 types[0]). 스카시는 '' = 종류 없이 재료를 올려 만든다 (2026-10-22) */
   defaultType?: string;
   /** 재료 층(뒤→앞)이 있는 종류: 그 층들 (단면 쌓기가 층마다 그린다, 2026-10-22). 없으면 한 덩어리 */

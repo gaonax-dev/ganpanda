@@ -42,6 +42,8 @@ export interface PartItem {
   shape?: 'rect' | 'ellipse' | 'line';
   /** 채움 색 (#hex, 비우면 없음) */
   fill?: string;
+  /** 채움 불투명도 0~1 (그릴 때만 — 안개 시트 반투명, 2026-10-22) */
+  opacity?: number;
   /** 선 색 (#hex, 비우면 없음) */
   stroke?: string;
   /** 글자수 직접 지정 (없으면 문구에서 셈) */

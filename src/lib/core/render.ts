@@ -127,7 +127,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
     const host = part.on && part.on !== 'frame' ? all.find((x) => x.id === part.on) : undefined;
     const zMm = host ? componentOf(host.kind).depthMm(host, o) * Math.min(sx, sy) : 0;
     const it = part.items[0];
-    faceItems.push({ id: it.id, kind: 'shape', shape: 'rect', ...(it.fill ? { fill: it.fill } : {}), x: it.x * sx, y: it.y * sy, w: (it.w ?? 0) * sx, h: it.h * sy, color: it.fill ?? componentOf(part.kind).color, ...(zMm ? { z: zMm } : {}) });
+    faceItems.push({ id: it.id, kind: 'shape', shape: 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.opacity !== undefined ? { opacity: it.opacity } : {}), x: it.x * sx, y: it.y * sy, w: (it.w ?? 0) * sx, h: it.h * sy, color: it.fill ?? componentOf(part.kind).color, ...(zMm ? { z: zMm } : {}) });
   }
   faceItems.sort((a, b) => (a.z ?? 0) - (b.z ?? 0)); // 앞면(텍스처)에 깔리는 것부터, 같은 높이는 트리 순서
   return { ...(letterItems.length ? { letterItems } : {}), ...(faceItems.length ? { faceItems } : {}) };
@@ -168,6 +168,8 @@ export function renderSpecOf(o: SignObject, p: Placement, est?: { w: number; h: 
         depthMm: bodyless ? 0 : o.depthMm ?? look.depthMm,
         lighting: !bodyless && isLitBody(bodyId, o) ? 'front' : 'none',
         faceColor: look.faceColor, sideColor: frameHex(o) ?? frameDefaultColor(o), frameMm: bodyless ? 0 : frameMmOf(o), ...comp, ...(bodyless ? { bodyless: true } : {}),
+        // 시트만 붙는 사인물(몸통 제품 없음)은 바탕 투명 — 시트 면·글자만 보이고 유리·벽은 그대로 (2026-10-22)
+        ...(!product && cat === 'sheet' ? { clearFace: true } : {}),
       };
     }
   }

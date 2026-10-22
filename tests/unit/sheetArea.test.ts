@@ -52,3 +52,32 @@ describe('3D: 치수 없는 사인물은 추정 치수로 글자·면 축척', (
     expect(t.h).toBeCloseTo(171 * (500 / 2000));
   });
 });
+
+// 2026-10-22 사용자: "3d에서는 시트를 무조건 힌회색으로 막는다. 투명이 없어"
+describe('시트는 붙는 면을 가리지 않는다 — 몸통 없는 시트는 투명 바탕, 안개는 반투명', () => {
+  const glass = (parts: SignPart[]) => ({ ...o(parts) });
+  it('3D: 시트만 있는 사인물은 바탕이 투명(clearFace) — 글자 시트는 글자만', () => {
+    const spec = renderSpecOf(glass([{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [{ id: 't', kind: 'text', text: 'OPEN', x: 0, y: 0, h: 300 }] }]), { cx: 0, cy: 0, w: 2100, h: 2100 } as never);
+    expect(spec?.clearFace).toBe(true);
+  });
+  it('안개 시트는 반투명 면 (2D·3D 같은 값)', () => {
+    const [p] = withSheetAreas(o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]));
+    expect(p.items[0].opacity).toBe(0.55);
+    const spec = renderSpecOf(o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]), { cx: 0, cy: 0, w: 2100, h: 2100 } as never);
+    expect(spec?.faceItems?.find((f) => f.kind === 'shape')?.opacity).toBe(0.55);
+  });
+  it('재질 시트(컷팅 없음)·UV 출력은 불투명', () => {
+    const [c, u] = withSheetAreas(o([{ id: 'c', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] }, { id: 'u', kind: 'sheet', type: 'sh-print', on: 'frame', items: [] }]));
+    expect(c.items[0].opacity).toBeUndefined();
+    expect(u.items[0].opacity).toBeUndefined();
+  });
+});
+
+describe('2D: 안개 시트 반투명', () => {
+  it('layoutParts·SVG 에 fill-opacity', async () => {
+    const { layoutParts, partsSvg } = await import('../../src/lib/core/partsLayout');
+    const laid = layoutParts(o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]), 2100, 2100, 210, 210);
+    expect(laid[0].opacity).toBe(0.55);
+    expect(partsSvg(laid, () => undefined)).toContain('fill-opacity="0.55"');
+  });
+});

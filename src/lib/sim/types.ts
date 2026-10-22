@@ -37,9 +37,11 @@ export interface SignSpec {
    */
   letterItems?: { text: string; heightMm: number; /** 글자 상자 폭 (mm) — 있으면 상자에 맞춘다(fitBox) */ widthMm?: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number; /** 앞면에서 올라선 높이 (mm, 2단계 깊이 누적) */ z?: number }[];
   /** 앞면에 평면으로 그리는 객체 (그림, 시트의 글자): 중심 기준 mm, 위 +. 그림은 buildSign 의 images[id] */
-  faceItems?: { id: string; kind: 'text' | 'image' | 'shape'; text?: string; x: number; y: number; w: number; h: number; color: string; /** 앞면에서 올라선 높이 (mm): 0 이면 앞면 텍스처에, 크면 그 높이의 얇은 판으로 (2단계 — 채널 앞면 위 시트) */ z?: number; shape?: 'rect' | 'ellipse' | 'line'; fill?: string; stroke?: string }[];
+  faceItems?: { id: string; kind: 'text' | 'image' | 'shape'; text?: string; x: number; y: number; w: number; h: number; color: string; /** 채움 불투명도 (안개 시트, 2026-10-22) */ opacity?: number; /** 앞면에서 올라선 높이 (mm): 0 이면 앞면 텍스처에, 크면 그 높이의 얇은 판으로 (2단계 — 채널 앞면 위 시트) */ z?: number; shape?: 'rect' | 'ellipse' | 'line'; fill?: string; stroke?: string }[];
   /** 몸통 없음: 상자는 그리지 않고 글자만 (letterItems) */
   bodyless?: boolean;
+  /** 바탕 투명 (시트만 붙는 사인물 — 유리·벽을 가리지 않는다, 2026-10-22 "3d에서는 시트를 무조건 힌회색으로 막는다"): 앞면 바탕을 칠하지 않고 옆면도 숨김 */
+  clearFace?: boolean;
   /** 간판 상단 조명 (2026-10-16): 돌출 투광등 / 트러스 바 간접 / 트러스 타공 */
   topLight?: import('../core/topLight').TopLightSpec;
   /** 부속 3D (몰딩·지주, 2026-10-19) — 사인물 좌표 mm (그린 자리 축척) */
