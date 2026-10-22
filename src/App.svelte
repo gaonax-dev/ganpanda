@@ -174,7 +174,8 @@
       {/if}
       {/if}
     {/if}
-    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly}>
+    <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
+    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode && !app.confirmMode)}>
       {#each TABS.filter((t) => (app.isCustomer ? t.id === 'board' || (!!app.requestView && t.id === 'list') : t.id !== 'confirm' || (app.canEdit && !app.consumer))) as t (t.id)}
         <button data-testid="view-{t.id}" class:on={app.tab === t.id} title={t.id === 'board' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === 'design' ? '2D · 3D · 디자인 파일' : t.id === 'confirm' ? '고객이 볼 제안 화면 — 확인하고 보내기' : ''} onclick={() => app.setTab(t.id)}>
           {app.compact ? t.short : t.label}
@@ -396,7 +397,7 @@
     .views.hidden { display: none; }
     .right { min-width: 0; }
     .role, .peers { display: none; }
-    .views { order: 10; flex-basis: 100%; justify-content: stretch; }
+    .views { order: 10; flex-basis: 100%; justify-content: stretch; height: 38px; box-sizing: border-box; } /* 탭 줄과 편집 막대 줄 높이를 같게 — 바뀌어도 사진이 밀리지 않게 (2026-10-22) */
     .views.stage { order: 11; }
     .views button { flex: 1; justify-content: center; padding: 6px 8px; }
     .right { gap: 4px; }

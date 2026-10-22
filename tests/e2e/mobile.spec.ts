@@ -572,3 +572,21 @@ test('휴대폰: 사인물을 탭하면 속성창, 끌면(드래그) 속성창�
   await page.mouse.up();
   await expect(page.getByTestId('quick-bar')).toBeHidden();
 });
+
+test('휴대폰: 사인물을 탭해도 화면(사진)이 움직이지 않는다 — 편집 막대는 작업 탭 자리에 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘")', async ({ page, request }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; return a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[300, 300], [900, 300], [900, 600], [300, 600]], sheetIds: [], widthMm: 3000, heightMm: 1000 }); });
+  const shape = page.locator(`[data-testid="sign-shape"][data-id="${id}"]`);
+  const nav0 = (await page.getByTestId('top-nav').boundingBox())!.height;
+  const b = (await shape.boundingBox())!;
+  await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+  await expect(page.getByTestId('mobile-edit')).toBeVisible();
+  expect((await page.getByTestId('top-nav').boundingBox())!.height).toBe(nav0); // 상단 바 높이 그대로
+  const b1 = (await shape.boundingBox())!;
+  expect(Math.abs(b1.y - b.y)).toBeLessThan(1); // 사진이 밀리지 않는다
+  await page.getByTestId('mobile-done').tap();
+  await expect(page.getByTestId('work-tabs')).toBeVisible(); // 정리하면 탭이 돌아온다
+  expect((await page.getByTestId('top-nav').boundingBox())!.height).toBe(nav0);
+});
