@@ -1225,7 +1225,8 @@ class AppState {
 
   /** Shift+클릭: 선택에 더하기/빼기. 마지막으로 누른 것이 주 선택(selectedId) */
   toggleSelect(id: string, kind: 'shape' | 'card' = 'shape') {
-    if (!this.selectedId || kind !== this.selectionKind) { this.selectObject(id, kind); return; }
+    // 카드와 사진 외곽선은 섞지 않는다 — 다른 종류를 고르면 새로 시작 (2026-10-17 "정면도와 사인물 외곽라인은 같이 선택할 수 없다. 다른게 선택되면 선택 풀어줘")
+    if (!this.selectedId || kind !== this.selectionKind) { this.multiMode && this.selectedId ? this.restartSelection(id, kind) : this.selectObject(id, kind); return; }
     const all = new Set(this.selectionIds);
     if (all.has(id) && id !== this.selectedId) { all.delete(id); this.multi = [...all].filter((x) => x !== this.selectedId); return; }
     if (id === this.selectedId) { // 주 선택을 빼면 남은 것 중 마지막이 주 선택
@@ -1236,8 +1237,7 @@ class AppState {
   }
   /** 다중 선택 모드 켜기/끄기 — 켤 때는 대화·패널을 닫고, 끌 때는 마지막 선택만 남긴다 */
   setMultiMode(on: boolean) {
-    if (on && !this.selectedId) return;
-    this.multiMode = on;
+    this.multiMode = on; // 아무것도 안 골라도 켤 수 있다 — 도구 막대 [다중] (2026-10-22)
     if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else this.multi = [];
   }
   /** 선택한 사인물 모두를 한 분류로 (2026-10-19 "한번에 종류 선택 및 변경"). 이미 그 분류인 것은 그대로 — 한 번의 되돌리기 */
@@ -1295,6 +1295,15 @@ class AppState {
   }
 
   selectObject(id: string | null, kind: 'shape' | 'card' = 'shape') {
+    // 다중 선택 중에는 다른 길로 골라도(손잡이 잡기·대화 열기·새로 그리기) 풀리지 않고 그것을 주 선택으로 더한다 (2026-10-22 "다중선택 중간에 해제되는 경우도 알아봐줘") — 끝내기는 null(✕·정리)·[다중] 끄기
+    if (this.multiMode && id && (!this.selectedId || kind === this.selectionKind)) {
+      const all = new Set(this.selectionIds);
+      all.delete(id);
+      if (!this.selectedId) this.selectionKind = kind;
+      this.multi = [...all]; this.selectedId = id;
+      this.selectedPinId = null; this.zoneSel = null;
+      return;
+    }
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; this.chatObjectId = null; }
     this.multi = [];
     this.selectionKind = kind;
@@ -1303,9 +1312,12 @@ class AppState {
     if (id) { this.selectedPinId = null; this.zoneSel = null; }
   }
 
+  /** 다중 선택 모드는 켠 채 다른 종류(카드↔외곽선)로 새로 시작 */
+  private restartSelection(id: string, kind: 'shape' | 'card') { const on = this.multiMode; this.multiMode = false; this.selectObject(id, kind); this.multiMode = on; }
+
   selectPin(id: string | null) {
     this.selectedPinId = id;
-    if (id) { this.selectedId = null; this.zoneSel = null; }
+    if (id && !this.multiMode) { this.selectedId = null; this.zoneSel = null; } // 다중 선택 중 말풍선을 눌러도 선택 유지 (2026-10-22)
   }
 
   selectZone(photoId: string | null, zone = 0, vertex: number | null = null) {

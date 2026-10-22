@@ -296,8 +296,8 @@ test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성
   });
   const menu = page.getByTestId('mobile-edit');
   await expect(menu).toBeVisible();
-  // 순서: 다중·복사·붙여넣기·복제·말풍선·정리·녹음(맨 오른쪽). 빠른 막대의 말풍선 단추는 없어졌다
-  await expect(menu.locator('button')).toHaveCount(7);
+  // 순서: 복사·붙여넣기·복제·말풍선·정리·녹음(맨 오른쪽) — [다중]은 도구 막대 [선택] 옆으로 (2026-10-22). 빠른 막대의 말풍선 단추는 없어졌다
+  await expect(menu.locator('button')).toHaveCount(6);
   await expect(menu.locator('button').last()).toHaveAttribute('data-testid', 'mobile-record');
   await expect(page.getByTestId('quick-chat-open')).toHaveCount(0);
   await page.getByTestId('mobile-record').click();
@@ -343,14 +343,13 @@ test('휴대폰 다중 선택: 상단 [다중] 단추(복사 앞)를 켜면 말�
   });
   const objs = () => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { id: string; productId?: string; sheetIds: string[] }[] } }).__ganpanda.objects);
   const menu = page.getByTestId('mobile-edit');
-  // [다중] 은 복사 바로 앞
-  await expect(menu.locator('button').first()).toHaveAttribute('data-testid', 'mobile-multi');
-  await expect(menu.locator('button').nth(1)).toHaveAttribute('data-testid', 'mobile-copy');
+  // [다중] 은 아래 도구 막대 [선택] 옆으로 옮겼다 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 위 막대는 복사부터
+  await expect(menu.locator('button').first()).toHaveAttribute('data-testid', 'mobile-copy');
   // 단추가 하나 늘어도 상단 바가 화면 폭(390)을 넘지 않는다 — 녹음 단추까지 화면 안
   expect((await page.getByTestId('mobile-record').boundingBox())!.x + (await page.getByTestId('mobile-record').boundingBox())!.width).toBeLessThanOrEqual(390);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await page.getByTestId('mobile-multi').tap();
-  await expect(page.getByTestId('mobile-multi')).toHaveClass(/on/);
+  await page.getByTestId('tool-multi').tap();
+  await expect(page.getByTestId('tool-multi')).toHaveClass(/on/);
   await expect(page.getByTestId('mobile-chat')).toHaveCount(0);
   await expect(page.getByTestId('mobile-record')).toHaveCount(0);
   // 하단: 종류 셀렉터만 (이름·사이즈·상세정보·사양 글 없음)
@@ -384,7 +383,7 @@ test('휴대폰 다중 선택: 상단 [다중] 단추(복사 앞)를 켜면 말�
   await page.getByTestId('mobile-done').tap();
   await expect(menu).toHaveCount(0);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), ids[0]);
-  await expect(page.getByTestId('mobile-multi')).not.toHaveClass(/on/);
+  await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
   await expect(page.getByTestId('mobile-chat')).toBeVisible();
 });
 

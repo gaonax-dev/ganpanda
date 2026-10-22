@@ -31,3 +31,43 @@ test('카드로 고르든 다중 선택이든 — 사진의 그 사인물과 연
   const multiCard = page.locator(`[data-testid="board-card"][data-id="${ids.A}"] .face`);
   expect(await multiCard.evaluate((e) => getComputedStyle(e).outlineStyle)).toBe('solid');
 });
+
+test('다중 선택은 도구 막대 [선택] 옆, 켜 두면 중간에 풀리지 않는다 — 손잡이·대화로 고르기·말풍선에도 그대로, 카드와 외곽선은 섞지 않음 (2026-10-22 "다중선택을 선택옆으로 이동해주고 다중선택 중간에 해제되는 경우도 알아봐줘")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const pid = a.photos[0].id;
+    const mk = (n: string, x: number) => a.project.addObject({ photoId: pid, name: n, shape: 'rect', quad: [[x, 100], [x + 200, 100], [x + 200, 200], [x, 200]], sheetIds: [], widthMm: 2000, heightMm: 1000 });
+    return { A: mk('A', 100), B: mk('B', 400), C: mk('C', 700) };
+  });
+  // 도구 막대: [선택] 바로 다음이 [다중]
+  const tools = page.locator('.tools button');
+  const order = await tools.evaluateAll((bs) => bs.map((b) => (b as HTMLElement).dataset.testid));
+  expect(order[order.indexOf('tool-select') + 1]).toBe('tool-multi');
+  await page.getByTestId('tool-multi').click(); // 아무것도 안 골라도 켤 수 있다
+  await expect(page.getByTestId('tool-multi')).toHaveClass(/on/);
+  const count = () => page.evaluate(() => (window as unknown as { __ganpanda: { selectionIds: string[] } }).__ganpanda.selectionIds.length);
+  // 사진 외곽선 둘 — 쌓인다. 카드와는 섞지 않는다(2026-10-17 결정 — 카드를 누르면 카드로 새로 시작, 다중 모드는 켠 채)
+  await page.locator(`[data-testid="sign-shape"][data-id="${ids.A}"]`).click();
+  await page.locator(`[data-testid="sign-shape"][data-id="${ids.B}"]`).click();
+  expect(await count()).toBe(2);
+  // 다른 길로 골라도(손잡이 잡기·대화 열기 = selectObject) 풀리지 않고 더해진다
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), ids.C);
+  expect(await count()).toBe(3);
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { openChat(id: string): void } }).__ganpanda.openChat(id), ids.A);
+  expect(await count()).toBe(3);
+  await page.locator(`[data-testid="board-card"][data-id="${ids.A}"]`).click(); // 다른 종류 → 카드로 새로 시작
+  expect(await count()).toBe(1);
+  await expect(page.getByTestId('tool-multi')).toHaveClass(/on/);
+  await page.locator(`[data-testid="board-card"][data-id="${ids.B}"]`).click();
+  await page.locator(`[data-testid="board-card"][data-id="${ids.C}"]`).click();
+  expect(await count()).toBe(3);
+  // 말풍선을 눌러도 선택은 그대로
+  await page.evaluate(() => (window as unknown as { __ganpanda: { selectPin(id: string | null): void } }).__ganpanda.selectPin('x'));
+  expect(await count()).toBe(3);
+  // 빈 곳을 눌러도 그대로, [✕ 선택 해제]·[다중] 끄기로만 끝난다
+  await page.getByTestId('tool-multi').click();
+  await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
+  expect(await count()).toBe(1);
+});

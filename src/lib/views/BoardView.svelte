@@ -514,6 +514,8 @@
         {#if app.canEdit}
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
+          <!-- 다중 선택은 [선택] 옆 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 켜 두면 탭할 때마다 더하기/빼기, 끄거나 ✕ 로 끝 -->
+          <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => app.setMultiMode(!app.multiMode)}>다중</button>
           {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
           <button data-testid="tool-pin" class:on={app.tool === 'pin'} title="말풍선 · 위치 코멘트, 받는 사람 지정 가능 ({hint('toolPin')})" onclick={() => (app.tool = 'pin')}>💬<span class="lbl"> 말풍선</span></button>
           <span class="sep"></span>
