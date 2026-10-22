@@ -42,9 +42,8 @@ test('설정 창 첫 화면은 단면 쌓기 — 갈바 위의 채널·스카시
   // 펼침(분해도) 단추
   await page.getByTestId('cs-explode').click();
   await expect(page.getByTestId('cs-explode')).toHaveText('붙임');
-  // 층의 [정면도] → 배치 탭
-  await page.getByTestId('cs-front').click();
-  await expect(page.getByTestId('object-settings').getByTestId('quick-layout')).toHaveClass(/on/);
+  // 층의 [정면도] → 그 층 정면도 (아래 테스트)
+  await expect(page.locator('[data-testid="cs-tier"][data-n="2"] [data-testid="cs-front"]')).toBeVisible();
 });
 
 test('단면에서 쌓기: 프레임 면 위에 스카시 더하기, 채널 위에 시트 더하기 — 층이 늘고 문서에 저장된다', async ({ page, request }) => {
@@ -108,4 +107,39 @@ test('단면은 실제 비율(가로·세로·두께 같은 축척) — 구성 �
   expect(zoomed[2]).toBeLessThan(full[2] * 0.7);
   await page.getByTestId('cs-zoom-all').click();
   expect((await vb())[2]).toBeCloseTo(full[2], 0);
+});
+
+// 2026-10-22 사용자: "해당 층을 클릭하면 정면도로 활용 가능하다" → "층 정면도 진행해줘"
+test('층 정면도: 그 층만 고치고(바탕 = 올라간 면), 아래 층은 흐리게, 위 층은 숨긴다 — 구성 요소를 누르면 그 구성 요소 정면도, [← 단면]으로 돌아온다', async ({ page, request }) => {
+  const id = await setup(page, request);
+  const dlg = page.getByTestId('object-settings');
+  // 2층 (갈바 판 위: 채널 "카페", 스카시 "CAFE")
+  await page.locator('[data-testid="cs-tier"][data-n="2"] [data-testid="cs-tier-row"]').click();
+  await page.locator('[data-testid="cs-tier"][data-n="2"] [data-testid="cs-front"]').click();
+  await expect(page.getByTestId('cs-tier-front')).toBeVisible();
+  await expect(page.getByTestId('cs-front-title')).toContainText('2층');
+  await expect(page.getByTestId('cs-figure')).toHaveCount(0);
+  await expect(dlg.getByTestId('front-item')).toHaveCount(2);
+  await expect(dlg.getByTestId('front-back-item')).toHaveCount(0); // 프레임에는 글자가 없다
+  await expect(dlg.getByTestId('front-area')).toHaveCount(0); // 위 층(채널 앞면 시트)은 숨김
+  // 방향키로 옮기면 저장된다
+  await dlg.getByTestId('front-item').filter({ hasText: 'CAFE' }).click();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => page.evaluate((oid) => (window as unknown as { __ganpanda: { objects: { id: string; parts?: { id: string; items: { x: number }[] }[] }[] } }).__ganpanda.objects.find((o) => o.id === oid)!.parts!.find((p) => p.id === 'sc')!.items[0].x, id)).toBe(1210);
+  // 구성 요소 정면도: 스카시만 고치고 채널은 흐리게
+  await page.getByTestId('cs-front-part').filter({ hasText: '스카시' }).click();
+  await expect(page.getByTestId('cs-front-title')).toContainText('스카시');
+  await expect(dlg.getByTestId('front-item')).toHaveCount(1);
+  await expect(dlg.getByTestId('front-back-item')).toHaveCount(1);
+  await page.getByTestId('cs-front-up').click(); // ← 2층
+  await expect(page.getByTestId('cs-front-title')).toContainText('2층');
+  // 3층 (채널 앞면 시트): 아래 층 글자는 흐리게, 시트는 영역으로, 바탕은 채널 자리
+  await page.getByTestId('cs-front-back').click(); // ← 단면
+  await expect(page.getByTestId('cs-figure')).toBeVisible();
+  await page.locator('[data-testid="cs-tier"][data-n="3"] [data-testid="cs-tier-row"]').click();
+  await page.locator('[data-testid="cs-tier"][data-n="3"] [data-testid="cs-front"]').click();
+  await expect(page.getByTestId('cs-front-title')).toContainText('3층');
+  await expect(dlg.getByTestId('front-back-item')).toHaveCount(2);
+  await expect(dlg.getByTestId('front-area')).toHaveCount(1);
+  await expect(dlg.getByTestId('front-base')).toHaveCount(1);
 });

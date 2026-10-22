@@ -11,6 +11,9 @@
   import { componentOf, surfaceOf } from '../core/components';
   import { commitParts, newPart, partsOf } from '../core/parts';
   import PartsEditor from './PartsEditor.svelte';
+  import FrontEditor from './FrontEditor.svelte';
+  import type { PartItem } from '../core/model';
+  import { layersOf, lockedItemIds } from '../core/layers';
 
   let { obj, ro, update, hasBody, kinds, onTab }: {
     obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; hasBody: boolean; kinds: SignPart['kind'][];
@@ -105,6 +108,31 @@
   /** 두께를 보이게 글자를 바닥~위 사이에 몇 겹 */
   const steps = (b: Slab) => { const n = Math.min(48, Math.max(1, Math.ceil((b.z1 - b.z0) / 0.6))); return Array.from({ length: n }, (_, i) => b.z0 + ((b.z1 - b.z0) * i) / n); };
 
+  // ── 층 정면도 (2026-10-22 "해당 층을 클릭하면 정면도로 활용 가능하다"): 그 층만 고치고, 바탕 = 올라간 면, 아래 층은 흐리게, 위 층은 숨김. part = 구성 요소 정면도 ──
+  let front = $state<{ tier: number; part?: string } | null>(null);
+  let frontSel = $state<{ part: string; item: string } | null>(null);
+  const frontView = $derived.by(() => {
+    if (!front) return null;
+    const t = cs.tiers.find((x) => x.n === front!.tier);
+    if (!t) return null;
+    const mine = t.items.map((i) => i.part);
+    const edit = front.part ? mine.filter((p) => p.id === front!.part) : mine;
+    const lower = cs.tiers.filter((x) => x.n < t.n).flatMap((x) => x.items.map((i) => i.part));
+    const back = [...lower, ...(front.part ? mine.filter((p) => p.id !== front!.part) : [])];
+    // 올라간 면: 프레임이면 사인물 전체(바탕 없음), 구성 요소 위면 그 구성 요소들의 자리
+    const hosts = [...new Set(edit.map((p) => (p.on && p.on !== 'frame' ? p.on : null)).filter((x): x is string => !!x))];
+    const hostItems = cs.tiers.flatMap((x) => x.items).filter((i) => hosts.includes(i.part.id));
+    const base = hostItems.length ? (() => { const x0 = Math.min(...hostItems.map((i) => i.x0)), x1 = Math.max(...hostItems.map((i) => i.x1)), y0 = Math.min(...hostItems.map((i) => i.y0)), y1 = Math.max(...hostItems.map((i) => i.y1)); return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 }; })() : undefined;
+    const part = front.part ? t.items.find((i) => i.part.id === front!.part) : undefined;
+    return { t, edit, back, base, title: part ? `${t.n}층 · ${part.label} 정면도` : `${t.n}층 정면도 — ${t.summary.replace(/^\d+층 · /, '')}` };
+  });
+  const locked = $derived(lockedItemIds(layersOf(obj, parts)));
+  function setFrontItem(partId: string, itemId: string, patch: Partial<PartItem>) {
+    const ps: SignPart[] = JSON.parse(JSON.stringify(parts));
+    const it = ps.find((p) => p.id === partId)?.items.find((x) => x.id === itemId);
+    if (it) { Object.assign(it, patch); update(commitParts(obj, ps)); }
+  }
+
   function pick(item: CsItem | null, tier: number) {
     if (!item) { openTier = openTier === 1 && cs.frame ? null : 1; openPart = null; return; }
     openTier = tier; openPart = item.part.id;
@@ -128,6 +156,22 @@
 </script>
 
 <div class="cs" data-testid="cross-section">
+  {#if frontView}
+    <div class="tierfront" data-testid="cs-tier-front">
+      <div class="frontbar">
+        <button class="btn small" data-testid="cs-front-back" onclick={() => { front = null; frontSel = null; }}>← 단면</button>
+        {#if front?.part}<button class="btn small" data-testid="cs-front-up" onclick={() => { front = { tier: front!.tier }; frontSel = null; }}>← {front.tier}층</button>{/if}
+        <b data-testid="cs-front-title">{frontView.title}</b>
+      </div>
+      <FrontEditor {obj} parts={frontView.edit} back={frontView.back} base={frontView.base} areas {ro} bind:sel={frontSel} setItem={setFrontItem} {locked} title={front?.part ? '구성 요소 정면도' : '층 정면도'} />
+      {#if !front?.part && frontView.t.items.length > 1}
+        <div class="adds"><span class="hint">구성 요소 하나만</span>
+          {#each frontView.t.items as it (it.part.id)}<button class="btn small" data-testid="cs-front-part" onclick={() => { front = { tier: frontView.t.n, part: it.part.id }; frontSel = null; }}>{it.label}</button>{/each}
+        </div>
+      {/if}
+      <p class="hint">아래 층은 흐리게, 위 층은 숨깁니다. 바탕(점선) = 이 층이 올라간 면 — 정렬·붙이기 기준</p>
+    </div>
+  {:else}
   <div class="figure">
     <svg data-testid="cs-figure" viewBox={viewBox} width="100%" style:max-height="320px" role="img" aria-label="단면 쌓기">
       {#each draw.polys as p, i (i)}
@@ -174,7 +218,7 @@
         </button>
         {#if openTier === t.n}
           <div class="kids">
-            {#if t.items.some((i) => i.part.items.length)}<button class="btn small" data-testid="cs-front" onclick={() => onTab('layout')}>이 층 정면도 — 글자·그림 배치</button>{/if}
+            <button class="btn small" data-testid="cs-front" onclick={() => { front = { tier: t.n }; frontSel = null; }}>이 층 정면도 — 자리·배치</button>
             {#each t.items as it (it.part.id)}
               <div class="part" class:open={openPart === it.part.id} data-testid="cs-part" data-part={it.part.id} data-kind={it.part.kind}>
                 <button class="row sub" data-testid="cs-part-row" onclick={() => (openPart = openPart === it.part.id ? null : it.part.id)}>
@@ -222,6 +266,7 @@
     {/if}
     {#if !cs.tiers.length && !cs.frame}<p class="hint">아직 쌓인 것이 없습니다.</p>{/if}
   </div>
+  {/if}
 </div>
 
 <style>
@@ -248,6 +293,8 @@
   .part.open { border-color: var(--accent); padding-bottom: 8px; }
   .part :global(.card), .part :global(section) { margin: 0 8px; }
   .layers { margin: 0 8px 6px; padding: 0 0 0 18px; font-size: 13px; color: var(--muted); }
+  .tierfront { display: flex; flex-direction: column; gap: 6px; }
+  .frontbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .adds, .extras { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 8px 0; }
   .hint { color: var(--muted); font-size: 12px; }
   .btn.on { border-color: var(--accent); color: var(--accent); }

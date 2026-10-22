@@ -10,14 +10,22 @@
   import type { PartItem, SignObject, SignPart } from '../core/model';
   import { PART_COLOR as COLOR } from '../core/partsLayout';
   import { layerOrder } from '../core/parts';
+  import { componentOf } from '../core/components';
   import { SNAP_PX, alignBox, frameBox, itemBox, resizeItem, snapMove, viewOf, type Align, type Box } from '../core/frontView';
 
   type Sel = { part: string; item: string } | null;
-  let { obj, parts, ro, sel = $bindable(), setItem, locked = new Set<string>() }: {
+  let { obj, parts, ro, sel = $bindable(), setItem, locked = new Set<string>(), back = [], base, areas = false, title = '정면도' }: {
     obj: SignObject; parts: SignPart[]; ro: boolean; sel: Sel;
     setItem: (partId: string, itemId: string, patch: Partial<PartItem>) => void;
     /** 레이어 패널에서 잠근 객체 (3단계): 고를 수는 있지만 끌거나 옮기지 못한다 */
     locked?: Set<string>;
+    /** 층 정면도 (2026-10-22 "해당 층을 클릭하면 정면도로"): 아래 층 — 흐리게, 고를 수 없음 */
+    back?: SignPart[];
+    /** 그 층이 올라간 면 (mm 상자, 중심 기준) — 바탕으로 칠하고 정렬·붙이기 기준. 없으면 사인물 전체 */
+    base?: Box;
+    /** 글자·그림이 없는 구성 요소(시트 등)를 바탕 면 영역으로 보인다 */
+    areas?: boolean;
+    title?: string;
   } = $props();
 
   /** 정면도 높이(px): 사인물 비율에 맞추되 이 범위 안 — 가로로 긴 간판에서 창을 덜 차지하게 */
@@ -28,12 +36,15 @@
 
   let viewW = $state(480);
   let svg = $state<SVGSVGElement>();
-  const frame = $derived(frameBox(obj));
+  /** 사인물 전체(화면 범위)와 정렬 기준 면(층 정면도면 그 층이 올라간 면) */
+  const signFrame = $derived(frameBox(obj));
+  const frame = $derived(base ?? signFrame);
   const hasSize = $derived(!!(obj.widthMm && obj.heightMm));
-  const VIEW_H = $derived(hasSize ? Math.round(Math.min(VIEW_H_MAX, Math.max(VIEW_H_MIN, (viewW - 2 * PAD_PX) * (frame.h / frame.w) + 2 * PAD_PX))) : VIEW_H_MAX);
+  const VIEW_H = $derived(hasSize ? Math.round(Math.min(VIEW_H_MAX, Math.max(VIEW_H_MIN, (viewW - 2 * PAD_PX) * (signFrame.h / signFrame.w) + 2 * PAD_PX))) : VIEW_H_MAX);
   const all = $derived(layerOrder(parts).flatMap((p) => p.items.map((it) => ({ p, it, box: itemBox(it) }))));
   // 축척은 저장된 값으로만 — 끄는 동안 화면이 출렁이지 않게
-  const view = $derived(viewOf(frame, all.map((a) => a.box), viewW, VIEW_H, PAD_PX));
+  const backAll = $derived(layerOrder(back).flatMap((p) => p.items.map((it) => ({ p, it, box: itemBox(it) }))));
+  const view = $derived(viewOf(signFrame, [...all, ...backAll].map((a) => a.box), viewW, VIEW_H, PAD_PX));
 
   /** 끄는 중: 옮기기 또는 크기 */
   let drag = $state<{ mode: 'move' | 'resize'; part: string; item: string; start: [number, number]; box: Box; it: PartItem; cur: Partial<PartItem>; guides: { axis: 'x' | 'y'; at: number }[] } | null>(null);
@@ -107,12 +118,13 @@
     const [x0, y0] = view.toView([b.x - b.w / 2, b.y + b.h / 2]);
     return { x: x0, y: y0, w: b.w * view.scale, h: b.h * view.scale };
   };
-  const fr = $derived(rectOf({ ...frame, w: frame.w || 1000, h: frame.h || 1000 }));
+  const fr = $derived(rectOf({ ...signFrame, w: signFrame.w || 1000, h: signFrame.h || 1000 }));
+  const br = $derived(base ? rectOf(base) : null);
 </script>
 
 <div class="front" data-testid="front-editor" bind:clientWidth={viewW}>
   <div class="bar">
-    <span class="title">정면도</span>
+    <span class="title">{title}</span>
     <span class="hint">{hasSize ? `${obj.widthMm}×${obj.heightMm}mm` : '치수를 넣으면 실제 비율로 보입니다'} · 끌어 옮기기, 모서리로 크기, 방향키 10mm(Shift 100mm), Alt 끌기 = 붙지 않음</span>
     {#if !ro}
       <span class="aligns">
@@ -125,6 +137,23 @@
     onpointermove={move} onpointerup={up} onpointercancel={up} onkeydown={key}
     onpointerdown={(e) => { if (e.target === e.currentTarget) sel = null; }}>
     <rect data-testid="front-frame" class="frame" class:nosize={!hasSize} x={fr.x} y={fr.y} width={fr.w} height={fr.h} />
+    {#if br}<rect data-testid="front-base" class="base" x={br.x} y={br.y} width={br.w} height={br.h} />{/if}
+    <!-- 아래 층: 흐리게, 고를 수 없음 -->
+    {#each backAll as a (a.p.id + a.it.id)}
+      {@const r = rectOf(a.box)}
+      <g data-testid="front-back-item" class="backitem" pointer-events="none">
+        {#if a.it.kind === 'text'}<text x={r.x + r.w / 2} y={r.y + r.h / 2} font-size={r.h * 0.9} textLength={r.w * 0.96} lengthAdjust="spacingAndGlyphs" fill={COLOR[a.p.kind]}>{a.it.text || '글자'}</text>
+        {:else}<rect x={r.x} y={r.y} width={r.w} height={r.h} fill="none" stroke={COLOR[a.p.kind]} stroke-dasharray="3 2" />{/if}
+      </g>
+    {/each}
+    <!-- 글자·그림이 없는 구성 요소(시트 등) = 올라간 면 전체 -->
+    {#if areas}
+      {#each parts.filter((p) => !p.items.length) as p (p.id)}
+        {@const r = br ?? fr}
+        <g data-testid="front-area" pointer-events="none"><rect x={r.x + 2} y={r.y + 2} width={Math.max(0, r.w - 4)} height={Math.max(0, r.h - 4)} fill={COLOR[p.kind]} fill-opacity="0.18" stroke={COLOR[p.kind]} stroke-dasharray="5 3" />
+          <text x={r.x + r.w / 2} y={r.y + r.h / 2} font-size={Math.min(14, r.h * 0.4)} fill={COLOR[p.kind]}>{componentOf(p.kind).label}</text></g>
+      {/each}
+    {/if}
     {#each layerOrder(parts) as p (p.id)}
       {#each p.items as it0 (it0.id)}
         {@const it = shown(p, it0)}
@@ -181,6 +210,8 @@
   svg:focus-visible { border-color: var(--accent, #5aa8ff); }
   .frame { fill: rgba(255, 255, 255, 0.04); stroke: var(--muted, #8b93a3); stroke-width: 1; }
   .frame.nosize { stroke-dasharray: 4 3; }
+  .base { fill: rgba(255, 255, 255, 0.1); stroke: var(--accent, #5aa8ff); stroke-width: 1; stroke-dasharray: 6 3; pointer-events: none; }
+  .backitem { opacity: 0.3; }
   .item { cursor: move; }
   .item.ro { cursor: pointer; }
   .box { fill: transparent; stroke-width: 1; stroke-dasharray: 3 2; }
