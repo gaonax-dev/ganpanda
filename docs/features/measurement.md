@@ -96,6 +96,12 @@ fSpy 는 GPL v3 입니다. 간판다는 fSpy 코드를 한 줄도 쓰지 않고 
 - [추정값 적용]은 10mm 단위 반올림. 치수를 입력하지 않은 사인물은 추정 치수로 견적에 반영하고 "추정" 표시(`app.sizeOf`).
 - 3D 뷰와 벽면 좌표계(`wallPlane.ts`)도 같은 보정을 씁니다. 카메라에서 온 보정은 `metric: true` 라 사인물이 없어도 벽면이 있습니다 → [render-3d.md](render-3d.md).
 
+## 3D 벽면 — 정면 사진 (2026-10-22)
+사용자: "3d에서 누락이 있네 확인하고 수정해줘" (푸르미도그 img_2 — 거의 정면에서 찍은 사진의 사인물 4개가 3D 에서 통째로 빠짐).
+- 원인: 카메라 보정 행렬(px→mm) 값이 ~1e-4 로 작아, 벽면의 역행렬 판정(행렬식 < 고정값 1e-12)이 실패 → 벽면 없음 → 그 사진은 3D 를 건너뜀.
+- 고침(`core/wallPlane.ts invert3`): 행렬식을 **세 행 길이의 곱(Hadamard 상한)에 대한 비**로 판정 — 배율과 상관없이. 그래도 풀 수 없는 보정이면 3D 를 건너뛰지 않고 **치수 있는 사인물 기준 벽면**으로. 카메라 풀이(`camera.ts`)의 역행렬은 그대로(값 크기 차가 큰 행렬이라 같은 방식을 쓰면 정상 행렬을 거절했다).
+- 테스트: `tests/unit/wallPlaneScale.test.ts`.
+
 ## 관련 테스트
 - `tests/unit/camera.test.ts`(솔버·크롭·정면·경고·자동 제안·붙이기), `tests/unit/lines.test.ts`(선분 검출·소실점·축 선 제안), `tests/unit/calibration.test.ts`(모서리 붙이기), `tests/unit/measure.test.ts`, `tests/unit/wallPlane.test.ts`, `tests/unit/homography.test.ts`
 - `tests/e2e/camera.spec.ts`(샘플 건물: 자동 제안 → 정확한 축 선·원점·기준 길이 적용 → 창문 10% 안 → 3D 뷰 → 지우기 / 핸들 끌기·평행 경고), `tests/e2e/board.spec.ts`

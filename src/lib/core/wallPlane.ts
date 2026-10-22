@@ -32,7 +32,10 @@ function invert3(m: number[]): number[] | null {
   const [a, b, c, d, e, f, g, h, i] = m;
   const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
   const det = a * A + b * B + c * C;
-  if (Math.abs(det) < 1e-12) return null;
+  // 크기와 상관없이 판정 (2026-10-22 "3d에서 누락": 정면 사진의 보정 행렬은 값이 ~1e-4 라 행렬식이 고정값 1e-12 보다 작아 역행렬이 없다고 봤다)
+  // — 행렬식의 상한(세 행 길이의 곱, Hadamard)에 대한 비로 판정한다
+  const bound = Math.hypot(a, b, c) * Math.hypot(d, e, f) * Math.hypot(g, h, i);
+  if (!(bound > 0) || !Number.isFinite(det) || Math.abs(det) < 1e-12 * bound) return null;
   const inv = [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d];
   return inv.map((v) => v / det);
 }
@@ -43,9 +46,9 @@ export function wallPlaneOf(objs: SignObject[], calib?: Calibration | null): Wal
   // 카메라 설정: 사진 px → 벽 mm 가 이미 원점·방향까지 맞다 → 사인물이 없어도 벽면이 있다
   if (calib?.metric) {
     const H = invert3(calib.H);
-    return H ? { H, Hinv: calib.H, source: 'calibration', pose: calib.pose } : null;
-  }
-  if (calib) {
+    if (H) return { H, Hinv: calib.H, source: 'calibration', pose: calib.pose };
+    // 풀 수 없는 보정이면 3D 를 통째로 건너뛰지 않고 아래(치수 있는 사인물 기준)로 (2026-10-22 "3d에서 누락")
+  } else if (calib) {
     // px → 정면 보정(c.H) → mm 축척 → 영역들의 좌하단을 원점으로.
     // 소실점 부호에 따라 보정 축 방향이 뒤집힐 수 있으므로 첫 영역의 TL→TR 이 +x, BL→TL 이 +y 가 되게 맞춘다
     const valid = objs.filter((o) => isValidQuad(o.quad));
