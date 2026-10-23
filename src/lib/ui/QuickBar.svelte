@@ -10,6 +10,7 @@
   import type { SignObject } from '../core/model';
   import QuickSpec from './QuickSpec.svelte';
   import SpecInput from './SpecInput.svelte';
+  import TemplateQuick from './TemplateQuick.svelte';
 
   let { obj }: { obj: SignObject } = $props();
 
@@ -94,6 +95,7 @@
       <button class="btn small" data-testid="category-confirm-cancel" onclick={() => (pending = null)}>취소</button>
     </div>
   {/if}
+  {#if category && !pending}<TemplateQuick {obj} {ro} {update} compact />{/if}
   {#if editing === 'name'}
     <form class="row edit" data-testid="quick-name-edit" onsubmit={(e) => { e.preventDefault(); saveName(); }}>
       <!-- svelte-ignore a11y_autofocus -->
