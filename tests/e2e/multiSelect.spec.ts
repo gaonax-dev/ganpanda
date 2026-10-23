@@ -26,7 +26,9 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   await expect(page.getByTestId('multi-count')).toHaveText('3개 선택');
   await expect(page.locator('[data-testid="sign-shape"][data-selected]')).toHaveCount(1); // 주 선택 하나
   await expect(page.locator('.sign[data-multi]')).toHaveCount(2);
-  // 맞추기: 첫째·둘째가 셋째의 종류·옵션을 받는다. 치수·이름은 그대로
+  // 재질복제 (2026-10-23): 첫째·둘째가 셋째의 종류·옵션을 받는다. 가로·세로·이름은 그대로
+  await expect(page.getByTestId('multi-apply')).toHaveText('재질복제');
+  await expect(page.getByTestId('multi-clear')).toHaveText('정리');
   await page.getByTestId('multi-apply').click();
   const after = await objs(page);
   for (const id of [ids[0], ids[1]]) {
