@@ -12,8 +12,9 @@ test('간판 → 완성품 사진 → 칸을 하나씩(색 → 글자) → 완�
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   const panel = page.getByTestId('object-panel');
-  await expect(panel.getByTestId('tpl-pick')).toHaveCount(15);
-  await panel.getByTestId('tpl-pick').nth(6).click(); // 07 캡 전후광
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(19);
+  await expect(panel.getByTestId('tpl-pick').first().locator('img')).toHaveAttribute('src', '/sign-types/galva.svg');
+  await panel.getByTestId('tpl-pick').nth(10).click(); // 07 캡 전후광 (앞 4 = 갈바·후렉스·후렉스+채널·갈바+채널)
   expect((await first(page)).productId).toBe('body-none');
   await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/4 몸통(옆면)색');
   await panel.getByTestId('tpl-next').click();
@@ -39,7 +40,7 @@ test('중간에 멈추면 거기까지 완성 — 나머지는 완성품 값 그
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   const panel = page.getByTestId('object-panel');
-  await panel.getByTestId('tpl-pick').nth(8).click(); // 09 후광
+  await panel.getByTestId('tpl-pick').nth(12).click(); // 09 후광
   await panel.locator('[data-testid="tpl-color"][title="검정"]').click();
   await panel.getByTestId('tpl-done').click();
   await expect(panel.getByTestId('tpl-step')).toHaveCount(0);
@@ -50,7 +51,7 @@ test('중간에 멈추면 거기까지 완성 — 나머지는 완성품 값 그
   // 이미 구성된 사인물은 사진이 저절로 펼쳐지지 않고 [완성품 사진에서 고르기]
   await expect(panel.getByTestId('tpl-pick')).toHaveCount(0);
   await panel.getByTestId('tpl-open').click();
-  await expect(panel.getByTestId('tpl-pick')).toHaveCount(15);
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(19);
 });
 
 test.describe('휴대폰', () => {
@@ -65,13 +66,42 @@ test.describe('휴대폰', () => {
     await page.getByTestId('photo-zone').locator('.name').tap();
     await page.getByTestId('quick-kind').selectOption('sign');
     const bar = page.getByTestId('quick-bar');
-    await expect(bar.getByTestId('tpl-pick')).toHaveCount(15);
+    await expect(bar.getByTestId('tpl-pick')).toHaveCount(19);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    await bar.getByTestId('tpl-pick').nth(3).tap(); // 04 통아크릴
+    await bar.getByTestId('tpl-pick').nth(7).tap(); // 04 통아크릴
     await expect(bar.getByTestId('tpl-step-label')).toHaveText('1/2 글자(앞면)색');
     await bar.getByTestId('tpl-next').tap();
     await bar.getByTestId('tpl-text').fill('카페');
     await bar.getByTestId('tpl-next').tap(); // 마지막 칸의 [완성] — 입력은 바뀐 값으로
     await expect.poll(async () => (await first(page)).parts?.[0].items[0].text).toBe('카페');
   });
+});
+
+test('갈바 간판: 배경색 → 글자색 → 글자, 스카시 분류는 아크릴 스카시', async ({ page, request }) => {
+  await openOwnedProject(page, request, '갈바 완성품');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [800, 300]);
+  await pickCategory(page, 'sign');
+  const panel = page.getByTestId('object-panel');
+  await panel.getByTestId('tpl-pick').first().click();
+  await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/3 배경색');
+  await panel.locator('[data-testid="tpl-color"][title="노랑"]').click();
+  await panel.getByTestId('tpl-next').click();
+  await expect(panel.getByTestId('tpl-step-label')).toHaveText('2/3 글자색');
+  await panel.getByTestId('tpl-next').click();
+  await panel.getByTestId('tpl-text').fill('정육점');
+  await panel.getByTestId('tpl-text').press('Enter');
+  const o = await first(page) as Obj & { options?: Record<string, unknown> };
+  expect(o.productId).toBe('board-galva');
+  expect(o.options?.paintSystem).toBe('직접');
+  expect(o.parts![0].type).toBe('sh-cut');
+  expect(o.parts![0].items[0].text).toBe('정육점');
+  await page.getByTestId('photo-zone').screenshot({ path: test.info().outputPath('galva.png') });
+  // 스카시로 바꾸면 아크릴 스카시
+  await page.getByTestId('category-select').selectOption('scashi');
+  await page.getByTestId('category-confirm-ok').click();
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(1);
+  await panel.getByTestId('tpl-pick').click();
+  await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/3 아크릴색');
 });

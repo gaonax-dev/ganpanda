@@ -1,14 +1,15 @@
 // 완성품 퀵 (2026-10-23 사용자: "퀵에서는 간판을 선택하고 사진중에 하나를 선택하는데 현재 체널만 있다. 해당 상황은 완전제품이다.
 // 그래서 완성된 상태에 따라 글자가 2가지 3가지가 될수 있어. 그냥 이전의 완성품 구성에 변경 가능한 필드를 하나씩 대입해서 완성하는 거이야. 중간에 멈추면 거기까지 완성이다.")
 // 완성품 = 사진 + 사인물 구성 전체(몸통·옵션·구성 요소·글자) + 바꿀 칸(색 → 글자 내용). 칸은 하나씩 채우고, 채운 만큼 바로 저장된다.
-// 사람의 결정 순서: 간판 → 종류(사진) → 배경색·글자색 → 내용 / 스카시 → 아크릴 → 아크릴색·글자색 → 내용. 지금 사진은 채널 15종뿐 — 갈바·후렉스·후렉스+채널·스카시 완성품은 사진이 오면 더한다.
-import type { SignObject, SignPart } from './model';
+// 사람의 결정 순서: 간판 → 종류(갈바·후렉스·채널간판·후광간판·후렉스채널) → 배경색·글자색 → 내용 / 스카시 → 아크릴 → 아크릴색(도색)·글자색 → 내용.
+// 갈바·후렉스·스카시는 아직 사진이 없어 그림(public/sign-types/*.svg) — 사진이 오면 바꾼다 (2026-10-23 "갈바나 후렉스들도 같은 칸에 있어서 선택 가능하게")
+import type { MaterialLayer, SignObject, SignPart } from './model';
 import type { Group } from './catalog';
 import { CHANNEL_PRESETS } from './channelLibrary';
 import { applyPreset } from './partPresets';
 import { commitParts, newItem, newPart, partsOf } from './parts';
 import { paintHex } from './materials';
-import { componentOf } from './components';
+import type { PartPreset } from './components/types';
 
 export interface TemplateSlot {
   id: string;
@@ -31,46 +32,87 @@ export interface SignTemplate {
   slots(o: SignObject): TemplateSlot[];
 }
 
-/** 구성 요소 하나를 고쳐 저장하는 패치 */
+type Opts = Record<string, string | boolean>;
+/** 완성품의 구성 요소 하나 */
+interface PartDef { kind: SignPart['kind']; type?: string; preset?: PartPreset; options?: Opts; stack?: (p: SignPart) => MaterialLayer[]; /** 글자 높이 = 간판 높이 × 이 비율 */ text?: number }
+/** 색 칸: 몸통 옵션 도색(prefix) · 구성 요소 도색(prefix) · 구성 요소 미리보기 색(key) */
+type ColorDef = { label: string } & ({ body: string } | { part: number; paint: string } | { part: number; key: string });
+interface TemplateDef { id: string; group: Group; label: string; desc: string; img: string; productId: string; options?: Opts; parts: PartDef[]; colors: ColorDef[] }
+
+const paintPatch = (prefix: string, v: string): Opts => ({ [`${prefix}System`]: '직접', [`${prefix}Code`]: v });
+/** n 번째 구성 요소 (완성품에 넣은 순서 — 같은 종류끼리 몇 번째인지로 찾는다) */
+function partAt(o: SignObject, defs: PartDef[], n: number): SignPart | undefined {
+  const kind = defs[n].kind;
+  const nth = defs.slice(0, n).filter((d) => d.kind === kind).length;
+  return partsOf(o).filter((p) => p.kind === kind)[nth];
+}
 function editPart(o: SignObject, partId: string, fn: (p: SignPart) => void): Partial<SignObject> {
   const ps: SignPart[] = JSON.parse(JSON.stringify(partsOf(o)));
   const p = ps.find((x) => x.id === partId);
   if (p) fn(p);
   return commitParts(o, ps);
 }
-const COLOR_SLOTS: { prefix: string; label: string }[] = [
-  { prefix: 'body', label: '몸통(옆면)색' }, { prefix: 'face', label: '글자(앞면)색' }, { prefix: 'cap', label: '캡색' },
-];
 
-function channelTemplate(pr: (typeof CHANNEL_PRESETS)[number]): SignTemplate {
-  const id = `ch-${String(pr.no).padStart(2, '0')}`;
-  /** 이 묶음을 가진 구성 요소 (종류 이름 대신 레지스트리 presets 로) */
-  const partOf = (o: SignObject) => partsOf(o).find((p) => componentOf(p.kind).presets?.includes(pr));
+function build(d: TemplateDef): SignTemplate {
   return {
-    id, group: 'sign', label: pr.label, desc: pr.desc, img: pr.img,
+    id: d.id, group: d.group, label: d.label, desc: d.desc, img: d.img,
     apply(o) {
-      const it = { ...newItem('text'), text: '간판', h: Math.round((o.heightMm || 375) * 0.8) };
-      const part = { ...applyPreset(newPart('channel'), pr, o), items: [it] };
-      return { productId: 'body-none', ...commitParts({ ...o, options: {}, parts: undefined, layers: undefined }, [part]) };
+      const h = o.heightMm || 375;
+      const parts = d.parts.map((pd) => {
+        let p = newPart(pd.kind, pd.type ?? pd.preset?.type);
+        if (pd.preset) p = applyPreset(p, pd.preset, o);
+        if (pd.options) p = { ...p, options: { ...(p.options ?? {}), ...pd.options } };
+        if (pd.stack) p = { ...p, stack: pd.stack(p) };
+        if (pd.text) p = { ...p, items: [{ ...newItem('text'), text: '간판', h: Math.round(h * pd.text) }] };
+        return p;
+      });
+      return { productId: d.productId, ...commitParts({ ...o, options: {}, parts: undefined, layers: undefined }, parts), options: { ...(d.options ?? {}) } };
     },
     slots(o) {
-      const part = partOf(o);
-      if (!part) return [];
-      const colors: TemplateSlot[] = COLOR_SLOTS.filter((c) => pr.options[`${c.prefix}System`] !== undefined).map((c) => ({
-        id: `${part.id}:${c.prefix}`, label: c.label, kind: 'color',
-        read: (x) => { const p = partOf(x); return (p && paintHex(p.options, c.prefix)) ?? ''; },
-        write: (x, v) => editPart(x, part.id, (p) => { p.options = { ...(p.options ?? {}), [`${c.prefix}System`]: '직접', [`${c.prefix}Code`]: v }; }),
-      }));
-      const texts = part.items.filter((i) => i.kind === 'text');
-      const words: TemplateSlot[] = texts.map((it, j) => ({
-        id: `${part.id}:${it.id}`, label: texts.length > 1 ? `글자 ${j + 1}` : '글자', kind: 'text',
-        read: (x) => partOf(x)?.items.find((i) => i.id === it.id)?.text ?? '',
-        write: (x, v) => editPart(x, part.id, (p) => { const i = p.items.find((y) => y.id === it.id); if (i) i.text = v; }),
+      const colors: TemplateSlot[] = d.colors.flatMap((c, k): TemplateSlot[] => {
+        if ('body' in c) return [{ id: `c${k}`, label: c.label, kind: 'color', read: (x) => paintHex(x.options, c.body) ?? '', write: (x, v) => ({ options: { ...(x.options ?? {}), ...paintPatch(c.body, v) } }) }];
+        const part = partAt(o, d.parts, c.part);
+        if (!part) return [];
+        const get = (x: SignObject) => partsOf(x).find((p) => p.id === part.id);
+        if ('paint' in c) return [{ id: `c${k}`, label: c.label, kind: 'color', read: (x) => paintHex(get(x)?.options, c.paint) ?? '', write: (x, v) => editPart(x, part.id, (p) => { p.options = { ...(p.options ?? {}), ...paintPatch(c.paint, v) }; }) }];
+        return [{ id: `c${k}`, label: c.label, kind: 'color', read: (x) => String(get(x)?.options?.[c.key] ?? ''), write: (x, v) => editPart(x, part.id, (p) => { p.options = { ...(p.options ?? {}), [c.key]: v }; }) }];
+      });
+      const texts = d.parts.flatMap((_, n) => { const p = partAt(o, d.parts, n); return p ? p.items.filter((i) => i.kind === 'text').map((it) => ({ p, it })) : []; });
+      const words: TemplateSlot[] = texts.map(({ p, it }, j) => ({
+        id: `${p.id}:${it.id}`, label: texts.length > 1 ? `글자 ${j + 1}` : '글자', kind: 'text',
+        read: (x) => partsOf(x).find((q) => q.id === p.id)?.items.find((i) => i.id === it.id)?.text ?? '',
+        write: (x, v) => editPart(x, p.id, (q) => { const i = q.items.find((y) => y.id === it.id); if (i) i.text = v; }),
       }));
       return [...colors, ...words];
     },
   };
 }
 
-export const SIGN_TEMPLATES: SignTemplate[] = CHANNEL_PRESETS.map(channelTemplate);
+/** 채널 묶음의 색 칸: 묶음에 있는 몸통·앞면·캡 도색 */
+const channelColors = (pr: PartPreset, part: number): ColorDef[] =>
+  ([['body', '몸통(옆면)색'], ['face', '글자(앞면)색'], ['cap', '캡색']] as const).filter(([k]) => pr.options[`${k}System`] !== undefined).map(([k, label]) => ({ label, part, paint: k }));
+const FRONT = CHANNEL_PRESETS.find((p) => p.no === 12)!; // 전광 채널 (흰 앞면 · 컬러 옆면)
+
+const DEFS: TemplateDef[] = [
+  { id: 'galva', group: 'sign', label: '갈바 간판', desc: '도장 갈바 판 · 커팅 시트 글자', img: '/sign-types/galva.svg', productId: 'board-galva',
+    options: paintPatch('paint', '#f4f4f2'), parts: [{ kind: 'sheet', type: 'sh-cut', options: { previewColor: '#141414' }, text: 0.6 }],
+    colors: [{ label: '배경색', body: 'paint' }, { label: '글자색', part: 0, key: 'previewColor' }] },
+  { id: 'flex', group: 'sign', label: '후렉스 간판', desc: '후렉스 출력 · 내부 조명', img: '/sign-types/flex.svg', productId: 'board-flex',
+    options: paintPatch('face', '#f4f4f2'), parts: [{ kind: 'sheet', type: 'sh-print', options: { included: true, previewColor: '#c0392b' }, text: 0.6 }],
+    colors: [{ label: '배경색', body: 'face' }, { label: '글자색', part: 0, key: 'previewColor' }] },
+  { id: 'flex-channel', group: 'sign', label: '후렉스 + 채널', desc: '후렉스 바탕 위 전광 채널', img: '/sign-types/flex-channel.svg', productId: 'board-flex',
+    options: paintPatch('face', '#1f2a44'), parts: [{ kind: 'channel', preset: FRONT, text: 0.6 }],
+    colors: [{ label: '배경색', body: 'face' }, ...channelColors(FRONT, 0)] },
+  { id: 'galva-channel', group: 'sign', label: '갈바 + 채널', desc: '도장 갈바 판 위 전광 채널', img: '/sign-types/galva-channel.svg', productId: 'board-galva',
+    options: paintPatch('paint', '#3a3f44'), parts: [{ kind: 'channel', preset: FRONT, text: 0.6 }],
+    colors: [{ label: '배경색', body: 'paint' }, ...channelColors(FRONT, 0)] },
+  // 채널 15종 = 벽에 바로 (몸통 없음)
+  ...CHANNEL_PRESETS.map((pr): TemplateDef => ({ id: `ch-${String(pr.no).padStart(2, '0')}`, group: 'sign', label: pr.label, desc: pr.desc, img: pr.img, productId: 'body-none', parts: [{ kind: 'channel', preset: pr, text: 0.8 }], colors: channelColors(pr, 0) })),
+  // 아크릴 스카시: 아크릴색 = 옆면 도색, 글자색 = 앞면 도색
+  { id: 'sc-acrylic', group: 'scashi', label: '아크릴 스카시', desc: '아크릴 입체 글자 · 옆면 도색 · 앞면 색', img: '/sign-types/scashi-acrylic.svg', productId: 'ch-scashi',
+    parts: [{ kind: 'scashi', type: 'ch-scashi', options: { ...paintPatch('acSide', '#f4f4f2'), ...paintPatch('paint', '#141414') }, stack: (p) => (p.stack ?? []).map((l, i) => (i === 0 ? { ...l, side: { kind: 'paint', ref: 'acSide' } } : l)), text: 0.8 }],
+    colors: [{ label: '아크릴색', part: 0, paint: 'acSide' }, { label: '글자색', part: 0, paint: 'paint' }] },
+];
+
+export const SIGN_TEMPLATES: SignTemplate[] = DEFS.map(build);
 export const templatesFor = (g: Group | null): SignTemplate[] => SIGN_TEMPLATES.filter((t) => t.group === g);

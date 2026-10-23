@@ -12,12 +12,58 @@ const blank = (o: Partial<SignObject> = {}): SignObject => ({ id: 'o', photoId: 
 const run = (o: SignObject, patch: Partial<SignObject>): SignObject => ({ ...o, ...patch });
 
 describe('완성품 퀵', () => {
-  it('간판 분류의 완성품 = 채널 15종 사진 (지금은 채널만)', () => {
+  it('간판 분류의 완성품 = 갈바 · 후렉스 · 후렉스+채널 · 갈바+채널 + 채널 15종, 스카시 = 아크릴', () => {
     const ts = templatesFor('sign');
-    expect(ts).toHaveLength(15);
-    expect(ts[0].img).toBe('/channel-types/01.webp');
+    expect(ts.map((t) => t.label).slice(0, 4)).toEqual(['갈바 간판', '후렉스 간판', '후렉스 + 채널', '갈바 + 채널']);
+    expect(ts).toHaveLength(19);
+    expect(ts[4].img).toBe('/channel-types/01.webp');
+    expect(templatesFor('scashi').map((t) => t.label)).toEqual(['아크릴 스카시']);
     expect(templatesFor('banner')).toEqual([]);
-    expect(SIGN_TEMPLATES.every((t) => t.group === 'sign')).toBe(true);
+    expect(new Set(SIGN_TEMPLATES.map((t) => t.id)).size).toBe(SIGN_TEMPLATES.length);
+  });
+
+  it('갈바 간판: 배경색(갈바 도색) → 글자색(커팅 시트) → 글자', () => {
+    const t = templatesFor('sign')[0];
+    let o = run(blank({ heightMm: 600 }), t.apply(blank({ heightMm: 600 })));
+    expect(o.productId).toBe('board-galva');
+    expect(partsOf(o).map((p) => p.type)).toEqual(['sh-cut']);
+    const slots = t.slots(o);
+    expect(slots.map((s) => s.label)).toEqual(['배경색', '글자색', '글자']);
+    o = run(o, slots[0].write(o, '#112233'));
+    expect(o.options).toMatchObject({ paintSystem: '직접', paintCode: '#112233' });
+    o = run(o, slots[1].write(o, '#ff0000'));
+    expect(surfaceOf(partsOf(o)[0]).face).toBe('#ff0000');
+    o = run(o, slots[2].write(o, '정육점'));
+    expect(partsOf(o)[0].items[0].text).toBe('정육점');
+  });
+
+  it('후렉스 간판: 배경색(후렉스 배경) → 글자색(출력 글자) → 글자 / 후렉스+채널: 배경색 → 채널 글자색·몸통색 → 글자', () => {
+    const flex = templatesFor('sign')[1];
+    let o = run(blank(), flex.apply(blank()));
+    expect(o.productId).toBe('board-flex');
+    expect(flex.slots(o).map((s) => s.label)).toEqual(['배경색', '글자색', '글자']);
+    o = run(o, flex.slots(o)[0].write(o, '#ffff00'));
+    expect(o.options).toMatchObject({ faceSystem: '직접', faceCode: '#ffff00' });
+    const fc = templatesFor('sign')[2];
+    const o2 = run(blank(), fc.apply(blank()));
+    expect(o2.productId).toBe('board-flex');
+    expect(fc.slots(o2).map((s) => s.label)).toEqual(['배경색', '몸통(옆면)색', '글자(앞면)색', '글자']);
+    const gc = templatesFor('sign')[3];
+    expect(run(blank(), gc.apply(blank())).productId).toBe('board-galva');
+  });
+
+  it('아크릴 스카시: 아크릴색(옆면 도색) → 글자색(앞면) → 글자', () => {
+    const t = templatesFor('scashi')[0];
+    let o = run(blank({ productId: 'ch-rubber' }), t.apply(blank({ productId: 'ch-rubber' })));
+    expect(o.productId).toBe('ch-scashi');
+    expect(categoryOf(o)).toBe('scashi');
+    const slots = t.slots(o);
+    expect(slots.map((s) => s.label)).toEqual(['아크릴색', '글자색', '글자']);
+    o = run(o, slots[0].write(o, '#00ff00'));
+    o = run(o, slots[1].write(o, '#0000ff'));
+    const sf = surfaceOf(partsOf(o)[0]);
+    expect(sf.side).toBe('#00ff00');
+    expect(sf.face).toBe('#0000ff');
   });
 
   it('고르면 완성품 구성이 통째로: 몸통 없음 + 그 채널 묶음 + 글자 하나 (분류는 간판 그대로)', () => {
@@ -51,7 +97,7 @@ describe('완성품 퀵', () => {
   });
 
   it('완성품을 고른 뒤 글자가 여러 개면 칸도 글자 1·2…', () => {
-    const t = templatesFor('sign')[0];
+    const t = templatesFor('sign')[4];
     let o = run(blank(), t.apply(blank()));
     const p = partsOf(o)[0];
     o = { ...o, parts: [{ ...p, items: [...p.items, { ...p.items[0], id: 't2', text: '둘째' }] }], layers: undefined };
