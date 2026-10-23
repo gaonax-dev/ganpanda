@@ -8,6 +8,7 @@
   import { app } from '../state.svelte';
   import type { SignObject } from '../core/model';
   import { DEFAULT_LETTER3D, specFromObject, type Letter3D } from '../core/letter3d';
+  import { componentOf } from '../core/components';
   import { loadFont } from '../core/textShapes';
   import { buildChannel, buildSign, type BuiltSign } from '../sim/signs';
   import { ENV_DAY, SUN_DAY } from '../sim/viewer';
@@ -67,7 +68,9 @@
   async function rebuild() {
     const my = ++token;
     const comp = composed?.letterItems || composed?.faceItems ? composed : null;
-    const spec = comp ?? specFromObject(obj);
+    const base = specFromObject(obj);
+    const cp = obj.parts?.find((p) => componentOf(p.kind).look3d && p.items.some((i) => i.kind === 'text' && (i.text ?? '').trim()));
+    const spec = comp ?? (base && cp ? { ...base, ...componentOf(cp.kind).look3d!(cp) } : base); // 몸통 마감·띄움·뒤 빛 (2026-10-23)
     if (!spec || !font) return;
     const images = comp?.faceItems ? await loadItemImages(obj, app.sources) : undefined;
     if (my !== token || !font) return;

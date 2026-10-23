@@ -110,6 +110,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
         depthMm: c.depthMm(part, o),
         // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
         lighting: c.lighting(part), faceColor: surfaceOf(part).face ?? d.faceColor, sideColor: surfaceOf(part).side ?? d.sideColor, // 재료 층 마감 > 도색 키 (2026-10-21)
+        ...c.look3d?.(part), // 몸통 마감·띄움·뒤 빛 (2026-10-23)
       });
     } else {
       const b = itemBox(it);

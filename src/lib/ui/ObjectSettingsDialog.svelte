@@ -66,7 +66,7 @@
   const thickPresets = $derived(thickPresetsFor(obj.productId));
   /** 두께는 치수가 아니라 소재(종류)에 — 받는 종류만 (thicknessFieldOf) */
   const thick = $derived(thicknessFieldOf(obj.productId));
-  const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight']);
+  const LETTER_KEYS = new Set(['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'chFinish', 'chBack', 'chStep', 'chStandoff', 'chGalvaFace', 'chBulbPitch', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight']);
   const optionGroups = $derived(optionGroupsFor(obj).map((g) => (composable ? { ...g, fields: g.fields.filter((f) => !LETTER_KEYS.has(f.key)) } : g)).filter((g) => g.fields.length && !(composable && g.title === '시트 옵션')));
   function setOption(f: OptionField, v: string | boolean) {
     const next = { ...normalizeOptions(obj), [f.key]: v };

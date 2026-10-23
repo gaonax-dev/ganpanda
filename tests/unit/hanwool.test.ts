@@ -112,9 +112,10 @@ describe('채널 (입체 글자) 조합', () => {
   it('에폭시 채널: 입체 두께 25~80mm', () => {
     expect(values(ch({ channel: '갈바 에폭시 채널 (비조명)' }), 'chDepth')).toEqual(['25mm', '30mm', '35mm', '50mm', '60mm', '80mm']);
   });
-  it('전후광은 양면(돌출용) 선택, 서체 기준, 알루미늄 채널 프레임(폭·색), 까치발', () => {
-    expect(keys(ch({ channel: '전후광 채널' }))).toContain('chDouble');
-    expect(keys(ch({}))).not.toContain('chDouble');
+  it('전후광은 뒤판 선택(양면 = 전후광, 옛 "양면 (돌출용)" 없음 — 2026-10-23), 서체 기준, 알루미늄 채널 프레임(폭·색), 까치발', () => {
+    expect(keys(ch({ channel: '전후광 채널' }))).toContain('chBack');
+    expect(keys(ch({ channel: '전후광 채널' }))).not.toContain('chDouble');
+    expect(keys(ch({}))).not.toContain('chBack');
     expect(values(ch({}), 'font')).toEqual(['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)']);
     expect(values(ch({}), 'chFrame')).toEqual(['없음', '150폭', '200폭', '250폭', '300폭', '400폭']);
     expect(keys(ch({}))).not.toContain('chFramePaintSystem');

@@ -65,6 +65,8 @@ const isLit = (_opts: Options, o: SignObject) => o.productId !== 'ch-galva';
 const EPOXY = CHANNEL_OPTIONS[3].label; // 갈바 에폭시 채널 (비조명)
 const isEpoxy = (opts: Options) => opts.channel === EPOXY;
 const chTypeOf = (opts: Options) => (opts.chType as string | undefined) ?? '캡';
+/** 채널 몸통 마감 (2026-10-23) */
+export const CH_FINISHES = ['도장', '헤어라인', '미러', '티타늄 골드', '티타늄 로즈골드', '티타늄 블랙'];
 /**
  * 채널 조합 (2026-10-15 한울상사 LED 채널간판 분류: 전광·후광·전후광(캡/오사이, 양면)·캡 단차(아크릴)·일체형·에폭시(갈바/스텐 25~50, 일체형 A/L 35~80)·
  * 캡/오사이 용접·A/L 타카·통아크릴·벌브, 입체 80mm 기준(100mm +10%), 각고딕·영문고딕 기준(예서체 상담), 까치발·도장 별도, 알루미늄 채널 프레임 150~400폭)
@@ -75,13 +77,21 @@ export const CHANNEL_FIELDS: OptionField[] = [
   sel('chBuild', '제작 방식', ['용접', '타카'], (opts) => hasChannel(opts) && !isEpoxy(opts) && ['캡', '오싸이'].includes(chTypeOf(opts))),
   sel('chDepth', '입체 두께', ['80mm (기준)', '100mm (+10%)'], (opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('chDepth', '입체 두께', ['25mm', '30mm', '35mm', '50mm', '60mm', '80mm'], (opts) => isEpoxy(opts)),
-  tog('chDouble', '양면 (돌출용 전후광)', (opts) => opts.channel === CHANNEL_OPTIONS[2].label),
+  // 옛 "양면 (돌출용 전후광)"(chDouble) 은 없앰 — 양면 = 앞뒤 동시 발광 전후광 (2026-10-23). 저장된 값은 남아도 쓰지 않는다
+  // 갈바: 앞면 마감 도장 / 에폭시 (2026-10-23 채널 라이브러리 L2 — "갈바 전면"과 "에폭시 채널" 구분)
+  sel('chGalvaFace', '앞면 마감', ['에폭시', '도장'], isEpoxy),
+  sel('chBulbPitch', '전구 간격', ['50mm', '70mm', '100mm'], (opts) => opts.channel === CHANNEL_OPTIONS[5].label),
   LED_COLOR((opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('font', '서체', ['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)'], hasChannel),
   // 몸통 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다").
   // 이름은 '몸통' (2026-10-19 사용자: "체널에 측면컬러라고 되어있는데 몸통컬러라고 해야한다") — 저장 키(chSideMat·body…)는 그대로
   ...material('chSideMat', '몸통 재질', ['alu', 'stain', 'iron', 'galva'], 'body', '몸통', hasChannel),
+  // 몸통 마감 (2026-10-23 L2): 도장이 아니면 몸통 도색 칸은 없다(components/channel.ts) — 헤어라인·미러 스텐, 티타늄 코팅
+  sel('chFinish', '몸통 마감', CH_FINISHES, (opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('chFace', '앞면 판', ['아크릴', 'PC판'], (opts) => opts.channel === CHANNEL_OPTIONS[0].label || opts.channel === CHANNEL_OPTIONS[2].label),
+  // 뒤판 (후광·전후광): 앞면과 같게 = 뒤로 나가는 빛도 앞면 색 (2026-10-23 "후광도 같은 재질로 넣기도한다")
+  sel('chBack', '뒤판', ['투명 아크릴', '유백 아크릴', '앞면과 같게'], (opts) => opts.channel === CHANNEL_OPTIONS[1].label || opts.channel === CHANNEL_OPTIONS[2].label),
+  txt('chStep', '단차 높이 (mm)', '10', (opts) => hasChannel(opts) && !isEpoxy(opts) && chTypeOf(opts) === '캡 단차(아크릴)'),
   // 앞면 색(시트): 앞면이 빛나는 채널(전광·전후광·통아크릴·벌브) — 2026-10-17 "채널 앞면 색상(시트) 옵션 필요하다". 3D 글자 앞면·2D 글자 색
   ...paint('face', '앞면 색 (시트)', (opts) => [CHANNEL_OPTIONS[0].label, CHANNEL_OPTIONS[2].label, CHANNEL_OPTIONS[4].label, CHANNEL_OPTIONS[5].label].includes(String(opts.channel))),
   txt('chHeight', '글자 높이 (mm)', '비우면 간판 높이', hasChannel),
@@ -90,6 +100,7 @@ export const CHANNEL_FIELDS: OptionField[] = [
   // 캡(트림) 색: 캡·캡 단차 채널의 앞면 테두리 (2026-10-17 색 누락 점검)
   ...paint('cap', '캡(트림) 색', (opts) => hasChannel(opts) && !isEpoxy(opts) && ['캡', '캡 단차(아크릴)'].includes(chTypeOf(opts))),
   tog('bracket', '까치발 (별도)', hasChannel),
+  txt('chStandoff', '띄움 거리 (mm)', '30', (opts) => hasChannel(opts) && opts.bracket === true), // 벽에서 글자 뒤까지 — 3D 띄움·후광 번짐 (2026-10-23)
 ];
 
 // ---------- 스카시: 두께 · 재질 · 도색 컬러코드 (2026-10-15 사용자: "스카시: 고무, 티타늄, 아크릴 (두께,재질, 도색컬러코드)") ----------

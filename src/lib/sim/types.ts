@@ -12,6 +12,14 @@ export interface SignSpec {
   widthMm: number;
   /** 두께 (mm) */
   depthMm: number;
+  /** 채널 몸통 금속 마감 (없으면 도장) — 2026-10-23 */
+  finish?: 'hairline' | 'mirror';
+  /** 벽에서 띄운 거리 (mm, 까치발). 없으면 후광 35, 그 밖 0 */
+  standoffMm?: number;
+  /** 앞면 발광에 더해 뒤로도 빛(전후광) */
+  backLit?: boolean;
+  /** 벽에 번지는 빛 색 (없으면 앞면 색) */
+  haloColor?: string;
   /** 박스 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5) */
   corner?: number;
   letterSpacing: number;
@@ -35,7 +43,7 @@ export interface SignSpec {
    * 조합형 4단계 (2026-10-16): 구성 요소의 글자 객체마다 자기 자리(상자 중심 기준 mm, 위 +)에 입체 글자.
    * 있으면 letters 대신 이것 — 정면도 편집기에서 정한 위치·상자 크기 그대로(상자 안에 2D 와 같은 규칙으로 맞춤)
    */
-  letterItems?: { text: string; heightMm: number; /** 글자 상자 폭 (mm) — 있으면 상자에 맞춘다(fitBox) */ widthMm?: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number; /** 앞면에서 올라선 높이 (mm, 2단계 깊이 누적) */ z?: number }[];
+  letterItems?: { text: string; heightMm: number; /** 글자 상자 폭 (mm) — 있으면 상자에 맞춘다(fitBox) */ widthMm?: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number; /** 앞면에서 올라선 높이 (mm, 2단계 깊이 누적) */ z?: number; finish?: 'hairline' | 'mirror'; standoffMm?: number; backLit?: boolean; haloColor?: string }[];
   /** 앞면에 평면으로 그리는 객체 (그림, 시트의 글자): 중심 기준 mm, 위 +. 그림은 buildSign 의 images[id] */
   faceItems?: { id: string; kind: 'text' | 'image' | 'shape'; text?: string; x: number; y: number; w: number; h: number; color: string; /** 채움 불투명도 (안개 시트, 2026-10-22) */ opacity?: number; /** 앞면에서 올라선 높이 (mm): 0 이면 앞면 텍스처에, 크면 그 높이의 얇은 판으로 (2단계 — 채널 앞면 위 시트) */ z?: number; shape?: 'rect' | 'ellipse' | 'line'; fill?: string; stroke?: string }[];
   /** 몸통 없음: 상자는 그리지 않고 글자만 (letterItems) */

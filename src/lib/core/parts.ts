@@ -47,7 +47,7 @@ export function newItem(kind: PartItem['kind']): PartItem {
 /** 구성 요소 이름 (세부 종류 이름 — 종류 모듈이 정한다) */
 export const partLabel = (p: SignPart) => componentOf(p.kind).typeLabel(p);
 
-const CH_KEYS = ['chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chFrame', 'chFrameColor', 'bracket'];
+const CH_KEYS = ['chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chFrame', 'chFrameColor', 'bracket', 'chFinish', 'chBack', 'chStep', 'chStandoff', 'chGalvaFace', 'chBulbPitch'];
 const SC_KEYS: Record<string, string> = { scThick: 'thickness', scMaterial: 'material', scPaintSystem: 'paintSystem', scPaintCode: 'paintCode', scPaintGloss: 'paintGloss' };
 const pick = (opts: Record<string, string | boolean>, keys: string[]) => Object.fromEntries(keys.filter((k) => opts[k] !== undefined).map((k) => [k, opts[k]]));
 
@@ -94,7 +94,7 @@ export function partsOf(o: SignObject): SignPart[] {
 }
 
 /** 옛 채널·스카시·시트 옵션 키 — 구성 요소로 저장하면 몸통 옵션에서 지운다 */
-export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket',
+export const LEGACY_PART_KEYS = ['channel', 'chType', 'chBuild', 'chDepth', 'chDouble', 'ledColor', 'font', 'chSideMat', 'bodySystem', 'bodyCode', 'bodyGloss', 'chFace', 'chHeight', 'chFrame', 'chFrameColor', 'bracket', 'chFinish', 'chBack', 'chStep', 'chStandoff', 'chGalvaFace', 'chBulbPitch',
   'scashi', 'scThick', 'scMaterial', 'scPaintSystem', 'scPaintCode', 'scPaintGloss', 'scHeight', 'transferTape', 'coating', 'base', 'ink', 'sheetMat', 'halfCut', 'cut', 'cutMode',
   'topLight', 'topCount', 'topArm', 'topColor']; // 상단 조명도 구성 요소로 (2026-10-19)
 /** 구성 요소 저장 패치: parts 로 저장하고 옛 옵션·sheetIds 를 정리 (설정 창 카드와 빠른 설정이 같이 씀) */
