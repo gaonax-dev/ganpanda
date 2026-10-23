@@ -21,6 +21,20 @@ export interface PartPriceCtx {
   need(label: string, detail: string): void;
 }
 
+/** 빠른 선택 묶음 (채널 라이브러리, 2026-10-23): 사진을 고르면 세부 종류 + 옵션이 들어가고, 세부는 그다음 편집기에서 */
+export interface PartPreset {
+  no: number;
+  label: string;
+  desc: string;
+  /** 세부 종류 (part.type) */
+  type: string;
+  options: Record<string, string | boolean>;
+  /** 아직 옵션으로 없는 사양 — 세부에서 메모 */
+  gap?: string;
+  /** 썸네일 (public/) */
+  img: string;
+}
+
 export interface Component {
   kind: SignPart['kind'];
   /** 표시 이름 (채널·스카시·시트) */
@@ -72,6 +86,8 @@ export interface Component {
   defaultType?: string;
   /** 재료 층(뒤→앞)이 있는 종류: 그 층들 (단면 쌓기가 층마다 그린다, 2026-10-22). 없으면 한 덩어리 */
   stack?(part: SignPart, o?: SignObject): MaterialLayer[];
+  /** 사진으로 고르는 빠른 선택 묶음 (core/partPresets.ts) */
+  presets?: PartPreset[];
   /** 세부 종류의 기본 재료 층 묶음 (종류를 고르면 불러온다) */
   presetStack?(type: string, o?: SignObject): MaterialLayer[];
   /** 글자·그림·도형 객체를 받나 (상단 조명은 아님) */

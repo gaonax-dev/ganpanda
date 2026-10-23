@@ -12,6 +12,8 @@
   import { PART_KIND_LABEL, commitParts, newItem, newPart, partLabel, partSpecOf, partsOf, sheetTargets } from '../core/parts';
   import { componentOf } from '../core/components';
   import { insertSet } from '../core/setLibrary';
+  import { applyPreset, presetOf } from '../core/partPresets';
+  import type { PartPreset } from '../core/components/types';
   import { layersOf } from '../core/layers';
   import { commitLayers } from '../core/parts';
   import { optionValue, partOptionFields, type OptionField } from '../core/options';
@@ -44,6 +46,13 @@
     const keepCut: Record<string, string | boolean> = p.options?.cut ? { cut: p.options.cut } : {};
     if (comp.defaultType === '') return { type: t, options: keepCut, stack: t ? comp.presetStack?.(t, obj) ?? [] : p.stack ?? [] };
     return { type: t, options: {}, ...(p.stack ? { stack: comp.presetStack?.(t, obj) ?? p.stack } : {}) };
+  }
+  /** 사진으로 고르는 빠른 선택 (채널 라이브러리, 2026-10-23 "퀵으로 선택하고 여기에서 디테일을 추가하거나 빼는 방향"): 새 구성 요소(옵션 없음)는 펼쳐서 시작 */
+  let pickOpen = $state<Record<string, boolean>>({});
+  const pickShown = (p: SignPart) => pickOpen[p.id] ?? !Object.keys(p.options ?? {}).length;
+  function pickPreset(i: number, pr: PartPreset) {
+    edit((ps) => { ps[i] = applyPreset(ps[i], pr, obj); });
+    pickOpen = { ...pickOpen, [parts[i].id]: false };
   }
   function setLayerFinish(i: number, l: MaterialLayer, w: 'face' | 'side', v: string) {
     const stack = stackFor(parts[i])!;
@@ -131,6 +140,25 @@
         {/if}
         {#if !ro}<button class="icon del" data-testid="part-delete" title="구성 요소 지우기" onclick={() => delPart(i)}>✕</button>{/if}
       </div>
+      {#if comp.presets?.length && !ro}
+        {@const cur = presetOf(p)}
+        {#if pickShown(p)}
+          <div class="presets" data-testid="preset-grid">
+            {#each comp.presets as pr (pr.no)}
+              <button class="preset" class:on={cur?.no === pr.no} data-testid="preset-pick" title={pr.desc} onclick={() => pickPreset(i, pr)}>
+                <img src={pr.img} alt={pr.label} loading="lazy" width="120" height="80" />
+                <span>{String(pr.no).padStart(2, '0')} {pr.label}</span>
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div class="preset-cur" data-testid="preset-current">
+            {#if cur}<img src={cur.img} alt="" width="48" height="32" /><b>{cur.label}</b><small>{cur.desc}</small>{:else}<b>직접 고침</b><small>세부를 바꿨습니다</small>{/if}
+            <button class="btn small" data-testid="preset-open" onclick={() => (pickOpen = { ...pickOpen, [p.id]: true })}>사진으로 고르기</button>
+          </div>
+          {#if cur?.gap}<p class="preset-gap" data-testid="preset-gap">아직 옵션에 없음: {cur.gap} — 요청사항에 적어 주세요</p>{/if}
+        {/if}
+      {/if}
       {#if comp.stack}
         {@const cur = stackFor(p) ?? []}
         <!-- 재료 층 (2026-10-21): 뒤(맨 아래 줄)에서 앞(맨 위 줄)으로 — 밑판 철판 + 고무 … 층을 빼고 더하고, 층마다 앞면·옆면 마감(도색·시트) -->
@@ -282,5 +310,14 @@
   .file input { width: 160px; }
   .fname { font-size: 12px; opacity: 0.8; }
   .spec { font-size: 11px; color: var(--muted, #8b93a3); }
+  .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; margin: 6px 0; max-height: 340px; overflow-y: auto; }
+  .preset { display: flex; flex-direction: column; gap: 2px; padding: 3px; background: var(--input); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font: inherit; font-size: 11px; cursor: pointer; text-align: left; }
+  .preset.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .preset img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 5px; }
+  .preset span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preset-cur { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+  .preset-cur img { border-radius: 4px; object-fit: cover; }
+  .preset-cur small { color: var(--muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .preset-gap { margin: 0 0 6px; font-size: 11px; color: var(--muted); }
   .on { font-size: 12px; display: flex; align-items: center; gap: 4px; }
 </style>

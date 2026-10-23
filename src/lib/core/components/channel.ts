@@ -7,6 +7,7 @@ import { paintLabel } from '../materials';
 import { DEFAULT_LETTER3D, lightingOf } from '../letter3d';
 import { lettersPrice } from './letters';
 import { defaultChannelStack, stackDepth } from '../stack';
+import { CHANNEL_PRESETS } from '../channelLibrary';
 
 /** 3D 글자 깊이 (사인물 letter3d) */
 const letterDepth = (o?: SignObject) => ({ ...DEFAULT_LETTER3D, ...(o?.letter3d ?? {}) }).depthMm;
@@ -21,6 +22,7 @@ export const channel: Component = {
   // 재료 층 (S2, 2026-10-22): 저장된 재료 층이 없으면 3D 깊이(letter3d)로 종류의 기본 묶음을 보인다 — 층을 고치는 순간 저장(깊이 = 두께 합)
   stack: (p, o) => p.stack ?? defaultChannelStack(p.type, letterDepth(o)),
   presetStack: (type, o) => defaultChannelStack(type, letterDepth(o)),
+  presets: CHANNEL_PRESETS, // 15종 시안 사진으로 빠른 선택 (2026-10-23)
   typeLabel: (p) => typeLabel(p.type),
   spec: (p) => typeLabel(p.type),
   chip: (p) => { const led = p.options?.ledColor as string | undefined; return { text: `${typeLabel(p.type).replace(' 채널', '')}${led ? ` ${LED_KELVIN[led] ?? led}` : ''}`, color: paintLabel(p.options, 'body') }; },
