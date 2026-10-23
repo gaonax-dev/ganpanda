@@ -7,6 +7,8 @@ import { solveHomography } from '../core/homography';
 
 /** 후광 채널의 벽 이격(스페이서) 거리 */
 const HALO_STANDOFF = 35;
+/** 채널 몸통 금속 (2026-10-23): 도장 · 헤어라인 · 거울(미러·티타늄) */
+const METAL = { paint: { metalness: 0.6, roughness: 0.5 }, hairline: { metalness: 0.9, roughness: 0.32 }, mirror: { metalness: 1, roughness: 0.08 } } as const;
 
 export interface BuiltSign {
   group: THREE.Group;
@@ -251,7 +253,7 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
   const built: BuiltSign[] = [];
   for (const L of spec.letterItems ?? []) {
     let b: BuiltSign;
-    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0 }, font); }
+    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor }, font); }
     catch { continue; }
     bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
     box.group.add(b.group);
@@ -293,21 +295,26 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
 
   const led = new THREE.Color(spec.faceColor);
   // 재질: 거울 같은 금속(metalness 0.85·roughness 0.3)이 환경맵 창을 그대로 비춰 번들거렸음 → 도장 금속에 가깝게 (2026-10-17 "스팩큘러가 과도하다")
-  const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.6, roughness: 0.5 });
+  // 몸통 마감 (2026-10-23 L2): 헤어라인 = 결 있는 금속, 미러·티타늄 = 거울 — 도장보다 반사가 강하다
+  const metal = METAL[spec.finish ?? 'paint'];
+  const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, ...metal });
   const face =
     spec.lighting === 'front'
       ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
-        ? new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.7, roughness: 0.45 })
+        ? new THREE.MeshStandardMaterial({ color: spec.sideColor, ...(spec.finish ? metal : { metalness: 0.7, roughness: 0.45 }) })
         : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.7, clearcoat: 0.05 });
   // ExtrudeGeometry 그룹 0 = 앞/뒷면, 1 = 옆면
   const mesh = new THREE.Mesh(geo, [face, side]);
   mesh.castShadow = true;
-  mesh.position.z = spec.lighting === 'halo' ? HALO_STANDOFF : 0;
+  mesh.position.z = spec.standoffMm ?? (spec.lighting === 'halo' ? HALO_STANDOFF : 0); // 까치발 띄움 거리 (2026-10-23)
   mesh.userData.signId = spec.id;
   group.add(mesh);
 
-  // 글로우: 후광은 벽에 번지는 빛, 전광은 은은한 주변 번짐
+  // 글로우: 후광은 벽에 번지는 빛, 전광은 은은한 주변 번짐. 전후광(backLit)은 앞면 발광 + 벽 후광, 띄움이 클수록 넓게 번진다 (2026-10-23)
+  const haloish = spec.lighting === 'halo' || !!spec.backLit;
+  const spread = haloish ? Math.min(2, Math.max(0.6, (spec.standoffMm ?? HALO_STANDOFF) / HALO_STANDOFF)) : 1;
+  const glowColor = new THREE.Color(spec.haloColor ?? spec.faceColor);
   let glow: THREE.Mesh | null = null;
   if (spec.lighting !== 'none') {
     const pad = spec.heightMm * 0.8;
@@ -318,7 +325,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
         (gh / 2 - (v.y - center.y) * k) * s,
       ]);
       ctx.fill(path, 'evenodd');
-    }, gw, gh, '#' + led.getHexString(), [spec.heightMm * 0.2, spec.heightMm * 0.06]);
+    }, gw, gh, '#' + glowColor.getHexString(), [spec.heightMm * 0.2 * spread, spec.heightMm * 0.06 * spread]);
     glow = glowPlane(tex, gw, gh, 0.5);
     group.add(glow);
   }
@@ -328,7 +335,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     measured,
     setNight(night) {
       if ('emissiveIntensity' in face && spec.lighting === 'front') face.emissiveIntensity = night ? 1.7 : 0.12;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (spec.lighting === 'halo' ? 1 : 0.4) : 0;
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.4) : 0;
     },
     dispose() {
       geo.dispose(); side.dispose(); face.dispose();

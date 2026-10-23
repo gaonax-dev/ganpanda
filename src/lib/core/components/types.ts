@@ -86,6 +86,8 @@ export interface Component {
   defaultType?: string;
   /** 재료 층(뒤→앞)이 있는 종류: 그 층들 (단면 쌓기가 층마다 그린다, 2026-10-22). 없으면 한 덩어리 */
   stack?(part: SignPart, o?: SignObject): MaterialLayer[];
+  /** 3D 글자 모양 (채널 L2, 2026-10-23): 금속 마감 · 옆면 색 덮어쓰기 · 벽 띄움 · 뒤 빛 · 후광 색 — core/render.ts 가 글자 객체에 얹는다 */
+  look3d?(part: SignPart): Partial<Pick<NonNullable<import('../../sim/types').SignSpec['letterItems']>[number], 'finish' | 'sideColor' | 'standoffMm' | 'backLit' | 'haloColor'>>;
   /** 사진으로 고르는 빠른 선택 묶음 (core/partPresets.ts) */
   presets?: PartPreset[];
   /** 세부 종류의 기본 재료 층 묶음 (종류를 고르면 불러온다) */

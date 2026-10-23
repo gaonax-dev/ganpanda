@@ -58,11 +58,12 @@ export function defaultStack(type: string, bodyThickness?: number): MaterialLaye
  * 전광 = 갈바 뒷판 1.2T · LED · 알루미늄 옆판 · 아크릴 앞판 3T / 후광 = 아크릴 뒷판 3T · LED · 갈바 옆판 · 갈바 앞판 1.2T /
  * 전후광 = 아크릴 뒷판 · LED · 알루미늄 옆판 · 아크릴 앞판 / 갈바 에폭시(비조명) = 갈바 세 겹 / 통아크릴 = LED · 아크릴 몸통 / 벌브 = 갈바 뒷판 · LED · 갈바 옆판(앞이 열림)
  */
-export function defaultChannelStack(type: string, depth = 80): MaterialLayer[] {
+export function defaultChannelStack(type: string, depth = 80, /** 캡 단차 높이 = 앞판 두께 (mm, 2026-10-23) */ step = 0): MaterialLayer[] {
   const L = (material: string, thickness: number, role?: MaterialLayer['role']) => mk({ material, thickness: Math.max(0, Math.round(thickness * 10) / 10), ...(role ? { role } : {}) });
   const led = L('led', 0);
   switch (type) {
-    case 'ch-front': return [L('galva', 1.2, 'base'), led, L('alu', depth - 4.2, 'body'), L('acrylic', 3, 'face')];
+    case 'ch-front': if (step > 0) return [L('galva', 1.2, 'base'), led, L('alu', depth - 1.2 - step, 'body'), L('acrylic', step, 'face')];
+      return [L('galva', 1.2, 'base'), led, L('alu', depth - 4.2, 'body'), L('acrylic', 3, 'face')];
     case 'ch-halo': return [L('acrylic', 3, 'base'), led, L('galva', depth - 4.2, 'body'), L('galva', 1.2, 'face')];
     case 'ch-both': return [L('acrylic', 3, 'base'), led, L('alu', depth - 6, 'body'), L('acrylic', 3, 'face')];
     case 'ch-acrylic': return [led, L('acrylic', depth, 'body')];
