@@ -2,7 +2,7 @@
 // 토스 자동결제(빌링키)로 베이직·프로 월 구독. 결제 실패 7일 유예(합산 없음) → 무료, 해지 = 기간 끝까지 쓰고 갱신 안 함 (pricing.md 구독 정지 정책)
 import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
-import { addMonthsKst, allowedToPay, decryptKey, encryptKey, isTestKey, runBillingCycle, setTossFetch } from '../src/billing';
+import { addMonthsKst, allowedToPay, businessWaived, decryptKey, encryptKey, isTestKey, runBillingCycle, setTossFetch } from '../src/billing';
 import { get, json, login } from './helpers';
 
 type Call = { url: string; auth: string | null; idem: string | null; body: Record<string, unknown> };
@@ -54,6 +54,14 @@ describe('키·도우미', () => {
     expect(allowedToPay(e('a@x.com, b@x.com'), 'B@x.com')).toBe(true);
     expect(allowedToPay(e('a@x.com'), 'c@x.com')).toBe(false);
     expect(allowedToPay({ TOSS_SECRET_KEY: 'live_sk_x', TOSS_TEST_ALLOW_EMAILS: 'a@x.com' } as unknown as Env, 'c@x.com')).toBe(true);
+  });
+
+  it('심사 계정: 테스트 키 동안 허용 목록에 이름이 직접 있는 계정은 사업자 확인 없이 (목록이 비었거나 운영 키면 아님)', () => {
+    const e = (key: string, allow: string) => ({ TOSS_SECRET_KEY: key, TOSS_TEST_ALLOW_EMAILS: allow }) as unknown as Env;
+    expect(businessWaived(e('test_sk_x', 'review@x.com'), 'Review@x.com')).toBe(true);
+    expect(businessWaived(e('test_sk_x', 'review@x.com'), 'other@x.com')).toBe(false);
+    expect(businessWaived(e('test_sk_x', ''), 'review@x.com')).toBe(false);
+    expect(businessWaived(e('live_sk_x', 'review@x.com'), 'review@x.com')).toBe(false);
   });
 
   it('빌링키는 암호화해 저장 (AES-GCM, 위조하면 풀리지 않음)', async () => {
