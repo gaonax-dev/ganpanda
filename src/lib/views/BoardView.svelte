@@ -568,11 +568,12 @@
     <!-- 다중 선택 작업 막대 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기") -->
     <div class="multibar" data-testid="multi-bar">
       <span class="cnt" data-testid="multi-count">{app.selectionIds.length}개 선택</span>
-      <button class="btn small" data-testid="multi-apply" title="마지막에 고른 사인물의 종류·옵션·구성 요소·두께·문구를 나머지에 맞춥니다 (이름·치수·위치는 그대로)" onclick={() => app.applySelectedSpecToOthers()}>마지막 선택 구성으로 맞추기</button>
+      <!-- 재질복제 (2026-10-23 "마지막선택 사인물의 재질로 일관변경 단 사이즈는 유지" → "두께도 같이 변경") -->
+      <button class="btn small" data-testid="multi-apply" title="마지막에 고른 사인물의 종류·옵션·시트·두께·구성 요소 재료를 나머지에 (가로·세로·이름·문구·글자 배치는 그대로)" onclick={() => app.applySelectedSpecToOthers()}>재질복제</button>
       <button class="btn small" data-testid="multi-size" title="마지막에 고른 사인물의 가로·세로·두께(mm)를 나머지에 맞춥니다 (사진 위 영역은 그대로)" onclick={() => app.applySelectedSizeToOthers()}>마지막 선택 크기 적용</button>
       <button class="btn small" data-testid="multi-duplicate" title="각각 바로 옆에 복제" onclick={() => app.duplicateSelection()}>복사</button>
       <button class="btn small danger" data-testid="multi-delete" onclick={() => app.deleteSelection()}>삭제</button>
-      <button class="icon" data-testid="multi-clear" title="선택 해제" onclick={() => app.selectObject(null)}>✕</button>
+      <button class="btn small" data-testid="multi-clear" title="선택 해제 (다중 끄기)" onclick={() => app.selectObject(null)}>정리</button> <!-- 2026-10-23 "정리는 선택해제" -->
     </div>
   {/if}
 <!-- 사진 교체 파일 고르기 (2026-10-21, 도구 막대 밖 — 막대 순서 테스트) -->

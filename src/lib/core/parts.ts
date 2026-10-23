@@ -215,3 +215,26 @@ export function lightOf(o: SignObject, widthMm?: number, heightMm?: number): Top
   return p ? topLightFrom(p.type, p.options, o.widthMm ?? widthMm ?? 0, o.heightMm ?? heightMm ?? 0) : null;
 }
 
+
+/**
+ * 재질복제 (2026-10-23 사용자: "다중선택 메뉴에서 … 재질복제(마지막선택 사인물의 재질로 일관변경 단 사이즈는 유지)" → "두께도 같이 변경"):
+ * 마지막 선택(src)의 종류·옵션·시트·두께(depthMm·letter3d)·구성 요소(종류·옵션·재료 층)를 대상(dst)에. 가로·세로·이름·문구·사진 위 영역은 그대로.
+ * 구성 요소 안의 글자·그림은 대상의 같은 종류 구성 요소 것을 유지하고, 대상에 없으면 원본 것을 대상 크기에 맞춰 늘이고 줄인다
+ */
+export function materialPatch(src: SignObject, dst: SignObject): Partial<SignObject> {
+  const clone = <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+  const sp = partsOf(src), dp = partsOf(dst);
+  const sx = src.widthMm && dst.widthMm ? dst.widthMm / src.widthMm : 1, sy = src.heightMm && dst.heightMm ? dst.heightMm / src.heightMm : 1;
+  const r = (v: number) => Math.round(v * 10) / 10;
+  const used = new Set<string>();
+  const parts: SignPart[] = sp.map((p) => {
+    const mine = dp.find((q) => q.kind === p.kind && !used.has(q.id));
+    if (mine) used.add(mine.id);
+    const items = mine ? clone(mine.items) : p.items.map((it) => ({ ...clone(it), x: r(it.x * sx), y: r(it.y * sy), h: r(it.h * Math.min(sx, sy)), ...(it.w ? { w: r(it.w * sx) } : {}) }));
+    return { ...clone(p), items };
+  });
+  return {
+    productId: src.productId, sheetIds: clone(src.sheetIds), options: clone(src.options), depthMm: src.depthMm, letter3d: clone(src.letter3d),
+    parts: parts.length ? parts : undefined, layers: parts.length ? fromParts(parts) : undefined,
+  };
+}

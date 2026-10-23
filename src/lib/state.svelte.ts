@@ -46,7 +46,7 @@ import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
-import { categoryPatch } from './core/parts';
+import { categoryPatch, materialPatch } from './core/parts';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -1340,9 +1340,9 @@ class AppState {
   applySelectedSpecToOthers() {
     const src = this.selected;
     if (!this.canEdit || !src || !this.multi.length) return;
-    const spec = JSON.parse(JSON.stringify({ productId: src.productId, sheetIds: src.sheetIds, options: src.options, parts: src.parts, layers: src.layers, depthMm: src.depthMm, letter3d: src.letter3d, text: src.text, charCount: src.charCount, corner: src.corner })) as Partial<SignObject>;
+    // 재질복제 (2026-10-23 "마지막선택 사인물의 재질로 일관변경 단 사이즈는 유지" → "두께도 같이 변경"): 종류·옵션·시트·두께·구성 요소 재료, 가로·세로·이름·문구·글자 배치는 그대로
     this.editBoundary();
-    for (const id of this.multi) if (id !== src.id) this.project.updateObject(id, spec);
+    for (const id of this.multi) { const dst = this.objects.find((x) => x.id === id); if (dst && id !== src.id) this.project.updateObject(id, materialPatch(src, dst)); }
     this.editBoundary();
   }
   /** 마지막 선택의 치수(가로·세로·두께)를 나머지 선택에 (2026-10-17 사용자: "다중선택에 추가 메뉴 마지막 선택 크기적용"). 사진 위 영역(quad)은 그대로 — 실제 치수만 */
