@@ -26,6 +26,7 @@ import { prepareUpload } from './photoPrep';
 import { autoFlatScale, clampFlatScale, placeholderSize } from './core/boardCards';
 import { fetchRequestPhoto, getRequestPhotoCount, listMyRequests, listRequests } from './requests';
 import { formatBytes } from './core/format';
+import { describeBillingError, issueBilling, takeBillingReturn, type BillingReturn } from './billing';
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
@@ -39,7 +40,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -453,6 +454,9 @@ class AppState {
     this.page = /^\/r\/[A-Za-z0-9_-]{16}$/.test(url.pathname) ? 'request-view' : null;
     // 서버가 없으면(오프라인 빌드) 로컬 기본 방
     this.room = this.consumer ? null : url.searchParams.get('room') ?? (SERVER_URL ? null : 'local-default'); // 소비자 방은 로그인 뒤 서버에서 (init)
+    // 토스 카드 등록에서 돌아옴 (2026-10-23 결제): 결과를 읽고 주소에서 지운다 — 성공은 로그인 확인 뒤 발급·결제(applyMe)
+    this.billingReturn = takeBillingReturn();
+    if (this.billingReturn?.kind === 'fail') { this.notice = `카드 등록이 되지 않았습니다: ${this.billingReturn.message}`; this.billingReturn = null; }
     const inviteParam = url.searchParams.get('invite');
     this.invite = this.room ? inviteParam ?? load(`ganpanda.invite.${this.room}`) : null;
     this.proposalMode = url.searchParams.get('proposal') === '1';
@@ -555,8 +559,20 @@ class AppState {
     else if (me && this.setLibrary.length) void this.persistSets();
     this.requestSettings = me?.requestSettings ?? null;
     this.business = me?.business ?? null;
+    if (me?.account && this.billingReturn?.kind === 'success') void this.finishBilling(this.billingReturn);
     void this.refreshRequestCount();
     if (me) void this.loadSpecRules();
+  }
+  /** 토스 카드 등록에서 돌아온 결과 (시작 주소) */
+  private billingReturn: BillingReturn | null = null;
+  /** 돌아온 카드 등록 → 빌링키 발급 + 새 구독이면 첫 달 결제 → 요금제 */
+  private async finishBilling(r: Extract<BillingReturn, { kind: 'success' }>) {
+    this.billingReturn = null;
+    try {
+      const res = await issueBilling(r);
+      await this.refreshMe();
+      this.notice = res.changed === 'card' ? '결제 카드를 바꿨습니다.' : `${PLAN_LABEL[r.plan] ?? r.plan} 요금제가 시작되었습니다. 결제 내역과 다음 결제일은 설정 "계정 · 구독"에서 볼 수 있습니다.`;
+    } catch (e) { this.notice = `결제하지 못했습니다: ${describeBillingError(e)}`; }
   }
   /** 가게 사장 → 간판집 (2026-10-22 "소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다"): 견적 보드는 보통 프로젝트로 */
   async becomeShop() { await convertToShop(); await this.refreshMe(); }

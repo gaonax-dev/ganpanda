@@ -9,6 +9,7 @@
   import { glossaryCsv } from '../core/terms';
   import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
   import { describeBusinessError, removeBusiness, verifyBusiness } from '../business';
+  import BillingSection from './BillingSection.svelte';
   /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
   function exportGlossary() {
     const blob = new Blob([glossaryCsv(app.prices, app.specRules)], { type: 'text/csv;charset=utf-8' });
@@ -156,6 +157,8 @@
             <p class="row"><span>가게 사장 계정</span><button class="btn small" data-testid="settings-to-shop" onclick={toShop}>간판집으로 전환</button></p>
           </section>
         {:else}
+        <!-- 구독 (2026-10-23 토스 자동결제) — 사업자 확인이 먼저 -->
+        <BillingSection />
         <!-- 사업자 확인 (2026-10-21): 소유자 계정만. 번호·대표자명·개업일 → 국세청 → 제안 페이지 배지, 체험·요금은 사업자당 1번 -->
         <section data-testid="business-section">
           <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>

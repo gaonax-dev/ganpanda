@@ -65,6 +65,15 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 [공공데이터포털](https://www.data.go.kr) "국세청_사업자등록정보 진위확인 및 상태조회 서비스" 활용신청 → 일반 인증키(**Decoding**) → `cd server && echo -n '<키>' | npx wrangler secret put NTS_API_KEY`. 로컬 `.dev.vars` 는 `NTS_API_KEY=fake`(가짜 응답). 비어 있으면 설정의 사업자 확인이 503 `not_configured`. 운영 등록 2026-10-21. 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0018_business).
 - 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0004_identities).
 
+## 결제 키 — 토스페이먼츠 (2026-10-23)
+토스페이먼츠 개발자센터 → **API 개별 연동 키**(자동결제 — 결제위젯 키 아님). 키는 사용자가 직접 넣는다:
+`cd server && npx wrangler secret put TOSS_CLIENT_KEY` · `npx wrangler secret put TOSS_SECRET_KEY` · `npx wrangler secret put BILLING_ENC_KEY`(빌링키 암호화 — `openssl rand -hex 32` 로 만든 32바이트 hex, **바꾸면 저장된 카드를 못 씀**) · 테스트 키 동안 `npx wrangler secret put TOSS_TEST_ALLOW_EMAILS`(쉼표 목록, 비우면 모두).
+- `test_` 키 = 테스트 결제(실제 청구 없음, 설정에 "테스트 결제" 안내). 카드사·자동결제 심사가 끝나면 `live_` 키로 바꾼다.
+- 웹훅: 개발자센터 → 웹훅 → `https://sync.ganpanda.co.kr/api/billing/webhook` (결제 상태 변경). 본문은 믿지 않고 다시 조회한다.
+- 매달 결제는 기존 cron(매시간 17분)에서 `runBillingCycle`.
+- 로컬·E2E `.dev.vars`: `TOSS_CLIENT_KEY=fake`, `TOSS_SECRET_KEY=fake`, `BILLING_ENC_KEY=<hex>` — 토스 창 없이 바로 돌아오는 가짜 흐름.
+- 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0034_billing). 키가 없으면 설정의 구독 칸이 보이지 않는다.
+
 ## 도메인 `ganpanda.co.kr`
 - Cloudflare 영역에 추가됨. 커스텀 도메인(`routes[].custom_domain`)은 배포 시 DNS 레코드가 자동 생성됩니다.
 - 2026-10-13 네임서버 전파 완료(`titan`/`venus.ns.cloudflare.com`). `ganpanda.co.kr`, `www`, `sync` 모두 동작.
