@@ -32,8 +32,9 @@ test('채널을 넣으면 15종 사진이 나오고, 고르면 종류·옵션이
   await expect(ch.getByTestId('preset-current')).toContainText('직접 고침');
   // 다시 펼쳐 다른 것으로
   await ch.getByTestId('preset-open').click();
-  await ch.getByTestId('preset-pick').nth(10).click(); // 11 일체형 — 측면 발광은 아직 (L3)
-  await expect(ch.getByTestId('preset-gap')).toContainText('측면 발광');
+  await ch.getByTestId('preset-pick').nth(12).click(); // 13 오사이 용접 — 비조명 (L3)
+  await expect(ch.getByTestId('part-option-chLight')).toHaveValue('비조명');
+  await expect(ch.getByTestId('part-option-ledColor')).toHaveCount(0);
   await ch.getByTestId('preset-open').click();
   await ch.getByTestId('preset-pick').nth(8).click(); // 09 후광
   await expect(ch.getByTestId('part-type')).toHaveValue('ch-halo');

@@ -81,7 +81,9 @@ export const CHANNEL_FIELDS: OptionField[] = [
   // 갈바: 앞면 마감 도장 / 에폭시 (2026-10-23 채널 라이브러리 L2 — "갈바 전면"과 "에폭시 채널" 구분)
   sel('chGalvaFace', '앞면 마감', ['에폭시', '도장'], isEpoxy),
   sel('chBulbPitch', '전구 간격', ['50mm', '70mm', '100mm'], (opts) => opts.channel === CHANNEL_OPTIONS[5].label),
-  LED_COLOR((opts) => hasChannel(opts) && !isEpoxy(opts)),
+  // 점등/비조명 (2026-10-23 L3): 전광·후광·전후광도 LED 없이(비조명 스텐 등) — 비조명이면 LED 색·뒤판 없음
+  sel('chLight', '점등', ['점등', '비조명'], (opts) => [CHANNEL_OPTIONS[0].label, CHANNEL_OPTIONS[1].label, CHANNEL_OPTIONS[2].label].includes(String(opts.channel))),
+  LED_COLOR((opts) => hasChannel(opts) && !isEpoxy(opts) && opts.chLight !== '비조명'),
   sel('font', '서체', ['각고딕·영문고딕 (기준)', '명조·예서체 등 (상담)'], hasChannel),
   // 몸통 재질 객체 + 도색, 앞면 판 (전광·전후광: 아크릴/PC판 — 2026-10-16 사용자: "체널 전광의 경우 pc판도 선택할 수 있다").
   // 이름은 '몸통' (2026-10-19 사용자: "체널에 측면컬러라고 되어있는데 몸통컬러라고 해야한다") — 저장 키(chSideMat·body…)는 그대로
@@ -90,7 +92,7 @@ export const CHANNEL_FIELDS: OptionField[] = [
   sel('chFinish', '몸통 마감', CH_FINISHES, (opts) => hasChannel(opts) && !isEpoxy(opts)),
   sel('chFace', '앞면 판', ['아크릴', 'PC판'], (opts) => opts.channel === CHANNEL_OPTIONS[0].label || opts.channel === CHANNEL_OPTIONS[2].label),
   // 뒤판 (후광·전후광): 앞면과 같게 = 뒤로 나가는 빛도 앞면 색 (2026-10-23 "후광도 같은 재질로 넣기도한다")
-  sel('chBack', '뒤판', ['투명 아크릴', '유백 아크릴', '앞면과 같게'], (opts) => opts.channel === CHANNEL_OPTIONS[1].label || opts.channel === CHANNEL_OPTIONS[2].label),
+  sel('chBack', '뒤판', ['투명 아크릴', '유백 아크릴', '앞면과 같게'], (opts) => (opts.channel === CHANNEL_OPTIONS[1].label || opts.channel === CHANNEL_OPTIONS[2].label) && opts.chLight !== '비조명'),
   txt('chStep', '단차 높이 (mm)', '10', (opts) => hasChannel(opts) && !isEpoxy(opts) && chTypeOf(opts) === '캡 단차(아크릴)'),
   // 앞면 색(시트): 앞면이 빛나는 채널(전광·전후광·통아크릴·벌브) — 2026-10-17 "채널 앞면 색상(시트) 옵션 필요하다". 3D 글자 앞면·2D 글자 색
   ...paint('face', '앞면 색 (시트)', (opts) => [CHANNEL_OPTIONS[0].label, CHANNEL_OPTIONS[2].label, CHANNEL_OPTIONS[4].label, CHANNEL_OPTIONS[5].label].includes(String(opts.channel))),

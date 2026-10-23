@@ -69,6 +69,6 @@ describe('채널 옵션 보강', () => {
     expect(by(14).options.chFinish).toBe('티타늄 골드');
     expect(by(8).options.chStep).toBeTruthy();
     for (const n of [5, 6, 7, 9]) expect(by(n).options.chStandoff).toBeTruthy();
-    expect(CHANNEL_PRESETS.filter((p) => p.gap).map((p) => p.no)).toEqual([11]); // 측면 발광만 L3
+    expect(CHANNEL_PRESETS.filter((p) => p.gap).map((p) => p.no)).toEqual([]); // 측면 발광도 L3 에서 (2026-10-23)
   });
 });
