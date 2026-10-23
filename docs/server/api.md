@@ -54,6 +54,11 @@
 | PATCH / DELETE | `/api/me/team/:accountId` `{canBilling}` | 정산 보기 허용 / 멤버 제거 | 200 / 204 / 404 |
 | PUT | `/api/me/plan` `{plan: free\|basic\|pro}` | **개발 모드 전용**(`AUTH_DEV_LINK=1`, E2E 에서 소유자+직원 동시 작업용). 운영은 404 — 결제 미구현, 관리자가 D1 에서 바꿈 | `{account}` / 400 / 404 |
 | GET·PUT·DELETE | `/api/me/business` `{no, ownerName, startDate, name?}` | 사업자 확인 (2026-10-21): 국세청 진위확인 → 계정에 사업자. `/api/me` 응답에도 `business` | 200 `{business}` / 400 `{error: bad_input\|mismatch\|not_registered}` / 409 `taken` / 502 `nts_unavailable` / 503 `not_configured` → [../features/accounts.md](../features/accounts.md) |
+| GET | `/api/me/billing` | 구독·결제 (2026-10-23 토스 자동결제): `{configured, test, fake, clientKey, allowed, business, plan, plans[{id,name,priceKrw}], sub{plan,nextPlan,autoRenew,periodEnd,graceUntil,card,lastError,hasCard}\|null, payments[]}` | 200 → [../product/pricing.md](../product/pricing.md#결제-2026-10-23-토스페이먼츠-자동결제) |
+| POST | `/api/me/billing/prepare` `{plan}` | 카드 등록 준비 → `{customerKey, clientKey}` (계정마다 하나) | 403 `business_required`·`not_allowed` / 400 `bad_plan` / 503 `not_configured` |
+| POST | `/api/me/billing/issue` `{authKey, customerKey, plan}` | 토스 카드 등록에서 돌아와 빌링키 발급(암호화 저장) → 새 구독이면 첫 달 결제·요금제, 구독 중이면 카드 바꾸기(유예 중이면 바로 재결제) | 200 `{ok, changed?:'card', sub}` / 402 `{error: charge_failed\|issue_failed, message}` / 400 `bad_request` |
+| POST | `/api/me/billing/cancel` · `/resume` · `/plan {plan}` | 해지 예약(기간 끝까지) · 해지 취소 · 다음 결제일부터 요금제 | 200 `{ok, sub}` / 400 `no_subscription` |
+| POST | `/api/billing/webhook` | 토스 웹훅(인증 없음): 본문은 믿지 않고 주문을 토스에 다시 조회 — 취소면 결제 기록만 `CANCELED` | 200 |
 | POST | `/api/me/presence` `{device}` | 같은 아이디 동시 사용 신호(30초마다, 2026-10-21) | `{others}` 지금 쓰는 다른 기기 수 / 400 / 401 |
 | POST | `/api/me/logout-others` `{device}` | [다른 곳 로그아웃] — 이 세션 말고 이 계정 세션 모두 삭제 | `{ok}` / 400 / 401 |
 | GET | `/api/invites/:token` | 초대 토큰 조회 (로그인 불필요) | `{project:{id,name}, role}` / 404 |
