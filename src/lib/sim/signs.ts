@@ -1,5 +1,7 @@
 // 간판 사양(SignSpec) → Three.js 메쉬. 모든 단위 mm, 벽면 = z 0 평면, +z = 벽 밖(카메라 쪽).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { insidePoints, spacedPoints } from './bulbs';
 import type { Font } from 'opentype.js';
 import type { Measured, SignSpec } from './types';
 import { shapesToPath2D, textToShapes } from '../core/textShapes';
@@ -253,7 +255,7 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
   const built: BuiltSign[] = [];
   for (const L of spec.letterItems ?? []) {
     let b: BuiltSign;
-    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor }, font); }
+    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
     catch { continue; }
     bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
     box.group.add(b.group);
@@ -297,9 +299,14 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   // 재질: 거울 같은 금속(metalness 0.85·roughness 0.3)이 환경맵 창을 그대로 비춰 번들거렸음 → 도장 금속에 가깝게 (2026-10-17 "스팩큘러가 과도하다")
   // 몸통 마감 (2026-10-23 L2): 헤어라인 = 결 있는 금속, 미러·티타늄 = 거울 — 도장보다 반사가 강하다
   const metal = METAL[spec.finish ?? 'paint'];
-  const side = new THREE.MeshStandardMaterial({ color: spec.sideColor, ...metal });
+  // 일체형 = 옆면도 빛 (2026-10-23 L3)
+  const side = spec.sideLit
+    ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 })
+    : new THREE.MeshStandardMaterial({ color: spec.sideColor, ...metal });
   const face =
-    spec.lighting === 'front'
+    spec.bulbPitchMm // 벌브: 앞면은 도장, 빛은 전구가
+      ? new THREE.MeshStandardMaterial({ color: led, metalness: 0.3, roughness: 0.55 })
+      : spec.lighting === 'front'
       ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
         ? new THREE.MeshStandardMaterial({ color: spec.sideColor, ...(spec.finish ? metal : { metalness: 0.7, roughness: 0.45 }) })
@@ -310,6 +317,34 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   mesh.position.z = spec.standoffMm ?? (spec.lighting === 'halo' ? HALO_STANDOFF : 0); // 까치발 띄움 거리 (2026-10-23)
   mesh.userData.signId = spec.id;
   group.add(mesh);
+  const z0 = mesh.position.z;
+  // 글자 윤곽 (mm, 글자마다 바깥 + 구멍) — 전구·받침 자리 (sim/bulbs.ts)
+  const glyphPolys = (spec.bulbPitchMm || spec.standoffMm) ? shapes.map((sh) => { const e = sh.extractPoints(6); return [e.shape, ...e.holes].map((c) => c.map((v) => [(v.x - center.x) * kx, (v.y - center.y) * k] as [number, number])); }) : [];
+  // 벌브 전구: 앞면에 간격대로 (밤에 켜짐)
+  let bulbs: THREE.Mesh | null = null, bulbMat: THREE.MeshStandardMaterial | null = null;
+  if (spec.bulbPitchMm) {
+    const pitch = spec.bulbPitchMm, r = Math.min(pitch * 0.2, 14);
+    const pts = glyphPolys.flatMap((polys) => spacedPoints(polys, pitch, r * 1.2));
+    if (pts.length) {
+      const g = mergeGeometries(pts.map(([x, y]) => new THREE.SphereGeometry(r, 10, 8).translate(x, y, spec.depthMm + r * 0.35)));
+      bulbMat = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffcf8a', emissiveIntensity: 0.3, roughness: 0.3 });
+      bulbs = new THREE.Mesh(g, bulbMat);
+      bulbs.position.z = z0;
+      group.add(bulbs);
+    }
+  }
+  // 까치발 받침: 벽에서 글자 뒤까지 (띄움 거리) — 글자마다 2~3개
+  let rods: THREE.Mesh | null = null, rodMat: THREE.MeshStandardMaterial | null = null;
+  if (spec.standoffMm && spec.standoffMm > 0) {
+    const pts = glyphPolys.flatMap((polys) => insidePoints(polys, spec.heightMm * 0.45, 8).slice(0, 3));
+    if (pts.length) {
+      const L = spec.standoffMm;
+      const g = mergeGeometries(pts.map(([x, y]) => new THREE.CylinderGeometry(6, 6, L, 10).rotateX(Math.PI / 2).translate(x, y, L / 2)));
+      rodMat = new THREE.MeshStandardMaterial({ color: '#9aa0a6', metalness: 0.8, roughness: 0.35 });
+      rods = new THREE.Mesh(g, rodMat);
+      group.add(rods);
+    }
+  }
 
   // 글로우: 후광은 벽에 번지는 빛, 전광은 은은한 주변 번짐. 전후광(backLit)은 앞면 발광 + 벽 후광, 띄움이 클수록 넓게 번진다 (2026-10-23)
   const haloish = spec.lighting === 'halo' || !!spec.backLit;
@@ -334,11 +369,14 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     group,
     measured,
     setNight(night) {
-      if ('emissiveIntensity' in face && spec.lighting === 'front') face.emissiveIntensity = night ? 1.7 : 0.12;
+      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 1.7 : 0.12;
+      if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
+      if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.4) : 0;
     },
     dispose() {
       geo.dispose(); side.dispose(); face.dispose();
+      bulbs?.geometry.dispose(); bulbMat?.dispose(); rods?.geometry.dispose(); rodMat?.dispose();
       if (glow) { glow.geometry.dispose(); (glow.material as THREE.MeshBasicMaterial).map?.dispose(); (glow.material as THREE.Material).dispose(); }
     },
   };
