@@ -22,11 +22,21 @@ a { color: var(--link); }
 .meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
 nav { display: flex; gap: 14px; font-size: 13px; margin-bottom: 28px; }
 footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+footer p { margin: 2px 0; font-size: 12px; }
+footer .links { margin-top: 8px; }
+nav { flex-wrap: wrap; }
+table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 14px; }
+th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: color-mix(in srgb, var(--line) 40%, transparent); }
+.price { font-size: 18px; font-weight: 800; white-space: nowrap; }
+td:first-child, th { white-space: nowrap; }
+.scroll { overflow-x: auto; }
+.cta { display: inline-block; margin-top: 8px; padding: 10px 16px; border-radius: 8px; background: #ffcc00; color: #1a1500; font-weight: 700; text-decoration: none; }
 </style>
 </head>
 <body>
 <main>
-<nav><a href="/">간판다</a><a href="/terms">이용약관</a><a href="/refund">환불 정책</a></nav>
+<nav><a href="/">간판다</a><a href="/pricing">요금제</a><a href="/terms">이용약관</a><a href="/refund">환불 정책</a><a href="/privacy">개인정보처리방침</a></nav>
 <h1>환불 정책</h1>
 <p class="meta">최종 수정일: 2026년 10월 23일 · 시행일: 2026년 10월 23일 · 근거: <a href="/terms#refund">이용약관 제4조의2~제4조의4</a></p>
 
@@ -42,13 +52,23 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
   <li>무료 요금제로 전환되어도 프로젝트·사진·대화 등 자료는 삭제하지 않으며, 고객에게 보낸 제안 링크도 계속 열립니다.</li>
 </ul>
 
-<h2>2. 환불 신청과 처리</h2>
+<h2>2. 배송</h2>
+<ul>
+  <li>간판다는 온라인 서비스로 <b>배송되는 상품이 없습니다</b>. 결제가 끝나면 바로 유료 요금제를 이용할 수 있습니다.</li>
+</ul>
+
+<h2>3. 환불 신청과 처리</h2>
 <ul>
   <li>환불 신청: <a href="mailto:support@ganpanda.co.kr">support@ganpanda.co.kr</a> (가입 이메일 또는 카카오 계정, 결제일, 결제 금액을 적어 주세요)</li>
   <li>회사는 접수일로부터 영업일 기준 3일 이내에 답변합니다.</li>
   <li>환불은 결제한 카드의 결제 취소로 처리되며, 카드사 사정에 따라 반영까지 영업일 기준 3~7일이 걸릴 수 있습니다.</li>
 </ul>
-<footer>가오낙스(gaonax) · 대표자 김성범 · 사업자등록번호 271-79-00651 · 통신판매업 신고번호 2025-경기이천-0538 · <a href="mailto:support@ganpanda.co.kr">support@ganpanda.co.kr</a></footer>
+<footer>
+<p><b>가오낙스</b> · 대표자 김성범 · 사업자등록번호 271-79-00651 <a href="https://www.ftc.go.kr/bizCommPop.do?wrkr_no=2717900651" target="_blank" rel="noopener">사업자정보 확인</a></p>
+<p>통신판매업 신고번호 2025-경기이천-0538 · 주소 경기도 이천시 부발읍 대산로 515-12 은행나무안채</p>
+<p>대표전화 031-632-0907 · 이메일 <a href="mailto:support@ganpanda.co.kr">support@ganpanda.co.kr</a></p>
+<p class="links"><a href="/pricing">요금제</a> · <a href="/terms">이용약관</a> · <a href="/refund">환불 정책</a> · <a href="/privacy"><b>개인정보처리방침</b></a></p>
+</footer>
 </main>
 </body>
 </html>

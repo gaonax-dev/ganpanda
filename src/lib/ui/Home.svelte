@@ -7,6 +7,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
+  import SiteFooter from './SiteFooter.svelte';
   import { splitShelf } from '../core/projectShelf';
   import HomeTalks from './HomeTalks.svelte';
   import { listMyRequests, type MyRequest } from '../requests';
@@ -379,6 +380,8 @@
       <p class="hint">초대 링크로 받은 제안은 로그인 없이 바로 열립니다.</p>
     </section>
   {/if}
+  <!-- 사업자 정보 (2026-10-23 결제사 홈페이지 심사) — 로그인 전·후 모두 -->
+  <SiteFooter />
 </div>
 
 {#if details}
@@ -484,7 +487,9 @@
   .rcard.mine { align-items: center; text-decoration: none; color: var(--text); font-size: 13px; }
   .rcard.mine .resp { margin-left: auto; color: var(--accent); white-space: nowrap; }
   .rcard { display: flex; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0; }
-  .home { position: absolute; inset: 0; overflow-y: auto; display: flex; justify-content: center; padding: 40px 16px 90px; }
+  /* 세로로 쌓고 가운데 — 맨 아래 사업자 정보 푸터 (2026-10-23) */
+  .home { position: absolute; inset: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: 40px 16px 90px; }
+  .home > :global(.site-footer) { width: min(900px, 100%); margin-top: auto; }
   section { width: min(900px, 100%); }
   h1 { font-size: 22px; margin: 0 0 14px; }
   .new { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
