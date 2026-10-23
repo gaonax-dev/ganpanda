@@ -32,6 +32,12 @@ export function allowedToPay(env: Env, email: string): boolean {
   return !list.length || list.includes(email.toLowerCase());
 }
 
+/** 결제사 심사 계정 (2026-10-23 "테스트계정을 제공해야한다"): 테스트 키 동안 허용 목록에 이름이 직접 있는 계정은 사업자 확인 없이 구독 — 심사 담당자는 국세청 확인을 통과할 수 없다 */
+export function businessWaived(env: Env, email: string): boolean {
+  if (!isTestKey(env.TOSS_SECRET_KEY ?? '')) return false;
+  return (env.TOSS_TEST_ALLOW_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).includes(email.toLowerCase());
+}
+
 // ---------- 빌링키 암호화 (AES-256-GCM, iv 12바이트 + 암호문 → base64) ----------
 async function encKey(env: Env) {
   const hex = env.BILLING_ENC_KEY;
@@ -164,7 +170,7 @@ export async function handleBilling(req: Request, env: Env, pathname: string): P
     const { results } = await env.DB.prepare('SELECT order_id, plan, amount, kind, status, receipt_url, error, created_at FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 24').bind(me.id).all<{ order_id: string; plan: string; amount: number; kind: string; status: string; receipt_url: string | null; error: string | null; created_at: number }>();
     return json({
       configured: configured(env), test: isFake(env) || isTestKey(env.TOSS_SECRET_KEY ?? ''), fake: isFake(env), clientKey: configured(env) ? env.TOSS_CLIENT_KEY : '',
-      allowed: allowedToPay(env, me.email), business: await hasBusiness(env, me.id), plan: me.plan,
+      allowed: allowedToPay(env, me.email), business: businessWaived(env, me.email) || (await hasBusiness(env, me.id)), plan: me.plan, // 심사 계정은 사업자 확인된 것으로
       plans: PAID.map((id) => ({ id, name: PLANS[id].name, priceKrw: PLANS[id].priceKrw })),
       sub: subOf(row),
       payments: results.map((p) => ({ orderId: p.order_id, plan: p.plan, amount: p.amount, kind: p.kind, status: p.status, receiptUrl: p.receipt_url, error: p.error, at: p.created_at })),
@@ -177,7 +183,7 @@ export async function handleBilling(req: Request, env: Env, pathname: string): P
 
   if (pathname === '/api/me/billing/prepare' || pathname === '/api/me/billing/issue') {
     if (!allowedToPay(env, me.email)) return json({ error: 'not_allowed' }, 403);
-    if (!(await hasBusiness(env, me.id))) return json({ error: 'business_required' }, 403);
+    if (!businessWaived(env, me.email) && !(await hasBusiness(env, me.id))) return json({ error: 'business_required' }, 403);
     if (!isPaid(body.plan)) return json({ error: 'bad_plan' }, 400);
   }
   if (pathname === '/api/me/billing/prepare') {

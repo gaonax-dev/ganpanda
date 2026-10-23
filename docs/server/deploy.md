@@ -71,6 +71,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - `test_` 키 = 테스트 결제(실제 청구 없음, 설정에 "테스트 결제" 안내). 카드사·자동결제 심사가 끝나면 `live_` 키로 바꾼다.
 - 웹훅: 개발자센터 → 웹훅 → `https://sync.ganpanda.co.kr/api/billing/webhook` (결제 상태 변경). 본문은 믿지 않고 다시 조회한다.
 - 매달 결제는 기존 cron(매시간 17분)에서 `runBillingCycle`.
+- **결제사 심사 계정** (2026-10-23 "테스트계정을 제공해야한다"): ① ganpanda.co.kr → 로그인 → **회원가입**(이메일·비밀번호 8자 이상, 받을 수 있는 메일 — 인증 메일을 열어야 로그인됨) ② `TOSS_TEST_ALLOW_EMAILS` 에 그 이메일을 넣는다(쉼표로 내 이메일과 함께) — **테스트 키 동안 목록에 이름이 직접 있는 계정은 사업자 확인 없이 구독 가능**(`businessWaived`, 운영 키로 바꾸면 사라짐) ③ 심사 양식에: 주소 `https://ganpanda.co.kr`, 아이디(이메일)·비밀번호, 결제 경로 "로그인 → 오른쪽 위 이름 → ⚙ 설정 → 계정 · 구독 → [베이직 구독 · 30,000원/월] → 카드 등록 → 첫 달 결제", 해지 "같은 화면 [해지 예약]", 약관 `/terms` · 환불 `/refund`.
 - 로컬·E2E `.dev.vars`: `TOSS_CLIENT_KEY=fake`, `TOSS_SECRET_KEY=fake`, `BILLING_ENC_KEY=<hex>` — 토스 창 없이 바로 돌아오는 가짜 흐름.
 - 배포 전 `npx wrangler d1 migrations apply ganpanda --remote`(0034_billing). 키가 없으면 설정의 구독 칸이 보이지 않는다.
 
