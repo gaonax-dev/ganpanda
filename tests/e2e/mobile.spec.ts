@@ -379,8 +379,11 @@ test('휴대폰 다중 선택: 상단 [다중] 단추(복사 앞)를 켜면 말�
   // 한 번의 되돌리기로 모두 돌아간다
   await page.evaluate(() => (window as unknown as { __ganpanda: { undo(): void } }).__ganpanda.undo());
   await expect.poll(async () => { const objsNow = await objs(); return ids.map((id) => objsNow.find((o) => o.id === id)?.productId); }).toEqual(['board-galva', undefined, 'board-galva']);
-  // 정리: 다중 선택이 끝나고 선택도 풀린다
-  await page.getByTestId('mobile-done').tap();
+  // 다중 선택 중에는 [정리] 대신 아래 막대의 [마지막 사인물 ▾] (2026-10-24) — [다중]을 끄면 선택도 모두 풀린다
+  await expect(page.getByTestId('mobile-done')).toHaveCount(0);
+  await expect(bar.getByTestId('multi-last')).toBeVisible();
+  await expect(bar.getByTestId('multi-width')).toBeVisible();
+  await page.getByTestId('tool-multi').tap();
   await expect(menu).toHaveCount(0);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), ids[0]);
   await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
