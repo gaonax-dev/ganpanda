@@ -3,6 +3,7 @@
   import { untrack } from 'svelte';
   import { nextPhotoName } from '../core/photoName';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
+  import TouchHelp from '../ui/TouchHelp.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
   import { boardToList, clampFlatScale, flatBounds, flatOrigin, listToBoard, mmFromBoardRect, offsetKeepingPivot, scaleFromHandle } from '../core/boardCards';
@@ -553,6 +554,8 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      <!-- 휴대폰 조작 안내 (2026-10-24) — 터치 기기에서 처음 한 번, [다시 보지 않기] -->
+      {#if app.ready}<TouchHelp />{/if}
       {#if app.stage === '3d' && app.stageBusy}
         <div class="ai-status" data-testid="stage-status">3D 합성 중… ({app.stageBusy})</div>
       {/if}

@@ -1,6 +1,8 @@
 <!-- 카메라 설정 창 (fSpy 방식, 자체 구현): 가로 X 선 2개(노랑)·세로 Y 선 2개(파랑)·선택 깊이 Z 선 2개(초록), 원점(흰 십자), 기준 길이(빨강 + mm).
      AI 자동 제안 → 사람이 끌어 제어 → 적용. 돋보기는 Shift 를 누른 동안만 (2026-10-14 사용자: 기본 끌기엔 필요 없음) -->
 <script lang="ts">
+  /** 핸들 터치 영역 반지름(화면 px) — 터치 기기는 넓게 (2026-10-24 "원근 컨트롤러도 터치 영역 키워줘"), 보이는 크기는 그대로 */
+  const HIT = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 24 : 12;
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import type { Pt } from '../core/homography';
@@ -227,6 +229,7 @@
                     <line class="axis {ax.cls}" data-testid="camera-line" data-key="{ax.axis}{i}" style:stroke={pairColor(ax.axis)} x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={3 / scale} />
                     {#each ['a', 'b'] as end (end)}
                       {@const p = l[end as 'a' | 'b']}
+                      <circle class="hit" data-testid="hit-camera-handle" data-key="{ax.axis}{i}{end}" cx={p[0]} cy={p[1]} r={HIT / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, `${ax.axis}${i}${end}`)} />
                       <circle data-testid="camera-handle" data-key="{ax.axis}{i}{end}" class="handle {ax.cls}" style:stroke={pairColor(ax.axis)} class:on={drag?.key === `${ax.axis}${i}${end}`} cx={p[0]} cy={p[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, `${ax.axis}${i}${end}`)} />
                     {/each}
                   {/each}
@@ -239,11 +242,14 @@
                 <line class="refhit" data-testid="camera-ref-hit" x1={refLine.a[0]} y1={refLine.a[1]} x2={refLine.b[0]} y2={refLine.b[1]} stroke-width={16 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rl')} />
                 <text class="axlabel" style:fill={AXIS_COLOR[refAxis]} x={refLine.b[0]} y={refLine.b[1] - 8 / scale} font-size={14 / scale} stroke-width={3 / scale}>{refAxis.toUpperCase()}</text>
                 <text class="reflabel" x={(refLine.a[0] + refLine.b[0]) / 2} y={(refLine.a[1] + refLine.b[1]) / 2 - 12 / scale} font-size={13 / scale} stroke-width={3 / scale} text-anchor="middle">{fmt(refMm)}mm</text>
+                <circle class="hit" data-testid="hit-camera-handle" data-key="ra" cx={refLine.a[0]} cy={refLine.a[1]} r={HIT / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'ra')} />
                 <circle data-testid="camera-handle" data-key="ra" class="handle ref" class:on={drag?.key === 'ra'} cx={refLine.a[0]} cy={refLine.a[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'ra')} />
+                <circle class="hit" data-testid="hit-camera-handle" data-key="rb" cx={refLine.b[0]} cy={refLine.b[1]} r={HIT / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rb')} />
                 <circle data-testid="camera-handle" data-key="rb" class="handle ref" class:on={drag?.key === 'rb'} cx={refLine.b[0]} cy={refLine.b[1]} r={7 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'rb')} />
               {/if}
               <g class="origin" transform="translate({draft.origin[0]} {draft.origin[1]})">
                 <line x1={-14 / scale} x2={14 / scale} y1="0" y2="0" stroke-width={2 / scale} /><line y1={-14 / scale} y2={14 / scale} x1="0" x2="0" stroke-width={2 / scale} />
+                <circle class="hit" data-testid="hit-camera-handle" data-key="o" r={HIT / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'o')} />
                 <circle data-testid="camera-handle" data-key="o" class="handle origin" class:on={drag?.key === 'o'} r={8 / scale} stroke-width={2 / scale} role="button" tabindex="-1" onpointerdown={(e) => down(e, 'o')} />
               </g>
             </svg>
@@ -336,6 +342,7 @@
   .refhit { stroke: transparent; cursor: move; }
   .axlabel { font-weight: 700; }
   .handle { fill: #fff; cursor: grab; }
+  .hit { fill: transparent; stroke: none; cursor: grab; } /* 넓은 터치 영역 (2026-10-24) */
   .handle.ref { stroke: #ff4dd2; } .handle.origin { stroke: #fff; fill: rgba(255,255,255,0.15); }
   .handle.on { fill: var(--accent); cursor: grabbing; }
   .origin line { stroke: #fff; }

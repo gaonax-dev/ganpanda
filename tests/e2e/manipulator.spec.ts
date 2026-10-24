@@ -393,3 +393,25 @@ test('원근에 맞추기 단추: 15° 기울어진 외곽선에도 나오고(�
   await page.getByTestId('persp-align').dispatchEvent('pointerdown', { button: 0 });
   await expect(page.getByTestId('persp-align')).toHaveCount(0);
 });
+
+test.describe('휴대폰 (2026-10-24 "정면 설정 컨트롤러도 잘 터치되지 않는다")', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('끝 동그라미 옆(보이는 원 밖)을 손가락으로 눌러도, 누르는 동안 조금 흔들려도 정면 축이 바뀐다', async ({ page, request }) => {
+    await openOwnedProject(page, request);
+    await loadSample(page);
+    await setCamera(page);
+    const id = await addSign(page, await rectOnWall(page, 1000, 3800, 3000, 800));
+    const dot = page.getByTestId('face-cycle');
+    await expect(dot).toHaveAttribute('data-axis', 'y');
+    const b = (await dot.boundingBox())!;
+    const x = b.x + b.width / 2 + b.width / 2 + 6, y = b.y + b.height / 2; // 보이는 원 바깥 6px
+    expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), [x, y])).toBe('hit-face-cycle');
+    const cdp = await page.context().newCDPSession(page);
+    const tp = (x: number, y: number) => [{ x, y, radiusX: 6, radiusY: 6, force: 1, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tp(x, y) });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: tp(x + 5, y + 4) }); // 손가락 흔들림 (전엔 4px 넘으면 끌기로 처리)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(dot).toHaveAttribute('data-axis', 'z');
+    await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('z');
+  });
+});
