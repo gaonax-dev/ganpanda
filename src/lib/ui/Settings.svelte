@@ -1,5 +1,6 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   import { app, type SettingsTab } from '../state.svelte';
   import { AuthError, PLAN_LABEL } from '../auth';
   import { setRequestSettings } from '../requests';
@@ -166,14 +167,14 @@
   $effect(() => { if (!tabs.some((t) => t.id === tab)) tab = tabs[0].id; }); // 로그아웃 등으로 탭이 사라지면 첫 탭
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" data-testid="settings" role="dialog" aria-modal="true" aria-label="설정">
     <header>
       <h2>설정</h2>
       <div class="tabs" role="tablist">
         {#each tabs as t (t.id)}<button class="tab" class:on={tab === t.id} role="tab" aria-selected={tab === t.id} data-testid="settings-tab-{t.id}" onclick={() => { capture = null; tab = t.id; }}>{t.label}</button>{/each}
       </div>
-      <button class="icon" data-testid="close-settings" title="닫기 (Esc)" onclick={close}>✕</button>
+      <button class="icon" data-close data-testid="close-settings" title="닫기 (Esc)" onclick={close}>✕</button>
     </header>
 
     <div class="body">

@@ -1,5 +1,6 @@
 <!-- 제안 보내기 (제작자): 준비 점검 → 고객용 링크 발급 (2026-10-24 "실사이미지 만들필요가 없고 링크발급으로" — 전엔 사진마다 실사 주간·야간 PNG 를 만들어 올렸다). 승인 상태도 여기서 본다 -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { createInvite } from '../projects';
   import { AuthError } from '../auth';
@@ -55,9 +56,9 @@
   const preview = () => { app.proposalMode = true; close(); };
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="제안 보내기" data-testid="proposal-dialog">
-    <header><h2>제안 보내기</h2><button class="icon" data-testid="close-proposal" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>제안 보내기</h2><button class="icon" data-close data-testid="close-proposal" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
       <p class="hint">고객에게 보낼 링크 하나: 가게 사진 위 간판 자리 · 사인물 치수 · 총 금액 · 질문 · <b>[진행 동의]</b>. 로그인 없이 휴대폰에서 열리고, 다른 사람에게 그대로 전달할 수 있습니다.</p>
 

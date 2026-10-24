@@ -5,6 +5,7 @@
   그룹을 클릭하면 전체 정보·비용 계산서. 멤버 관리는 설정에서."
 -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
   import SiteFooter from './SiteFooter.svelte';
@@ -386,12 +387,12 @@
 </div>
 
 {#if details}
-  <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) details = null; }}>
+  <div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
     <div class="dialog" data-testid="project-details" data-mode={detailsEdit ? 'edit' : 'view'} role="dialog" aria-modal="true" aria-label="프로젝트 속성">
     <header>
       <h2>{detailsEdit ? '속성 수정' : details.name}</h2>
       <button class="btn small" class:on={detailsEdit} type="button" data-testid="details-edit" title="수정 켜기/끄기" onclick={() => { if (detailsEdit) openDetails(details!); else detailsEdit = true; }}>{detailsEdit ? '수정 중' : '수정'}</button>
-      <button class="icon" type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button>
+      <button class="icon" data-close type="button" data-testid="details-close" title="닫기" onclick={() => (details = null)}>✕</button>
     </header>
     {#if !detailsEdit}
       {@const m = measureLabel(details, STATUS_LABEL[details.status])}

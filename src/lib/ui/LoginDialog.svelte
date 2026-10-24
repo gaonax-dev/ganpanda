@@ -3,6 +3,8 @@
   가입 · 비밀번호 찾기(재설정 메일) · 이메일 링크 로그인 · 카카오/구글/애플은 그대로
 -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
+  import PasswordField from './PasswordField.svelte';
   import { app } from '../state.svelte';
   import { BUSINESS_ERROR } from '../business';
   import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
@@ -117,9 +119,9 @@
   const TITLE: Record<Mode, string> = { login: '로그인', signup: '회원가입', forgot: '비밀번호 찾기', link: '이메일 링크로 로그인' };
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label={TITLE[mode]} data-testid="login-dialog" data-mode={mode}>
-    <header><h2>{TITLE[mode]}</h2><button class="icon" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>{TITLE[mode]}</h2><button class="icon" data-close title="닫기" onclick={close}>✕</button></header>
     {#if sent}
       {#if sentKind === 'verify'}
         <p data-testid="login-sent"><b>{sent}</b>로 <b>가입 인증 메일</b>을 보냈습니다. 메일의 [이메일 인증하기]를 누르면 가입이 끝나고 로그인됩니다. (링크는 24시간 유효) 메일이 안 보이면 스팸함도 확인해 주세요.</p>
@@ -142,10 +144,10 @@
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
         <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" disabled={!!invite?.email && mode === 'signup'} /></label>
         {#if mode === 'login' || mode === 'signup'}
-          <label>비밀번호{mode === 'signup' ? ` (${PASSWORD_MIN}자 이상)` : ''}<input data-testid="login-password" type="password" bind:value={password} autocomplete={mode === 'signup' ? 'new-password' : 'current-password'} /></label>
+          <label>비밀번호{mode === 'signup' ? ` (${PASSWORD_MIN}자 이상)` : ''}<PasswordField testid="login-password" bind:value={password} autocomplete={mode === 'signup' ? 'new-password' : 'current-password'} /></label>
         {/if}
         {#if mode === 'signup'}
-          <label>비밀번호 확인<input data-testid="login-password2" type="password" bind:value={password2} autocomplete="new-password" /></label>
+          <label>비밀번호 확인<PasswordField testid="login-password2" bind:value={password2} autocomplete="new-password" /></label>
           <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
           {#if !invite}
           <fieldset class="biz" data-testid="signup-business">
@@ -184,7 +186,6 @@
   header { display: flex; align-items: center; justify-content: space-between; }
   h2 { margin: 0; font-size: 16px; }
   form { display: flex; flex-direction: column; gap: 10px; }
-  input[type='password'] { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 8px 9px; font: inherit; font-size: 13px; }
   .social { display: flex; flex-direction: column; gap: 8px; }
   .social .btn { text-decoration: none; justify-content: center; font-weight: 700; }
   .social-kakao { background: #fee500; color: #191919; border-color: #fee500; }

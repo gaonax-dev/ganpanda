@@ -1,5 +1,7 @@
 <!-- 비밀번호 정하기·바꾸기 (재설정 링크로 들어온 직후에는 현재 비밀번호 없이) -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
+  import PasswordField from './PasswordField.svelte';
   import { app } from '../state.svelte';
   import { describeAuthError, setPassword, PASSWORD_MIN } from '../auth';
 
@@ -26,17 +28,17 @@
   }
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="비밀번호" data-testid="password-dialog">
-    <header><h2>{reset ? '새 비밀번호 정하기' : app.account?.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</h2><button class="icon" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>{reset ? '새 비밀번호 정하기' : app.account?.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</h2><button class="icon" data-close title="닫기" onclick={close}>✕</button></header>
     {#if done}
       <p data-testid="password-done">비밀번호를 저장했습니다. 다음부터 이메일과 비밀번호로 로그인하세요.</p>
       <button class="btn primary" onclick={close}>확인</button>
     {:else}
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
-        {#if needCurrent}<label>현재 비밀번호<input data-testid="password-current" type="password" bind:value={current} autocomplete="current-password" /></label>{/if}
-        <label>새 비밀번호 ({PASSWORD_MIN}자 이상)<input data-testid="password-new" type="password" bind:value={pw} autocomplete="new-password" /></label>
-        <label>새 비밀번호 확인<input data-testid="password-new2" type="password" bind:value={pw2} autocomplete="new-password" /></label>
+        {#if needCurrent}<label>현재 비밀번호<PasswordField testid="password-current" bind:value={current} /></label>{/if}
+        <label>새 비밀번호 ({PASSWORD_MIN}자 이상)<PasswordField testid="password-new" bind:value={pw} autocomplete="new-password" /></label>
+        <label>새 비밀번호 확인<PasswordField testid="password-new2" bind:value={pw2} autocomplete="new-password" /></label>
         <button class="btn primary" data-testid="password-save" type="submit" disabled={busy}>저장</button>
       </form>
     {/if}
@@ -50,7 +52,6 @@
   header { display: flex; align-items: center; justify-content: space-between; }
   h2 { margin: 0; font-size: 16px; }
   form { display: flex; flex-direction: column; gap: 10px; }
-  input[type='password'] { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 7px; padding: 8px 9px; font: inherit; font-size: 13px; }
   .error { color: var(--danger); font-size: 13px; margin: 0; }
   p { margin: 0; font-size: 13px; line-height: 1.5; }
 </style>
