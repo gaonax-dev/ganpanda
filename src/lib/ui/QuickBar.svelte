@@ -114,12 +114,15 @@
     <div class="row edit" data-testid="quick-size-edit">
       <button class="icon" data-testid="quick-prev" title="이전 사인물" disabled={siblings.length < 2} onclick={() => step(-1)}>‹</button>
       <small>{idx + 1}/{siblings.length}</small>
+      <!-- 칸 앞 가로·세로 글자 (2026-10-24 "사이즈 입력에 가로 세로 표시해줘") — 값을 넣으면 안내 글이 사라져도 어느 칸인지 -->
+      <label class="dim"><span data-testid="quick-width-label">가로</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input data-testid="quick-width" class:need={!obj.widthMm} type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} autofocus
-        placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '가로'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} />
+        placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '가로'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
       <span>×</span>
+      <label class="dim"><span data-testid="quick-height-label">세로</span>
       <input data-testid="quick-height" class:need={!obj.heightMm} type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
-        placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '세로'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
+        placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '세로'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
       <span>mm</span>
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
     </div>
@@ -147,6 +150,7 @@
   .edit input { flex: 1; min-width: 0; padding: 6px 6px; font-size: 13px; }
   .edit input[type='number'] { text-align: right; }
   .edit small, .edit span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .edit label.dim { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
   .cnt { font-size: 12px; color: var(--accent); font-weight: 700; white-space: nowrap; padding: 0 4px; }
   .hint { color: var(--muted); font-size: 11px; }
   .confirm { flex-wrap: wrap; padding: 6px 8px; border-radius: 8px; background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); font-size: 12px; }
