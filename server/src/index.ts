@@ -1,6 +1,7 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
 export { Account } from './account';
+import { handlePriceImport } from './priceImport';
 import { handleOperator } from './bypass';
 import { handleMyTalks, syncTalkIndex } from './talk';
 import { handleRequests, markApproved } from './requests';
@@ -267,6 +268,7 @@ export default {
       return withCors(Response.json({ ok: !mail.danger, mail }, { status: mail.danger ? 503 : 200, headers: { 'cache-control': 'no-store' } }));
     }
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
+    if (pathname === '/api/me/prices/import') return withCors(await handlePriceImport(req, env)); // 쓰던 단가표 AI 읽기 (2026-10-24)
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname === '/api/me/colors') return withCors(await handleColors(req, env));
     if (pathname === '/api/me/sets') return withCors(await handleSets(req, env)); // 세트 라이브러리 (2026-10-19)
