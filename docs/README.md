@@ -59,6 +59,7 @@
 - dev
   - [tdd.md](dev/tdd.md) — 테스트 주도 개발 절차와 명령
   - [conventions.md](dev/conventions.md) — 코드·문서 작성 규칙
+  - [app.md](dev/app.md) — 데스크톱·모바일 앱 (Tauri 2): 방식·명령·준비물
 
 ## 문서 작성 규칙
 
