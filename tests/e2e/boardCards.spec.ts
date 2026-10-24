@@ -54,6 +54,10 @@ test('보드 빈 곳에 사각 도구로 끌면 사진 없는 사인물이 바�
   await page.keyboard.press('t');
   // 사진 오른쪽 빈 곳에 300×60 world px → 3,000×600 mm
   const x0 = photo.x + photo.width + 200, y0 = photo.y;
+  // 화면에서 조금만 끈 것(24px 미만)은 만들지 않는다 — 화면을 옮기려다 생긴 점 같은 사인물 (2026-10-24 "사인물 17이 없는데 요청에 있다고 나온다")
+  const zoom = await page.evaluate(() => new DOMMatrix(getComputedStyle(document.querySelector('[data-testid="board-canvas"] .world')!).transform).a);
+  await dragOnBoard(page, [x0, y0], [x0 + 20 / zoom, y0 + 20 / zoom]);
+  await expect(page.getByTestId('board-standalone')).toHaveCount(0);
   await dragOnBoard(page, [x0, y0], [x0 + 300, y0 + 60]);
   const card = page.getByTestId('board-standalone');
   await expect(card).toHaveCount(1);
