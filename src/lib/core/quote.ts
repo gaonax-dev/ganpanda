@@ -35,6 +35,12 @@ export interface QuoteLine {
   needsInput?: boolean;
   /** 판매가 < 원가 */
   loss?: boolean;
+  /** 직접 단가 줄의 수량·단위·단가 (2026-10-24 "단가을 사장이 바로 입력") — 금액 = 수량 × 단가. 계산법 줄에는 없다 */
+  qty?: number;
+  unit?: string;
+  unitPrice?: number;
+  /** 이 줄만 단가를 바꿈 (lineUnits) */
+  unitOverride?: boolean;
 }
 export interface Quote {
   lines: QuoteLine[];
@@ -58,8 +64,11 @@ export interface QuoteOptions {
   mode?: 'manual' | 'auto';
   /** 줄 키 → 수동 금액 또는 'auto'(자동 전환) */
   lineAmounts?: Record<string, number | 'auto'>;
+  /** 이 줄만 단가 (2026-10-24): 줄 키 → 원. 수량 × 이 단가로 자동 금액을 다시 낸다 */
+  lineUnits?: Record<string, number>;
 }
 
+const fmtQty = (n: number) => String(Number(n.toFixed(2)));
 export const won = (n: number) => Math.round(n).toLocaleString('ko-KR') + '원';
 
 export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
@@ -70,8 +79,12 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
   const size = sized ? `${fmt(o.widthMm!)}×${fmt(o.heightMm!)}mm` : '';
   let key = `${o.id}:body`;
   /** cost: 계산법이면 배수 전 금액을 넘긴다. 없으면 공급 품목 연결에서 (수량 × 공급 단가) */
-  const finish = (label: string, detail: string, raw: number, priceId?: string, cost?: number, sub?: string) => {
+  const finish = (label: string, detail: string, raw: number, priceId?: string, cost?: number, sub?: string, qtyIn?: number) => {
     let amount = roundTo(raw, prices.rounding);
+    // 직접 단가 줄: 수량 = 넘겨준 값 또는 금액 ÷ 단가 (계산법 줄 제외)
+    const unitPrice = priceId && !prices.methods?.[priceId] ? (prices.products[priceId] ?? prices.sheets[priceId]) : undefined;
+    const qty = unitPrice === undefined ? undefined : qtyIn ?? (unitPrice > 0 ? raw / unitPrice : undefined);
+    const unitInfo = qty !== undefined && unitPrice !== undefined ? { qty: Math.round(qty * 1000) / 1000, unit: unitNameOf(priceId!), unitPrice } : {};
     if (amount < prices.minimum) { amount = prices.minimum; detail += ` · 최소 ${fmt(prices.minimum)}원 적용`; }
     const supplier = (priceId && findMethod(prices.methods?.[priceId])?.supplier.tag) || supplierTagOf(priceId && prices.links?.[priceId]);
     if (cost === undefined && priceId && !prices.methods?.[priceId]) {
@@ -79,7 +92,7 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       const unit = prices.products[priceId] ?? prices.sheets[priceId];
       if (hit && unit) cost = (raw * hit.item.price) / unit;
     }
-    lines.push({ key: sub ? `${key}:${sub}` : key, objectId: o.id, label, detail: supplier ? `${detail} · ${supplier} 단가` : detail, amount, ...(priceId ? { priceId } : {}), ...(supplier ? { supplier } : {}), ...(cost !== undefined ? { cost: Math.round(cost) } : {}) });
+    lines.push({ key: sub ? `${key}:${sub}` : key, objectId: o.id, label, detail: supplier ? `${detail} · ${supplier} 단가` : detail, amount, ...(priceId ? { priceId } : {}), ...(supplier ? { supplier } : {}), ...(cost !== undefined ? { cost: Math.round(cost) } : {}), ...unitInfo });
   };
   // 간판 = 몸통(㎡) + 채널 옵션(자·cm). 옛 데이터(채널 제품이 종류)는 몸통 없음 + 채널
   const { bodyId } = signParts(o);
@@ -96,11 +109,11 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       finish(label, `${size} · ${scaled(r.detail, mk)}`, r.raw * mk, body.id, r.raw);
     } else {
       const m2 = (o.widthMm! * o.heightMm!) / 1e6;
-      finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit, body.id);
+      finish(label, `${size} = ${m2.toFixed(2)}㎡ × ${fmt(unit)}원`, m2 * unit, body.id, undefined, undefined, m2);
     }
   }
   // 개 단위(사인미러·전광판·지주·에어간판): 치수와 무관하게 1식
-  if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0, body.id);
+  if (body && body.unit === 'ea') finish(`${o.name} · ${body.name}`, `1식 × ${fmt(prices.products[body.id] ?? 0)}원`, prices.products[body.id] ?? 0, body.id, undefined, undefined, 1);
   // 조합형 (2026-10-16): 구성 요소마다 종류 모듈이 줄을 만든다 (채널·스카시 = 글자수 × 높이, 시트 = 면적 — core/components, 0단계). 옛 데이터는 읽을 때 구성 요소로 바뀐다
   const parts = partsOf(o);
   const usesParts = partKindsFor(o).length > 0; // 조합형 분류는 시트도 구성 요소로 (2026-10-16 모든 분류 조합형)
@@ -123,16 +136,26 @@ export function quoteObject(o: SignObject, prices: PriceTable): QuoteLine[] {
       continue;
     }
     const m2 = shapeAreaM2(o);
-    finish(label, `${m2.toFixed(2)}㎡ × ${fmt(prices.sheets[id] ?? 0)}원`, m2 * (prices.sheets[id] ?? 0), id);
+    finish(label, `${m2.toFixed(2)}㎡ × ${fmt(prices.sheets[id] ?? 0)}원`, m2 * (prices.sheets[id] ?? 0), id, undefined, undefined, m2);
   }
   return lines;
 }
 
-/** 줄 금액 정하기: 'auto' 면 자동, 숫자면 수동, 없으면 모드(manual = 입력 필요 0원, auto = 자동) */
-function resolve(l: QuoteLine, opts: QuoteOptions): QuoteLine {
+/** 단가 단위 이름: ㎡ · 자·cm · 개 · m (시트는 ㎡) */
+function unitNameOf(priceId: string): string {
+  const u = productById(priceId)?.unit;
+  return u === 'charCm' ? '자·cm' : u === 'ea' ? '개' : u === 'm' ? 'm' : '㎡';
+}
+
+/** 줄 금액 정하기: 이 줄만 단가(lineUnits)면 수량 × 그 단가가 자동 금액(입력한 것으로 본다). 그다음 'auto' 면 자동, 숫자면 수동, 없으면 모드(manual = 입력 필요 0원, auto = 자동) */
+function resolve(l0: QuoteLine, opts: QuoteOptions, prices: PriceTable): QuoteLine {
+  const u = opts.lineUnits?.[l0.key];
+  const l: QuoteLine = typeof u === 'number' && l0.qty !== undefined
+    ? { ...l0, amount: Math.max(roundTo(l0.qty * u, prices.rounding), prices.minimum), unitPrice: u, unitOverride: true, detail: `${fmtQty(l0.qty)}${l0.unit} × ${fmt(u)}원 (이 줄 단가)` }
+    : l0;
   const e = opts.lineAmounts?.[l.key];
   const auto = l.amount;
-  const r: QuoteLine = e === 'auto' || (e === undefined && opts.mode !== 'manual') ? { ...l, auto, manual: false }
+  const r: QuoteLine = e === 'auto' || (e === undefined && (opts.mode !== 'manual' || l.unitOverride)) ? { ...l, auto, manual: false }
     : typeof e === 'number' ? { ...l, auto, amount: e, manual: true }
     : { ...l, auto, amount: 0, manual: true, needsInput: true };
   if (r.cost !== undefined && !r.needsInput && r.amount < r.cost) r.loss = true;
@@ -140,7 +163,7 @@ function resolve(l: QuoteLine, opts: QuoteOptions): QuoteLine {
 }
 
 export function quoteProject(objs: SignObject[], prices: PriceTable, opts: QuoteOptions = {}): Quote {
-  const lines = objs.flatMap((o) => quoteObject(o, prices)).map((l) => resolve(l, opts));
+  const lines = objs.flatMap((o) => quoteObject(o, prices)).map((l) => resolve(l, opts, prices));
   const done = lines.filter((l) => !l.needsInput);
   const costed = done.filter((l) => l.cost !== undefined);
   const cost = costed.reduce((a, l) => a + l.cost!, 0), sales = costed.reduce((a, l) => a + l.amount, 0);

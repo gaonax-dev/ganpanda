@@ -43,6 +43,10 @@
   const pending = $derived(app.signs.filter((o) => !app.sizeOf(o)));
   const placed = $derived(app.flatPlaced);
   // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
+  /** 단가 바로 입력 (2026-10-24) */
+  let unitSaved = $state('');
+  const fmtQty = (n: number) => String(Number(n.toFixed(2)));
+  function setUnit(key: string, v: string) { const n = Number(v); if (v.trim() === '') app.setLineUnit(key, null); else if (Number.isFinite(n) && n >= 0) app.setLineUnit(key, Math.round(n)); }
   const quote = $derived(app.quote);
   const extras = $derived(app.settings.extras ?? []);
   const setExtra = (id: string, patch: Partial<ExtraItem>) => app.setExtras(extras.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -361,6 +365,21 @@
             </span>
           {:else}<b>{won(l.amount)}</b>{/if}
         </div>
+        <!-- 단가 바로 입력 (2026-10-24 "단가을 사장이 바로 입력 … 해당 내역을 전체에 적용") — 수량 × [단가] : 이 줄만 → [이 견적 전체] · [내 단가표까지] -->
+        {#if app.canEdit && !app.noPrices && l.qty !== undefined}
+          <div class="unitrow" data-testid="line-unit-row" data-key={l.key}>
+            <span>{fmtQty(l.qty)}{l.unit} ×</span>
+            <input class="unit" data-testid="line-unit" type="number" min="0" step="100" value={l.unitPrice ?? ''} title="단가 — 바꾸면 이 줄만" onchange={(e) => setUnit(l.key, e.currentTarget.value)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+            <span>원/{l.unit}</span>
+            {#if l.unitOverride}
+              <span class="only">이 줄만</span>
+              <button class="link" data-testid="line-unit-apply" title="이 견적의 같은 품목 줄 모두 이 단가로" onclick={() => app.applyLineUnit(l.key, 'project')}>이 견적 전체</button>
+              <button class="link" data-testid="line-unit-account" title="이 견적 전체 + 내 기본 단가표(새 프로젝트)에도" onclick={async () => { await app.applyLineUnit(l.key, 'account'); unitSaved = l.priceId ?? ''; setTimeout(() => (unitSaved = ''), 2500); }}>내 단가표까지</button>
+              <button class="link" data-testid="line-unit-reset" title="단가표 단가로 되돌리기" onclick={() => app.setLineUnit(l.key, null)}>되돌리기</button>
+            {/if}
+            {#if unitSaved && unitSaved === l.priceId}<span class="ok" data-testid="line-unit-saved">내 단가표에 저장했습니다</span>{/if}
+          </div>
+        {/if}
         {#if app.seesMargin && openObj === l.objectId && quote.lines.findIndex((x) => x.objectId === l.objectId) === i}
           <table class="parts" data-testid="line-parts">
             <thead><tr><th>구성품</th><th>단가 연결</th>{#if app.seesCost}<th>공급사 금액</th>{/if}<th>판매가</th><th>이익율</th></tr></thead>
@@ -485,6 +504,10 @@
   .line .info { all: unset; display: flex; flex-direction: column; flex: 1; min-width: 0; cursor: pointer; }
   .line .info:disabled { cursor: default; }
   .amtcell { display: flex; align-items: center; gap: 4px; }
+  .unitrow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 2px 0 7px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); margin-top: -1px; }
+  .unitrow .unit { width: 84px; padding: 3px 5px; font-size: 12px; text-align: right; }
+  .unitrow .only { color: var(--accent); font-weight: 700; }
+  .unitrow .ok { color: var(--ok, #22c55e); }
   .autob { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .mg { color: var(--muted); }
   .line.loss { background: rgba(229, 72, 77, 0.08); }
