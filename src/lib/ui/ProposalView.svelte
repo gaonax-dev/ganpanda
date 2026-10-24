@@ -1,5 +1,6 @@
 <!-- 고객이 보는 제안 페이지 (휴대폰 우선, 로그인 없음): 실사 주간/야간 · 사인물 목록·치수·금액 · 질문 · [진행 동의] (2026-10-22, 전에는 [이걸로 할게요]) -->
 <script lang="ts">
+  import GanpandaPromise from './GanpandaPromise.svelte';
   import { signTextOf } from '../core/parts';
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
@@ -130,6 +131,7 @@
     {/if}
   </section>
 
+  <GanpandaPromise compact />
   <section class="approve" data-testid="proposal-approve" data-status={approval.status}>
     {#if approval.status === 'approved'}
       <p class="done">✅ <b>{approval.approval.by}</b> 님이 {date(approval.approval.at)}에 진행에 동의했습니다 — <b>제작</b>을 시작합니다.{#if approval.approval.excluded?.length} ({approval.approval.excluded.length}개 제외){/if}</p>

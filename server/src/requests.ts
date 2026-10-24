@@ -1,6 +1,7 @@
 // 요청판 (2026-10-17): 가게 사장의 견적 요청(로그인 없음) → 지역의 "요청 받기" 간판사 → 요청에서 프로젝트 → 제안 링크.
 // 돈은 고객↔간판사 직접. 간판다는 전달·기록만 (docs/product/decisions.md). 간판사 과금은 제안 링크 발급(projects.ts) 에서 요금제 건수로.
-import { cleanTotal, photosOpen, requestFee, unlockPhotos } from './credit';
+import { cleanTotal, requestFee, unlockPhotos } from './credit';
+import { createReport, recordView } from './bypass';
 import { authenticate, type Account } from './auth';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { validateRequestSigns, type RequestSign } from './requestSigns';
@@ -68,6 +69,7 @@ export async function shopCanSee(env: Env, me: Account, r: RequestRow): Promise<
   const responded = await env.DB.prepare('SELECT 1 FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first();
   if (responded) return true;
   if (r.status === 'open' && isOperator(env, me.email)) return true;
+  if (me.requests_blocked) return false; // 간판다 밖 거래로 정지 (2026-10-24)
   if (!me.receive_requests || r.status !== 'open') return false;
   return regionsOf(me).some((g) => regionMatches(g, r.region));
 }
@@ -115,7 +117,7 @@ async function notify(env: Env, r: RequestRow, url: string) {
 const pubRequest = (r: RequestRow) => ({ id: r.id, store: r.store, region: r.region, text: r.text, status: r.status, createdAt: r.created_at, general: !!r.general, b2b: !!r.b2b, ...(r.chosen_project ? { chosenProject: r.chosen_project } : {}), ...(r.cancelled_at ? { cancelledAt: r.cancelled_at } : {}), ...(r.snapshot_project ? { snapshot: { project: r.snapshot_project, photos: snapshotPhotos(r) } } : {}), photos: photosOf(r).map(({ n, type }) => ({ n, type })), signs: signsOf(r), address: r.address ?? '', bizNo: r.biz_no ?? null, bizStatus: r.biz_status ?? null, bizDoc: bizDocOf(r), bizVerified: !!r.biz_verified, ownerName: r.owner_name ?? null, floor: r.floor ?? '', fee: r.fee ?? requestFee(r.estimate_total), estimateTotal: r.estimate_total ?? null });
 
 /** 제안 전 간판집에게: 지역·층·사인물(치수·구성)·크레딧만 — 가게 이름·주소·내용·사업자번호·대표자는 가린다 (2026-10-24 "층 그리고 지역 만") */
-const lockedRequest = (r: RequestRow) => ({ ...pubRequest(r), store: '', address: '', text: '', bizNo: null, ownerName: null, bizDoc: null, photos: [] as { n: number; type: string }[], locked: true });
+const lockedRequest = (r: RequestRow) => ({ ...pubRequest(r), store: '', address: '', text: '', bizNo: null, ownerName: null, bizDoc: null, locked: true });
 
 export async function handleRequests(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
   // ---- 간판사 설정: PUT /api/me/request-settings {receive, regions[]} ----
@@ -125,6 +127,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (req.method !== 'PUT') return text('method not allowed', 405);
     const body = await readJson<{ receive?: boolean; regions?: string[] }>(req);
     if (!body || typeof body.receive !== 'boolean' || !Array.isArray(body.regions) || body.regions.some((g) => typeof g !== 'string')) return text('bad body', 400);
+    if (body.receive && me.requests_blocked) return json({ error: 'blocked' }, 403); // 간판다 밖 거래로 정지 (2026-10-24) — 운영자가 풀 때까지
     // 사업장 주소의 지역이 언제나 맨 앞 (2026-10-24 "요청 지역설정을 사업자 주소로 먼저 설정하고 나머지는 원하는 지역을 … 체크방식으로")
     const home = (await businessOf(env, me.id))?.region ?? '';
     const regions = [...new Set([home, ...body.regions].map((g) => g.trim().slice(0, REGION_MAX)).filter(Boolean))].slice(0, 20);
@@ -245,7 +248,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const mine = await env.DB.prepare('SELECT p.request_id, p.id AS project_id, rr.proposal_url FROM projects p LEFT JOIN request_responses rr ON rr.request_id = p.request_id AND rr.account_id = p.owner_id WHERE p.owner_id = ? AND p.request_id IS NOT NULL')
       .bind(me.id).all<{ request_id: string; project_id: string; proposal_url: string | null }>();
     const byReq = new Map(mine.results.map((m) => [m.request_id, m]));
-    const regions = me.receive_requests ? regionsOf(me) : [];
+    const regions = me.receive_requests && !me.requests_blocked ? regionsOf(me) : [];
     const operator = isOperator(env, me.email);
     const open = regions.length || operator ? (await env.DB.prepare("SELECT * FROM requests WHERE status = 'open' ORDER BY created_at DESC LIMIT 200").all<RequestRow>()).results.filter((r) => operator || regions.some((g) => regionMatches(g, r.region))) : [];
     const answered = byReq.size ? (await env.DB.prepare(`SELECT * FROM requests WHERE id IN (${[...byReq.keys()].map(() => '?').join(',')})`).bind(...byReq.keys()).all<RequestRow>()).results : [];
@@ -256,12 +259,12 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
       const m = byReq.get(r.id);
       // 연락처는 제안 링크를 보낸(요금이 발생한) 요청에만 (숨고식: 제안이 곧 연락처)
       const open = operator || !!m?.proposal_url;
-      return { ...(open ? pubRequest(r) : lockedRequest(r)), responded: !!m?.proposal_url, photosOpen: open, ...(m ? { projectId: m.project_id } : {}), ...(m?.proposal_url ? { phone: r.phone, ...(r.email ? { email: r.email } : {}) } : {}) };
+      return { ...(open ? pubRequest(r) : lockedRequest(r)), responded: !!m?.proposal_url, ...(m ? { projectId: m.project_id } : {}), ...(m?.proposal_url ? { phone: r.phone, ...(r.email ? { email: r.email } : {}) } : {}) };
     });
     return json({ requests });
   }
 
-  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel|choose|board))?$/);
+  const m = pathname.match(/^\/api\/requests\/([A-Za-z0-9_-]{16})(?:\/(photos|biz-doc)(?:\/(\d+))?|\/(respond|cancel|choose|board|report))?$/);
   if (!m) return text('not found', 404);
   const r = await getRequest(env, m[1]);
   if (!r) return text('request not found', 404);
@@ -318,7 +321,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (!ok) {
       const me = await authenticate(withSessionParam(req, url), env);
       if (!me) return text('unauthorized', 401);
-      ok = (await shopCanSee(env, me, r)) && (await photosOpen(env, me, r.id)); // 사진은 제안을 보낸 뒤 (2026-10-24 — 사진의 전화번호·주소로 간판다를 건너뛰지 않게)
+      ok = await shopCanSee(env, me, r);
+      if (ok) await recordView(env, r.id, me.id); // 열람 기록 (신고 근거, 2026-10-24)
     }
     if (!ok) return text('forbidden', 403);
     const meta = photosOf(r).find((p) => p.n === Number(m[3]));
@@ -330,6 +334,11 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
 
   // ---- 취소: POST /api/requests/:id/cancel (고객, 2026-10-22) — 요청을 닫기만 한다 ("취소만 남기고 환불 재요청 빼줘": 제안한 간판집은 이미 연락처를 받았다).
   // 열린 요청만. 닫힌 요청은 새 간판집 목록에서 빠지고 제안을 못 만든다. 제안했던 간판집에 알림
+  // ---- 간판다 밖 거래 신고: POST /api/requests/:id/report (고객 키·세션, 2026-10-24) ----
+  if (m[4] === 'report' && req.method === 'POST') {
+    if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
+    return createReport(req, env, r.id);
+  }
   if (m[4] === 'cancel' && req.method === 'POST') {
     if (!(await customerOk(env, req, url, r, key))) return text('forbidden', 403);
     if (r.status !== 'open') return json({ error: 'not_open', status: r.status }, 409);
@@ -375,6 +384,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const me = await authenticate(req, env);
     if (!me) return text('unauthorized', 401);
     if (!(await shopCanSee(env, me, r))) return text('forbidden', 403);
+    await recordView(env, r.id, me.id); // 가져오기 = 열람 (신고 근거, 2026-10-24)
     const existing = await env.DB.prepare('SELECT * FROM projects WHERE owner_id = ? AND request_id = ?').bind(me.id, r.id).first<{ id: string; name: string; created_at: number }>();
     if (existing) return json({ project: { id: existing.id, name: existing.name, createdAt: existing.created_at, role: 'owner', requestId: r.id } });
     const id = randomToken().slice(0, 16), name = (isOperator(env, me.email) ? `${r.store} 요청` : `${r.region}${r.floor ? ` ${r.floor}` : ''} 요청`).slice(0, 60), now = Date.now(); // 가게 이름은 제안 뒤에 (2026-10-24)
@@ -383,8 +393,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const mode = (await readJson<{ mode?: string }>(req))?.mode;
     if (r.snapshot_project && mode !== 'blank') {
       const snap = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(r.snapshot_project).first<ProjectRow>();
-      // 사진 자리·사인물은 가져오되 사진 파일은 제안을 보낸 뒤 (unlockPhotos, 2026-10-24). 운영자는 바로
-      if (snap) await cloneRoom(env, snap, { id, owner_id: me.id }, mode === 'photos' ? ['photos'] : ['photos', 'objects', 'sources'], undefined, isOperator(env, me.email));
+      if (snap) await cloneRoom(env, snap, { id, owner_id: me.id }, mode === 'photos' ? ['photos'] : ['photos', 'objects', 'sources']);
     }
     return json({ project: { id, name, createdAt: now, role: 'owner', requestId: r.id } }, 201);
   }

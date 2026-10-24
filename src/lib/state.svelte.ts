@@ -60,7 +60,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 사진이 아직 닫힘 — 제안을 보내면 열린다 (2026-10-24) */ photosLocked?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; on: boolean } }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; on: boolean } }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -117,15 +117,11 @@ class AppState {
   /** 헤더의 "보낸 요청 M" (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 열린 내 요청 수, 보낸 요청이 있으면 보인다 */
   sentCount = $state(0);
   sentShown = $state(false);
-  /** 제안 링크를 만들어 크레딧을 냈다 → 사진·가게 정보가 열린다 (다시 받는다) */
+  /** 제안 링크를 만들어 크레딧을 냈다 → 가게 정보·연락처가 열린다 */
   creditPaid() {
     if (this.access.status !== 'ok') return;
-    this.access = { ...this.access, photosLocked: false, ...(this.access.credit ? { credit: { ...this.access.credit, paid: true } } : {}) };
-    this.assetEpoch++;
-    if (this.role === 'owner' && this.access.requestId) void this.importRequestPhotos(this.access.requestId);
+    if (this.access.credit) this.access = { ...this.access, credit: { ...this.access.credit, paid: true } };
   }
-  /** 요청 사진이 닫힘 (제안 전 간판집, 2026-10-24) — 사진 대신 안내, 받지 않는다 */
-  get photosLocked(): boolean { return this.access.status === 'ok' && !!this.access.photosLocked; }
   /** 사진마다 [정보]·[구별선] 숨김 (2026-10-24 "사진에 정보, 구별선 토글버튼으로 사진에서 표시제어") — 이 기기에만 (localStorage) */
   photoHide = $state<Record<string, { info?: boolean; lines?: boolean }>>((() => { try { return JSON.parse(localStorage.getItem('ganpanda.photoHide') ?? '{}'); } catch { return {}; } })());
   togglePhotoHide(photoId: string, k: 'info' | 'lines') {
@@ -957,8 +953,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.photosLocked ? { photosLocked: true } : {}), ...(a.credit ? { credit: a.credit } : {}) };
-        if (a.photosLocked && this.requestView) this.view = 'list'; // 사진이 닫힌 요청은 리스트(치수·구성)로 연다 (2026-10-24 "사이즈와 구성만 텍스트 그리고 리스트만")
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.credit ? { credit: a.credit } : {}) };
         // 사진 보드만 보는 고객(보기 초대)은 탭이 없으니 디자인(2D)으로 — 실측 화면에서 시작하면 디자인이 안 보인다 (2026-10-22 작업 탭)
         if (a.role === 'viewer' && !this.requestView) this.stage = '2d';
         const session = loadSession();
@@ -983,7 +978,7 @@ class AppState {
     this.client.whenOnline(flushPendingUploads);
     this.client.whenOnline(() => void retryMissingAssets()); // 못 받은 에셋 다시 (2026-10-17)
     // 요청에서 만든 프로젝트: 문서에 사진이 없으면 요청 사진을 가져온다 (요청판, 2026-10-17)
-    this.client.whenOnline(() => { if (this.role === 'owner' && this.access.status === 'ok' && this.access.requestId && !this.access.photosLocked) this.importRequestPhotos(this.access.requestId); });
+    this.client.whenOnline(() => { if (this.role === 'owner' && this.access.status === 'ok' && this.access.requestId) this.importRequestPhotos(this.access.requestId); });
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
     this.client.whenOnline(() => {
       // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")

@@ -15,7 +15,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number; /** 'shop' | 'consumer' | null (2026-10-22) */ kind?: string | null; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; /** 'shop' | 'consumer' | null (2026-10-22) */ kind?: string | null; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string; /** 간판다 밖 거래로 요청 받기 정지 (2026-10-24) */ requests_blocked?: number }
 
 const LOCK_WINDOW = 15 * 60 * 1000;
 const VERIFY_TTL = 24 * 60 * 60 * 1000;

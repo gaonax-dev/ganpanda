@@ -46,7 +46,7 @@
       const inv = await createInvite(app.room, 'viewer', 'proposal');
       link = `${SERVER_URL}/p/${app.room}/${inv.token}`;
       copied = false;
-      if (app.access.status === 'ok' && (app.access.credit || app.access.photosLocked)) app.creditPaid(); // 사진·가게 정보가 열린다
+      if (app.access.status === 'ok' && app.access.credit) app.creditPaid(); // 가게 정보·연락처가 열린다
     } catch (e) {
       // 무료 요금제 월 건수 한도 (2026-10-17): 서버 402 proposal_limit
       error = e instanceof AuthError && e.status === 402 ? creditError(e.message) ?? proposalLimitMessage(e.message) : e instanceof Error ? e.message : String(e);
@@ -83,7 +83,7 @@
       {/if}
 
       {#if credit}
-        <p class="credit" data-testid="proposal-credit">이 요청에 첫 제안을 보내면 <b>크레딧 {won(credit.fee)}</b>{credit.on ? '이 등록 카드로 결제되고' : '이 쓰이고'}, 가게 사장님의 <b>사진·가게 정보·연락처</b>가 열립니다.{#if !credit.on} <small>(지금은 정식 결제 전이라 무료입니다)</small>{/if}</p>
+        <p class="credit" data-testid="proposal-credit">이 요청에 첫 제안을 보내면 <b>크레딧 {won(credit.fee)}</b>{credit.on ? '이 등록 카드로 결제되고' : '이 쓰이고'}, 가게 사장님의 <b>가게 정보·연락처</b>가 열립니다.{#if !credit.on} <small>(지금은 정식 결제 전이라 무료입니다)</small>{/if}</p>
       {/if}
       <section>
         {#if busy}

@@ -1,6 +1,7 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
 import { CREDIT_MONTH_LIMIT, creditsOn, photosOpen, requestFee } from './credit';
 import { chargeCredit } from './billing';
+import { recordView } from './bypass';
 import { isOperator } from './operator';
 import { talkMember } from './talk';
 import { authenticate, type Account } from './auth';
@@ -109,18 +110,16 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
-    // photosLocked: 요청 사진이 아직 닫힘 — 요청 보드를 보는 간판집, 또는 요청에서 가져온 간판집 프로젝트가 제안 전 (2026-10-24). 앱은 사진 대신 안내
     // credit: 요청에서 가져온 내 프로젝트 — 첫 제안에 쓰일 크레딧 (2026-10-24). on = 실제 결제 여부(REQUEST_CREDITS)
     const credit = r.role === 'owner' && r.project.request_id && r.account ? { ...(await creditState(env, r.project.request_id, r.account)), on: creditsOn(env) && !isOperator(env, r.account.email) } : null;
-    let locked = false;
+    // 요청 보드를 여는 간판집: 열람 기록(신고 근거, 2026-10-24) + 제안 전엔 요청서 이름(가게 이름)을 가린다. 사진은 결제 전에도 원본 (2026-10-24 "원본 그대로")
+    let unpaid = false;
     if (r.project.kind === 'request' && r.account && r.account.id !== r.project.owner_id) {
       const q = await env.DB.prepare('SELECT id FROM requests WHERE snapshot_project = ?').bind(r.project.id).first<{ id: string }>();
-      locked = !q || !(await photosOpen(env, r.account, q.id));
-    } else if (r.project.request_id) {
-      const own = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(r.project.owner_id).first<Account>();
-      locked = !own || !(await photosOpen(env, own, r.project.request_id));
+      if (q) await recordView(env, q.id, r.account.id);
+      unpaid = !q || !(await photosOpen(env, r.account, q.id));
     }
-    return json({ role: r.role, project: { id: r.project.id, name: locked && r.project.kind === 'request' ? '견적 요청서' : r.project.name /* 요청서 이름에 가게 이름 (2026-10-24 가림) */ }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}), ...(locked ? { photosLocked: true } : {}), ...(credit ? { credit } : {}) });
+    return json({ role: r.role, project: { id: r.project.id, name: unpaid ? '견적 요청서' : r.project.name /* 요청서 이름에 가게 이름 (2026-10-24 가림) */ }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}), ...(credit ? { credit } : {}) });
   }
 
   const me = await authenticate(req, env);

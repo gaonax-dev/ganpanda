@@ -17,7 +17,7 @@ test('요청에서 가져온 프로젝트의 제안 창에 크레딧 금액 — 
   await page.getByTestId('request-propose').click();
   const credit = page.getByTestId('proposal-credit');
   await expect(credit).toContainText('8,400원');
-  await expect(credit).toContainText('사진·가게 정보·연락처');
+  await expect(credit).toContainText('가게 정보·연락처');
   await expect(credit).toContainText('정식 결제 전');
 });
 

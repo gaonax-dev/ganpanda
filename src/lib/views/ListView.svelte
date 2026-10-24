@@ -64,7 +64,6 @@
   $effect(() => {
     // 카드 얼굴: 사진 영역을 펼친 작은 그림 (원본 전체를 카드마다 겹치지 않는다 — 휴대폰 메모리)
     void app.assetEpoch;
-    if (app.photosLocked) return; // 요청 사진은 제안 뒤 — 카드 얼굴 없이 치수·구성만 (2026-10-24)
     for (const { o, w, h } of sized) {
       const p = app.photos.find((x) => x.id === o.photoId);
       if (!p || o.quad.length !== 4) continue;

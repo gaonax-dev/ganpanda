@@ -1,7 +1,7 @@
 // 간판다 동기화 서버: /api/rooms/:room/ws (실시간 협업), /api/assets/:id (사진·디자인 파일)
 export { Room } from './room';
 export { Account } from './account';
-import { photosOpen } from './credit';
+import { handleOperator } from './bypass';
 import { handleMyTalks, syncTalkIndex } from './talk';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
@@ -65,11 +65,6 @@ async function handleAsset(req: Request, env: Env, id: string, url: URL): Promis
   const access = await resolveAccess(withSessionParam(req, url), env, projectId, url.searchParams.get('invite'));
   if (typeof access === 'number') return text('no access', access);
   const ownerId = access.project.owner_id;
-  // 요청 보드의 사진은 가게 사장·제안을 보낸 간판집·운영자만 (2026-10-24 — 사진의 전화번호·주소로 간판다를 건너뛰지 않게). 403 = 앱이 다시 받지 않는다
-  if (access.project.kind === 'request' && req.method !== 'PUT' && access.account && access.account.id !== ownerId) {
-    const r = await env.DB.prepare('SELECT id FROM requests WHERE snapshot_project = ?').bind(access.project.id).first<{ id: string }>();
-    if (!r || !(await photosOpen(env, access.account, r.id))) return text('photos locked', 403);
-  }
 
   if (req.method === 'PUT') {
     // viewer 도 올릴 수 있다 (대화 첨부용). 용량은 소유 계정에 쌓인다
@@ -289,6 +284,7 @@ export default {
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
+    if (pathname.startsWith('/api/operator/')) return withCors(await handleOperator(req, env, pathname)); // 간판다 밖 거래 신고 처리 (2026-10-24)
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));
     if (/^\/api\/projects\/[^/]+\/versions/.test(pathname)) return withCors(await handleVersions(req, env, pathname, url)); // 사용자 버전 기록 (2026-10-21)
     if (pathname.startsWith('/api/projects') || pathname.startsWith('/api/invites/')) return withCors(await handleProjects(req, env, pathname, url));
