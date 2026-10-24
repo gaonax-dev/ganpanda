@@ -1,5 +1,6 @@
 <!-- 주문 정보 (프로젝트에 저장): 주문자·업체·연락처·배송/시공·주소·납기·요청사항. 주문서 머리에 들어간다 -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { DELIVERY_LABEL, type DeliveryType, type OrderInfo } from '../core/order';
 
@@ -9,9 +10,9 @@
   const close = () => (app.orderOpen = false);
 </script>
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="주문 정보" data-testid="order-dialog">
-    <header><h2>주문 정보</h2><button class="icon" data-testid="close-order" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>주문 정보</h2><button class="icon" data-close data-testid="close-order" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
       <div class="grid2">
         <label>주문자명<input data-testid="order-customer" value={o.customer ?? ''} disabled={ro} oninput={(e) => set({ customer: e.currentTarget.value })} /></label>

@@ -2,6 +2,7 @@
   2026-10-16: 공급 단가표(한울 등, 읽기 전용)를 아래에 보이고, 내 단가 항목을 공급 품목에 연결하면 그 단가를 가져오고 꼬리표가 붙는다. 직접 고치면 연결이 풀린다.
   공급사 계산법(글자 크기 구간·폭 구간·헤베+기본가·면적 구간)을 고르면 견적이 그 계산법 × 배수로 나온다("공급사별 계산법을 사용할 수 있게해줘"). -->
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, UNIT_LABEL } from '../core/catalog';
   import { ROUNDING_OPTIONS, type PriceTable } from '../core/pricing';
@@ -109,9 +110,9 @@
   </div>
 {/snippet}
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) app.pricesOpen = false; }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="단가 설정">
-    <header><h2>단가 설정</h2><button class="icon" data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
+    <header><h2>단가 설정</h2><button class="icon" data-close data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
     <div class="body">
       {#each ['board', 'channel', 'light', 'part'] as const as cat (cat)}
         <section>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { nudgeClose } from './dialogGuard';
   // 소비자 견적 요청 (2026-10-21 "소비자는 간판견적을 보고 견적 요청하는 방식 …") — 2026-10-22 사용자:
   // "견적요청 버튼 클릭하면 사업자등록확인 요청 대화식으로 등록증 요청한다. 하단에는 수동입력버튼도 준비한다. 이미지가 들어오면 내용을 추출하는 효과를 표현하고
   //  완료되면 수동입력 폼이 나타나고 수집한 내용을 다시 확인한다. 사업자 확인이되면 사업자 인증 배지가 표시된 견적요청 페이지가 나온다.
@@ -164,9 +165,9 @@
 
 <svelte:window onkeydown={(e) => { if (e.key === 'Escape') close(); }} />
 
-<div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
+<div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
   <div class="dialog" role="dialog" aria-modal="true" aria-label="견적 요청" data-testid="estimate-dialog" data-step={step}>
-    <header><h2>{b2b ? '외주 견적 요청 (B2B)' : '간판 견적 요청'}</h2><button class="icon" data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>{b2b ? '외주 견적 요청 (B2B)' : '간판 견적 요청'}</h2><button class="icon" data-close data-testid="estimate-close" title="닫기" onclick={close}>✕</button></header>
     {#if !app.account}
       <div class="gate" data-testid="estimate-login">
         <p>견적 요청을 보내려면 <b>로그인</b>이 필요합니다. 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다.</p>
