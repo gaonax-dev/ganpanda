@@ -116,6 +116,8 @@
   const narrow = $derived(photo.width * zoom < 520);
   /** 아주 좁으면(260px 미만, 휴대폰에서 전체 보기) 머리글은 이름만, 사진 위 글자 라벨은 숨김 — 겹쳐서 읽을 수 없으므로 */
   const tiny = $derived(photo.width * zoom < 260);
+  const hideInfo = $derived(!!app.photoHide[photo.id]?.info);
+  const hideLines = $derived(!!app.photoHide[photo.id]?.lines);
   /** 화면 1px 에 해당하는 사진 픽셀 */
   const u = $derived(1 / (scale * zoom));
   /** 조절점 터치 영역 반지름(화면 px): 터치 기기는 넓게 (2026-10-24 "컨트롤 포인트의 터치 영역을 조금 넓게 … 원근 컨트롤러도") — 보이는 크기는 그대로 */
@@ -531,6 +533,11 @@
       {#if level?.level}<span class="lvl" data-testid="camera-level" data-level={level.level} title={levelTitle} aria-label={levelTitle}>{#each [1, 2, 3] as k (k)}<i class:on={level.level >= k}></i>{/each}</span>{/if}
       <button class="x cam opt" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} aria-label="원근 옵션" title={cameraSet ? '원근 옵션 — 이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '원근 옵션 — 벽의 직선과 실측 길이로 원근을 직접 맞추기'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}><svg class="opt-ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5" /><rect x="5.5" y="1.5" width="9" height="9" rx="1.5" /></svg></button>
     {/if}
+    <!-- [정보]·[구별선] 토글 (2026-10-24 "사진에 정보, 구별선 토글버튼으로 사진에서 표시제어") — 고른 사인물은 늘 보인다 -->
+    {#if !tiny && !narrow && objects.length}
+      <button class="x tog" class:set={!hideInfo} data-testid="photo-toggle-info" aria-pressed={!hideInfo} title={hideInfo ? '사인물 이름·치수 글자 보이기' : '사인물 이름·치수 글자 숨기기'} onpointerdown={(e) => e.stopPropagation()} onclick={() => app.togglePhotoHide(photo.id, 'info')}>정보</button>
+      <button class="x tog" class:set={!hideLines} data-testid="photo-toggle-lines" aria-pressed={!hideLines} title={hideLines ? '사인물 구별선(외곽선) 보이기' : '사인물 구별선(외곽선) 숨기기 — 눌러서 고를 수는 있다'} onpointerdown={(e) => e.stopPropagation()} onclick={() => app.togglePhotoHide(photo.id, 'lines')}>구별선</button>
+    {/if}
     {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
     {#if pins.some((p) => p.resolved) && !tiny}
       <!-- 완료한 말풍선 목록 (2026-10-18): 사인물을 가리키지 않는 것도 여기서 다시 연다 -->
@@ -541,6 +548,11 @@
   </div>
   {#if menuOpen && editable}
     <div class="confirms menu" data-testid="photo-menu-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
+      <!-- 휴대폰 폭은 머리글이 좁아 [정보]·[구별선]을 여기에 (2026-10-24) -->
+      {#if narrow && objects.length}
+        <button class="citem" data-testid="photo-menu-info" onclick={() => { menuOpen = false; app.togglePhotoHide(photo.id, 'info'); }}>{hideInfo ? '정보 보이기' : '정보 숨기기'} <span>사인물 이름·치수 글자</span></button>
+        <button class="citem" data-testid="photo-menu-lines" onclick={() => { menuOpen = false; app.togglePhotoHide(photo.id, 'lines'); }}>{hideLines ? '구별선 보이기' : '구별선 숨기기'} <span>사인물 외곽선 — 눌러서 고를 수는 있다</span></button>
+      {/if}
       <!-- 이름 변경 (2026-10-22 "사진도 사진이름으로 사진 설정에 이름변경추가") — 톡 링크·목록에 이 이름이 보인다 -->
       <button class="citem" data-testid="photo-rename" onclick={() => { menuOpen = false; const n = prompt('사진 이름', photo.name); if (n !== null) app.renamePhoto(photo.id, n); }}>이름 변경 <span>톡 링크·목록에 보이는 이름</span></button>
       {#if onreplace}<button class="citem" data-testid="photo-replace" onclick={() => { menuOpen = false; onreplace(); }}>사진 교체 <span>같은 자리에서 다시 찍은 사진으로 — 영역·원근은 그대로</span></button>{/if}
@@ -704,7 +716,7 @@
           </g>
         {/if}
       {/if}
-      <g class="sign" class:sel={sel || multiSel} class:same class:warn data-multi={multiSel || undefined}>
+      <g class="sign" class:sel={sel || multiSel} class:same class:warn class:ghost={hideLines && !sel && !multiSel} data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
           data-id={o.id}
@@ -719,11 +731,13 @@
           pointer-events={tool === 'magic' || tool === 'pin' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
-        <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
+        {#if !hideInfo || sel || multiSel}
+        <text data-testid="sign-label" x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        {/if}
         <!-- 실측 없음 = 외곽선 왼쪽 위 빨간 점 (2026-10-24 "실측 없으면 사인물 왼쪽상단에 빨강 인디케이터 점") — 예상 치수(≈)만 있어도 실측은 아니다 -->
-        {#if !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={q[0][0]} cy={q[0][1]} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
+        {#if (!hideInfo || sel || multiSel) && !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={q[0][0]} cy={q[0][1]} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
           {@const H = solveHomography(UNIT_RECT, q)}
@@ -933,6 +947,7 @@
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); }
+  .sign.ghost polygon { fill: transparent; stroke-opacity: 0; } /* [구별선] 끔 (2026-10-24) — 눌러서 고를 수는 있다 */
   .sign.same polygon { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); } /* 연결 영역도 고른 것과 같은 진하기 (2026-10-22) */
   /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
   .sign polygon.touch-outline, .sign.sel polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
