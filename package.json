@@ -12,7 +12,12 @@
     "e2e": "playwright test",
     "check": "svelte-check",
     "deploy": "npm run build && wrangler deploy && node scripts/smoke.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "app:dev": "cargo tauri dev",
+    "app:build": "cargo tauri build",
+    "app:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "app:ios": "cargo tauri ios dev",
+    "app:android": "cargo tauri android dev"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

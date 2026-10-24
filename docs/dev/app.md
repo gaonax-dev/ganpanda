@@ -1,0 +1,29 @@
+# 데스크톱·모바일 앱 (Tauri 2)
+
+2026-10-24 사용자: "데스크탑 모바일 앱 준비해" (같은 날의 "완성후에 진행할께"는 대체됨). 로드맵 D1~D4 → [../product/roadmap.md](../product/roadmap.md).
+
+## 방식
+- 앱은 **운영 사이트(https://ganpanda.co.kr)를 웹뷰에 연다**(`src-tauri/tauri.conf.json` `build.frontendDist`). 앱 안에 웹 번들을 넣지 않으므로 **웹을 배포하면 앱 내용도 같이 바뀐다** — 앱을 다시 배포하는 때는 Rust 쪽(이동 규칙·창·권한)이나 아이콘이 바뀔 때뿐. 개발(`cargo tauri dev`)은 로컬 vite(`http://localhost:5173`)를 연다.
+- 카카오 로그인·토스 카드 등록은 모두 http(s) 안에서 돌아오므로(`/login#session=`, `?billing=success`) 웹뷰 안에서 그대로 끝난다 — 딥링크 없음. 구글은 임베드 웹뷰를 막지만 운영 공급자는 카카오뿐.
+- **이동 규칙**(`src-tauri/src/lib.rs` `nav_action`, Rust 단위 테스트): http(s)·about·blob·data 는 웹뷰 안, 그 밖의 스킴(`tel:`·`mailto:`·`kakaotalk://`·`intent://`·`ispmobile://` 등 카드사 앱)은 시스템에 넘긴다(opener 플러그인). 웹뷰는 새 창을 못 열므로 초기화 스크립트가 `window.open`·`target=_blank` 링크를 `ganpanda-open:<주소>` 이동으로 바꾸고, Rust 가 http(s)만 바깥 브라우저로 연다(`javascript:` 등은 막음). 페이지는 `document.documentElement.dataset.ganpandaApp = '1'` 로 앱 안임을 알 수 있다.
+- 웹은 IPC 를 쓰지 않는다(권한 `capabilities/default.json` = core:default · opener:default 뿐). 원격 페이지에 Tauri API 를 열지 않는 것이 안전하다.
+- 아이콘: `src-tauri/app-icon.png`(1024, 노랑 바탕 "간판다") → `cargo tauri icon src-tauri/app-icon.png -o src-tauri/icons`.
+
+## 명령 (저장소 루트)
+| 할 일 | 명령 |
+|---|---|
+| 맥 개발 실행 (로컬 vite 연결) | `npm run app:dev` |
+| 맥 배포판 만들기 (.app/.dmg, 서명 없음) | `npm run app:build` → `src-tauri/target/release/bundle/` |
+| Rust 테스트 | `npm run app:test` |
+| iOS 시뮬레이터 실행 | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
+| Android 실행 | `cargo tauri android init` 뒤 `npm run app:android` — **Java(JDK 17)·ANDROID_HOME·NDK 필요** |
+
+## 준비물 (이 맥, 2026-10-24 확인)
+- 있음: Rust 1.97, tauri-cli 2.11, Xcode 26.1(시뮬레이터), iOS rust 타깃(aarch64-apple-ios·-sim).
+- **Android**: `~/Library/Android/sdk` 는 있으나 Java 없음·`ANDROID_HOME` 미설정·NDK 미확인 → `brew install --cask temurin@17`, `export ANDROID_HOME=~/Library/Android/sdk`, SDK Manager 로 NDK 설치 뒤 `cargo tauri android init`.
+
+## 남은 일 (로드맵)
+- D1 ✓ 맥 개발판·이동 규칙·iOS 프로젝트. **WebKit 점검**(3D·ORT wasm 자동 분리·IndexedDB·파일 선택)은 실제로 열어 보며.
+- D2 서명·공증한 맥 배포판(.dmg, Apple 개발자 계정) — 토스 정식 오픈 후.
+- D3 윈도우판(WebView2)·자동 업데이트. 앱이 웹을 품지 않아 업데이트는 Rust 가 바뀔 때만.
+- D4 푸시(톡 알림). iOS·Android 스토어 등록(개발자 계정·심사).

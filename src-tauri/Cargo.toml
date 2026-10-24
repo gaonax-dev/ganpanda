@@ -1,0 +1,26 @@
+[package]
+name = "ganpanda"
+version = "0.1.0"
+description = "간판다 — 건물 사진 위에서 사인물을 함께 정하고 견적까지"
+authors = ["가오낙스"]
+license = ""
+repository = "https://github.com/gaonax-dev/ganpanda"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "ganpanda_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3" }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.3" }
+tauri-plugin-log = "2"
+# 외부 링크·앱 스킴(tel:·카카오톡·카드사 앱)을 시스템에 넘긴다 (2026-10-24 데스크톱·모바일 앱 D1)
+tauri-plugin-opener = "2"
+url = "2"
