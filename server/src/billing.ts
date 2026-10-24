@@ -111,6 +111,40 @@ async function charge(env: Env, row: BillingRow, email: string, plan: PaidPlan, 
     return msg;
   }
 }
+/** 이번 달(한국 시각) 1일 0시 */
+export function kstMonthStart(ts: number): number {
+  const d = new Date(ts + KST);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) - KST;
+}
+/** 이번 달 결제된 크레딧 합계 */
+export async function creditUsed(env: Env, accountId: string, now = Date.now()): Promise<number> {
+  const r = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM payments WHERE account_id = ? AND kind = 'credit' AND status = 'DONE' AND created_at >= ?").bind(accountId, kstMonthStart(now)).first<{ n: number }>();
+  return Number(r?.n ?? 0);
+}
+/**
+ * 요청 크레딧 결제 (2026-10-24 "등록 카드로 쓴 만큼", 월 한도 500만원): 제안 링크를 만들 때 한 번.
+ * 성공 true, 아니면 { status 402, body } — card_required(카드 없음) · credit_limit(이번 달 한도) · charge_failed(카드사 거절)
+ */
+export async function chargeCredit(env: Env, me: { id: string; email: string }, requestId: string, fee: number, limit: number): Promise<true | { status: 402 | 403 | 503; body: Record<string, unknown> }> {
+  if (!configured(env)) return { status: 503, body: { error: 'not_configured' } };
+  if (!allowedToPay(env, me.email)) return { status: 403, body: { error: 'not_allowed' } };
+  const row = await rowOf(env, me.id);
+  if (!row?.billing_key_enc) return { status: 402, body: { error: 'card_required', fee } };
+  const used = await creditUsed(env, me.id);
+  if (used + fee > limit) return { status: 402, body: { error: 'credit_limit', used, limit, fee } };
+  const orderId = orderIdOf(), now = Date.now();
+  try {
+    const r = await chargeBillingKey(env, await decryptKey(env, row.billing_key_enc), { customerKey: row.customer_key, amount: fee, orderId, orderName: '간판다 견적 요청 크레딧', customerEmail: me.email });
+    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, payment_key, receipt_url, created_at, approved_at, request_id) VALUES (?, ?, 'credit', ?, 'credit', 'DONE', ?, ?, ?, ?, ?)")
+      .bind(orderId, me.id, fee, r.paymentKey ?? null, r.receipt?.url ?? null, now, r.approvedAt ? Date.parse(r.approvedAt) : now, requestId).run();
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, error, created_at, request_id) VALUES (?, ?, 'credit', ?, 'credit', 'FAILED', ?, ?, ?)").bind(orderId, me.id, fee, msg, now, requestId).run();
+    return { status: 402, body: { error: 'charge_failed', message: msg, fee } };
+  }
+}
+
 async function endSubscription(env: Env, id: string) {
   await env.DB.batch([
     env.DB.prepare('UPDATE billing SET plan = NULL, next_plan = NULL, auto_renew = 0, grace_until = NULL, updated_at = ? WHERE account_id = ?').bind(Date.now(), id),
@@ -167,7 +201,7 @@ export async function handleBilling(req: Request, env: Env, pathname: string): P
   const now = Date.now();
   if (pathname === '/api/me/billing' && req.method === 'GET') {
     const row = await rowOf(env, me.id);
-    const { results } = await env.DB.prepare('SELECT order_id, plan, amount, kind, status, receipt_url, error, created_at FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 24').bind(me.id).all<{ order_id: string; plan: string; amount: number; kind: string; status: string; receipt_url: string | null; error: string | null; created_at: number }>();
+    const { results } = await env.DB.prepare('SELECT order_id, plan, amount, kind, status, receipt_url, error, created_at FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 50').bind(me.id).all<{ order_id: string; plan: string; amount: number; kind: string; status: string; receipt_url: string | null; error: string | null; created_at: number }>();
     return json({
       configured: configured(env), test: isFake(env) || isTestKey(env.TOSS_SECRET_KEY ?? ''), fake: isFake(env), clientKey: configured(env) ? env.TOSS_CLIENT_KEY : '',
       allowed: allowedToPay(env, me.email), business: businessWaived(env, me.email) || (await hasBusiness(env, me.id)), plan: me.plan, // 심사 계정은 사업자 확인된 것으로
@@ -184,7 +218,7 @@ export async function handleBilling(req: Request, env: Env, pathname: string): P
   if (pathname === '/api/me/billing/prepare' || pathname === '/api/me/billing/issue') {
     if (!allowedToPay(env, me.email)) return json({ error: 'not_allowed' }, 403);
     if (!businessWaived(env, me.email) && !(await hasBusiness(env, me.id))) return json({ error: 'business_required' }, 403);
-    if (!isPaid(body.plan)) return json({ error: 'bad_plan' }, 400);
+    if (!isPaid(body.plan) && body.plan !== 'card') return json({ error: 'bad_plan' }, 400); // card = 카드만 등록 (요청 크레딧용, 2026-10-24)
   }
   if (pathname === '/api/me/billing/prepare') {
     if (row) return json({ customerKey: row.customer_key, clientKey: env.TOSS_CLIENT_KEY });
@@ -205,6 +239,7 @@ export async function handleBilling(req: Request, env: Env, pathname: string): P
       if (fresh.grace_until !== null) await renew(env, fresh, me.email);
       return json({ ok: true, changed: 'card', sub: subOf(await rowOf(env, me.id)) });
     }
+    if (body.plan === 'card') return json({ ok: true, changed: 'card', sub: subOf(await rowOf(env, me.id)) }); // 카드만 — 구독 결제 없음
     const r = await charge(env, fresh, me.email, body.plan as PaidPlan, 'first');
     if (r !== true) return json({ error: 'charge_failed', message: r }, 402);
     await startPeriod(env, me.id, body.plan as PaidPlan, addMonthsKst(now, 1, kstDay(now)), kstDay(now)); // 다시 구독하면 그날이 새 결제일

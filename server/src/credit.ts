@@ -6,6 +6,10 @@ import { isOperator } from './operator';
 export const FEE_RATE = 0.003;
 export const FEE_MIN = 3_000;
 export const FEE_MAX = 50_000;
+/** 한 계정의 한 달(한국 시각) 크레딧 결제 한도 (2026-10-24 "한도 500만원") */
+export const CREDIT_MONTH_LIMIT = 5_000_000;
+/** 크레딧 결제가 켜져 있나 (wrangler vars REQUEST_CREDITS = "1") */
+export const creditsOn = (env: Env) => String(env.REQUEST_CREDITS ?? '') === '1';
 /** 자동 견적 → 크레딧 (100원 단위 올림) */
 export function requestFee(total: number | null | undefined): number {
   const t = typeof total === 'number' && Number.isFinite(total) && total > 0 ? total : 0;

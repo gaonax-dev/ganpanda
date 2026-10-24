@@ -19,7 +19,7 @@ export default defineConfig({
           KAKAO_CLIENT_ID: 'k-client', KAKAO_CLIENT_SECRET: 'k-secret',
           NTS_API_KEY: 'test-nts', // 사업자 확인 (국세청 호출은 setNtsFetch 로 대체)
           // 결제 (토스 호출은 setTossFetch 로 대체)
-          TOSS_CLIENT_KEY: 'test_ck_ganpanda', TOSS_SECRET_KEY: 'test_sk_ganpanda', TOSS_TEST_ALLOW_EMAILS: '',
+          TOSS_CLIENT_KEY: 'test_ck_ganpanda', TOSS_SECRET_KEY: 'test_sk_ganpanda', TOSS_TEST_ALLOW_EMAILS: '', REQUEST_CREDITS: '', // 요청 크레딧 결제 (2026-10-24) — 운영처럼 기본 꺼짐, test/requestCredit.test.ts 가 켠다
           BILLING_ENC_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
           APPLE_CLIENT_ID: 'kr.co.ganpanda.web', APPLE_TEAM_ID: 'TEAM123456', APPLE_KEY_ID: 'KEY123',
         },
