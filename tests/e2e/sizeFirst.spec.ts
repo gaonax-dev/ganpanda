@@ -15,14 +15,18 @@ test('치수가 없으면 속성 맨 위에 치수 칸 + 강조색 테두리, �
   await expect(size).toBeVisible();
   const order = await panel.evaluate((el) => [...el.querySelectorAll('[data-testid="panel-size"], [data-testid="category-select"]')].map((e) => e.getAttribute('data-testid')));
   expect(order).toEqual(['panel-size', 'category-select']);
-  await expect(size).toHaveAttribute('data-need', '1');
-  const [oc, ac] = await Promise.all([size.evaluate((e) => getComputedStyle(e).outlineColor), accent(page)]);
+  // 강조 테두리는 칸마다 — 한쪽을 넣으면 그 칸만 꺼진다 (2026-10-24 "강조색은 가로 세로 입력필드에 한쪽이 완성되면 강조색 꺼진다")
+  const W = panel.getByTestId('panel-width'), Hh = panel.getByTestId('panel-height');
+  await expect(W).toHaveAttribute('data-need', '1');
+  await expect(Hh).toHaveAttribute('data-need', '1');
+  const [oc, ac] = await Promise.all([W.evaluate((e) => getComputedStyle(e).outlineColor), accent(page)]);
   expect(oc).not.toBe('rgba(0, 0, 0, 0)');
   expect(ac).toBeTruthy();
-  // 넣는 동안 자리는 그대로(입력 중 칸이 움직이지 않게), 둘 다 넣으면 테두리 없음
-  await panel.getByTestId('panel-width').fill('3000');
-  await panel.getByTestId('panel-height').fill('600');
-  await expect(size).not.toHaveAttribute('data-need', '1');
+  await W.fill('3000');
+  await expect(W).not.toHaveAttribute('data-need', '1');
+  await expect(Hh).toHaveAttribute('data-need', '1');
+  await Hh.fill('600');
+  await expect(Hh).not.toHaveAttribute('data-need', '1');
   await expect(panel.getByTestId('panel-height')).toBeFocused();
 });
 

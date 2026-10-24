@@ -98,11 +98,11 @@
   <!-- 대화 위의 내용(연결·분류·사이즈·사양 글·칩·요약)은 길어지면 스크롤 — 휴대폰에서 대화 입력칸이 밀려 안 보이던 문제 (2026-10-17) -->
   <div class="info">
   {#snippet sizeRow()}
-    <!-- 치수 없음 = 강조색 테두리, 예상 길이는 회색 (2026-10-24 "사인물 사이즈없으면 선택시 속성에 최상단 사이즈(에상길이는 회색) 표시하고 강조색으로 아웃라인 표시") -->
-    <div class="sizes" class:need={needSize} data-need={needSize ? '1' : undefined} data-testid="panel-size">
-      <label>가로<input data-testid="panel-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
+    <!-- 치수 없음 = 빈 칸마다 강조색 테두리, 예상 길이는 회색 (2026-10-24 "사인물 사이즈없으면 선택시 속성에 최상단 사이즈(에상길이는 회색) 표시하고 강조색으로 아웃라인 표시") -->
+    <div class="sizes" data-testid="panel-size">
+      <label>가로<input data-testid="panel-width" class:need={!obj.widthMm} data-need={!obj.widthMm ? '1' : undefined} type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
       <span>×</span>
-      <label>세로<input data-testid="panel-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '입력'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
+      <label>세로<input data-testid="panel-height" class:need={!obj.heightMm} data-need={!obj.heightMm ? '1' : undefined} type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '입력'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
       <span>mm</span>
     </div>
     {#if needSize && m?.estimate}<p class="estimate" data-testid="size-estimate">예상 ≈ {fmt(m.estimate.widthMm)} × {fmt(m.estimate.heightMm)}mm — 실측해 넣어 주세요</p>{/if}
@@ -203,7 +203,7 @@
   .title { flex: 1; background: none; border: 0; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; padding: 4px; border-radius: 6px; }
   .title:focus { background: var(--input); outline: none; }
   .sizes { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: var(--muted); border-radius: 8px; }
-  .sizes.need { outline: 2px solid var(--accent); outline-offset: 3px; } /* 치수 없음 — 강조 (2026-10-24) */
+  .sizes input.need { outline: 2px solid var(--accent); outline-offset: 1px; } /* 비어 있는 칸만 강조 — 한쪽을 넣으면 그 칸은 꺼진다 (2026-10-24 "강조색은 가로 세로 입력필드에 한쪽이 완성되면 강조색 꺼진다") */
   .estimate { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
   .size-first { padding-top: 12px; }
   .sizes label { display: flex; align-items: center; gap: 4px; flex: 1; }
