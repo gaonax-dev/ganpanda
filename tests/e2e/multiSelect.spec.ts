@@ -27,9 +27,15 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
   await expect(page.locator('[data-testid="sign-shape"][data-selected]')).toHaveCount(1); // 주 선택 하나
   await expect(page.locator('.sign[data-multi]')).toHaveCount(2);
   // 재질복제 (2026-10-23): 첫째·둘째가 셋째의 종류·옵션을 받는다. 가로·세로·이름은 그대로
-  await expect(page.getByTestId('multi-apply')).toHaveText('재질복제');
-  await expect(page.getByTestId('multi-clear')).toHaveText('정리');
+  // [정리] 대신 [마지막 사인물 ▾] → 메뉴: 구성 적용 · 사이즈 적용 (2026-10-24 "다중선택시 마지막 사인물(버튼누르면 메뉴:구성 적용, 사이즈 적용) 정리버튼 대신")
+  await expect(page.getByTestId('multi-clear')).toHaveCount(0);
+  const lastName = (await objs(page)).find((o: { id: string }) => o.id === ids[2]).name;
+  await expect(page.getByTestId('multi-last')).toContainText(lastName);
+  await page.getByTestId('multi-last').click();
+  await expect(page.getByTestId('multi-apply')).toHaveText('구성 적용');
+  await expect(page.getByTestId('multi-size')).toHaveText('사이즈 적용');
   await page.getByTestId('multi-apply').click();
+  await expect(page.getByTestId('multi-apply')).toHaveCount(0); // 고르면 메뉴는 닫힌다
   const after = await objs(page);
   for (const id of [ids[0], ids[1]]) {
     const o = after.find((x: { id: string }) => x.id === id);
@@ -38,8 +44,18 @@ test('Shift+클릭으로 여러 개 고르면 작업 막대: 마지막 선택 �
     expect(o.widthMm).toBeUndefined();
   }
   // 크기 적용 (2026-10-17 "다중선택에 추가 메뉴 마지막 선택 크기적용"): 셋째의 가로·세로(·두께)를 첫째·둘째에
+  await page.getByTestId('multi-last').click();
   await page.getByTestId('multi-size').click();
   for (const o of (await objs(page)).filter((x: { id: string }) => x.id !== ids[2])) { expect(o.widthMm).toBe(3000); expect(o.heightMm).toBe(600); }
+  // 일괄 가로·세로 (2026-10-24 "하단에는 일괄 가로 세로 사이즈 입력창 … 서로 다르면 ? 같으면 사이즈 표시")
+  await expect(page.getByTestId('multi-width')).toHaveValue('3000');
+  await expect(page.getByTestId('multi-height')).toHaveValue('600');
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 1000 }), ids[0]);
+  await expect(page.getByTestId('multi-width')).toHaveValue('');
+  await expect(page.getByTestId('multi-width')).toHaveAttribute('placeholder', '?');
+  await page.getByTestId('multi-width').fill('2500');
+  await expect.poll(async () => (await objs(page)).map((o: { widthMm?: number }) => o.widthMm)).toEqual([2500, 2500, 2500]);
+  expect((await objs(page)).map((o: { heightMm?: number }) => o.heightMm)).toEqual([600, 600, 600]); // 세로는 그대로
   // 평면도 카드도 Shift+클릭으로 다중 선택 — 단 외곽선과는 섞이지 않는다 (2026-10-17 "정면도와 사인물 외곽라인은 같이 선택할 수 없다. 다른게 선택되면 선택 풀어줘")
   await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 2; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 700, clientY: 200, bubbles: true, cancelable: true })); });
   const cards = page.getByTestId('board-card');
