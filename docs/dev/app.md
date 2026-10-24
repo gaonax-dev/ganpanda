@@ -9,6 +9,9 @@
 - 웹은 IPC 를 쓰지 않는다(권한 `capabilities/default.json` = core:default · opener:default 뿐). 원격 페이지에 Tauri API 를 열지 않는 것이 안전하다.
 - 아이콘: `src-tauri/app-icon.png`(1024, 노랑 바탕 "간판다") → `cargo tauri icon src-tauri/app-icon.png -o src-tauri/icons`.
 
+- **iOS 26.1 시뮬레이터 크래시 우회**: Tauri 런타임이 시작할 때 묻는 WebKit 버전(`NSBundle bundleWithIdentifier("com.apple.WebKit")`)이 시뮬레이터 안에서 죽는다(앱 코드와 무관). `src-tauri/patches/tauri-runtime-wry`(2.12.3 사본, 한 줄: iOS 는 묻지 않음) + `Cargo.toml [patch.crates-io]`. 상위 버전에서 고쳐지면 지운다. **iOS 시뮬레이터에서 앱 실행 확인됨 2026-10-24.**
+- **안전 영역**: 웹 `.shell` 에 `padding-top: env(safe-area-inset-top)`, 알림·빠른 막대·도구 막대는 아래·위 inset 만큼 띄움(브라우저에선 0). 아이콘은 `icons/ios/*` 를 `gen/apple/Assets.xcassets/AppIcon.appiconset/` 에 복사(ios init 이 기본 아이콘을 넣는다).
+
 ## 명령 (저장소 루트)
 | 할 일 | 명령 |
 |---|---|

@@ -378,12 +378,13 @@
   .gate .hint a { color: var(--muted); }
   .approval { font-size: 12px; color: var(--ok); white-space: nowrap; }
   .approval[data-status='changed'] { color: var(--warn); }
-  .shell { display: grid; grid-template-rows: auto 1fr; height: 100%; overflow-x: hidden; }
+  /* 안전 영역 (2026-10-24 iOS 앱: 노치·홈 바와 겹치지 않게) — 브라우저에선 0 */
+  .shell { display: grid; grid-template-rows: auto 1fr; height: 100%; overflow-x: hidden; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); }
   /* 상단 바를 숨겨도 행 배치가 밀리지 않게 행을 고정 */
   .top { grid-row: 1; } main { grid-row: 2; }
   .top.hidden { display: none; }
   /* 알림은 본문 위 겹층: 흐름 밖(absolute)이라 나타나고 사라져도 아래 요소가 밀리지 않는다 (2026-10-18) */
-  .banners { position: absolute; left: 0; right: 0; top: 0; z-index: 40; display: flex; flex-direction: column; pointer-events: none; }
+  .banners { position: absolute; left: 0; right: 0; top: env(safe-area-inset-top, 0px); z-index: 40; display: flex; flex-direction: column; pointer-events: none; }
   .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; pointer-events: auto; }
   .banner.warn { background: rgba(60, 46, 10, 0.96); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
   .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }

@@ -687,7 +687,7 @@
   }
   .multibar .cnt { font-size: 12px; color: var(--accent); font-weight: 700; margin-right: 4px; }
   .tools {
-    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
     display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 12px;
     background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
   }

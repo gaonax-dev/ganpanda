@@ -141,7 +141,7 @@
 
 <style>
   .quick {
-    position: absolute; left: 8px; right: 8px; bottom: 66px; z-index: 5;
+    position: absolute; left: 8px; right: 8px; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); z-index: 5;
     display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-radius: 12px;
     background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
   }

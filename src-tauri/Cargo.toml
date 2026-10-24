@@ -12,6 +12,10 @@ rust-version = "1.77.2"
 name = "ganpanda_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# iOS 26 시뮬레이터 크래시 우회 (patches/tauri-runtime-wry 의 한 줄, docs/dev/app.md)
+[patch.crates-io]
+tauri-runtime-wry = { path = "patches/tauri-runtime-wry" }
+
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }
 
