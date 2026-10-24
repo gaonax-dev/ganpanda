@@ -31,7 +31,7 @@ import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf } from './core/wallPlane';
+import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf, sideWallOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -1204,7 +1204,8 @@ class AppState {
       const plane = planes.get(home.photoId) ?? null;
       const face = plane?.source === 'calibration' ? faceOf(home, plane) : null;
       // 옆면(x)은 사진 가운데 기준 왼쪽·오른쪽, 위아래면(z)은 아래 묶음 — 그 면끼리는 사진 속 위치로 순서
-      if (face && face.axis === 'x') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: (pxBox.x0 + pxBox.x1) / 2 < photo.w / 2 ? 'left' : 'right', box: pxBox };
+      // 왼쪽·오른쪽 벽은 카메라 기준 (2026-10-24 "사인물이 왼쪽 끝에 있는데 오른쪽끝에 오기도 한다" — 사진 가운데로 나누면 안쪽으로 이어진 왼쪽 벽 끝이 오른쪽 묶음이 됐다)
+      if (face && face.axis === 'x') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: sideWallOf(home, plane) ?? ((pxBox.x0 + pxBox.x1) / 2 < photo.w / 2 ? 'left' : 'right'), box: pxBox, view: pxBox };
       if (face && face.axis === 'z') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'bottom', box: pxBox };
       // 정면: 원근(실측 벽면)이 있으면 벽 mm 로 펴서(축선이 수평·수직), 없으면 사진 px 그대로(이미 정면)
       let box = pxBox;

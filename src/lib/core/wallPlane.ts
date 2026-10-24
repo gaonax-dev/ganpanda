@@ -187,6 +187,24 @@ export function faceOf(o: SignObject, cal: WallPlane | null): { axis: FaceAxis; 
 }
 
 /**
+ * 옆면(x) 사인물이 왼쪽 벽인가 오른쪽 벽인가 — 카메라 기준 (2026-10-24 사용자: "사인물이 왼쪽 끝에 있는데 오른쪽끝에 오기도 한다"):
+ * 전엔 재정렬이 사진 가운데로 나눠, 안쪽으로 길게 이어진 왼쪽 벽(조리대 등)의 끝 사인물이 오른쪽 묶음 → 카드 오른쪽 끝으로 갔다.
+ * 사인물 3D 자리(벽 좌표)의 가로(x)가 카메라보다 사진 왼쪽 방향이면 왼쪽 벽. 옆면이 아니거나 원근이 없으면 null
+ */
+export function sideWallOf(o: SignObject, cal: WallPlane | null): 'left' | 'right' | null {
+  const face = faceOf(o, cal);
+  if (!face || face.axis !== 'x' || !cal?.pose) return null;
+  const a = anchorOf(cal as Parameters<typeof anchorOf>[0], face.plane as Parameters<typeof anchorOf>[1], o.quad);
+  if (!a) return null;
+  const { R, t } = cal.pose;
+  const camX = -(R[0] * t[0] + R[3] * t[1] + R[6] * t[2]); // 카메라 자리(벽 좌표) = -Rᵀt 의 x
+  // 벽 가로(x)가 사진에서 어느 쪽으로 가는지 (축을 뒤집어 잡았어도 맞게)
+  const p0 = projectPoint(cal.pose, a.c3), p1 = projectPoint(cal.pose, [a.c3[0] + 100, a.c3[1], a.c3[2]]);
+  const dir = Math.sign(p1[0] - p0[0]) || 1;
+  return (a.c3[0] - camX) * dir < 0 ? 'left' : 'right';
+}
+
+/**
  * 박스 방향 (원근 설정의 벽 좌표 단위 벡터, 카메라 쪽): 회전 고리로 돌린 방향 > 고른 정면 축 > 사인물 면의 법선(자동). 원근 설정이 없으면 null
  * (2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만")
  */

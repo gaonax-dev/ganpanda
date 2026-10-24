@@ -2,7 +2,7 @@
 // 사인물 정면 축(매니퓰레이터 축 기준): y = 벽 밖을 봄(벽면), x = 벽을 따라 봄(벽에 직각인 세로면), z = 위·아래를 봄(수평면)
 import { describe, expect, it } from 'vitest';
 import { projectPoint, solveHomography, type CameraPose, type Pt } from '../../src/lib/core/homography';
-import { faceOf, faceSizeOf, signPlaneOf, type WallPlane } from '../../src/lib/core/wallPlane';
+import { faceOf, faceSizeOf, sideWallOf, signPlaneOf, type WallPlane } from '../../src/lib/core/wallPlane';
 import { outOfWall } from '../../src/lib/core/manipulator';
 import type { SignObject } from '../../src/lib/core/model';
 
@@ -136,5 +136,23 @@ describe('3D·상자 가이드가 쓰는 박스 방향 (사인물 면 좌표)', 
   });
   it('원근 설정이 없으면 null (면의 법선으로 그림)', () => {
     expect(boxLocalDirOf(obj(wallQ), cal, null, imgW, imgH)).toBeNull();
+  });
+});
+
+// 재정렬의 옆면 묶음 (2026-10-24 사용자: "사인물들을 사진에서 판정할때 정면을 파악하지 않는거 같고 사인물이 왼쪽 끝에 있는데 오른쪽끝에 오기도 한다"):
+// 옆면(x) 사인물이 왼쪽 벽인지 오른쪽 벽인지는 사진 가운데가 아니라 카메라 기준 — 벽 가로(x)에서 카메라보다 왼쪽이면 왼쪽 벽
+describe('옆면 사인물의 왼쪽·오른쪽 벽', () => {
+  it('카메라(x=3000)보다 오른쪽(x=7500)에 직각으로 선 간판 = 오른쪽 벽', () => {
+    expect(sideWallOf(obj(sideQ), cal)).toBe('right');
+  });
+  it('카메라(x=3000)보다 왼쪽(x=1000)에 선 간판 = 왼쪽 벽 — 사진 가운데보다 오른쪽에 찍혀도', () => {
+    const left = order(jitter([P3(1000, 2600, 0), P3(1000, 2600, 1500), P3(1000, 1800, 1500), P3(1000, 1800, 0)]));
+    expect(faceOf(obj(left), cal)?.axis).toBe('x');
+    expect(left.reduce((t, p) => t + p[0], 0) / 4).toBeGreaterThan(imgW / 2); // 사진 가운데보다 오른쪽에 찍힘 → 전 규칙(사진 가운데)은 '오른쪽'
+    expect(sideWallOf(obj(left), cal)).toBe('left');
+  });
+  it('정면(y) 사인물·원근 없음은 판정하지 않는다', () => {
+    expect(sideWallOf(obj(wallQ), cal)).toBeNull();
+    expect(sideWallOf(obj(sideQ), null)).toBeNull();
   });
 });
