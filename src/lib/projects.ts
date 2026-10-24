@@ -10,6 +10,8 @@ export const STATUS_LABEL: Record<ProjectStatus, string> = { waiting: '대기', 
 /** 그룹·상태·정산은 2026-10-15 추가. 계약 금액 = 직접 입력(contractAuto=false) 또는 리스트 뷰 견적 합계(quoteTotal, 자동). 금액은 정산을 볼 수 있는 사람에게만 온다 */
 export interface ProjectInfo { id: string; name: string; createdAt: number; role: Role; groupId?: string | null; status: ProjectStatus; /** 상태가 된 시각 (2026-10-21) */ statusAt?: number; /** 실측 상태: 사인물 수·미측정 수 (앱이 저장, 2026-10-21) */ signTotal?: number; signUnmeasured?: number; /** 상세 (2026-10-21, 모두 선택) */ contact?: string; address?: string; contractDate?: string | null; startDate?: string | null; dueDate?: string | null; memo?: string; quoteTotal?: number; contractAmount?: number; contractAuto?: boolean; paidAmount?: number; /** 외주 폴더 (2026-10-22) */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean }
 export interface GroupInfo { id: string; name: string; createdAt: number; role: 'owner' | 'member'; canBilling: boolean }
+/** 가입 링크를 보낸 대기 중 멤버 (2026-10-24, 7일) */
+export interface TeamInvite { email: string; canBilling: boolean; createdAt: number; expiresAt: number }
 export interface TeamMember { accountId: string; email: string; name: string; canBilling: boolean; createdAt: number }
 export interface GroupView { group: GroupInfo; projects: ProjectInfo[] }
 export interface InviteInfo { id: string; role: Exclude<Role, 'owner'>; createdAt: number; revoked: boolean; /** 'proposal' = 제안 링크 */ kind?: string; /** 다시 복사용 (폐기·옛 링크는 없음) */ url?: string }
@@ -44,9 +46,11 @@ export const getGroup = (id: string) => call<GroupView>(`/api/groups/${id}`);
 export const deleteGroup = (id: string) => call<void>(`/api/groups/${id}`, { method: 'DELETE' });
 
 // ---------- 팀 멤버 (설정에서 관리, 계정 단위) ----------
-export const listTeam = () => call<{ members: TeamMember[] }>('/api/me/team').then((r) => r.members);
+export const listTeam = () => call<{ members: TeamMember[]; invites?: TeamInvite[] }>('/api/me/team').then((r) => ({ members: r.members, invites: r.invites ?? [] }));
+/** 가입된 이메일이면 바로 멤버(member), 아니면 가입 링크 메일(invite, 2026-10-24) */
 export const addTeamMember = (email: string, canBilling: boolean) =>
-  call<{ member: TeamMember }>('/api/me/team', { method: 'POST', body: JSON.stringify({ email, canBilling }) }).then((r) => r.member);
+  call<{ member?: TeamMember; invite?: TeamInvite }>('/api/me/team', { method: 'POST', body: JSON.stringify({ email, canBilling }) });
+export const cancelTeamInvite = (email: string) => call<void>(`/api/me/team/invites/${encodeURIComponent(email)}`, { method: 'DELETE' });
 export const setTeamMember = (accountId: string, canBilling: boolean) => call<void>(`/api/me/team/${accountId}`, { method: 'PATCH', body: JSON.stringify({ canBilling }) });
 export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/${accountId}`, { method: 'DELETE' });
 

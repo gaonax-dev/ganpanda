@@ -71,7 +71,8 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     const g = (await (await json('/api/groups', { name: 'G3', projectIds: [p.id] }, s)).json<{ group: { id: string } }>()).group;
     await json(`/api/projects/${p.id}`, { quoteTotal: 2_000_000, status: 'done', paidAmount: 2_000_000 }, s, 'PATCH');
     expect((await get(`/api/groups/${g.id}`, mSession)).status).toBe(403);
-    expect((await json('/api/me/team', { email: 'nobody@example.com' }, s)).status).toBe(404);
+    expect((await json('/api/me/team', { email: 'nobody@example.com' }, s)).status).toBe(202); // 가입 안 한 이메일 = 가입 링크 메일 (2026-10-24)
+    await api('/api/me/team/invites/nobody%40example.com', { method: 'DELETE', headers: { authorization: `Bearer ${s}` } });
     expect((await json('/api/me/team', { email: 'g3@example.com' }, s)).status).toBe(400); // 자기 자신
     expect((await json('/api/me/team', { email: 'G3-Member@example.com', canBilling: false }, s)).status).toBe(201);
     expect((await (await get('/api/me/team', s)).json<{ members: { email: string; canBilling: boolean }[] }>()).members).toEqual([expect.objectContaining({ email: 'g3-member@example.com', canBilling: false })]);

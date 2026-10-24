@@ -71,6 +71,7 @@ async function remove(req: Request, env: Env, me: Account): Promise<Response> {
   }
   stmts.push(
     env.DB.prepare('DELETE FROM team_members WHERE owner_id = ? OR account_id = ?').bind(me.id, me.id),
+    env.DB.prepare('DELETE FROM team_invites WHERE owner_id = ? OR email = ?').bind(me.id, me.email), // 보낸·받은 멤버 초대 (2026-10-24)
     env.DB.prepare('DELETE FROM stores WHERE account_id = ?').bind(me.id),
     env.DB.prepare('DELETE FROM businesses WHERE account_id = ?').bind(me.id),
     env.DB.prepare('DELETE FROM spec_rules WHERE account_id = ?').bind(me.id),

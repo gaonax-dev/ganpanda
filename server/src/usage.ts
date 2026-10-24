@@ -18,7 +18,8 @@ export async function proposalsThisMonth(env: Env, accountId: string): Promise<n
 
 /** 설정의 팀 멤버 수 (소유자 제외) — 2026-10-21 요금제 한도 */
 export async function membersOf(env: Env, accountId: string): Promise<number> {
-  const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM team_members WHERE owner_id = ?').bind(accountId).first<{ n: number }>();
+  // 대기 중인 멤버 초대(2026-10-24)도 센다 — 받아들이면 멤버가 되므로
+  const r = await env.DB.prepare('SELECT (SELECT COUNT(*) FROM team_members WHERE owner_id = ?1) + (SELECT COUNT(*) FROM team_invites WHERE owner_id = ?1 AND used_at IS NULL AND expires_at > ?2) AS n').bind(accountId, Date.now()).first<{ n: number }>();
   return Number(r?.n ?? 0);
 }
 

@@ -40,7 +40,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, teamInviteInfo, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -141,6 +141,8 @@ class AppState {
   loginOpen = $state(false);
   /** 매직링크 처리 중 생긴 오류 (로그인 창에 표시) */
   authError = $state('');
+  /** 멤버 초대 링크(/login?team=)로 들어옴 → 가입 창이 이메일을 정해 두고 사업자 칸 없이 (2026-10-24) */
+  teamInvite = $state<{ token: string; email: string; ownerName: string } | null>(null);
   /** 내 요금제 한도·사용량 (/api/me) */
   usage = $state<Usage | null>(null);
   /** 계정 기본 단가표 (/api/me) */
@@ -497,6 +499,16 @@ class AppState {
       const session = h.get('session');
       const next = h.get('next') || '/';
       if (session) { saveSession(session); location.replace(next.startsWith('/') ? next : '/'); return; }
+    }
+    const teamToken = url.pathname === '/login' ? url.searchParams.get('team') : null;
+    if (teamToken) {
+      try { this.teamInvite = { token: teamToken, ...(await teamInviteInfo(teamToken)) }; }
+      catch { this.authError = '초대 링크가 만료되었거나 이미 쓰였습니다. 초대한 분께 다시 보내 달라고 해 주세요.'; }
+      this.loginOpen = true;
+      history.replaceState(null, '', '/');
+      this.applyMe(await fetchMe());
+      this.authReady = true;
+      return;
     }
     const token = url.pathname === '/login' ? url.searchParams.get('token') : null;
     if (token) {

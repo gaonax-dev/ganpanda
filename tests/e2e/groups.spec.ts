@@ -124,7 +124,7 @@ test('멤버는 설정에서 관리: 추가하면 오너의 그룹을 보고, �
   await expect(page.getByTestId('plan')).toContainText('요금제');
   await expect(page.getByTestId('usage-storage')).toContainText('/');
   await page.getByTestId('settings-tab-team').click();
-  await page.getByTestId('member-email').fill('nobody@example.com');
+  await page.getByTestId('member-email').fill('not-an-email'); // 가입 안 한 이메일은 초대 메일 (tests/e2e/teamInvite.spec.ts)
   await page.getByTestId('member-add').click();
   await expect(page.getByTestId('member-error')).toBeVisible();
   await page.getByTestId('member-email').fill(memberEmail);

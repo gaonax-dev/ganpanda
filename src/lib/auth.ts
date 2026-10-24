@@ -60,6 +60,14 @@ export const resendVerify = (email: string, next?: string) =>
   call<{ ok: true; link?: string }>('/api/auth/resend-verify', { method: 'POST', body: JSON.stringify({ email, next }) }, null);
 /** 메일 링크가 돌아갈 곳 — 같은 사이트 경로만 (서버 nextPath 와 같은 규칙) */
 export const safeNext = (n: string | null | undefined): string | null => (n && /^\/[A-Za-z0-9/_\-]*$/.test(n) && !n.startsWith('//') && n.length <= 100 ? n : null);
+/** 멤버 초대 링크 정보 (2026-10-24) */
+export const teamInviteInfo = (token: string) => call<{ email: string; ownerName: string; expiresAt: number }>(`/api/team-invite/${encodeURIComponent(token)}`, {}, null);
+/** 멤버 초대 링크로 가입 — 사업자 확인·인증 메일 없이 바로 세션 */
+export async function inviteSignup(email: string, password: string, name: string, teamInvite: string): Promise<Account> {
+  const r = await call<{ session: string; account: Account }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, teamInvite }) }, null);
+  saveSession(r.session);
+  return r.account;
+}
 export async function passwordLogin(email: string, password: string): Promise<Account> {
   const r = await call<{ session: string; account: Account }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, null);
   saveSession(r.session);

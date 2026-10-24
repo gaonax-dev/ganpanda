@@ -17,7 +17,7 @@ import { handleEstimateProject } from './projects';
 import { checkMailDns } from './mailDns';
 import { handleProjects, resolveAccess, type Role } from './projects';
 import { handleGroups } from './groups';
-import { handleTeam } from './team';
+import { handleTeam, handleTeamInvite } from './team';
 import { handleSocial } from './social';
 import { handlePrices } from './prices';
 import { handleColors } from './colors';
@@ -277,6 +277,8 @@ export default {
     if (pathname.startsWith('/api/me/stores')) return withCors(await handleStores(req, env, pathname)); // 가게 사장의 사업자 (2026-10-22)
     if (pathname === '/api/estimate/project') return withCors(await handleEstimateProject(req, env)); // 소비자 견적 초안 방 (2026-10-22)
     if (pathname.startsWith('/api/me/team')) return withCors(await handleTeam(req, env, pathname));
+    const ti = pathname.match(/^\/api\/team-invite\/([A-Za-z0-9_-]{16,})$/);
+    if (ti && req.method === 'GET') return withCors(await handleTeamInvite(env, ti[1])); // 멤버 초대 링크 정보 (공개, 2026-10-24)
     if (pathname.startsWith('/api/me/talks')) return withCors(await handleMyTalks(req, env, pathname)); // 메인 화면 톡 (2026-10-22)
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));

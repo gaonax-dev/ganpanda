@@ -1,10 +1,10 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
   import { app, type SettingsTab } from '../state.svelte';
-  import { PLAN_LABEL } from '../auth';
+  import { AuthError, PLAN_LABEL } from '../auth';
   import { setRequestSettings } from '../requests';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
-  import { addTeamMember, listTeam, removeTeamMember, setTeamMember, type TeamMember } from '../projects';
+  import { addTeamMember, cancelTeamInvite, listTeam, removeTeamMember, setTeamMember, type TeamInvite, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
   import { glossaryCsv } from '../core/terms';
   import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
@@ -63,17 +63,20 @@
   }
   let memberEmail = $state('');
   let memberError = $state('');
-  async function loadTeam() { try { members = await listTeam(); } catch { members = []; } }
+  /** 가입 링크를 보낸 이메일 (2026-10-24 "맴버는 메일로 가입링크 들어오기로") */
+  let memberSent = $state('');
+  let invites = $state<TeamInvite[]>([]);
+  async function loadTeam() { try { const t = await listTeam(); members = t.members; invites = t.invites; } catch { members = []; invites = []; } }
   $effect(() => { if (app.account) { app.refreshMe(); loadTeam(); } });
   async function addMember() {
     const em = memberEmail.trim();
     if (!em) return;
-    memberError = '';
-    try { await addTeamMember(em, false); memberEmail = ''; await loadTeam(); app.refreshMe(); }
+    memberError = ''; memberSent = '';
+    try { const r = await addTeamMember(em, false); memberEmail = ''; if (r.invite) memberSent = r.invite.email; await loadTeam(); app.refreshMe(); }
     catch (e) {
       // 요금제 멤버 한도 (2026-10-21): 403 member_limit
       const limit = (() => { try { const j = JSON.parse(e instanceof Error ? e.message : ''); return j?.error === 'member_limit' ? j.limit as number : null; } catch { return null; } })();
-      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다. 더 필요하면 요금제를 올려 주세요.` : '그 이메일로 가입한 계정이 없습니다. 먼저 로그인해 계정을 만들게 해 주세요.';
+      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다. 더 필요하면 요금제를 올려 주세요.` : e instanceof AuthError && e.status === 400 ? '이메일 주소를 확인해 주세요.' : '보내지 못했습니다. 잠시 뒤 다시 해 주세요.';
     }
   }
 
@@ -251,7 +254,7 @@
       {#if app.account && tab === 'team'}
         <section data-testid="team-section">
           <h3>멤버 {#if app.usage}<span class="count" data-testid="usage-members">{app.usage.usage.members} / {app.usage.limits.members}명</span>{/if}</h3>
-          <p class="hint">멤버는 내 프로젝트 그룹과 계산서를 봅니다. 정산 금액은 "정산 보기"를 켠 멤버만 봅니다. 가입된 계정의 이메일로 추가합니다.</p>
+          <p class="hint">멤버는 내 프로젝트 그룹과 계산서를 봅니다. 정산 금액은 "정산 보기"를 켠 멤버만 봅니다. 이메일로 추가합니다 — 아직 가입 안 했으면 <b>가입 링크를 메일로</b> 보내고, 링크를 열어 비밀번호만 정하면 바로 멤버가 됩니다(사업자 확인 없이, 7일 유효).</p>
           {#each members ?? [] as m (m.accountId)}
             <div class="member" data-testid="team-member">
               <span>{m.name || m.email}<small>{m.email}</small></span>
@@ -259,13 +262,21 @@
               <button class="icon" title="멤버 제거" data-testid="member-remove" onclick={async () => { await removeTeamMember(m.accountId); await loadTeam(); }}>✕</button>
             </div>
           {:else}
-            {#if members}<p class="hint">아직 멤버가 없습니다.</p>{/if}
+            {#if members && !invites.length}<p class="hint">아직 멤버가 없습니다.</p>{/if}
+          {/each}
+          {#each invites as v (v.email)}
+            <div class="member invite" data-testid="member-invite">
+              <span>{v.email}<small>가입 대기 · 링크 {new Date(v.expiresAt).toLocaleDateString('ko-KR')}까지</small></span>
+              <button class="btn small" title="링크를 새로 보내기" data-testid="member-invite-resend" onclick={async () => { await addTeamMember(v.email, v.canBilling); memberSent = v.email; await loadTeam(); }}>다시 보내기</button>
+              <button class="icon" title="초대 취소" data-testid="member-invite-cancel" onclick={async () => { await cancelTeamInvite(v.email); await loadTeam(); app.refreshMe(); }}>✕</button>
+            </div>
           {/each}
           <form class="add" onsubmit={(e) => { e.preventDefault(); addMember(); }}>
-            <input data-testid="member-email" placeholder="멤버 이메일 (가입된 계정)" bind:value={memberEmail} />
+            <input data-testid="member-email" placeholder="멤버 이메일" bind:value={memberEmail} />
             <button class="btn small" data-testid="member-add" type="submit" disabled={!memberEmail.trim()}>추가</button>
           </form>
           {#if memberError}<p class="hint err" data-testid="member-error">{memberError}</p>{/if}
+          {#if memberSent}<p class="hint ok" data-testid="member-sent"><b>{memberSent}</b>로 가입 링크를 보냈습니다. 링크를 열어 비밀번호만 정하면 멤버가 됩니다.</p>{/if}
         </section>
       {/if}
       {#if tab === 'display'}
@@ -349,6 +360,7 @@
   .bar { height: 6px; background: var(--input); border-radius: 3px; overflow: hidden; margin: 2px 0 6px; }
   .bar i { display: block; height: 100%; background: var(--accent); }
   .member { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .member.invite > span { color: var(--muted); }
   .member > span { flex: 1; } .member small { display: block; color: var(--muted); font-size: 11px; }
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }

@@ -7,6 +7,7 @@ import { regionsOf } from './requests';
 import { json, randomToken, readJson, sha256hex, text } from './http';
 import { hashPassword, validPassword, verifyPassword } from './password';
 import { usageOf } from './usage';
+import { acceptTeamInvites, inviteOf } from './team';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FROM = { email: 'login@ganpanda.co.kr', name: '간판다' };
@@ -42,6 +43,7 @@ async function newSession(env: Env, accountId: string, reset = false): Promise<s
   const now = Date.now();
   await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at, reset_until) VALUES (?, ?, ?, ?, ?)')
     .bind(await sha256hex(session), accountId, now, now + SESSION_TTL, reset ? now + LOGIN_TTL : null).run();
+  await acceptTeamInvites(env, accountId); // 이 이메일 앞으로 온 멤버 초대 (2026-10-24)
   return session;
 }
 
@@ -55,13 +57,14 @@ export async function markEmailVerified(env: Env, a: Account): Promise<Account> 
 }
 
 async function signup(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ email?: string; password?: string; name?: string; next?: string; business?: BusinessInput }>(req);
+  const body = await readJson<{ email?: string; password?: string; name?: string; next?: string; business?: BusinessInput; teamInvite?: string }>(req);
   const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
   if (!EMAIL_RE.test(email)) return text('bad email', 400);
   if (!validPassword(body?.password)) return text('bad password', 400);
   const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
   // 가입할 때 이메일 인증 (2026-10-15 사용자: "가입할 때 이메일 인증도 받게 해줘"): 인증 메일의 링크를 열어야 로그인된다
   const exists = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
+  if (typeof body?.teamInvite === 'string') return inviteSignup(env, email, body.password!, name, body.teamInvite, exists);
   if (exists?.email_verified) return text('already registered', 409);
   // 이메일 가입은 간판집·가게 사장 모두 사업자 확인 (2026-10-24) — 확인된 사업자끼리만 만나도록. 카카오 가입은 그대로
   if (!body?.business || typeof body.business !== 'object') return json({ error: 'business_required' }, 400);
@@ -79,6 +82,26 @@ async function signup(req: Request, env: Env): Promise<Response> {
   }
   await saveBusiness(env, id!, biz);
   return sendLink(env, email, 'verify', nextPath(body?.next));
+}
+
+/**
+ * 멤버 초대 링크로 가입 (2026-10-24 "맴버는 메일로 가입링크 들어오기로"): 초대 메일의 링크를 열었으니 이메일은 확인됨 → 사업자 확인·인증 메일 없이 바로 계정 + 세션 + 팀
+ */
+async function inviteSignup(env: Env, email: string, password: string, name: string, token: string, exists: Account | null): Promise<Response> {
+  const inv = await inviteOf(env, token);
+  if (inv === 404) return json({ error: 'not_found' }, 404);
+  if (inv === 410) return json({ error: 'expired' }, 410);
+  if (inv.email !== email) return json({ error: 'email_mismatch' }, 403);
+  if (exists?.email_verified) return text('already registered', 409); // 이미 가입 — 로그인하면 팀에 들어간다(acceptTeamInvites)
+  const hash = await hashPassword(password);
+  let id = exists?.id;
+  if (exists) await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ?, email_verified = 1 WHERE id = ?').bind(hash, name || exists.name, exists.id).run();
+  else {
+    id = crypto.randomUUID();
+    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 1)').bind(id, email, name, 'free', Date.now(), hash).run();
+  }
+  const account = (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first<Account>())!;
+  return json({ session: await newSession(env, id!), account: publicAccount(account) });
 }
 
 async function passwordLogin(req: Request, env: Env): Promise<Response> {
