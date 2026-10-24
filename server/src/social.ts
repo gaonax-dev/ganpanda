@@ -1,4 +1,5 @@
 // 소셜 로그인 (1-2d): 카카오·구글·애플. 서버가 OAuth 전 과정을 처리하고 세션을 앱(/login#session=)으로 넘긴다.
+import { acceptTeamInvites } from './team';
 import { json, randomToken, sha256hex, text } from './http';
 import { normalizeEmail, type Account, markEmailVerified } from './auth';
 import { appleClientSecret, verifyJwtRS256 } from './oauth/jwt';
@@ -128,6 +129,7 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   const session = randomToken();
   await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
     .bind(await sha256hex(session), account.id, Date.now(), Date.now() + SESSION_TTL).run();
+  await acceptTeamInvites(env, account.id); // 카카오 이메일 앞으로 온 멤버 초대 (2026-10-24)
   const hash = new URLSearchParams({ session, next: row.next });
   return Response.redirect(`${env.APP_URL.replace(/\/+$/, '')}/login#${hash}`, 302);
 }

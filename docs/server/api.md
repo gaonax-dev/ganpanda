@@ -117,4 +117,4 @@
 | POST | `/api/projects/:id/versions` `{label?}` | 지금 상태 저장 | 201 `{version}` |
 | POST | `/api/projects/:id/versions/restore` `{key}` | 되돌리기 (직전 상태를 before 로 남김, 대화 유지) | `{ok}` / 403 기간 밖 / 404 |
 | POST | `/api/projects/:id/versions/copy` `{key}` | 그 버전으로 새 프로젝트 (소유자) | 201 `{project}` |
-
+- 멤버 초대 (2026-10-24): `POST /api/me/team {email, canBilling?}` — 가입된 이메일 201 `{member}`, 아니면 202 `{invite, link?}` 가입 링크 메일(`/login?team=`, 7일) / 403 `member_limit`(대기 중 초대 포함). `GET /api/me/team` → `{members, invites}` · `DELETE /api/me/team/invites/:email` · 공개 `GET /api/team-invite/:token` → `{email, ownerName, expiresAt}` / 404 / 410 · `POST /api/auth/signup {email, password, name?, teamInvite}` → 200 `{session, account}`(사업자 확인·인증 메일 없음) / 403 `email_mismatch` / 404 / 409 / 410. 대기 중 초대는 그 이메일 계정의 로그인(메일 링크·비밀번호·소셜)마다 받아들여진다.

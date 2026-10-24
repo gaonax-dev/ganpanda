@@ -32,7 +32,7 @@
 
   $effect(() => {
     if (!creating || !app.account) return;
-    listTeam().then((ms) => (team = ms.map((m) => ({ id: m.accountId, name: m.name || m.email.split('@')[0] })))).catch(() => {});
+    listTeam().then(({ members: ms }) => (team = ms.map((m) => ({ id: m.accountId, name: m.name || m.email.split('@')[0] })))).catch(() => {});
   });
 
   // 열린 방의 새 메시지는 읽은 것으로

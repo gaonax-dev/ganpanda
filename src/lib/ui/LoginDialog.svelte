@@ -6,7 +6,7 @@
   import { app } from '../state.svelte';
   import { BUSINESS_ERROR } from '../business';
   import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
-  import { AuthError, describeAuthError, fetchProviders, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
+  import { AuthError, describeAuthError, fetchProviders, inviteSignup, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
   // 카카오가 기본 (2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안). 서버가 카카오 키를 갖고 있을 때만 보인다
   const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
@@ -15,8 +15,10 @@
   const next = location.pathname + location.search;
 
   type Mode = 'login' | 'signup' | 'forgot' | 'link';
-  let mode = $state<Mode>('login');
-  let email = $state('');
+  /** 멤버 초대 링크로 들어옴 (2026-10-24) — 가입 화면, 이메일 고정, 사업자 칸 없음 */
+  const invite = app.teamInvite;
+  let mode = $state<Mode>(invite ? 'signup' : 'login');
+  let email = $state(invite?.email ?? '');
   let password = $state('');
   let password2 = $state('');
   let name = $state('');
@@ -50,6 +52,8 @@
     try { code = (JSON.parse(e.message) as { error?: string }).error ?? ''; } catch { return null; }
     if (code === 'no_account') { noAccount = true; return '가입된 계정이 없습니다. 회원가입하거나 카카오로 시작해 주세요.'; }
     if (code === 'business_required') return BUSINESS_ERROR.bad_input;
+    if (code === 'expired' || code === 'not_found') return '초대 링크가 만료되었거나 이미 쓰였습니다. 초대한 분께 다시 보내 달라고 해 주세요.';
+    if (code === 'email_mismatch') return '초대받은 이메일로만 가입할 수 있습니다.';
     return BUSINESS_ERROR[code] ?? null;
   }
 
@@ -67,6 +71,15 @@
     if (mode === 'signup') {
       if (password.length < PASSWORD_MIN) { error = `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`; return; }
       if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
+      if (invite) {
+        return run(async () => {
+          app.applyAccount(await inviteSignup(invite.email, password, name.trim(), invite.token));
+          app.teamInvite = null;
+          app.notice = `${invite.ownerName}님의 팀에 들어왔습니다. 그룹과 프로젝트를 함께 봅니다.`;
+          app.refreshMe();
+          close();
+        }, 'signup');
+      }
       const startDate = bizStartDate(bizStart);
       if (!isValidBizNo(bizNo) || !bizOwner.trim() || !startDate) { error = BUSINESS_ERROR.bad_input; return; }
       const business = { no: bizNo, ownerName: bizOwner.trim(), startDate, name: bizName.trim() };
@@ -121,15 +134,17 @@
         </div>
         <div class="or"><span>또는 이메일로</span></div>
       {/if}
+      {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. 비밀번호만 정하면 바로 시작합니다.</p>{/if}
       <!-- 브라우저 기본 검증 대신 앱이 같은 문구로 안내 -->
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
-        <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" /></label>
+        <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" disabled={!!invite && mode === 'signup'} /></label>
         {#if mode === 'login' || mode === 'signup'}
           <label>비밀번호{mode === 'signup' ? ` (${PASSWORD_MIN}자 이상)` : ''}<input data-testid="login-password" type="password" bind:value={password} autocomplete={mode === 'signup' ? 'new-password' : 'current-password'} /></label>
         {/if}
         {#if mode === 'signup'}
           <label>비밀번호 확인<input data-testid="login-password2" type="password" bind:value={password2} autocomplete="new-password" /></label>
           <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
+          {#if !invite}
           <fieldset class="biz" data-testid="signup-business">
             <legend>사업자 확인</legend>
             <p class="why" data-testid="signup-biz-why">간판다는 <b>확인된 사업자와</b> 만나는 곳입니다. 간판집은 진짜 가게의 요청만, 가게 사장은 진짜 간판집의 견적만 받도록 사업자등록을 한 번 확인합니다. 카카오로 가입하면 이 단계 없이 바로 시작합니다.</p>
@@ -138,9 +153,10 @@
             <label>개업일자 <small>(등록증의 개업연월일)</small><input data-testid="biz-start" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} bind:value={bizStart} /></label>
             <label>상호 <small>(선택)</small><input data-testid="biz-name" placeholder="가게·간판집 이름" bind:value={bizName} /></label>
           </fieldset>
+          {/if}
         {/if}
         {#if mode === 'forgot'}<p class="hint">가입한 이메일로 재설정 링크를 보냅니다. 링크를 열면 로그인되고 새 비밀번호를 정할 수 있습니다.</p>{/if}
-        {#if mode === 'signup'}<p class="hint">가입하면 인증 메일을 보냅니다. 메일의 링크를 열면 가입이 끝납니다.</p>{/if}
+        {#if mode === 'signup' && !invite}<p class="hint">가입하면 인증 메일을 보냅니다. 메일의 링크를 열면 가입이 끝납니다.</p>{/if}
         {#if mode === 'link'}<p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 가입한 계정만 쓸 수 있습니다.</p>{/if}
         <button class="btn primary" data-testid="login-submit" type="submit" disabled={busy || !email.trim()}>
           {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : mode === 'forgot' ? '재설정 링크 받기' : '로그인 링크 받기'}
@@ -177,6 +193,7 @@
   .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   .links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
   .link { background: none; border: 0; color: var(--blue); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
+  .invite-banner { background: color-mix(in srgb, var(--accent, #ffcc00) 16%, transparent); border-radius: 8px; padding: 8px 10px; }
   .biz { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 10px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
   .biz legend { font-size: 12px; font-weight: 700; padding: 0 4px; }
   .biz .why { font-size: 12px; color: var(--muted); }
