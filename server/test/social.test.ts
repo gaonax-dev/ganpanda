@@ -180,3 +180,31 @@ describe('키가 없는 공급자', () => {
     expect((await api('/api/auth/apple/start', { redirect: 'manual' })).status).toBe(503);
   });
 });
+
+// 멤버 초대 링크의 카카오 로그인 (2026-10-24 사용자: "해당 링크에 카카오 로그인을 만들면 되지 않나?") — 카카오 이메일이 초대 이메일과 달라도 그 링크로 들어온 카카오 계정이 팀에 들어간다
+describe('초대 링크 → 카카오로 팀 들어가기', () => {
+  it('start?team= 을 state 에 실어 콜백에서 초대를 받아들인다 (이메일 달라도), 앱에는 joined=초대한 사람', async () => {
+    const { json } = await import('./helpers');
+    const owner = await login(`kowner-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    await json('/api/me', { name: '한울광고' }, owner, 'PATCH');
+    const { link } = await (await json('/api/me/team', { email: `office-${crypto.randomUUID().slice(0, 6)}@example.com` }, owner)).json<{ link: string }>();
+    const team = new URL(link).searchParams.get('team')!;
+    const r = await api(`/api/auth/kakao/start?next=%2F&team=${team}`, { redirect: 'manual' });
+    const state = new URL(r.headers.get('location')!).searchParams.get('state')!;
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 4242, kakao_account: { email: 'personal@kakao.example', is_email_verified: true }, properties: { nickname: '김직원' } });
+    const q = sessionFromRedirect(await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' }));
+    expect(q.get('next')).toBe('/?joined=' + encodeURIComponent('한울광고'));
+    const members = (await (await get('/api/me/team', owner)).json<{ members: { email: string }[]; invites: unknown[] }>());
+    expect(members.members.map((m) => m.email)).toEqual(['personal@kakao.example']);
+    expect(members.invites).toEqual([]);
+  });
+  it('쓰였거나 없는 초대면 그냥 로그인만 (팀 없음)', async () => {
+    const r = await api(`/api/auth/kakao/start?next=%2F&team=${'x'.repeat(43)}`, { redirect: 'manual' });
+    const state = new URL(r.headers.get('location')!).searchParams.get('state')!;
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 4343, kakao_account: {}, properties: { nickname: '누구' } });
+    const q = sessionFromRedirect(await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' }));
+    expect(q.get('next')).toBe('/');
+  });
+});

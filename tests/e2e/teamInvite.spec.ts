@@ -64,3 +64,19 @@ test('대기 중 초대는 취소할 수 있고, 만료·취소된 링크를 열
   await page.goto(link.pathname + link.search);
   await expect(page.getByTestId('login-error')).toContainText('초대 링크');
 });
+
+// 2026-10-24 사용자: "해당 링크에 카카오 로그인을 만들면 되지 않나?"
+test('초대 링크 창의 [카카오로 팀 들어가기]는 초대를 들고 카카오로, 돌아오면 "팀에 들어왔습니다"', async ({ page, request }) => {
+  const owner = await apiLogin(request);
+  const r = await request.post('http://localhost:8787/api/me/team', { data: { email: `k-${Math.random().toString(36).slice(2, 8)}@example.com` }, headers: { authorization: `Bearer ${owner}` } });
+  const link = new URL((await r.json()).link);
+  await page.goto(link.pathname + link.search);
+  const kakao = page.getByTestId('social-kakao');
+  await expect(kakao).toContainText('카카오로 팀 들어가기');
+  expect(await kakao.getAttribute('href')).toContain(`team=${link.searchParams.get('team')}`);
+  // 카카오에서 돌아온 모습 (서버가 next 에 joined= 를 붙인다)
+  const session = await apiLogin(request);
+  await page.goto(`/login#session=${encodeURIComponent(session)}&next=${encodeURIComponent('/?joined=' + encodeURIComponent('한울광고'))}`);
+  await expect(page.getByTestId('notice')).toContainText('한울광고님의 팀에 들어왔습니다');
+  await expect(page).not.toHaveURL(/joined=/);
+});

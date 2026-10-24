@@ -63,7 +63,9 @@ test('로그인하면 표시 이름이 계정 이름이 되고, 이름을 바꾸
   await page.getByTestId('login-dev-link').click();
   await page.getByTestId('account-menu').click();
   await page.getByTestId('account-name').fill('간판다 사장님');
+  const saved = page.waitForResponse((r) => r.url().endsWith('/api/me') && r.request().method() === 'PATCH');
   await page.getByTestId('account-name').press('Enter');
+  await saved; // 저장이 끝난 뒤 새로고침 (안 기다리면 가끔 예전 이름)
   await page.reload();
   await expect(page.getByTestId('account-menu')).toContainText('간판다 사장님');
 });

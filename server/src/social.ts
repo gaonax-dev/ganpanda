@@ -1,5 +1,5 @@
 // 소셜 로그인 (1-2d): 카카오·구글·애플. 서버가 OAuth 전 과정을 처리하고 세션을 앱(/login#session=)으로 넘긴다.
-import { acceptTeamInvites } from './team';
+import { acceptInviteToken, acceptTeamInvites } from './team';
 import { json, randomToken, sha256hex, text } from './http';
 import { normalizeEmail, type Account, markEmailVerified } from './auth';
 import { appleClientSecret, verifyJwtRS256 } from './oauth/jwt';
@@ -111,7 +111,8 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
     const state = randomToken();
     const next = url.searchParams.get('next') || '/';
     if (!next.startsWith('/')) return text('bad next', 400);
-    await env.DB.prepare('INSERT INTO oauth_states (state, provider, next, created_at) VALUES (?, ?, ?, ?)').bind(state, p, next, Date.now()).run();
+    const team = url.searchParams.get('team'); // 멤버 초대 링크에서 시작 (2026-10-24)
+    await env.DB.prepare('INSERT INTO oauth_states (state, provider, next, created_at, team_token) VALUES (?, ?, ?, ?, ?)').bind(state, p, next, Date.now(), team && /^[A-Za-z0-9_-]{16,}$/.test(team) ? team : null).run();
     return Response.redirect(authorizeUrl(env, p, redirect, state), 302);
   }
 
@@ -119,7 +120,7 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   const params = req.method === 'POST' ? new URLSearchParams(await req.text()) : url.searchParams;
   const code = params.get('code'), state = params.get('state');
   if (!code || !state) return text('missing code/state', 400);
-  const row = await env.DB.prepare('SELECT * FROM oauth_states WHERE state = ? AND provider = ?').bind(state, p).first<{ next: string; created_at: number }>();
+  const row = await env.DB.prepare('SELECT * FROM oauth_states WHERE state = ? AND provider = ?').bind(state, p).first<{ next: string; created_at: number; team_token: string | null }>();
   if (row) await env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run(); // 1회용
   if (!row || row.created_at < Date.now() - STATE_TTL) return text('bad state', 400);
 
@@ -129,7 +130,10 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   const session = randomToken();
   await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
     .bind(await sha256hex(session), account.id, Date.now(), Date.now() + SESSION_TTL).run();
+  // 초대 링크로 시작했으면 이메일이 달라도 그 초대를 받아들인다 (링크 = 초대받은 사람). 앱은 next 의 joined= 로 안내
+  const joined = row.team_token ? await acceptInviteToken(env, row.team_token, account.id) : null;
   await acceptTeamInvites(env, account.id); // 카카오 이메일 앞으로 온 멤버 초대 (2026-10-24)
-  const hash = new URLSearchParams({ session, next: row.next });
+  const next = joined ? `${row.next}${row.next.includes('?') ? '&' : '?'}joined=${encodeURIComponent(joined)}` : row.next;
+  const hash = new URLSearchParams({ session, next });
   return Response.redirect(`${env.APP_URL.replace(/\/+$/, '')}/login#${hash}`, 302);
 }

@@ -25,6 +25,18 @@ export async function acceptTeamInvites(env: Env, accountId: string) {
   }
 }
 
+/** 초대 링크 토큰으로 이 계정을 팀에 (이메일 상관없음 — 소셜 로그인 경로). 받아들이면 초대한 사람 이름, 아니면 null */
+export async function acceptInviteToken(env: Env, token: string, accountId: string): Promise<string | null> {
+  const r = await inviteOf(env, token);
+  if (typeof r === 'number' || r.owner_id === accountId) return null;
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR IGNORE INTO team_members (owner_id, account_id, can_billing, created_at) VALUES (?, ?, ?, ?)').bind(r.owner_id, accountId, r.can_billing, now),
+    env.DB.prepare('UPDATE team_invites SET used_at = ? WHERE token_hash = ?').bind(now, r.token_hash),
+  ]);
+  return ownerName(env, r.owner_id);
+}
+
 /** 초대 링크 토큰 → 대기 중 초대 (없음 404 / 쓰였거나 만료 410) */
 export async function inviteOf(env: Env, token: string): Promise<InviteRow | 404 | 410> {
   const r = await env.DB.prepare('SELECT * FROM team_invites WHERE token_hash = ?').bind(await sha256hex(token)).first<InviteRow>();
