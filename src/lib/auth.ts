@@ -37,8 +37,9 @@ export type SocialProvider = 'kakao' | 'google' | 'apple';
 export const fetchProviders = (): Promise<SocialProvider[]> =>
   call<{ providers: SocialProvider[] }>('/api/auth/providers').then((r) => r.providers).catch(() => []);
 /** 소셜 로그인 시작 주소 (서버가 공급자로 보내고, 끝나면 /login#session= 으로 돌아온다) */
-export const socialStartUrl = (p: SocialProvider, next: string) =>
-  `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}`;
+/** team = 멤버 초대 링크 토큰 (2026-10-24) — 카카오 이메일이 초대 이메일과 달라도 이 로그인으로 팀에 들어간다 */
+export const socialStartUrl = (p: SocialProvider, next: string, team?: string) =>
+  `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}${team ? `&team=${encodeURIComponent(team)}` : ''}`;
 
 /** 메일 링크 요청. reset = 비밀번호 재설정 링크 */
 export const requestLink = (email: string, reset = false, next?: string) =>

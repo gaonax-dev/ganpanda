@@ -127,14 +127,15 @@
       {#if devLink}<button class="btn primary" data-testid="login-dev-link" onclick={useDevLink}>개발 모드: 바로 열기</button>{/if}
       <button class="btn small" onclick={() => go('login')}>로그인으로 돌아가기</button>
     {:else}
+      {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. 카카오로 들어가거나, 아래에서 비밀번호만 정하면 바로 시작합니다.</p>{/if}
       {#if providers.length && (mode === 'login' || mode === 'signup')}
         <div class="social">
-          {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next)}>{LABEL[p]}</a>{/each}
-          {#if providers.includes('kakao')}<p class="hint" data-testid="social-hint">간판집·직원 모두 카카오로 시작하는 걸 권합니다. 휴대폰에서 한 번에 됩니다.</p>{/if}
+          {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next, invite?.token)}>{invite && p === 'kakao' ? '카카오로 팀 들어가기' : LABEL[p]}</a>{/each}
+          {#if invite}<p class="hint" data-testid="social-hint">카카오 이메일이 초대받은 이메일과 달라도 됩니다. 이 링크에서 시작하면 팀에 들어갑니다.</p>
+          {:else if providers.includes('kakao')}<p class="hint" data-testid="social-hint">간판집·직원 모두 카카오로 시작하는 걸 권합니다. 휴대폰에서 한 번에 됩니다.</p>{/if}
         </div>
         <div class="or"><span>또는 이메일로</span></div>
       {/if}
-      {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. 비밀번호만 정하면 바로 시작합니다.</p>{/if}
       <!-- 브라우저 기본 검증 대신 앱이 같은 문구로 안내 -->
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
         <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" disabled={!!invite && mode === 'signup'} /></label>

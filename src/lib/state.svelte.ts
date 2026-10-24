@@ -500,6 +500,13 @@ class AppState {
       const next = h.get('next') || '/';
       if (session) { saveSession(session); location.replace(next.startsWith('/') ? next : '/'); return; }
     }
+    // 초대 링크 → 카카오로 팀에 들어온 뒤 (서버가 next 에 joined=초대한 사람)
+    const joined = url.searchParams.get('joined');
+    if (joined) {
+      this.notice = `${joined}님의 팀에 들어왔습니다. 그룹과 프로젝트를 함께 봅니다.`;
+      url.searchParams.delete('joined');
+      history.replaceState(null, '', url.pathname + url.search);
+    }
     const teamToken = url.pathname === '/login' ? url.searchParams.get('team') : null;
     if (teamToken) {
       try { this.teamInvite = { token: teamToken, ...(await teamInviteInfo(teamToken)) }; }
