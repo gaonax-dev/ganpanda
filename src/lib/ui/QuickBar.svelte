@@ -84,7 +84,7 @@
       {#each CATEGORY_GROUPS as g (g.id)}<option value={g.id}>{g.label}</option>{/each}
     </select>
     <button class="btn small val" class:on={editing === 'name'} data-testid="quick-name" title="이름" onclick={openName}>{obj.name}</button>
-    <button class="btn small val" class:on={editing === 'size'} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
+    <button class="btn small val" class:on={editing === 'size'} class:need={!obj.widthMm || !obj.heightMm} data-need={!obj.widthMm || !obj.heightMm ? '1' : undefined} data-testid="quick-size" title="사이즈 (mm)" onclick={() => (editing = editing === 'size' ? null : 'size')}>{sizeLabel}</button>
     <!-- 말풍선 단추는 상단 메뉴(mobile-chat)로 옮김 (2026-10-18 "말풍선도 여기로 이동") -->
     <button class="btn small primary" data-testid="quick-panel-open" onclick={() => (app.panelOpen = true)}>상세정보</button>
   </div>
@@ -134,6 +134,7 @@
   .kind { flex: 1 1 90px; min-width: 0; width: auto; padding: 6px 6px; font-size: 12px; }
   .val { max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
   .val.on { border-color: var(--accent); color: var(--accent); }
+  .val.need { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--muted); } /* 치수 없음 — 강조 테두리, 예상(≈)은 회색 (2026-10-24) */
   .edit input { flex: 1; min-width: 0; padding: 6px 6px; font-size: 13px; }
   .edit input[type='number'] { text-align: right; }
   .edit small, .edit span { color: var(--muted); font-size: 11px; white-space: nowrap; }

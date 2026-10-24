@@ -687,6 +687,8 @@
         <text x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
+        <!-- 실측 없음 = 외곽선 왼쪽 위 빨간 점 (2026-10-24 "실측 없으면 사인물 왼쪽상단에 빨강 인디케이터 점") — 예상 치수(≈)만 있어도 실측은 아니다 -->
+        {#if !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={q[0][0]} cy={q[0][1]} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
           {@const H = solveHomography(UNIT_RECT, q)}
@@ -949,6 +951,7 @@
   svg.ghost .sign.sel polygon:not(.touch-outline) { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") — 휴대폰 터치 띠는 빼고 (같은 날 "3d에서 사인물 선택하면 선택상태가 이상": 굵은 노란 띠) */
   svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
+  .unmeasured { fill: #ef4444; stroke: #fff; }
   .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
   svg.zoning { cursor: crosshair; }

@@ -1,5 +1,6 @@
 <!-- 선택한 사인물: 이름·분류(간판/스카시/시트)·한 줄 요약 + 대화. 세부 설정은 ObjectSettingsDialog -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { app } from '../state.svelte';
   import { voicesOf } from '../core/voices';
   import AttachmentView from './AttachmentView.svelte';
@@ -35,6 +36,10 @@
 
   const category = $derived(categoryOf(obj));
   const m = $derived(app.measures.get(obj.id));
+  /** 치수(가로·세로)가 아직 없음 → 강조 테두리 */
+  const needSize = $derived(!obj.widthMm || !obj.heightMm);
+  /** 열 때 치수가 없었으면 치수 칸을 맨 위에 — 열린 동안은 자리를 바꾸지 않는다(입력 중 칸이 움직여 포커스를 잃지 않게). 패널은 사인물마다 새로 만든다({#key}) */
+  const sizeFirst = untrack(() => !obj.widthMm || !obj.heightMm);
   const size = $derived(app.sizeOf(obj));
   const total = $derived(quoteObject(size ? { ...obj, widthMm: size.w, heightMm: size.h } : obj, app.prices).reduce((a, l) => a + l.amount, 0));
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -92,6 +97,17 @@
   {/if}
   <!-- 대화 위의 내용(연결·분류·사이즈·사양 글·칩·요약)은 길어지면 스크롤 — 휴대폰에서 대화 입력칸이 밀려 안 보이던 문제 (2026-10-17) -->
   <div class="info">
+  {#snippet sizeRow()}
+    <!-- 치수 없음 = 강조색 테두리, 예상 길이는 회색 (2026-10-24 "사인물 사이즈없으면 선택시 속성에 최상단 사이즈(에상길이는 회색) 표시하고 강조색으로 아웃라인 표시") -->
+    <div class="sizes" class:need={needSize} data-need={needSize ? '1' : undefined} data-testid="panel-size">
+      <label>가로<input data-testid="panel-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
+      <span>×</span>
+      <label>세로<input data-testid="panel-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '입력'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
+      <span>mm</span>
+    </div>
+    {#if needSize && m?.estimate}<p class="estimate" data-testid="size-estimate">예상 ≈ {fmt(m.estimate.widthMm)} × {fmt(m.estimate.heightMm)}mm — 실측해 넣어 주세요</p>{/if}
+  {/snippet}
+  {#if sizeFirst}<section class="size-first">{@render sizeRow()}</section>{/if}
 
   {#if obj.sameAs || shownIn.length || (linkTargets.length && !ro)}
     <section class="link" data-testid="link-section">
@@ -129,12 +145,7 @@
     {#if category}
       <!-- 완성품 퀵 (2026-10-23): 사진 고르기 → 바꿀 칸 하나씩 -->
       <TemplateQuick {obj} {ro} {update} />
-      <div class="sizes" data-testid="panel-size">
-        <label>가로<input data-testid="panel-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '입력'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
-        <span>×</span>
-        <label>세로<input data-testid="panel-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro} placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '입력'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} /></label>
-        <span>mm</span>
-      </div>
+      {#if !sizeFirst}{@render sizeRow()}{/if}
       {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
       <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.objectSettingsOpen = true; }} />
     {/if}
@@ -191,7 +202,10 @@
   header { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
   .title { flex: 1; background: none; border: 0; color: var(--text); font: inherit; font-size: 16px; font-weight: 700; padding: 4px; border-radius: 6px; }
   .title:focus { background: var(--input); outline: none; }
-  .sizes { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: var(--muted); }
+  .sizes { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: var(--muted); border-radius: 8px; }
+  .sizes.need { outline: 2px solid var(--accent); outline-offset: 3px; } /* 치수 없음 — 강조 (2026-10-24) */
+  .estimate { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .size-first { padding-top: 12px; }
   .sizes label { display: flex; align-items: center; gap: 4px; flex: 1; }
   .sizes input { width: 100%; min-width: 0; text-align: right; }
   section { padding: 10px 14px; border-bottom: 1px solid var(--line); }
