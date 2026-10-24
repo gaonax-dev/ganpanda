@@ -10,7 +10,7 @@
   let info = $state<BillingInfo | null>(null);
   let busy = $state(false), error = $state('');
   const load = async () => { try { info = await fetchBilling(); } catch (e) { error = describeBillingError(e); } };
-  $effect(() => { void app.business; void app.account?.plan; void load(); }); // 사업자 확인·요금제가 바뀌면 다시
+  $effect(() => { void app.business; void app.account?.plan; void app.billingEpoch; void load(); }); // 사업자 확인·요금제가 바뀌면 다시
   const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
   const day = (ts: number | null) => (ts ? new Date(ts).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
   const sub = $derived(info?.sub?.plan ? info.sub : null);
@@ -29,7 +29,7 @@
     {#if info.test}<p class="hint test" data-testid="billing-test">테스트 결제입니다 — 실제로 청구되지 않습니다.</p>{/if}
     {#if !info.allowed}
       <p class="hint">지금은 카드사 심사 중이라 정해진 계정만 결제할 수 있습니다. 곧 열립니다.</p>
-    {:else if sub}
+    {:else if sub?.plan}
       <div data-testid="billing-status">
         <p class="row"><span><b>{PLAN_LABEL[sub.plan ?? ''] ?? sub.plan}</b> 구독 중{#if !sub.autoRenew} · <b class="warn">해지 예약</b> — {day(sub.periodEnd)}까지 사용{/if}</span>
           {#if sub.autoRenew}<span>다음 결제일 {day(sub.periodEnd)}</span>{/if}</p>
@@ -50,6 +50,12 @@
     {:else if !info.business}
       <p class="hint" data-testid="billing-need-business">구독하려면 먼저 아래 <b>사업자 확인</b>을 해 주세요 (세금계산서 발행 조건).</p>
     {:else}
+      <!-- 카드만 (2026-10-24 요청 크레딧): 구독 없이 견적 요청에 제안할 때 크레딧이 이 카드로 -->
+      {#if info.sub?.hasCard}
+        <p class="row"><span data-testid="billing-card">결제 카드 {info.sub.card || '—'} <small class="hint">견적 요청 크레딧용</small></span><button class="btn small" data-testid="billing-card-change" disabled={busy} onclick={() => subscribe('card')}>카드 바꾸기</button></p>
+      {:else}
+        <p class="row"><span class="hint">견적 요청에 제안할 때 크레딧(자동 견적의 0.3%, 3천~5만원)은 등록 카드로 결제됩니다.</span><button class="btn small" data-testid="billing-card-only" disabled={busy} onclick={() => subscribe('card')}>카드만 등록</button></p>
+      {/if}
       <div class="plans">
         {#each info.plans as p (p.id)}
           <button class="btn plan" class:primary={p.id === 'basic'} data-testid="billing-subscribe-{p.id}" disabled={busy} onclick={() => subscribe(p.id)}>{p.name} 구독 · {won(p.priceKrw)}/월</button>
@@ -64,7 +70,7 @@
         <summary>결제 내역 {info.payments.length}건</summary>
         <ul>
           {#each info.payments as p (p.orderId)}
-            <li><span>{day(p.at)}</span> <span>{PLAN_LABEL[p.plan] ?? p.plan}</span> <b>{won(p.amount)}</b> <span class:err={p.status !== 'DONE'}>{p.status === 'DONE' ? '결제됨' : p.status === 'CANCELED' ? '취소됨' : `실패${p.error ? ` (${p.error})` : ''}`}</span>{#if p.receiptUrl} <a href={p.receiptUrl} target="_blank" rel="noopener">영수증</a>{/if}</li>
+            <li><span>{day(p.at)}</span> <span>{p.kind === 'credit' ? '견적 크레딧' : PLAN_LABEL[p.plan] ?? p.plan}</span> <b>{won(p.amount)}</b> <span class:err={p.status !== 'DONE'}>{p.status === 'DONE' ? '결제됨' : p.status === 'CANCELED' ? '취소됨' : `실패${p.error ? ` (${p.error})` : ''}`}</span>{#if p.receiptUrl} <a href={p.receiptUrl} target="_blank" rel="noopener">영수증</a>{/if}</li>
           {/each}
         </ul>
       </details>

@@ -4,10 +4,11 @@ export interface CloneResult { assets: string[]; photoAssets: string[] }
 
 /** 복제해도 되는 설정 — 보드 배치만 (단가표·원가·견적·주문 정보는 안 옮긴다) */
 export const DISPLAY_SETTINGS = ['flatScale', 'flatOffset', 'flatGap'];
-export async function cloneRoom(env: Env, from: { id: string; owner_id: string }, to: { id: string; owner_id: string }, maps: string[], keepSettings: string[] = DISPLAY_SETTINGS): Promise<CloneResult> {
+/** copyAssets = 다른 계정으로 복제할 때 사진 파일 자격도 넘길지 (요청 → 간판집은 제안을 보낸 뒤에, 2026-10-24) */
+export async function cloneRoom(env: Env, from: { id: string; owner_id: string }, to: { id: string; owner_id: string }, maps: string[], keepSettings: string[] = DISPLAY_SETTINGS, copyAssets = true): Promise<CloneResult> {
   const update = await env.ROOM.getByName(from.id).exportState();
   const res = await env.ROOM.getByName(to.id).cloneFrom(update, maps, keepSettings);
-  if (from.owner_id !== to.owner_id && res.assets.length) {
+  if (copyAssets && from.owner_id !== to.owner_id && res.assets.length) {
     const rows = await env.DB.prepare(`SELECT asset_id, size FROM account_assets WHERE account_id = ? AND asset_id IN (${res.assets.map(() => '?').join(',')})`).bind(from.owner_id, ...res.assets).all<{ asset_id: string; size: number }>();
     const now = Date.now();
     if (rows.results.length) await env.DB.batch(rows.results.map((r) => env.DB.prepare('INSERT OR IGNORE INTO account_assets (account_id, asset_id, size, created_at) VALUES (?, ?, ?, ?)').bind(to.owner_id, r.asset_id, r.size, now)));

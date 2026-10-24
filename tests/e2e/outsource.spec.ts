@@ -48,6 +48,7 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await dlg.getByTestId('est-store').fill(name);
   await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 7');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
+  await dlg.getByTestId('est-floor').fill('1층'); // 층 필수 (2026-10-24)
   await dlg.getByTestId('estimate-send').click();
   await expect(dlg.getByTestId('estimate-done-link')).toHaveValue(/\/r\//, { timeout: 20_000 });
   await dlg.getByTestId('estimate-close').click();
@@ -77,7 +78,7 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await expect(shop.getByTestId('req-saved')).toContainText('저장');
   await shop.getByTestId('close-settings').click();
   await shop.getByTestId('request-inbox-link').click();
-  const item = shop.getByTestId('request-item').filter({ hasText: name });
+  const item = shop.getByTestId('request-item').filter({ has: shop.getByTestId('request-b2b') }).first(); // 가게 이름은 제안 뒤에 보인다 (2026-10-24) — 가장 최근 B2B 요청
   await expect(item.getByTestId('request-b2b')).toHaveText('B2B');
   await item.click();
   await expect(shop.getByTestId('request-bar').getByTestId('request-b2b')).toBeVisible({ timeout: 15_000 });

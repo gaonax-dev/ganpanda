@@ -22,6 +22,18 @@
     try { const j = JSON.parse(body) as { used: number; limit: number }; return `무료 요금제는 제안 링크가 한 달 ${j.limit}건까지입니다 (이번 달 ${j.used}건). 다음 달에 다시 만들거나 베이직 요금제로 올리면 무제한입니다.`; }
     catch { return '무료 요금제의 이번 달 제안 링크 한도에 도달했습니다. 베이직 요금제로 올리면 무제한입니다.'; }
   }
+  /** 요청 크레딧 (2026-10-24): 이 요청의 첫 제안이면 크레딧 결제 → 사진·가게 정보·연락처가 열린다 */
+  const credit = $derived(app.access.status === 'ok' && app.access.credit && !app.access.credit.paid ? app.access.credit : null);
+  let needCard = $state(false);
+  function creditError(body: string): string | null {
+    try {
+      const j = JSON.parse(body) as { error?: string; fee?: number; used?: number; limit?: number; message?: string };
+      if (j.error === 'card_required') { needCard = true; return `결제 카드가 없습니다. 설정 → 계정 · 구독에서 카드를 등록하면 크레딧 ${won(j.fee ?? 0)}이 결제되고 제안이 만들어집니다.`; }
+      if (j.error === 'credit_limit') return `이번 달 크레딧 한도(${won(j.limit ?? 0)})를 넘습니다 — 이번 달 ${won(j.used ?? 0)} 사용. 다음 달 1일에 다시 열립니다.`;
+      if (j.error === 'charge_failed') { needCard = true; return `카드 결제가 되지 않았습니다${j.message ? ` (${j.message})` : ''}. 카드를 바꾸거나 잠시 뒤 다시 해 주세요.`; }
+      return null;
+    } catch { return null; }
+  }
   async function build() {
     if (problems.length || !app.room) return;
     error = '';
@@ -33,9 +45,10 @@
       const inv = await createInvite(app.room, 'viewer', 'proposal');
       link = `${SERVER_URL}/p/${app.room}/${inv.token}`;
       copied = false;
+      if (app.access.status === 'ok' && (app.access.credit || app.access.photosLocked)) app.creditPaid(); // 사진·가게 정보가 열린다
     } catch (e) {
       // 무료 요금제 월 건수 한도 (2026-10-17): 서버 402 proposal_limit
-      error = e instanceof AuthError && e.status === 402 ? proposalLimitMessage(e.message) : e instanceof Error ? e.message : String(e);
+      error = e instanceof AuthError && e.status === 402 ? creditError(e.message) ?? proposalLimitMessage(e.message) : e instanceof Error ? e.message : String(e);
     } finally { busy = ''; }
   }
   async function copy() { await navigator.clipboard.writeText(link); copied = true; }
@@ -68,6 +81,9 @@
         </section>
       {/if}
 
+      {#if credit}
+        <p class="credit" data-testid="proposal-credit">이 요청에 첫 제안을 보내면 <b>크레딧 {won(credit.fee)}</b>{credit.on ? '이 등록 카드로 결제되고' : '이 쓰이고'}, 가게 사장님의 <b>사진·가게 정보·연락처</b>가 열립니다.{#if !credit.on} <small>(지금은 정식 결제 전이라 무료입니다)</small>{/if}</p>
+      {/if}
       <section>
         {#if busy}
           <p class="busy" data-testid="proposal-busy">{busy}</p>
@@ -75,6 +91,7 @@
           <button class="btn primary" data-testid="proposal-build" disabled={!!problems.length} onclick={build}>{proposal ? '새 링크 발급' : '링크 발급'}</button>
         {/if}
         {#if error}<p class="warn" data-testid="proposal-error">{error}</p>{/if}
+        {#if needCard}<button class="btn small" data-testid="proposal-card" onclick={() => { close(); app.settingsOpen = true; }}>카드 등록하러 가기</button>{/if}
         {#if link}
           <div class="url">
             <input data-testid="proposal-link" readonly value={link} onfocus={(e) => e.currentTarget.select()} />
@@ -92,6 +109,7 @@
 </div>
 
 <style>
+  .credit { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
   .dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }

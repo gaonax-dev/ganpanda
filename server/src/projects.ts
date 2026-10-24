@@ -1,4 +1,7 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
+import { CREDIT_MONTH_LIMIT, creditsOn, photosOpen, requestFee } from './credit';
+import { chargeCredit } from './billing';
+import { isOperator } from './operator';
 import { talkMember } from './talk';
 import { authenticate, type Account } from './auth';
 import { teamAccess } from './team';
@@ -106,7 +109,18 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
+    // photosLocked: 요청 사진이 아직 닫힘 — 요청 보드를 보는 간판집, 또는 요청에서 가져온 간판집 프로젝트가 제안 전 (2026-10-24). 앱은 사진 대신 안내
+    // credit: 요청에서 가져온 내 프로젝트 — 첫 제안에 쓰일 크레딧 (2026-10-24). on = 실제 결제 여부(REQUEST_CREDITS)
+    const credit = r.role === 'owner' && r.project.request_id && r.account ? { ...(await creditState(env, r.project.request_id, r.account)), on: creditsOn(env) && !isOperator(env, r.account.email) } : null;
+    let locked = false;
+    if (r.project.kind === 'request' && r.account && r.account.id !== r.project.owner_id) {
+      const q = await env.DB.prepare('SELECT id FROM requests WHERE snapshot_project = ?').bind(r.project.id).first<{ id: string }>();
+      locked = !q || !(await photosOpen(env, r.account, q.id));
+    } else if (r.project.request_id) {
+      const own = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(r.project.owner_id).first<Account>();
+      locked = !own || !(await photosOpen(env, own, r.project.request_id));
+    }
+    return json({ role: r.role, project: { id: r.project.id, name: locked && r.project.kind === 'request' ? '견적 요청서' : r.project.name /* 요청서 이름에 가게 이름 (2026-10-24 가림) */ }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}), ...(locked ? { photosLocked: true } : {}), ...(credit ? { credit } : {}) });
   }
 
   const me = await authenticate(req, env);
@@ -204,7 +218,13 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       if (!role || !INVITE_ROLES.has(role)) return text('bad role', 400);
       // kind = 'proposal': 제안 보내기 링크 — 무료 요금제는 한 달 건수 한도 (2026-10-17). 보통 초대는 세지 않는다
       const kind = body?.kind === 'proposal' ? 'proposal' : null;
-      if (kind) {
+      // 요청에서 가져온 프로젝트의 첫 제안 = 크레딧 결제 (2026-10-24) — 요금제 건수 대신. 운영자·이미 제안한 요청은 결제 없음
+      const credit = kind && project.request_id && creditsOn(env) ? await creditState(env, project.request_id, me) : null;
+      if (credit && !credit.paid) {
+        const c = isOperator(env, me.email) ? true : await chargeCredit(env, me, project.request_id!, credit.fee, CREDIT_MONTH_LIMIT);
+        if (c !== true) return json(c.body, c.status);
+      }
+      if (kind && !credit) {
         const limit = planOf(me.plan).proposalsPerMonth;
         const used = limit === null ? 0 : await proposalsThisMonth(env, me.id);
         if (limit !== null && used >= limit) return json({ error: 'proposal_limit', used, limit }, 402);
@@ -237,4 +257,11 @@ export async function handleEstimateProject(req: Request, env: Env): Promise<Res
   const p: ProjectRow = { id: newRoomId(), owner_id: me.id, name: '간판 견적 요청', created_at: Date.now(), group_id: null, status: 'waiting', contract_amount: 0, paid_amount: 0, quote_total: 0, contract_override: null, kind: 'estimate' };
   await env.DB.prepare("INSERT INTO projects (id, owner_id, name, created_at, kind) VALUES (?, ?, ?, ?, 'estimate')").bind(p.id, p.owner_id, p.name, p.created_at).run();
   return json({ project: pubProject(p, 'owner') }, 201);
+}
+
+/** 요청 하나에 대한 이 간판집의 크레딧: 금액(요청에 저장된 것)과 이미 제안했는지 */
+async function creditState(env: Env, requestId: string, me: { id: string }): Promise<{ fee: number; paid: boolean }> {
+  const r = await env.DB.prepare('SELECT fee, estimate_total FROM requests WHERE id = ?').bind(requestId).first<{ fee: number | null; estimate_total: number | null }>();
+  const paid = !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(requestId, me.id).first());
+  return { fee: r?.fee ?? requestFee(r?.estimate_total), paid };
 }

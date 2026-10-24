@@ -32,6 +32,7 @@
   // 사진 에셋 URL 지연 로딩 (못 받았던 에셋이 나중에 오면 assetEpoch 가 바뀌어 다시 요청)
   $effect(() => {
     void app.assetEpoch;
+    if (app.photosLocked) return; // 요청 사진은 제안 뒤 (2026-10-24)
     for (const p of app.photos) {
       if (urls[p.assetId]) continue;
       displayUrl(p.assetId, { w: p.w, h: p.h }).then((u) => { if (u) urls[p.assetId] = u; }); // 줄인 사진 (휴대폰 메모리) — 크기를 알려 주면 줄인 크기로만 디코딩

@@ -50,5 +50,5 @@ test('첫 화면 아래 사업자 정보(상호·대표자·등록번호·주소
 test('요금제 페이지: 로그인 없이 상품·가격', async ({ page }) => {
   await page.goto('/pricing.html');
   await expect(page).toHaveTitle(/요금제/);
-  for (const t of ['베이직', '월 30,000원', '프로', '월 60,000원', '토스페이먼츠', '배송']) await expect(page.locator('body')).toContainText(t);
+  for (const t of ['베이직', '월 30,000원', '프로', '월 60,000원', '토스페이먼츠', '배송', '견적 요청 크레딧', '0.3%', '5,000,000원']) await expect(page.locator('body')).toContainText(t);
 });

@@ -61,10 +61,11 @@ test('복제 전 옛 요청도 [실측 보기]는 가게 사장의 프로젝트�
   await shop.goto('/');
   await shop.evaluate((x) => { localStorage.clear(); localStorage.setItem('ganpanda.session', x); }, s);
   await shop.goto('/requests');
-  await shop.getByTestId('request-item').filter({ hasText: store }).getByTestId('request-view').click();
+  await shop.locator(`[data-testid="request-item"][data-id="${id}"]`).getByTestId('request-view').click(); // 가게 이름은 제안 뒤 (2026-10-24)
   await expect(shop).toHaveURL(new RegExp(`request=${id}`));
   await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
-  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await shop.getByTestId('request-sheet-toggle').click(); // 사진이 닫힌 요청은 리스트로 열린다 → 사진 보드
+  await expect(shop.getByTestId('photo-locked').first()).toBeVisible({ timeout: 15_000 }); // 사진은 제안 뒤 (2026-10-24)
   await expect(shop.getByTestId('role-badge')).toHaveAttribute('data-role', 'viewer'); // 고칠 수 없다
   await ctx.close();
 });

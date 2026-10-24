@@ -221,7 +221,7 @@ export interface ProjectSettings {
 }
 
 /** 견적 요청 폼 글 칸 (파일(사본)은 못 남긴다) */
-export interface EstimateDraft { store: string; phone: string; email: string; text: string; address: string; bizNo: string; ownerName: string; startDate: string }
+export interface EstimateDraft { store: string; phone: string; email: string; text: string; address: string; bizNo: string; ownerName: string; startDate: string; /** 층 (2026-10-24) */ floor?: string }
 
 export interface Message {
   id: string;

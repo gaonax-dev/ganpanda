@@ -136,7 +136,7 @@ describe('요청 올리기 (로그인한 고객)', () => {
     const asCustomer = await api(`/api/requests/${id}/photos/1?key=${key}`);
     expect(asCustomer.status).toBe(200);
     expect(new Uint8Array(await asCustomer.arrayBuffer())[4]).toBe(2);
-    expect((await get(`/api/requests/${id}/photos/1`, shop)).status).toBe(200);
+    expect((await get(`/api/requests/${id}/photos/1`, shop)).status).toBe(403); // 간판사는 제안을 보낸 뒤 (2026-10-24, requestCredit.test.ts)
     expect((await api(`/api/requests/${id}/photos/1`)).status).toBe(401);
     const other = await login(`oth-${crypto.randomUUID().slice(0, 6)}@example.com`); // 요청 받기 안 켠 계정
     expect((await get(`/api/requests/${id}/photos/1`, other)).status).toBe(403);
@@ -151,7 +151,7 @@ describe('간판사: 요청 받기 설정과 받은 요청', () => {
     await create({ region: '서울 강남구' });
     const list = await (await get('/api/requests', shop)).json<{ requests: { id: string; store: string; phone?: string; responded: boolean }[] }>();
     const mine = list.requests.find((r) => r.id === a.id)!;
-    expect(mine).toMatchObject({ store: '바로바로 정육점', responded: false });
+    expect(mine).toMatchObject({ store: '', responded: false, locked: true }); // 가게 이름은 제안 뒤 (2026-10-24, requestCredit.test.ts)
     expect(mine.phone).toBeUndefined();
     expect(list.requests.every((r) => r.id === a.id || r.store !== '서울집')).toBe(true);
   });
@@ -177,7 +177,9 @@ describe('답하기 → 제안 링크 → 연락처 공개 → 고객 페이지 
     const r = await json(`/api/requests/${id}/respond`, {}, shop);
     expect(r.status).toBe(201);
     const { project } = await r.json<{ project: { id: string; name: string; requestId: string } }>();
-    expect(project).toMatchObject({ name: '바로바로 정육점 요청', requestId: id });
+    expect(project.requestId).toBe(id);
+    expect(project.name).toMatch(/요청$/); // 제안 전엔 "지역 층 요청" — 가게 이름 가림 (2026-10-24)
+    expect(project.name).not.toContain('정육점');
     const again = await (await json(`/api/requests/${id}/respond`, {}, shop)).json<{ project: { id: string } }>();
     expect(again.project.id).toBe(project.id);
     // 접근 응답에도 requestId (앱이 사진을 가져오는 신호)
