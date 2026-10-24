@@ -100,6 +100,11 @@
   }
 
   // 파일 입력은 고른 뒤 값을 비운다 — 같은 파일을 다시 고르면 change 가 안 나던 문제 (2026-10-21 "사진 삭제후 같은 사진을 업로드하면 업로드가 안된다")
+  /** 사진 올리기 (2026-10-24): 터치 기기는 [사진 찍기]·[앨범에서]를 따로 — 일부 안드로이드는 image/* + multiple 이면 카메라 없이 사진 선택기로 바로 간다 */
+  const touchDevice = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  let photoInput = $state<HTMLInputElement>();
+  let cameraInput = $state<HTMLInputElement>();
+  let photoMenu = $state(false);
   export async function addPhotos(files: FileList | File[]) {
     let i = 0;
     for (const f of files) {
@@ -560,7 +565,12 @@
       {#if app.ready && !app.photos.length && app.canEdit}
         <div class="empty">
           <p>건물 사진을 올려 시작하세요</p>
-          <label class="btn primary">사진 추가<input type="file" accept="image/*" multiple hidden onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} /></label>
+          {#if touchDevice}
+            <!-- 휴대폰: 카메라와 앨범을 따로 (2026-10-24 "어떤 안드로이드 기계의 경우엔 사진라이브러로 바로 이동해 사진을 찍을 수 없게") -->
+            <div class="pick2"><button class="btn primary" data-testid="photo-camera" onclick={() => cameraInput?.click()}>📷 사진 찍기</button><button class="btn" data-testid="photo-album" onclick={() => photoInput?.click()}>🖼 앨범에서</button></div>
+          {:else}
+            <button class="btn primary" data-testid="photo-add" onclick={() => photoInput?.click()}>사진 추가</button>
+          {/if}
           <small>또는 사진을 여기로 끌어다 놓으세요</small>
         </div>
       {/if}
@@ -578,6 +588,9 @@
   {/if}
 <!-- 사진 교체 파일 고르기 (2026-10-21, 도구 막대 밖 — 막대 순서 테스트) -->
 <input data-testid="photo-replace-input" type="file" accept="image/*" hidden bind:this={replaceInput} onchange={onReplaceFile} />
+<!-- 사진 올리기 입력 (2026-10-24): 앨범(여러 장) · 카메라(capture — 사진 선택기가 카메라를 안 보여 주는 안드로이드에서도 바로 촬영) -->
+<input data-testid="photo-input" type="file" accept="image/*" multiple hidden bind:this={photoInput} onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} />
+<input data-testid="photo-camera-input" type="file" accept="image/*" capture="environment" hidden bind:this={cameraInput} onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} />
 <div class="tools" role="toolbar">
         {#if app.canEdit}
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
@@ -593,7 +606,13 @@
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
           <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
           <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="타원 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>⬭<span class="lbl"> 타원</span></button>
-          <label class="file" data-testid="tool-photo" title="사진 추가"><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span><input data-testid="photo-input" type="file" accept="image/*" multiple hidden onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} /></label>
+          <button class="file" data-testid="tool-photo" title="사진 추가" onclick={() => (touchDevice ? (photoMenu = !photoMenu) : photoInput?.click())}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span></button>
+          {#if photoMenu}
+            <div class="photo-menu" data-testid="photo-menu">
+              <button data-testid="photo-menu-camera" onclick={() => { photoMenu = false; cameraInput?.click(); }}>📷 사진 찍기</button>
+              <button data-testid="photo-menu-album" onclick={() => { photoMenu = false; photoInput?.click(); }}>🖼 앨범에서</button>
+            </div>
+          {/if}
         {:else}
           <span class="readonly">보기·대화만 가능</span>
         {/if}
@@ -620,6 +639,9 @@
   }
   .empty > * { pointer-events: auto; }
   .empty p { font-size: 16px; color: var(--text); margin: 0; }
+  .pick2 { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .photo-menu { position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 6px; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+  .photo-menu button { white-space: nowrap; padding: 8px 12px; text-align: left; }
   .multibar {
     position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 6;
     display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px;

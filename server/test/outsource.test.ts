@@ -2,7 +2,7 @@
 // 이제 외주 리스트에서 프로젝트를 열면 기본컬러 핫핑크로 하고 요청 버튼이 생긴다. 해당 건은 b2b로 표시 보여준다"
 import { beforeEach, describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
-import { get, json, login } from './helpers';
+import { createInvite, get, json, login } from './helpers';
 import { setNtsFetch } from '../src/business';
 
 beforeEach(() => setNtsFetch(async () => Response.json({ data: [{ valid: '01', status: { b_stt_cd: '01' } }] })));
@@ -30,6 +30,16 @@ describe('외주 표시', () => {
 });
 
 describe('만들기에서 외주 체크 (2026-10-22 "만들기에서 외주체크하면 바로 생성할 수 있다")', () => {
+  it('고객(보기 초대·제안 링크)에게는 외주 표시가 없다 — 편집 초대(팀)에는 있다 (2026-10-24 "외주표시가 고객에게도 있다")', async () => {
+    const { shop, project } = await outsourced();
+    await json(`/api/projects/${project}`, { outsource: true }, shop, 'PATCH');
+    const viewer = await createInvite(shop, project, 'viewer');
+    expect((await (await get(`/api/projects/${project}/access?invite=${viewer.token}`)).json<{ role: string; outsource?: boolean }>())).toMatchObject({ role: 'viewer' });
+    expect((await (await get(`/api/projects/${project}/access?invite=${viewer.token}`)).json<{ outsource?: boolean }>()).outsource).toBeFalsy();
+    const editor = await createInvite(shop, project, 'editor');
+    expect((await (await get(`/api/projects/${project}/access?invite=${editor.token}`)).json<{ outsource?: boolean }>()).outsource).toBe(true);
+  });
+
   it('POST /api/projects {outsource: true} 면 처음부터 외주 폴더', async () => {
     const shop = await login(`osn-${u()}@example.com`);
     const r = await json('/api/projects', { name: '바로 외주', outsource: true }, shop);

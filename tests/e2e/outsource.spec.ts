@@ -1,7 +1,7 @@
 // 간판집의 외주 요청 (B2B) — 2026-10-22 사용자: "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시. 프로젝트 카드 선택에 다른업체에 외주요청 버튼을 누르면 외주폴더로 이동한다.
 // 이제 외주 리스트에서 프로젝트를 열면 기본컬러 핫핑크로 하고 요청 버튼이 생긴다. 해당 건은 b2b로 표시 보여준다"
 import { expect, test } from '@playwright/test';
-import { apiLogin, dragOnPhoto, openOwnedProject, uploadPhoto, openSettings } from './helpers';
+import { apiCreateInvite, apiLogin, dragOnPhoto, openInvited, openOwnedProject, uploadPhoto, openSettings } from './helpers';
 
 test('만들기에서 [외주] 를 체크하면 처음부터 외주 프로젝트 — 열리자마자 핫핑크 + [외주 요청] (2026-10-22 "만들기에서 외주체크하면 바로 생성할 수 있다")', async ({ page, request }) => {
   const session = await apiLogin(request);
@@ -9,6 +9,10 @@ test('만들기에서 [외주] 를 체크하면 처음부터 외주 프로젝트
   await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, session);
   await page.reload();
   await page.getByTestId('new-project-name').fill('바로 외주');
+  // 이름은 "다른 간판가게에 외주", 상세 칸 맨 아래 (2026-10-24 "오해의 소지가 있으니 … 최하단에")
+  await expect(page.getByTestId('new-outsource-label')).toHaveText('다른 간판가게에 외주');
+  const order = await page.getByTestId('new-project-details').evaluate((el) => [...el.querySelectorAll('[data-testid]')].map((e) => e.getAttribute('data-testid')).filter((t) => t !== 'new-project-close'));
+  expect(order.slice(-2)).toEqual(['new-outsource', 'new-outsource-label']); // 연락처·주소·날짜·메모 다음 맨 아래
   await page.getByTestId('new-outsource').check();
   await page.getByTestId('new-project-submit').click();
   await expect(page.getByTestId('outsource-badge')).toBeVisible({ timeout: 15_000 });
@@ -78,4 +82,21 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await expect(shop.getByTestId('request-bar').getByTestId('request-b2b')).toBeVisible({ timeout: 15_000 });
   expect(await accent(shop)).toBe('#3b82f6'); // 받는 간판집의 실측 보기(요청 보드)는 파랑 (2026-10-22)
   await ctx.close();
+});
+
+test('고객(제안 링크)에게는 외주 표시·핫핑크가 없다 (2026-10-24 "외주표시가 고객에게도 있다")', async ({ page, request, browser }) => {
+  const { session, projectId } = await openOwnedProject(page, request, '고객에겐 비밀');
+  await uploadPhoto(page);
+  await page.goto('/');
+  await page.locator(`[data-testid="project-item"][data-id="${projectId}"]`).getByTestId('project-menu').click();
+  await page.getByTestId('details-outsource').click();
+  await expect(page.getByTestId('outsource-folder')).toContainText('고객에겐 비밀');
+  await page.goto(`/?room=${projectId}`);
+  await expect(page.getByTestId('outsource-badge')).toBeVisible();
+  const url = await apiCreateInvite(request, session, projectId, 'viewer');
+  const token = new URL(url).searchParams.get('invite')!;
+  const guest = await openInvited(browser, `http://localhost:5199/?room=${projectId}&invite=${token}&proposal=1`, '손님');
+  await expect(guest.getByTestId('proposal-page')).toBeVisible();
+  await expect(guest.getByTestId('outsource-badge')).toHaveCount(0);
+  expect(await guest.evaluate(() => document.documentElement.classList.contains('outsource'))).toBe(false);
 });
