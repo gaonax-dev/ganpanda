@@ -155,10 +155,8 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
  * 사진 하나 = [왼쪽 옆면][정면][오른쪽 옆면] 위 줄 + 정면 아래 아래면. 사진 묶음은 사진 순서(행·열)대로, 되도록 자기 사진 아래 자리에. 사진 없는 카드는 맨 아래 한 줄
  */
 export interface GridCard { id: string; w: number; h: number; photo: number | null; group: 'front' | 'left' | 'right' | 'bottom'; box: Box; /** 사진 속 자리(px) — 줄 묶기는 보이는 사진 기준 (펴진 벽 좌표는 원근 때문에 아래 선반이 갈라졌다, 2026-10-24) */ view?: Box }
-interface Block { pos: Map<string, { x: number; y: number }>; w: number; h: number }
+interface Block { pos: Map<string, { x: number; y: number }>; w: number; h: number; /** 줄 수 */ rows?: number }
 
-/** 격자 칸 수가 카드가 차지한 칸 수의 이 배를 넘으면 성긴 격자 — 줄 묶기로 */
-const SPARSE = 2.5;
 /**
  * 줄 묶기: 사진 속 가운데 높이 순으로, 이웃 가운데 차이가 사인물 높이 중앙값보다 크면 새 줄. 줄 안은 왼쪽 → 오른쪽, 카드는 간격만 두고 촘촘히.
  * 흩어진 사인물이 대각선 계단으로 늘어지지 않고, 위·가운데·아래 선반처럼 높이 순서는 남는다 (2026-10-24)
@@ -179,21 +177,36 @@ function rowPack(cards: GridCard[], gap: number, labelMm: number): Block {
     w = Math.max(w, x - gap);
     y += Math.max(...r.map((c) => c.h + labelMm)) + gap;
   }
-  return { pos, w, h: y - gap };
+  return { pos, w, h: y - gap, rows: rows.length };
 }
 
+/**
+ * 묶음 배치: 축 격자(끝선 행·열)와 줄 묶기 중 — 흩어진 사인물(실내 선반 등, 끝선이 서로 안 맞음)은 축 격자가 대각선 계단이 된다
+ * (2026-10-24 현장 "신하센터": 16장이 세로 58m 계단, 원근에 기준 길이를 넣은 뒤엔 옆면 묶음이 계단). 사진 속에서 겹친 사인물이 없고, 줄 묶기가 줄이 더 적으면서 넓이도 크지 않으면 줄 묶기, 아니면 축 격자
+ */
 function layoutGroup(cards: GridCard[], gap: number, labelMm: number): Block {
+  const grid = gridLayout(cards, gap, labelMm);
+  if (cards.length < 2) return grid;
+  // 사진 속에서 안에 든 사인물(판 위 글자 등)이 있으면 축 격자 — 그것은 같은 세로줄 바로 아래 새 줄이 맞다
+  const vb = (c: GridCard) => c.view ?? c.box;
+  const area = (b: Box) => Math.max(0, b.x1 - b.x0) * Math.max(0, b.y1 - b.y0);
+  const nested = cards.some((a, i) => cards.some((b, j) => {
+    if (j <= i) return false;
+    const A = vb(a), B = vb(b), ix = Math.min(A.x1, B.x1) - Math.max(A.x0, B.x0), iy = Math.min(A.y1, B.y1) - Math.max(A.y0, B.y0);
+    return ix > 0 && iy > 0 && ix * iy > 0.7 * Math.min(area(A), area(B)); // 한쪽이 다른 쪽 안에 거의 들어감 — 원근으로 이어 그린 옆 사인물(상자 반쯤 겹침)은 아님
+  }));
+  if (nested) return grid;
+  const rows = rowPack(cards, gap, labelMm);
+  // 줄이 더 적고 넓이도 크지 않으면 줄 묶기 (대각선 계단 = 줄이 카드 수만큼 늘어난다)
+  return (rows.rows ?? 0) < (grid.rows ?? 0) && rows.w * rows.h <= grid.w * grid.h ? rows : grid;
+}
+
+function gridLayout(cards: GridCard[], gap: number, labelMm: number): Block {
   const pos = new Map<string, { x: number; y: number }>();
   if (!cards.length) return { pos, w: 0, h: 0 };
   const W = Math.max(1, Math.max(...cards.map((c) => c.box.x1)) - Math.min(...cards.map((c) => c.box.x0)));
   const H = Math.max(1, Math.max(...cards.map((c) => c.box.y1)) - Math.min(...cards.map((c) => c.box.y0)));
   const spans = gridOf(cards.map((c) => ({ id: c.id, box: c.box })), W, H);
-  // 성긴 격자 = 흩어진 사인물(실내 선반 등, 끝선이 서로 안 맞음) → 줄 묶기 (2026-10-24 현장 "신하센터": 16장이 16×16 격자 대각선 계단이 됐다)
-  {
-    const sp = [...spans.values()], nc = Math.max(...sp.map((x) => x.c1)), nr = Math.max(...sp.map((x) => x.r1));
-    const filled = sp.reduce((t, x) => t + (x.c1 - x.c0) * (x.r1 - x.r0), 0); // 카드가 차지한 칸 (여러 칸에 걸친 판 포함)
-    if (cards.length > 2 && nc * nr > SPARSE * filled) return rowPack(cards, gap, labelMm);
-  }
   // 칸 겹침 정리: gridOf 가 끼워 넣은 사이 행을 여러 행에 걸친 카드가 덮을 수 있다 → 큰 카드부터 칸을 차지하고, 찬 칸이면 빈 곳까지 아래로
   const taken = new Set<string>();
   for (const c of [...cards].sort((a, b) => b.w * b.h - a.w * a.h)) {
@@ -216,7 +229,7 @@ function layoutGroup(cards: GridCard[], gap: number, labelMm: number): Block {
   rowH.reduce((y, h, k) => { rowY[k] = y; return y + h + gap; }, 0);
   for (const c of cards) { const s = spans.get(c.id)!; pos.set(c.id, { x: colX[s.c0], y: rowY[s.r0] }); }
   const w = colW.reduce((a, b) => a + b, 0) + gap * (ncols - 1), h = rowH.reduce((a, b) => a + b, 0) + gap * (nrows - 1);
-  return { pos, w, h };
+  return { pos, w, h, rows: nrows };
 }
 
 export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: number; w: number; h: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {

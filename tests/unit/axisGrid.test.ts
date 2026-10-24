@@ -86,4 +86,28 @@ describe('축 격자 재정렬', () => {
     const at = arrangeByAxisGrid(cs, [photo], 300, 100);
     expect(at.get('a')!.x).toBe(at.get('c')!.x); expect(at.get('b')!.x).toBe(at.get('d')!.x);
   });
+
+  it('옆면으로 판정된 사인물(원근대로 이어 그려 상자가 반쯤 겹침)도 계단이 되지 않는다 — 줄이 더 적고 넓이도 크지 않으면 줄 묶기 (2026-10-24 현장 재확인: 다시 그리고 원근에 기준 길이를 넣자 14개가 옆면)', () => {
+    // 사진 px 상자 [id, x0, y0, x1, y1, 카드 높이] — 사인물을 원근대로 이어 다시 그린 현장(찬장 문 · 조리대 앞판): 옆 사인물 상자가 반쯤 겹친다
+    const B: [string, number, number, number, number, number][] = [
+      ['1', 133, 268, 665, 1127, 1678], ['2', 623, 439, 1105, 977, 980], ['3', 1092, 609, 1300, 1111, 2514], ['4', 338, 1836, 856, 2199, 209], ['5', 371, 1962, 876, 2400, 254],
+      ['7', 870, 1857, 1125, 2339, 1200], ['8', 1123, 1753, 1310, 2174, 1447], ['9', 1302, 1559, 1450, 2033, 2468], ['10', 1440, 1486, 1608, 1922, 1868], ['11', 1605, 1429, 1723, 1787, 2200],
+      ['12', 1721, 1397, 1783, 1695, 3671], ['13', 1295, 662, 1446, 899, 1358], ['14', 1446, 715, 1564, 915, 1589], ['15', 1566, 752, 1645, 1088, 4383],
+    ];
+    // 앱과 같은 묶음: 옆면은 사진 가운데(1600px) 기준 왼쪽·오른쪽 — 11·12·15 는 오른쪽
+    const right = new Set(['11', '12', '15']);
+    const cs = B.map(([id, x0, y0, x1, y1, h]) => card(id, x0, y0, x1, y1, 1000, h, right.has(id) ? 'right' : 'left'));
+    const at = arrangeByAxisGrid(cs, [{ x: 0, y: 0, w: 41800, h: 31350 }], 300, 1200);
+    const R = cs.map((c) => ({ ...at.get(c.id)!, w: c.w, h: c.h + 1200 }));
+    expect(overlaps(R)).toBe(false);
+    const rows = [...new Set(cs.map((c) => at.get(c.id)!.y))];
+    expect(rows.length).toBeLessThanOrEqual(6); // 전엔 계단 (왼쪽 11줄)
+    const y = (id: string) => at.get(id)!.y;
+    // 위 찬장(1·2·3·13·14) 한 줄, 조리대 앞판(10·9·8·4·7·5) 한 줄 — 위 → 아래
+    for (const id of ['2', '3', '13', '14']) expect(y(id)).toBe(y('1'));
+    for (const id of ['9', '8', '4', '7', '5']) expect(y(id)).toBe(y('10'));
+    expect(y('1')).toBeLessThan(y('10'));
+    const rightRows = [...new Set(['11', '12', '15'].map(y))];
+    expect(rightRows.length).toBeLessThanOrEqual(2);
+  });
 });
