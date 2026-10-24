@@ -5,12 +5,51 @@
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, UNIT_LABEL } from '../core/catalog';
-  import { ROUNDING_OPTIONS, type PriceTable } from '../core/pricing';
+  import { ROUNDING_OPTIONS, mergePrices, type PriceTable } from '../core/pricing';
+  import { describeImportError, readPriceTable, type ImportResult } from '../priceImport';
   import { savePrices } from '../auth';
   import { applyMarkup, isDirect, linkedPrice } from '../core/markup';
   import { findMethod, methodsFor } from '../core/calcMethods';
   import { SUPPLIER_LISTS, findSupplierItem, linkableItems, supplierItemLabel, type SupplierItem, type SupplierPriceList } from '../core/supplierPrices';
 
+  // ---- 쓰던 단가표 가져오기 (2026-10-24 "기존에 사용하던 단가를 입력받으면 ai로 이것을 우리의 단가표에 넣어야한다") ----
+  let imText = $state('');
+  let imFile = $state<File | null>(null);
+  let imBusy = $state(false);
+  let imError = $state('');
+  let imDone = $state('');
+  let imResult = $state<ImportResult | null>(null);
+  /** 확인 표: 고른 줄과 고친 단가 */
+  let imPick = $state<Record<string, boolean>>({});
+  let imPrice = $state<Record<string, number>>({});
+  let imSaveAccount = $state(true);
+  const nameOf = (id: string) => CATALOG.find((c) => c.id === id)?.name ?? SHEETS.find((s) => s.id === id)?.name ?? id;
+  const isSheet = (id: string) => SHEETS.some((s) => s.id === id);
+  async function runImport() {
+    imError = ''; imDone = ''; imResult = null; imBusy = true;
+    try {
+      const r = await readPriceTable({ text: imText, file: imFile });
+      imResult = r;
+      imPick = Object.fromEntries(r.items.map((i) => [i.id, true]));
+      imPrice = Object.fromEntries(r.items.map((i) => [i.id, i.price]));
+      if (!r.items.length) imError = '맞는 항목을 찾지 못했습니다. 아래 "못 찾은 줄"을 보고 단가를 직접 넣어 주세요.';
+    } catch (e) { imError = describeImportError(e); }
+    finally { imBusy = false; }
+  }
+  async function applyImport() {
+    if (!imResult) return;
+    const chosen = imResult.items.filter((i) => imPick[i.id] && Number.isFinite(imPrice[i.id]) && imPrice[i.id] >= 0);
+    if (!chosen.length) return;
+    const put = (t: PriceTable): PriceTable => {
+      const next: PriceTable = { ...t, products: { ...t.products }, sheets: { ...t.sheets }, ...(t.links ? { links: { ...t.links } } : {}) };
+      for (const i of chosen) { const v = Math.round(imPrice[i.id]); if (isSheet(i.id)) next.sheets[i.id] = v; else next.products[i.id] = v; if (next.links) delete next.links[i.id]; }
+      return next;
+    };
+    app.setPrices(put(p));
+    if (imSaveAccount) { try { const mine = put(mergePrices(app.accountPrices)); await savePrices(mine); app.accountPrices = mine; } catch (e) { imError = describeImportError(e); return; } }
+    imDone = `${chosen.length}개 항목을 넣었습니다${imSaveAccount ? ' (이 견적 + 내 단가표)' : ' (이 견적)'}.`;
+    imResult = null;
+  }
   let saved = $state(false);
   let saving = $state(false);
   const p = $derived(app.prices);
@@ -114,6 +153,38 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="단가 설정">
     <header><h2>단가 설정</h2><button class="icon" data-close data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
     <div class="body">
+      <section class="import" data-testid="prices-import">
+        <h3>쓰던 단가표 가져오기 <small>AI 가 읽어 아래 항목에 맞춥니다 — 엑셀(.xlsx)·CSV·사진·PDF·글</small></h3>
+        <textarea data-testid="import-text" rows="3" bind:value={imText} placeholder="엑셀·카톡·메모에서 복사해 붙여 넣기 (예: 갈바 간판  회배 65,000)"></textarea>
+        <div class="imrow">
+          <input data-testid="import-file" type="file" accept=".xlsx,.csv,.txt,image/*,application/pdf" onchange={(e) => (imFile = e.currentTarget.files?.[0] ?? null)} />
+          <button class="btn primary small" data-testid="import-run" disabled={imBusy || (!imText.trim() && !imFile)} onclick={runImport}>{imBusy ? '읽는 중…' : 'AI로 읽기'}</button>
+        </div>
+        {#if imError}<p class="hint err" data-testid="import-error">{imError}</p>{/if}
+        {#if imDone}<p class="hint ok" data-testid="import-done">{imDone}</p>{/if}
+        {#if imResult?.items.length}
+          <table class="imtable">
+            <thead><tr><th></th><th>항목</th><th>지금</th><th>넣을 단가</th><th>원문</th></tr></thead>
+            <tbody>
+              {#each imResult.items as i (i.id)}
+                <tr data-testid="import-row" data-id={i.id}>
+                  <td><input type="checkbox" data-testid="import-pick" bind:checked={imPick[i.id]} /></td>
+                  <td>{nameOf(i.id)}</td>
+                  <td class="r muted">{(isSheet(i.id) ? p.sheets[i.id] : p.products[i.id])?.toLocaleString('ko-KR') ?? '—'}</td>
+                  <td><input data-testid="import-price" type="number" min="0" step="100" bind:value={imPrice[i.id]} /></td>
+                  <td class="muted">{i.sourceLabel} · {i.sourcePrice}{#if i.note}<br /><small>{i.note}</small>{/if}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="imrow"><label class="check"><input type="checkbox" data-testid="import-save-account" bind:checked={imSaveAccount} /> 내 단가표에도 저장 (새 프로젝트)</label>
+            <button class="btn primary small" data-testid="import-apply" onclick={applyImport}>적용</button></p>
+        {/if}
+        {#if imResult?.unmatched.length}
+          <details data-testid="import-unmatched" open={!imResult.items.length}><summary>못 찾은 줄 {imResult.unmatched.length}개 — 아래 표에 직접 넣어 주세요</summary>
+            <ul>{#each imResult.unmatched as u, k (k)}<li>{u.label} · {u.price}</li>{/each}</ul></details>
+        {/if}
+      </section>
       {#each ['board', 'channel', 'light', 'part'] as const as cat (cat)}
         <section>
           <h3>{CATEGORY_LABEL[cat]}</h3>
@@ -186,6 +257,16 @@
 </div>
 
 <style>
+  .import { border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 10px; padding: 10px; }
+  .import textarea { width: 100%; box-sizing: border-box; }
+  .imrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+  .imtable { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  .imtable th, .imtable td { padding: 4px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .imtable input[type='number'] { width: 96px; }
+  .imtable .r { text-align: right; }
+  .muted { color: var(--muted); }
+  .hint.err { color: var(--danger, #dc2626); }
+  .hint.ok { color: var(--ok, #22c55e); }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
   .dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }

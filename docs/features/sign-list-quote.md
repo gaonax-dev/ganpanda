@@ -63,7 +63,7 @@
 - 직접 단가 줄(공급사 계산법이 아닌 줄)은 `QuoteLine.qty`·`unit`(㎡·자·cm·개·m)·`unitPrice` 를 갖는다. 견적 줄 아래 **수량 × [단가] 원/단위**(`line-unit-row`, `line-unit`).
 - 단가를 바꾸면 **이 줄만**(`settings.lineUnits[줄 키]`) — 금액 = 수량 × 그 단가(반올림·최소 금액), 상세 "(이 줄 단가)", 그 줄에 직접 넣은 금액은 지운다. 수동 모드(새 프로젝트)에서도 단가를 넣은 줄은 입력한 것으로 본다. 금액 칸에 직접 넣으면 금액이 이긴다.
 - **[이 견적 전체]**(`line-unit-apply`) = 이 프로젝트 단가표의 그 항목을 그 단가로 — 같은 품목 줄 모두 자동 금액(직접 넣은 금액 줄은 그대로), "이 줄만" 단가는 지움, 공급 연결은 풀림. **[내 단가표까지]**(`line-unit-account`) = 거기에 더해 계정 기본 단가표(새 프로젝트)에도 그 항목만 저장(`line-unit-saved`). [되돌리기](`line-unit-reset`) = 단가표 단가로.
-- 다음: 쓰던 단가표(엑셀·사진·글)를 AI 로 읽어 내 단가표에 넣기.
+- **쓰던 단가표 가져오기**(2026-10-24 "기존에 사용하던 단가를 입력받으면 ai로 이것을 우리의 단가표에 넣어야한다" → 엑셀·사진·PDF·글, Claude API): 단가 설정 창 맨 위 `prices-import` — 글 붙여넣기(`import-text`) 또는 파일(`import-file`: .xlsx 는 앱이 `read-excel-file` 로 시트·줄·칸(탭) 글로, CSV·글은 그대로, 사진·PDF 는 base64) → [AI로 읽기](`import-run`) → 서버 `POST /api/me/prices/import`(`server/src/priceImport.ts`: 앱이 보낸 우리 항목 목록(id·이름·단위·분류)과 함께 Claude(`claude-sonnet-5-5`, 도구 `price_table` 강제)에 묻고, 목록에 있는 id·0 이상 정수만, 항목당 하나) → **확인 표**(`import-row`: 고르기·항목·지금 단가·넣을 단가(고칠 수 있음)·원문·바꾼 방법) + **못 찾은 줄**(`import-unmatched`) → [적용](`import-apply`) = 이 견적 단가표 + "내 단가표에도 저장"(`import-save-account`, 기본 켬), 공급 연결은 풀림. 단위 바꾸기는 AI 가: 회배·헤베 = ㎡, 평 ÷ 3.3058, 채널 자당(크기별)은 ÷ 글자 높이 cm(여럿이면 30cm 안팎). 하루 20번(`ai_usage`, 0041). 비밀값 `ANTHROPIC_API_KEY`(로컬·E2E `fake` = 항목 이름이 든 줄의 숫자). 테스트 `server/test/priceImport.test.ts`, `tests/e2e/priceImport.spec.ts`.
 
 ## 원가 · 이익율 (2026-10-16)
 - **원가 = 공급사 금액(배수 전)**: 공급 품목 연결이면 수량 × 공급 단가, 계산법이면 계산법 금액. 직접 입력 단가 줄은 원가 없음(합계에서 빼고 "원가 없는 줄 n건").
