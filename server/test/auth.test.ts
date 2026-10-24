@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
+import { ensureAccount } from './helpers';
 
 const api = (path: string, init?: RequestInit) => exports.default.fetch('http://sync' + path, init);
 const json = (path: string, body: unknown, headers: Record<string, string> = {}) =>
@@ -8,6 +9,7 @@ const json = (path: string, body: unknown, headers: Record<string, string> = {})
 
 /** 매직링크 요청 → 링크의 토큰으로 검증 → 세션 토큰 */
 async function login(email: string) {
+  await ensureAccount(email);
   const r = await json('/api/auth/email', { email });
   expect(r.status).toBe(202);
   const { link } = await r.json<{ link: string }>();
@@ -24,6 +26,7 @@ describe('이메일 매직링크 로그인', () => {
   });
 
   it('요청하면 202, 개발 모드에서는 앱 주소로 가는 링크를 돌려준다', async () => {
+    await ensureAccount('maker@example.com');
     const r = await json('/api/auth/email', { email: 'Maker@Example.com ' });
     expect(r.status).toBe(202);
     const { link } = await r.json<{ link: string }>();
@@ -50,6 +53,7 @@ describe('이메일 매직링크 로그인', () => {
   });
 
   it('링크는 한 번만 쓸 수 있다 (재사용 410)', async () => {
+    await ensureAccount('once@example.com');
     const r = await json('/api/auth/email', { email: 'once@example.com' });
     const token = new URL((await r.json<{ link: string }>()).link).searchParams.get('token')!;
     expect((await json('/api/auth/verify', { token })).status).toBe(200);
@@ -57,6 +61,7 @@ describe('이메일 매직링크 로그인', () => {
   });
 
   it('만료된 링크는 410, 없는 토큰은 404', async () => {
+    await ensureAccount('late@example.com');
     const r = await json('/api/auth/email', { email: 'late@example.com' });
     const token = new URL((await r.json<{ link: string }>()).link).searchParams.get('token')!;
     await env.DB.prepare('UPDATE login_tokens SET expires_at = ?').bind(Date.now() - 1000).run();

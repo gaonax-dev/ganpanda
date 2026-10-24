@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { apiSignup, bizInput, fillSignupBusiness } from './helpers';
 
 const email = () => `e2e-${Math.random().toString(36).slice(2, 8)}@example.com`;
 
@@ -8,8 +9,9 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
-test('이메일로 로그인 → 상단에 계정 표시 → 새로고침해도 유지 → 로그아웃', async ({ page }) => {
+test('이메일로 로그인 → 상단에 계정 표시 → 새로고침해도 유지 → 로그아웃', async ({ page, request }) => {
   const mail = email();
+  await apiSignup(request, mail); // 메일 링크는 가입한 계정만 (2026-10-24)
   await page.getByTestId('login-button').click();
   await page.getByTestId('login-mode-link').click();
   await page.getByTestId('login-email').fill(mail);
@@ -30,7 +32,9 @@ test('이메일로 로그인 → 상단에 계정 표시 → 새로고침해도 
 });
 
 test('매직링크 URL(/login?token=)로 들어오면 로그인되고 주소가 정리된다', async ({ page, request }) => {
-  const r = await request.post('http://localhost:8787/api/auth/email', { data: { email: email() } });
+  const mail = email();
+  await apiSignup(request, mail);
+  const r = await request.post('http://localhost:8787/api/auth/email', { data: { email: mail } });
   const { link } = await r.json();
   const token = new URL(link).searchParams.get('token')!;
   await page.goto(`/login?token=${token}`);
@@ -49,8 +53,9 @@ test('잘못된 이메일은 안내, 만료된 링크는 오류 안내', async (
   await expect(page.getByTestId('login-error')).toContainText('링크');
 });
 
-test('로그인하면 표시 이름이 계정 이름이 되고, 이름을 바꾸면 계정에 저장된다', async ({ page }) => {
+test('로그인하면 표시 이름이 계정 이름이 되고, 이름을 바꾸면 계정에 저장된다', async ({ page, request }) => {
   const mail = email();
+  await apiSignup(request, mail);
   await page.getByTestId('login-button').click();
   await page.getByTestId('login-mode-link').click();
   await page.getByTestId('login-email').fill(mail);
@@ -94,6 +99,7 @@ test('이메일·비밀번호: 가입(인증 메일 → 인증 전 로그인 막
   await page.getByTestId('login-password').fill('secret-1234');
   await page.getByTestId('login-password2').fill('secret-1234');
   await page.getByTestId('login-name').fill('김사장');
+  await fillSignupBusiness(page);
   await page.getByTestId('login-submit').click();
   // 가입 = 인증 메일. 인증 전 로그인은 막히고 [인증 메일 다시 받기]
   await expect(page.getByTestId('login-sent')).toContainText('가입 인증 메일');
@@ -149,7 +155,7 @@ test('이메일·비밀번호: 가입(인증 메일 → 인증 전 로그인 막
 });
 
 test('가입 인증 메일 링크(/login?token=&verify=1)로 들어오면 로그인되고 인증 완료 안내', async ({ page, request }) => {
-  const r = await request.post('http://localhost:8787/api/auth/signup', { data: { email: email(), password: 'secret-1234' } });
+  const r = await request.post('http://localhost:8787/api/auth/signup', { data: { email: email(), password: 'secret-1234', business: bizInput() } });
   const { link } = await r.json();
   const u = new URL(link);
   await page.goto(u.pathname + u.search);

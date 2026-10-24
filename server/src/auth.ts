@@ -1,6 +1,6 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
 import { PLANS } from './plans';
-import { businessOf } from './business';
+import { businessOf, checkBusiness, saveBusiness, type BusinessInput } from './business';
 import { isOperator } from './operator';
 import { DEVICES_ALLOWED } from './account';
 import { regionsOf } from './requests';
@@ -55,7 +55,7 @@ export async function markEmailVerified(env: Env, a: Account): Promise<Account> 
 }
 
 async function signup(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ email?: string; password?: string; name?: string; next?: string }>(req);
+  const body = await readJson<{ email?: string; password?: string; name?: string; next?: string; business?: BusinessInput }>(req);
   const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
   if (!EMAIL_RE.test(email)) return text('bad email', 400);
   if (!validPassword(body?.password)) return text('bad password', 400);
@@ -63,14 +63,21 @@ async function signup(req: Request, env: Env): Promise<Response> {
   // 가입할 때 이메일 인증 (2026-10-15 사용자: "가입할 때 이메일 인증도 받게 해줘"): 인증 메일의 링크를 열어야 로그인된다
   const exists = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
   if (exists?.email_verified) return text('already registered', 409);
+  // 이메일 가입은 간판집·가게 사장 모두 사업자 확인 (2026-10-24) — 확인된 사업자끼리만 만나도록. 카카오 가입은 그대로
+  if (!body?.business || typeof body.business !== 'object') return json({ error: 'business_required' }, 400);
+  const biz = await checkBusiness(env, body.business, exists?.id ?? null);
+  if ('error' in biz) return json({ error: biz.error }, biz.status);
   const hash = await hashPassword(body!.password!);
+  let id = exists?.id;
   if (exists) {
     // 아직 인증 안 된 가입: 마지막 가입 시도의 비밀번호로 덮고 인증 메일을 다시 보낸다 (남이 먼저 걸어 둔 것이 남지 않게)
     await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ? WHERE id = ?').bind(hash, name || exists.name, exists.id).run();
   } else {
+    id = crypto.randomUUID();
     await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)')
-      .bind(crypto.randomUUID(), email, name, 'free', Date.now(), hash).run();
+      .bind(id, email, name, 'free', Date.now(), hash).run();
   }
+  await saveBusiness(env, id!, biz);
   return sendLink(env, email, 'verify', nextPath(body?.next));
 }
 
@@ -95,6 +102,8 @@ async function requestEmailLogin(req: Request, env: Env): Promise<Response> {
   const body = await readJson<{ email?: string; reset?: boolean; next?: string }>(req);
   const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
   if (!EMAIL_RE.test(email)) return text('bad email', 400);
+  // 메일 링크는 이미 있는 계정의 로그인·재설정만 (2026-10-24) — 새 계정은 회원가입(사업자 확인) 또는 카카오로
+  if (!(await env.DB.prepare('SELECT 1 FROM accounts WHERE email = ?').bind(email).first())) return json({ error: 'no_account' }, 404);
   return sendLink(env, email, body?.reset === true ? 'reset' : 'login', nextPath(body?.next));
 }
 
@@ -152,11 +161,8 @@ async function verifyEmailLogin(req: Request, env: Env): Promise<Response> {
   await env.DB.prepare('UPDATE login_tokens SET used_at = ? WHERE token_hash = ?').bind(now, hash).run();
 
   let account = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(row.email).first<Account>();
-  if (!account) {
-    account = { id: crypto.randomUUID(), email: row.email, name: '', plan: 'free', created_at: now, email_verified: 1 };
-    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, email_verified) VALUES (?, ?, ?, ?, ?, 1)')
-      .bind(account.id, account.email, account.name, account.plan, account.created_at).run();
-  } else if (row.purpose === 'verify') {
+  if (!account) return json({ error: 'no_account' }, 404); // 계정이 지워졌거나 예전 링크 — 메일 링크로는 계정을 만들지 않는다 (2026-10-24)
+  else if (row.purpose === 'verify') {
     // 가입 인증: 가입 때 정한 비밀번호를 그대로 두고 인증만
     if (!account.email_verified) await env.DB.prepare('UPDATE accounts SET email_verified = 1 WHERE id = ?').bind(account.id).run();
     account = { ...account, email_verified: 1 };

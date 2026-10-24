@@ -43,12 +43,36 @@ export async function clickOnPhoto(page: Page, at: [number, number]) {
 
 const rand = () => Math.random().toString(36).slice(2, 10);
 
-/** 이메일 매직링크로 로그인한 세션 토큰 */
+/** 9자리 + 검증 자릿수 = 유효한 사업자등록번호 (하이픈 없이) */
+export const bizNo = (nine = String(100000000 + Math.floor(Math.random() * 800000000))) => { const w = [1, 3, 7, 1, 3, 7, 1, 3, 5]; let sum = 0; for (let i = 0; i < 9; i++) sum += Number(nine[i]) * w[i]; sum += Math.floor((Number(nine[8]) * 5) / 10); return nine + String((10 - (sum % 10)) % 10); };
+/** 이메일 가입용 사업자 (로컬 가짜 국세청: 대표자 '홍길동' = 일치) — 2026-10-24 이메일 가입은 사업자 확인 */
+export const bizInput = () => ({ no: bizNo(), ownerName: '홍길동', startDate: '2020-01-05', name: '테스트 상회' });
+
+/** 이메일 가입(사업자 확인) → 인증 링크 → 세션. keepBusiness 가 아니면 사업자는 떼어 예전처럼 "사업자 없는 계정" */
+export async function apiSignup(request: APIRequestContext, email = `e2e-${rand()}@example.com`, keepBusiness = false): Promise<string> {
+  const r = await request.post(`${SERVER}/api/auth/signup`, { data: { email, password: 'e2e-pass-1', business: bizInput() } });
+  if (r.status() !== 202) throw new Error(`signup failed ${r.status()} ${await r.text()}`);
+  const token = new URL((await r.json()).link).searchParams.get('token')!;
+  const session = (await (await request.post(`${SERVER}/api/auth/verify`, { data: { token } })).json()).session as string;
+  if (!keepBusiness) await request.delete(`${SERVER}/api/me/business`, { headers: { authorization: `Bearer ${session}` } });
+  return session;
+}
+
+/** 로그인한 세션 토큰 — 이미 있는 계정은 메일 링크로, 처음이면 가입(메일 링크는 새 계정을 만들지 않는다, 2026-10-24) */
 export async function apiLogin(request: APIRequestContext, email = `e2e-${rand()}@example.com`): Promise<string> {
   const r = await request.post(`${SERVER}/api/auth/email`, { data: { email } });
+  if (r.status() === 404) return apiSignup(request, email);
   const token = new URL((await r.json()).link).searchParams.get('token')!;
   const v = await request.post(`${SERVER}/api/auth/verify`, { data: { token } });
   return (await v.json()).session;
+}
+
+/** 가입 창의 사업자 칸 채우기 */
+export async function fillSignupBusiness(page: Page, b = bizInput()) {
+  await page.getByTestId('biz-no').fill(b.no);
+  await page.getByTestId('biz-owner').fill(b.ownerName);
+  await page.getByTestId('biz-start').fill(b.startDate);
+  await page.getByTestId('biz-name').fill(b.name);
 }
 
 export async function apiCreateProject(request: APIRequestContext, session: string, name = '테스트 매장'): Promise<string> {

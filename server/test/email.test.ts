@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:test';
 import { handleAuth } from '../src/auth';
+import { ensureAccount } from './helpers';
+
+beforeAll(async () => { for (const e of ['maker@example.com', 'x@example.com', 'fail@example.com']) await ensureAccount(e); });
 
 const req = (email: string) =>
   new Request('http://sync/api/auth/email', { method: 'POST', body: JSON.stringify({ email }), headers: { 'content-type': 'application/json' } });

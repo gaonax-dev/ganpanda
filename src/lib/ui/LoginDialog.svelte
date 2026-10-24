@@ -4,6 +4,8 @@
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
+  import { BUSINESS_ERROR } from '../business';
+  import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
   import { AuthError, describeAuthError, fetchProviders, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
   // 카카오가 기본 (2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안). 서버가 카카오 키를 갖고 있을 때만 보인다
@@ -18,6 +20,13 @@
   let password = $state('');
   let password2 = $state('');
   let name = $state('');
+  // 이메일 가입 = 사업자 확인 (2026-10-24 — 간판집·가게 사장 모두. 카카오는 그대로)
+  let bizNo = $state('');
+  let bizOwner = $state('');
+  let bizStart = $state('');
+  let bizName = $state('');
+  /** 메일 링크 로그인에 처음 보는 이메일 → [회원가입] 안내 */
+  let noAccount = $state(false);
   let sent = $state<string | null>(null);
   /** 보낸 메일의 종류 */
   let sentKind = $state<'login' | 'reset' | 'verify'>('login');
@@ -28,11 +37,20 @@
   let error = $state(app.authError);
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  function go(m: Mode) { mode = m; error = ''; sent = null; devLink = null; unverified = false; }
+  function go(m: Mode) { mode = m; error = ''; sent = null; devLink = null; unverified = false; noAccount = false; }
   function close() { app.loginOpen = false; app.authError = ''; }
   async function run(f: () => Promise<void>, kind: Parameters<typeof describeAuthError>[1]) {
     busy = true; error = '';
-    try { await f(); } catch (e) { error = describeAuthError(e, kind); } finally { busy = false; }
+    try { await f(); } catch (e) { error = serverError(e) ?? describeAuthError(e, kind); } finally { busy = false; }
+  }
+  /** 서버가 JSON 오류 코드로 답한 경우 (사업자 확인·가입된 계정 없음) */
+  function serverError(e: unknown): string | null {
+    if (!(e instanceof AuthError)) return null;
+    let code = '';
+    try { code = (JSON.parse(e.message) as { error?: string }).error ?? ''; } catch { return null; }
+    if (code === 'no_account') { noAccount = true; return '가입된 계정이 없습니다. 회원가입하거나 카카오로 시작해 주세요.'; }
+    if (code === 'business_required') return BUSINESS_ERROR.bad_input;
+    return BUSINESS_ERROR[code] ?? null;
   }
 
   function submit() {
@@ -49,7 +67,10 @@
     if (mode === 'signup') {
       if (password.length < PASSWORD_MIN) { error = `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`; return; }
       if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
-      return run(async () => { const r = await signup(em, password, name.trim(), linkNext()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; }, 'signup');
+      const startDate = bizStartDate(bizStart);
+      if (!isValidBizNo(bizNo) || !bizOwner.trim() || !startDate) { error = BUSINESS_ERROR.bad_input; return; }
+      const business = { no: bizNo, ownerName: bizOwner.trim(), startDate, name: bizName.trim() };
+      return run(async () => { const r = await signup(em, password, name.trim(), business, linkNext()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; }, 'signup');
     }
     // 비밀번호 찾기 / 이메일 링크
     return run(async () => {
@@ -109,10 +130,18 @@
         {#if mode === 'signup'}
           <label>비밀번호 확인<input data-testid="login-password2" type="password" bind:value={password2} autocomplete="new-password" /></label>
           <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
+          <fieldset class="biz" data-testid="signup-business">
+            <legend>사업자 확인</legend>
+            <p class="why" data-testid="signup-biz-why">간판다는 <b>확인된 사업자끼리만</b> 만나는 곳입니다. 간판집은 진짜 가게의 요청만, 가게 사장은 진짜 간판집의 견적만 받도록 사업자등록을 한 번 확인합니다. 카카오로 가입하면 이 단계 없이 바로 시작합니다.</p>
+            <label>사업자등록번호<input data-testid="biz-no" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} /></label>
+            <label>대표자 성명<input data-testid="biz-owner" placeholder="사업자등록증의 성명" bind:value={bizOwner} /></label>
+            <label>개업일자 <small>(등록증의 개업연월일)</small><input data-testid="biz-start" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} bind:value={bizStart} /></label>
+            <label>상호 <small>(선택)</small><input data-testid="biz-name" placeholder="가게·간판집 이름" bind:value={bizName} /></label>
+          </fieldset>
         {/if}
         {#if mode === 'forgot'}<p class="hint">가입한 이메일로 재설정 링크를 보냅니다. 링크를 열면 로그인되고 새 비밀번호를 정할 수 있습니다.</p>{/if}
         {#if mode === 'signup'}<p class="hint">가입하면 인증 메일을 보냅니다. 메일의 링크를 열면 가입이 끝납니다.</p>{/if}
-        {#if mode === 'link'}<p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 처음이면 계정이 만들어집니다.</p>{/if}
+        {#if mode === 'link'}<p class="hint">비밀번호 없이 이메일로 받은 링크를 눌러 로그인합니다. 가입한 계정만 쓸 수 있습니다.</p>{/if}
         <button class="btn primary" data-testid="login-submit" type="submit" disabled={busy || !email.trim()}>
           {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : mode === 'forgot' ? '재설정 링크 받기' : '로그인 링크 받기'}
         </button>
@@ -125,13 +154,14 @@
       </div>
     {/if}
     {#if error}<p class="error" data-testid="login-error">{error}</p>{/if}
+    {#if noAccount && !sent}<button class="btn small" data-testid="login-error-signup" onclick={() => go('signup')}>회원가입하기</button>{/if}
     {#if unverified && !sent}<button class="btn small" data-testid="login-resend-verify" disabled={busy} onclick={resend}>인증 메일 다시 받기</button>{/if}
   </div>
 </div>
 
 <style>
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
-  .dialog { width: min(400px, calc(100vw - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 10px; }
+  .dialog { width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 10px; }
   header { display: flex; align-items: center; justify-content: space-between; }
   h2 { margin: 0; font-size: 16px; }
   form { display: flex; flex-direction: column; gap: 10px; }
@@ -147,6 +177,10 @@
   .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
   .links { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
   .link { background: none; border: 0; color: var(--blue); cursor: pointer; font: inherit; font-size: 12px; padding: 0; }
+  .biz { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px 10px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .biz legend { font-size: 12px; font-weight: 700; padding: 0 4px; }
+  .biz .why { font-size: 12px; color: var(--muted); }
+  .biz .why b { color: var(--text); }
   .error { color: var(--danger); font-size: 13px; margin: 0; }
   p { margin: 0; font-size: 13px; line-height: 1.5; }
 </style>

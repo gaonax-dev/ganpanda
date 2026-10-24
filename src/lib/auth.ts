@@ -53,8 +53,8 @@ export async function verifyLink(token: string): Promise<{ account: Account; res
 export const verifyToken = (token: string) => verifyLink(token).then((r) => r.account);
 
 /** 이메일·비밀번호 가입 (2026-10-15): 인증 메일을 보낸다 — 링크를 열어야 로그인된다. 개발 모드면 링크를 돌려준다 */
-export const signup = (email: string, password: string, name: string, next?: string) =>
-  call<{ ok: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, next }) }, null);
+export const signup = (email: string, password: string, name: string, business: { no: string; ownerName: string; startDate: string; name?: string }, next?: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, business, next }) }, null);
 /** 인증 메일 다시 받기 */
 export const resendVerify = (email: string, next?: string) =>
   call<{ ok: true; link?: string }>('/api/auth/resend-verify', { method: 'POST', body: JSON.stringify({ email, next }) }, null);
