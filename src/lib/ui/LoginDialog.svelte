@@ -132,7 +132,7 @@
           <label>이름 (선택)<input data-testid="login-name" bind:value={name} placeholder="예: 간판다 김사장" /></label>
           <fieldset class="biz" data-testid="signup-business">
             <legend>사업자 확인</legend>
-            <p class="why" data-testid="signup-biz-why">간판다는 <b>확인된 사업자끼리만</b> 만나는 곳입니다. 간판집은 진짜 가게의 요청만, 가게 사장은 진짜 간판집의 견적만 받도록 사업자등록을 한 번 확인합니다. 카카오로 가입하면 이 단계 없이 바로 시작합니다.</p>
+            <p class="why" data-testid="signup-biz-why">간판다는 <b>확인된 사업자와</b> 만나는 곳입니다. 간판집은 진짜 가게의 요청만, 가게 사장은 진짜 간판집의 견적만 받도록 사업자등록을 한 번 확인합니다. 카카오로 가입하면 이 단계 없이 바로 시작합니다.</p>
             <label>사업자등록번호<input data-testid="biz-no" inputmode="numeric" placeholder="123-45-67890" value={bizNo} oninput={(e) => (bizNo = formatBizNo(e.currentTarget.value))} /></label>
             <label>대표자 성명<input data-testid="biz-owner" placeholder="사업자등록증의 성명" bind:value={bizOwner} /></label>
             <label>개업일자 <small>(등록증의 개업연월일)</small><input data-testid="biz-start" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} bind:value={bizStart} /></label>

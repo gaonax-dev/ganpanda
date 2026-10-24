@@ -48,7 +48,7 @@ test('이메일 가입은 간판집·가게 사장 모두 사업자 확인 — �
     await page.getByTestId(side).click();
     if (side === 'landing-consumer') await page.getByTestId('consumer-login-other').click();
     await page.getByTestId('login-mode-signup').click();
-    await expect(page.getByTestId('signup-biz-why')).toContainText('확인된 사업자끼리만');
+    await expect(page.getByTestId('signup-biz-why')).toContainText('확인된 사업자와');
     await expect(page.getByTestId('signup-biz-why')).not.toContainText('국세청');
   }
   await page.getByTestId('login-email').fill(`b-${Math.random().toString(36).slice(2, 8)}@example.com`);
