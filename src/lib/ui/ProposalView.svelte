@@ -23,10 +23,12 @@
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
-  // 렌더 이미지 URL 준비
+  /** 사인물이 있는 사진 (실사 이미지가 없는 제안은 이 사진 위에 외곽선) */
+  const signPhotos = $derived(app.photos.filter((p) => app.signs.some((o) => o.photoId === p.id)));
+  // 렌더 이미지 · 사진 URL 준비
   $effect(() => {
     void app.assetEpoch;
-    const ids = (proposal?.renders ?? []).flatMap((r) => [r.day, r.night]);
+    const ids = proposal?.renders.length ? proposal.renders.flatMap((r) => [r.day, r.night]) : signPhotos.map((p) => p.assetId).filter(Boolean);
     for (const id of ids) if (!urls[id]) assetUrl(id).then((u) => { if (u) urls = { ...urls, [id]: u }; });
   });
   const photoName = (id: string) => app.photos.find((p) => p.id === id)?.name ?? '';
@@ -67,7 +69,25 @@
       {/each}
     </section>
   {:else}
-    <section class="renders"><div class="loading">아직 만들어진 실사 이미지가 없습니다. 제작자가 제안을 보내면 여기에 보입니다.</div></section>
+    <!-- 실사 이미지 없이(2026-10-24 "실사이미지 만들필요가 없고 링크발급으로"): 가게 사진 위에 사인물 외곽선·이름을 바로 -->
+    <section class="renders">
+      {#each signPhotos as p (p.id)}
+        <figure data-testid="proposal-photo">
+          <svg viewBox="0 0 {p.w} {p.h}" role="img" aria-label={p.name}>
+            {#if urls[p.assetId]}<image href={urls[p.assetId]} x="0" y="0" width={p.w} height={p.h} />{:else}<rect width={p.w} height={p.h} fill="#ddd" />{/if}
+            {#each app.signs.filter((o) => o.photoId === p.id && o.quad.length === 4) as o (o.id)}
+              {@const pts = (o.shape === 'polygon' && o.polygon?.length ? o.polygon : o.quad).map((q) => q.join(',')).join(' ')}
+              {@const u = p.w / 800}
+              <polygon data-testid="proposal-photo-sign" points={pts} fill="rgba(59,130,246,0.12)" stroke="var(--accent)" stroke-width={3 * u} />
+              <text x={o.quad[0][0]} y={o.quad[0][1] - 10 * u} font-size={28 * u} fill="#fff" stroke="#000" stroke-width={4 * u} paint-order="stroke" font-weight="700">{o.name}</text>
+            {/each}
+          </svg>
+          <figcaption>{p.name}</figcaption>
+        </figure>
+      {:else}
+        <div class="loading">사진이 없습니다.</div>
+      {/each}
+    </section>
   {/if}
 
   <section class="signs">
@@ -153,7 +173,7 @@
   .biz { display: inline-block; margin-top: 6px; color: var(--ok); border: 1px solid currentColor; border-radius: 999px; padding: 1px 8px; }
   section { padding: 0 16px; }
   .renders figure { margin: 10px 0 0; }
-  .renders img { width: 100%; border-radius: 12px; display: block; }
+  .renders img, .renders svg { width: 100%; border-radius: 12px; display: block; }
   .renders figcaption { color: var(--muted); font-size: 12px; margin-top: 4px; }
   .loading { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 40px 16px; text-align: center; color: var(--muted); }
   .center { justify-content: center; max-width: 240px; margin: 0 auto; }

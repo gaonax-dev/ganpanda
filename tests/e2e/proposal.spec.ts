@@ -26,14 +26,15 @@ async function setup(page: import('@playwright/test').Page, request: import('@pl
   return { ...r, signId };
 }
 
-test('제안 보내기: 실사 이미지 만들고 링크 발급 → 고객이 휴대폰 페이지에서 보고 질문·승인 → 제작자에게 승인 표시, 내용이 바뀌면 재승인 필요', async ({ page, request, browser }) => {
+test('제안 보내기: [링크 발급](실사 이미지 안 만듦, 2026-10-24) → 고객이 휴대폰 페이지에서 보고 질문·승인 → 제작자에게 승인 표시, 내용이 바뀌면 재승인 필요', async ({ page, request, browser }) => {
   const { session, projectId } = await setup(page, request);
   await page.getByTestId('proposal-button').click();
   const dlg = page.getByTestId('proposal-dialog');
   await expect(dlg.getByTestId('proposal-summary')).toContainText('사인물 1개');
   await dlg.getByTestId('proposal-note').fill('야간 모습도 확인해 보세요');
+  await expect(dlg.getByTestId('proposal-build')).toHaveText('링크 발급'); // 2026-10-24 "실사이미지 만들필요가 없고 링크발급으로"
   await dlg.getByTestId('proposal-build').click();
-  await expect(dlg.getByTestId('proposal-link')).toHaveValue(/\/p\/.+\/.+/, { timeout: 30_000 });
+  await expect(dlg.getByTestId('proposal-link')).toHaveValue(/\/p\/.+\/.+/, { timeout: 5_000 }); // 실사 합성이 없어 바로
   const link = await dlg.getByTestId('proposal-link').inputValue();
   const [, room, token] = link.match(/\/p\/([^/]+)\/([^/]+)$/)!;
   expect(room).toBe(projectId);
@@ -47,10 +48,12 @@ test('제안 보내기: 실사 이미지 만들고 링크 발급 → 고객이 �
   // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
   expect(await guest.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6');
   await expect(pg.getByTestId('proposal-note-view')).toContainText('야간 모습');
-  await expect(pg.getByTestId('proposal-render')).toHaveCount(1, { timeout: 15_000 });
-  const daySrc = await pg.getByTestId('proposal-render').getAttribute('src');
-  await pg.getByTestId('proposal-night').click();
-  await expect(pg.getByTestId('proposal-render')).not.toHaveAttribute('src', daySrc!);
+  // 실사 이미지 대신 가게 사진 위에 사인물 외곽선·이름
+  await expect(pg.getByTestId('proposal-render')).toHaveCount(0);
+  await expect(pg.getByTestId('proposal-photo')).toHaveCount(1);
+  await expect(pg.getByTestId('proposal-photo-sign')).toHaveCount(1);
+  await expect(pg.getByTestId('proposal-photo')).toContainText('메인 간판');
+  await expect(pg.getByTestId('proposal-photo').locator('image')).toHaveAttribute('href', /blob:|http/, { timeout: 15_000 });
   await expect(pg.getByTestId('proposal-sign')).toHaveCount(1);
   await expect(pg.getByTestId('proposal-sign')).toContainText('채널 간판 (전광)');
   await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,000');

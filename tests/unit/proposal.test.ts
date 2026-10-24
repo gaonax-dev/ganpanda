@@ -47,14 +47,14 @@ describe('제안·승인: 내용 해시와 상태', () => {
     expect(approvalState([ap2], 'different')).toMatchObject({ status: 'changed', approval: { id: '2' } });
   });
 
-  it('제안 준비 점검: 사진·사인물·분류·치수·3D 가 비면 안내', () => {
-    expect(proposalProblems([], sizeOf, [], () => true)).toEqual(['사진이 없습니다.', '사인물이 없습니다. 사진에 사인물 영역을 그리세요.']);
+  it('제안 준비 점검: 사진·사인물·분류·치수가 비면 안내 — 3D(원근)는 묻지 않는다(실사 이미지를 만들지 않음, 2026-10-24)', () => {
+    expect(proposalProblems([], sizeOf, [])).toEqual(['사진이 없습니다.', '사인물이 없습니다. 사진에 사인물 영역을 그리세요.']);
     const noCat = obj({ id: 'c', name: '무명', widthMm: 100, heightMm: 100 });
     const noSize = obj({ id: 'd', name: '크기없음', productId: 'board-acp' });
-    const probs = proposalProblems([noCat, noSize], sizeOf, [{ id: 'p' }], () => false);
+    const probs = proposalProblems([noCat, noSize], sizeOf, [{ id: 'p' }]);
     expect(probs.some((p) => p.includes('무명') && p.includes('분류'))).toBe(true);
     expect(probs.some((p) => p.includes('크기없음') && p.includes('치수'))).toBe(true);
-    expect(probs.some((p) => p.includes('원근'))).toBe(true);
-    expect(proposalProblems([a, b], sizeOf, [{ id: 'p' }], () => true)).toEqual([]);
+    expect(probs.some((p) => p.includes('3D'))).toBe(false); // 치수 안내의 "원근 맞추기로 추정" 은 그대로
+    expect(proposalProblems([a, b], sizeOf, [{ id: 'p' }])).toEqual([]);
   });
 });

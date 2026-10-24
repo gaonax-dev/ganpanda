@@ -180,7 +180,7 @@
       <div class="views stage flatbar" data-testid="flat-bar" title="정면도 카드 배열 — 카드는 끌어서 배치(리스트와 같은 배치)">
         <button class="primary" data-testid="flat-rearrange" title="사진 순서대로, 사진 구도대로 다시 배열 (옆면·아랫면 사인물은 펴서)" onclick={() => app.arrangeFlatCards()}>재정렬</button>
         <span class="grp" title="카드 간격 (mm) — 바꾸면 그 간격으로 다시 배열">↔
-          <button class="sq" data-testid="flat-gap-down" onclick={() => app.setFlatGap(app.flatGap - 100)}>−</button><span data-testid="flat-gap-value">{app.flatGap}</span><button class="sq" data-testid="flat-gap-up" onclick={() => app.setFlatGap(app.flatGap + 100)}>+</button>
+          <button class="sq" data-testid="flat-gap-down" onclick={() => app.setFlatGap(app.flatGap - 50)}>−</button><span data-testid="flat-gap-value">{app.flatGap}</span><button class="sq" data-testid="flat-gap-up" onclick={() => app.setFlatGap(app.flatGap + 50)}>+</button>
         </span>
         <button data-testid="flat-lock" class:on={app.flatLocked} title={app.flatLocked ? '고정 풀기 — 카드를 끌어 옮길 수 있게' : '고정 — 카드를 끌어도 움직이지 않게 (모두에게 같음)'} onclick={() => app.setFlatLocked(!app.flatLocked)}>{app.flatLocked ? '🔒 고정' : '🔓 고정'}</button>
         <span class="grp" data-testid="flat-scale" title="평면 구역 전체 크기 (모두에게 같음)">

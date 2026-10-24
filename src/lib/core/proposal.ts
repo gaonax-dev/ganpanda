@@ -95,7 +95,8 @@ export function approvalState(approvals: Approval[] | undefined, currentHash: st
 }
 
 /** 제안을 만들 수 있나: 비어 있으면 안내 문구 목록 (비어 있지 않으면 만들 수 없음) */
-export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { id: string }[], threeDOk: (photoId: string) => boolean): string[] {
+/** 제안 준비 점검. 3D(원근)는 묻지 않는다 — 실사 이미지를 만들지 않고 링크만 발급 (2026-10-24 "실사이미지 만들필요가 없고 링크발급으로") */
+export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { id: string }[]): string[] {
   const out: string[] = [];
   if (!photos.length) out.push('사진이 없습니다.');
   if (!signs.length) out.push('사인물이 없습니다. 사진에 사인물 영역을 그리세요.');
@@ -103,8 +104,6 @@ export function proposalProblems(signs: SignObject[], sizeOf: SizeOf, photos: { 
     if (!categoryOf(o)) out.push(`"${o.name}"의 분류(간판·스카시·시트)가 없습니다.`);
     if (!sizeOf(o)) out.push(`"${o.name}"의 치수가 없습니다 (입력 또는 원근 맞추기로 추정).`);
   }
-  const photoIds = new Set(signs.map((o) => o.photoId).filter(Boolean)); // 보드 직접 사인물('')은 사진이 없다
-  for (const id of photoIds) if (!threeDOk(id)) out.push('사인물이 있는 사진의 3D(원근)가 준비되지 않았습니다. [원근 맞추기]를 하거나 치수를 넣으세요.');
   return [...new Set(out)];
 }
 
