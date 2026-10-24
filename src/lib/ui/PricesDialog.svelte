@@ -162,6 +162,7 @@
         </div>
         {#if imError}<p class="hint err" data-testid="import-error">{imError}</p>{/if}
         {#if imDone}<p class="hint ok" data-testid="import-done">{imDone}</p>{/if}
+        {#if imResult?.engine === 'workers'}<p class="hint warn" data-testid="import-engine-note">보조 AI 로 읽었습니다 — 표가 복잡하면 틀릴 수 있으니 넣을 단가를 꼭 확인해 주세요.</p>{/if}
         {#if imResult?.items.length}
           <table class="imtable">
             <thead><tr><th></th><th>항목</th><th>지금</th><th>넣을 단가</th><th>원문</th></tr></thead>
@@ -267,6 +268,7 @@
   .muted { color: var(--muted); }
   .hint.err { color: var(--danger, #dc2626); }
   .hint.ok { color: var(--ok, #22c55e); }
+  .hint.warn { color: #b45309; }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
   .dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }

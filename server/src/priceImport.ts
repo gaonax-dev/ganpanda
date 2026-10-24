@@ -13,6 +13,51 @@ const FILE_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image
 let claudeFetch: typeof fetch = (input, init) => fetch(input, init);
 export function setClaudeFetch(f: typeof fetch | null) { claudeFetch = f ?? ((input, init) => fetch(input, init)); }
 
+// ---- 예비 경로: Cloudflare Workers AI (2026-10-24 사용자: "ai토큰 없으면 클라우드플레아 무료 사용하면되지 않아?" → "예비 경로로 붙여줘") ----
+// Claude 가 실패하면(크레딧 부족·인증·과부하) 같은 지시문으로 다시: 글 → 텍스트 모델, 사진 → 비전 모델이 글로 옮긴 뒤 텍스트 모델, PDF → 문서 변환(toMarkdown) 뒤 텍스트 모델
+const WA_TEXT = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const WA_VISION = '@cf/meta/llama-3.2-11b-vision-instruct';
+interface WorkersAiLike {
+  run(model: string, input: Record<string, unknown>): Promise<unknown>;
+  toMarkdown(files: { name: string; blob: Blob }[]): Promise<{ data?: string }[]>;
+}
+let workersAi: WorkersAiLike | null = null;
+/** 테스트에서 가짜로 바꿔 끼운다 */
+export function setWorkersAi(ai: WorkersAiLike | null) { workersAi = ai; }
+const aiOf = (env: Env): WorkersAiLike | null => workersAi ?? (env.AI as unknown as WorkersAiLike | undefined) ?? null;
+const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+async function readWithWorkers(env: Env, catalog: CatalogEntry[], textIn: string | null, file: { type: string; data: string } | null): Promise<ImportResult> {
+  const ai = aiOf(env);
+  if (!ai) throw new Error('no workers ai');
+  let body = textIn ?? '';
+  if (file?.type === 'application/pdf') {
+    const md = await ai.toMarkdown([{ name: 'prices.pdf', blob: new Blob([bytesOf(file.data)], { type: 'application/pdf' }) }]);
+    body = [body, md.map((m) => m.data ?? '').join('\n')].filter(Boolean).join('\n');
+  } else if (file) {
+    const run = () => ai.run(WA_VISION, { image: [...bytesOf(file.data)], prompt: '이 그림의 단가표를 줄마다 "품목<탭>금액·단위" 로 그대로 옮겨 적으세요. 설명 없이 표 내용만.', max_tokens: 2048, temperature: 0.1 });
+    let r: unknown;
+    try { r = await run(); } catch (e) {
+      if (!String(e).includes('5016')) throw e; // 계정당 1회 모델 라이선스 동의 (docScan 과 같음)
+      try { await ai.run(WA_VISION, { prompt: 'agree' }); } catch { /* 동의 응답도 5016 */ }
+      r = await run();
+    }
+    body = [body, String((r as { response?: unknown }).response ?? '')].filter(Boolean).join('\n');
+  }
+  if (!body.trim()) throw new Error('nothing to read');
+  const r = await ai.run(WA_TEXT, {
+    messages: [
+      { role: 'system', content: `${prompt(catalog)}\n\n결과는 JSON 하나만: {"items":[{"id","price","sourceLabel","sourcePrice","note"}],"unmatched":[{"label","price"}]}` },
+      { role: 'user', content: `단가표:\n${body.slice(0, MAX_TEXT)}` },
+    ],
+    max_tokens: 4096, temperature: 0.1,
+    response_format: { type: 'json_schema', json_schema: TOOL.input_schema },
+  }) as { response?: unknown };
+  const out = typeof r.response === 'string' ? JSON.parse(r.response.slice(r.response.indexOf('{'), r.response.lastIndexOf('}') + 1)) : r.response;
+  if (!out || typeof out !== 'object') throw new Error('no result');
+  return out as ImportResult;
+}
+
 export interface CatalogEntry { id: string; name: string; unit: 'm2' | 'charCm' | 'ea' | 'm'; group: string }
 export interface ImportItem { id: string; price: number; sourceLabel: string; sourcePrice: string; note: string }
 export interface ImportResult { items: ImportItem[]; unmatched: { label: string; price: string }[] }
@@ -80,7 +125,7 @@ async function readWithClaude(env: Env, catalog: CatalogEntry[], textIn: string 
     headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY ?? '', 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ model: MODEL, max_tokens: 8192, tools: [TOOL], tool_choice: { type: 'tool', name: TOOL.name }, messages: [{ role: 'user', content }] }),
   });
-  if (!r.ok) throw new Error(`claude ${r.status}`);
+  if (!r.ok) throw new Error(`claude ${r.status} ${(await r.text()).slice(0, 200)}`);
   const j = await r.json<{ content?: { type: string; name?: string; input?: ImportResult }[] }>();
   const out = j.content?.find((c) => c.type === 'tool_use' && c.name === TOOL.name)?.input;
   if (!out) throw new Error('no result');
@@ -109,7 +154,7 @@ export async function handlePriceImport(req: Request, env: Env): Promise<Respons
   const me = await authenticate(req, env);
   if (!me) return text('unauthorized', 401);
   if (req.method !== 'POST') return text('method not allowed', 405);
-  if (!env.ANTHROPIC_API_KEY) return json({ error: 'not_configured' }, 503);
+  if (!env.ANTHROPIC_API_KEY && !aiOf(env)) return json({ error: 'not_configured' }, 503);
   const b = await readJson<{ catalog?: CatalogEntry[]; text?: string; file?: { type?: string; data?: string } }>(req);
   const catalog = Array.isArray(b?.catalog) ? b.catalog.filter((c) => c && typeof c.id === 'string' && typeof c.name === 'string' && ['m2', 'charCm', 'ea', 'm'].includes(c.unit)).slice(0, 500).map((c) => ({ id: c.id.slice(0, 60), name: c.name.slice(0, 60), unit: c.unit, group: String(c.group ?? '').slice(0, 30) })) : [];
   const textIn = typeof b?.text === 'string' && b.text.trim() ? b.text.slice(0, MAX_TEXT) : null;
@@ -122,11 +167,22 @@ export async function handlePriceImport(req: Request, env: Env): Promise<Respons
   if ((used?.count ?? 0) >= IMPORT_PER_DAY) return json({ error: 'daily_limit', limit: IMPORT_PER_DAY }, 429);
   await env.DB.prepare("INSERT INTO ai_usage (account_id, day, kind, count) VALUES (?, ?, 'price_import', 1) ON CONFLICT(account_id, day, kind) DO UPDATE SET count = count + 1").bind(me.id, day).run();
   let raw: ImportResult;
+  let engine: 'claude' | 'workers' | 'fake' = 'claude';
   try {
-    raw = env.ANTHROPIC_API_KEY === 'fake' ? fakeRead(textIn ?? '', catalog) : await readWithClaude(env, catalog, textIn, file);
+    if (env.ANTHROPIC_API_KEY === 'fake') { raw = fakeRead(textIn ?? '', catalog); engine = 'fake'; }
+    else {
+      try {
+        if (!env.ANTHROPIC_API_KEY) throw new Error('no claude key');
+        raw = await readWithClaude(env, catalog, textIn, file);
+      } catch (e) {
+        console.error('price import: claude failed, workers ai', e instanceof Error ? e.message : String(e));
+        raw = await readWithWorkers(env, catalog, textIn, file);
+        engine = 'workers';
+      }
+    }
   } catch (e) {
     console.error('price import failed', e instanceof Error ? e.message : String(e));
     return json({ error: 'read_failed' }, 502);
   }
-  return json({ ...cleanResult(raw, catalog), left: IMPORT_PER_DAY - (used?.count ?? 0) - 1 });
+  return json({ ...cleanResult(raw, catalog), engine, left: IMPORT_PER_DAY - (used?.count ?? 0) - 1 });
 }

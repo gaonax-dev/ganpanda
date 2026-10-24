@@ -32,3 +32,14 @@ test('엑셀 파일을 고르면 앱이 글로 바꿔 읽는다', async ({ page,
   await sec.getByTestId('import-run').click();
   await expect(sec.locator('[data-testid="import-row"][data-id="board-galva"]').getByTestId('import-price')).toHaveValue('71000', { timeout: 15_000 });
 });
+
+// 2026-10-24 "ai토큰 없으면 클라우드플레아 무료 사용하면되지 않아?" → "예비 경로로 붙여줘"
+test('보조 AI(Cloudflare)로 읽었으면 확인 표 위에 "꼭 확인" 안내', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await page.route('**/api/me/prices/import', (r) => r.fulfill({ json: { items: [{ id: 'board-galva', price: 70000, sourceLabel: '갈바', sourcePrice: '70,000', note: '' }], unmatched: [], left: 19, engine: 'workers' } }));
+  await page.evaluate(() => { (window as unknown as { __ganpanda: { pricesOpen: boolean } }).__ganpanda.pricesOpen = true; });
+  const sec = page.getByTestId('prices-import');
+  await sec.getByTestId('import-text').fill('갈바 70000');
+  await sec.getByTestId('import-run').click();
+  await expect(sec.getByTestId('import-engine-note')).toContainText('보조 AI');
+});
