@@ -80,3 +80,43 @@ test('초대 링크 창의 [카카오로 팀 들어가기]는 초대를 들고 �
   await expect(page.getByTestId('notice')).toContainText('한울광고님의 팀에 들어왔습니다');
   await expect(page).not.toHaveURL(/joined=/);
 });
+
+// 2026-10-24 사용자: "맴버 초대를 카카오톡으로 할수 있나?" → "진행해줘"
+test('[카카오톡으로 초대] → 이메일 없는 링크(복사·공유) → 받은 사람이 이메일을 적어 가입 → 인증 메일 → 팀 멤버', async ({ page, browser, request, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const owner = await apiLogin(request);
+  await page.goto('/');
+  await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.touchHelp', 'off'); }, owner);
+  await page.reload();
+  await openSettings(page);
+  await page.getByTestId('settings-tab-team').click();
+  await page.getByTestId('member-kakao').click(); // 데스크톱(공유 창 없음) = 복사
+  const link = await page.getByTestId('member-link').inputValue();
+  expect(link).toMatch(/\/login\?team=/);
+  await expect(page.getByTestId('member-link-note')).toContainText('카카오톡');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
+  await expect(page.getByTestId('member-invite')).toContainText('링크 초대');
+
+  const ctx = await browser.newContext();
+  const sp = await ctx.newPage();
+  const u = new URL(link);
+  await sp.goto(u.pathname + u.search);
+  await expect(sp.getByTestId('login-dialog')).toHaveAttribute('data-mode', 'signup');
+  await expect(sp.getByTestId('social-kakao')).toContainText('카카오로 팀 들어가기');
+  await expect(sp.getByTestId('login-email')).toBeEnabled(); // 이메일은 받은 사람이 적는다
+  await expect(sp.getByTestId('signup-business')).toHaveCount(0);
+  const staff = `lk-${Math.random().toString(36).slice(2, 8)}@example.com`;
+  await sp.getByTestId('login-email').fill(staff);
+  await sp.getByTestId('login-password').fill('staff-pass-1');
+  await sp.getByTestId('login-password2').fill('staff-pass-1');
+  await sp.getByTestId('login-submit').click();
+  await expect(sp.getByTestId('login-sent')).toContainText('가입 인증 메일');
+  await sp.getByTestId('login-dev-link').click(); // 메일의 [이메일 인증하기]
+  await expect(sp.getByTestId('account-menu')).toBeVisible();
+  await ctx.close();
+
+  await page.getByTestId('settings-tab-account').click();
+  await page.getByTestId('settings-tab-team').click();
+  await expect(page.getByTestId('team-member')).toContainText(staff);
+  await expect(page.getByTestId('member-invite')).toHaveCount(0);
+});

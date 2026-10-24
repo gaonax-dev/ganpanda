@@ -73,7 +73,9 @@
       if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
       if (invite) {
         return run(async () => {
-          app.applyAccount(await inviteSignup(invite.email, password, name.trim(), invite.token));
+          const r = await inviteSignup(invite.email || em, password, name.trim(), invite.token);
+          if ('verify' in r) { sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; return; } // 링크 초대: 인증 메일을 열면 팀에
+          app.applyAccount(r.account);
           app.teamInvite = null;
           app.notice = `${invite.ownerName}님의 팀에 들어왔습니다. 그룹과 프로젝트를 함께 봅니다.`;
           app.refreshMe();
@@ -127,7 +129,7 @@
       {#if devLink}<button class="btn primary" data-testid="login-dev-link" onclick={useDevLink}>개발 모드: 바로 열기</button>{/if}
       <button class="btn small" onclick={() => go('login')}>로그인으로 돌아가기</button>
     {:else}
-      {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. 카카오로 들어가거나, 아래에서 비밀번호만 정하면 바로 시작합니다.</p>{/if}
+      {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. {invite.email ? '카카오로 들어가거나, 아래에서 비밀번호만 정하면 바로 시작합니다.' : '카카오로 들어가면 바로, 이메일로 가입하면 인증 메일을 연 뒤 팀에 들어갑니다.'}</p>{/if}
       {#if providers.length && (mode === 'login' || mode === 'signup')}
         <div class="social">
           {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next, invite?.token)}>{invite && p === 'kakao' ? '카카오로 팀 들어가기' : LABEL[p]}</a>{/each}
@@ -138,7 +140,7 @@
       {/if}
       <!-- 브라우저 기본 검증 대신 앱이 같은 문구로 안내 -->
       <form novalidate onsubmit={(e) => { e.preventDefault(); submit(); }}>
-        <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" disabled={!!invite && mode === 'signup'} /></label>
+        <label>이메일<input data-testid="login-email" type="email" bind:value={email} placeholder="you@example.com" autocomplete="email" disabled={!!invite?.email && mode === 'signup'} /></label>
         {#if mode === 'login' || mode === 'signup'}
           <label>비밀번호{mode === 'signup' ? ` (${PASSWORD_MIN}자 이상)` : ''}<input data-testid="login-password" type="password" bind:value={password} autocomplete={mode === 'signup' ? 'new-password' : 'current-password'} /></label>
         {/if}

@@ -91,8 +91,16 @@ async function inviteSignup(env: Env, email: string, password: string, name: str
   const inv = await inviteOf(env, token);
   if (inv === 404) return json({ error: 'not_found' }, 404);
   if (inv === 410) return json({ error: 'expired' }, 410);
-  if (inv.email !== email) return json({ error: 'email_mismatch' }, 403);
   if (exists?.email_verified) return text('already registered', 409); // 이미 가입 — 로그인하면 팀에 들어간다(acceptTeamInvites)
+  if (inv.email === '') {
+    // 링크 초대(카카오톡 공유, 2026-10-24): 이메일이 확인되지 않았다 → 초대를 이 이메일에 묶고 인증 메일. 인증하면 로그인되며 팀에 들어간다 (사업자 확인 없음)
+    await env.DB.prepare('UPDATE team_invites SET email = ? WHERE token_hash = ?').bind(email, inv.token_hash).run();
+    const h = await hashPassword(password);
+    if (exists) await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ? WHERE id = ?').bind(h, name || exists.name, exists.id).run();
+    else await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)').bind(crypto.randomUUID(), email, name, 'free', Date.now(), h).run();
+    return sendLink(env, email, 'verify', null, { verify: true });
+  }
+  if (inv.email !== email) return json({ error: 'email_mismatch' }, 403);
   const hash = await hashPassword(password);
   let id = exists?.id;
   if (exists) await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ?, email_verified = 1 WHERE id = ?').bind(hash, name || exists.name, exists.id).run();
@@ -134,13 +142,13 @@ type LinkPurpose = 'login' | 'reset' | 'verify';
 /** 메일 링크 발급·발송 (login = 로그인, reset = 비밀번호 재설정, verify = 가입 이메일 인증). 개발 모드는 링크를 응답에 */
 /** 메일 링크를 연 뒤 돌아갈 앱 경로 — 같은 사이트의 경로만 (2026-10-24 가게 사장 화면에서 이메일 가입하면 그 화면으로: "가계사장으로 계정생성했는데 사업자로 등록되었다") */
 const nextPath = (n: unknown): string | null => (typeof n === 'string' && /^\/[A-Za-z0-9/_\-]*$/.test(n) && !n.startsWith('//') && n.length <= 100 ? n : null);
-async function sendLink(env: Env, email: string, purpose: LinkPurpose, next?: string | null): Promise<Response> {
+async function sendLink(env: Env, email: string, purpose: LinkPurpose, next?: string | null, extra: Record<string, unknown> = {}): Promise<Response> {
   const token = randomToken();
   const now = Date.now();
   await env.DB.prepare('INSERT INTO login_tokens (token_hash, email, created_at, expires_at, purpose) VALUES (?, ?, ?, ?, ?)')
     .bind(await sha256hex(token), email, now, now + (purpose === 'verify' ? VERIFY_TTL : LOGIN_TTL), purpose === 'login' ? null : purpose).run();
   const link = `${env.APP_URL.replace(/\/+$/, '')}/login?token=${token}${purpose === 'reset' ? '&reset=1' : purpose === 'verify' ? '&verify=1' : ''}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
-  if (env.AUTH_DEV_LINK === '1') return json({ ok: true, link }, 202);
+  if (env.AUTH_DEV_LINK === '1') return json({ ok: true, link, ...extra }, 202);
   if (!env.EMAIL) return text('email sending not configured', 503);
   try {
     await env.EMAIL.send(loginMail(email, link, purpose));
@@ -151,7 +159,7 @@ async function sendLink(env: Env, email: string, purpose: LinkPurpose, next?: st
     console.error('login email failed', err.code, err.message);
     return text('email send failed', 502);
   }
-  return json({ ok: true }, 202);
+  return json({ ok: true, ...extra }, 202);
 }
 
 /** 매직링크 메일 본문 (텍스트·HTML 둘 다) */

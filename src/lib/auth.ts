@@ -64,10 +64,10 @@ export const safeNext = (n: string | null | undefined): string | null => (n && /
 /** 멤버 초대 링크 정보 (2026-10-24) */
 export const teamInviteInfo = (token: string) => call<{ email: string; ownerName: string; expiresAt: number }>(`/api/team-invite/${encodeURIComponent(token)}`, {}, null);
 /** 멤버 초대 링크로 가입 — 사업자 확인·인증 메일 없이 바로 세션 */
-export async function inviteSignup(email: string, password: string, name: string, teamInvite: string): Promise<Account> {
-  const r = await call<{ session: string; account: Account }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, teamInvite }) }, null);
-  saveSession(r.session);
-  return r.account;
+export async function inviteSignup(email: string, password: string, name: string, teamInvite: string): Promise<{ account: Account } | { verify: true; link?: string }> {
+  const r = await call<{ session: string; account: Account } | { verify: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, teamInvite }) }, null);
+  if ('session' in r) { saveSession(r.session); return { account: r.account }; }
+  return r; // 링크 초대(이메일 없이 받은 링크): 적은 이메일로 인증 메일 → 인증하면 팀 (2026-10-24)
 }
 export async function passwordLogin(email: string, password: string): Promise<Account> {
   const r = await call<{ session: string; account: Account }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, null);

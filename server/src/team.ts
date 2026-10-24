@@ -84,6 +84,13 @@ const pubMember = (r: TeamRow & { email: string; name: string }) => ({ accountId
 export async function handleTeam(req: Request, env: Env, pathname: string): Promise<Response> {
   const me = await authenticate(req, env);
   if (!me) return text('unauthorized', 401);
+  // 링크 초대 (2026-10-24 "맴버 초대를 카카오톡으로 할수 있나?"): 이메일 없이 링크만 — 카카오톡 공유·복사로 보낸다
+  if (pathname === '/api/me/team/link' && req.method === 'POST') {
+    const body = await readJson<{ canBilling?: boolean }>(req);
+    const r = await newInvite(env, me, '', !!body?.canBilling, true);
+    if (r instanceof Response) return r;
+    return json({ invite: r.invite, link: r.link }, 201);
+  }
   const m = pathname.match(/^\/api\/me\/team(?:\/([^/]+))?$/) ?? (pathname.startsWith('/api/me/team/invites/') ? [pathname, undefined] : null);
   if (!m) return text('not found', 404);
   const accountId = m[1];
@@ -91,11 +98,12 @@ export async function handleTeam(req: Request, env: Env, pathname: string): Prom
     const rows = await env.DB.prepare('SELECT m.*, a.email, a.name FROM team_members m JOIN accounts a ON a.id = m.account_id WHERE m.owner_id = ? ORDER BY m.created_at')
       .bind(me.id).all<TeamRow & { email: string; name: string }>();
     const inv = await env.DB.prepare(`SELECT * FROM team_invites WHERE owner_id = ? AND ${pendingSql} ORDER BY created_at`).bind(me.id, Date.now()).all<InviteRow>();
-    return json({ members: rows.results.map(pubMember), invites: inv.results.map((r) => ({ email: r.email, canBilling: !!r.can_billing, createdAt: r.created_at, expiresAt: r.expires_at })) });
+    return json({ members: rows.results.map(pubMember), invites: inv.results.map((r) => ({ id: r.token_hash.slice(0, 16), email: r.email, canBilling: !!r.can_billing, createdAt: r.created_at, expiresAt: r.expires_at })) });
   }
   const im = pathname.match(/^\/api\/me\/team\/invites\/([^/]+)$/);
   if (im && req.method === 'DELETE') {
-    await env.DB.prepare('DELETE FROM team_invites WHERE owner_id = ? AND email = ? AND used_at IS NULL').bind(me.id, normalizeEmail(decodeURIComponent(im[1]))).run();
+    const key = decodeURIComponent(im[1]); // 이메일 또는 초대 id(링크 초대)
+    await env.DB.prepare('DELETE FROM team_invites WHERE owner_id = ? AND used_at IS NULL AND (email = ? OR (email = \'\' AND substr(token_hash, 1, 16) = ?))').bind(me.id, normalizeEmail(key), key).run();
     return new Response(null, { status: 204 });
   }
   if (!accountId && req.method === 'POST') {
@@ -132,28 +140,33 @@ export async function handleTeam(req: Request, env: Env, pathname: string): Prom
 /** 가입 안 한 이메일 → 가입 링크 메일 (2026-10-24). 같은 이메일에 다시 보내면 예전 링크는 버리고 새로 */
 async function invite(env: Env, me: Account, email: string, canBilling: boolean): Promise<Response> {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return text('bad email', 400);
-  const now = Date.now();
-  const again = await env.DB.prepare(`SELECT 1 FROM team_invites WHERE owner_id = ? AND email = ? AND ${pendingSql}`).bind(me.id, email, now).first();
-  if (!again) {
-    const used = await membersOf(env, me.id), limit = planOf(me.plan).members;
-    if (used >= limit) return json({ error: 'member_limit', used, limit }, 403);
-  }
-  const token = randomToken();
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM team_invites WHERE owner_id = ? AND email = ? AND used_at IS NULL').bind(me.id, email),
-    env.DB.prepare('INSERT INTO team_invites (token_hash, owner_id, email, can_billing, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)').bind(await sha256hex(token), me.id, email, canBilling ? 1 : 0, now, now + INVITE_TTL),
-  ]);
-  const link = `${env.APP_URL.replace(/\/+$/, '')}/login?team=${token}`;
-  const inv = { email, canBilling, createdAt: now, expiresAt: now + INVITE_TTL };
-  if (env.AUTH_DEV_LINK === '1') return json({ invite: inv, link }, 202);
+  const r = await newInvite(env, me, email, canBilling, false);
+  if (r instanceof Response) return r;
+  if (env.AUTH_DEV_LINK === '1') return json({ invite: r.invite, link: r.link }, 202);
   if (!env.EMAIL) return text('email sending not configured', 503);
   try {
-    await env.EMAIL.send(inviteMail(email, link, await ownerName(env, me.id)));
+    await env.EMAIL.send(inviteMail(email, r.link, await ownerName(env, me.id)));
   } catch (e) {
-    await env.DB.prepare('DELETE FROM team_invites WHERE token_hash = ?').bind(await sha256hex(token)).run();
+    await env.DB.prepare('DELETE FROM team_invites WHERE token_hash = ?').bind(r.hash).run();
     const err = e as { code?: string; message?: string };
     console.error('team invite email failed', err.code, err.message);
     return text('email send failed', 502);
   }
-  return json({ invite: inv }, 202);
+  return json({ invite: r.invite }, 202);
+}
+
+/** 초대 만들기 (한도 확인). email '' = 링크 초대 — 한도는 늘 센다 */
+async function newInvite(env: Env, me: Account, email: string, canBilling: boolean, linkOnly: boolean): Promise<Response | { link: string; hash: string; invite: { id: string; email: string; canBilling: boolean; createdAt: number; expiresAt: number } }> {
+  const now = Date.now();
+  const again = !linkOnly && (await env.DB.prepare(`SELECT 1 FROM team_invites WHERE owner_id = ? AND email = ? AND ${pendingSql}`).bind(me.id, email, now).first());
+  if (!again) {
+    const used = await membersOf(env, me.id), limit = planOf(me.plan).members;
+    if (used >= limit) return json({ error: 'member_limit', used, limit }, 403);
+  }
+  const token = randomToken(), hash = await sha256hex(token);
+  await env.DB.batch([
+    ...(linkOnly ? [] : [env.DB.prepare('DELETE FROM team_invites WHERE owner_id = ? AND email = ? AND used_at IS NULL').bind(me.id, email)]),
+    env.DB.prepare('INSERT INTO team_invites (token_hash, owner_id, email, can_billing, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)').bind(hash, me.id, email, canBilling ? 1 : 0, now, now + INVITE_TTL),
+  ]);
+  return { link: `${env.APP_URL.replace(/\/+$/, '')}/login?team=${token}`, hash, invite: { id: hash.slice(0, 16), email, canBilling, createdAt: now, expiresAt: now + INVITE_TTL } };
 }
