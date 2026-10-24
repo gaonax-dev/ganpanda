@@ -64,7 +64,7 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   const mv = (await page.getByTestId('flat-move').boundingBox())!;
   await page.mouse.click(mv.x + mv.width / 2, mv.y + mv.height / 2);
   await expect(page.getByTestId('flat-outline')).toBeVisible();
-  await expect(page.getByTestId('flat-gap-value')).toHaveText('600');
+  await expect(page.getByTestId('flat-gap-value')).toHaveText('100'); // 기본 100 (2026-10-24 "재정렬 간격 기본값 100으로 하고 50단위로")
   await page.evaluate(() => (window as unknown as { __ganpanda: { updateSettings(p: unknown): void } }).__ganpanda.updateSettings({ flatOffset: { x: 500, y: 300 }, flatScale: 0.6 })); // 옮겨 두고 축척을 키워 뒀어도 (2026-10-22 스크린샷: 572% 에서 카드가 흩어졌다)
   await page.getByTestId('flat-rearrange').click();
   expect(await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatOffset?: unknown } } }).__ganpanda.settings.flatOffset)).toEqual({ x: 0, y: 0 }); // ✥ 기본 자리
@@ -92,7 +92,7 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   expect(B['둘째'].card[0]).toBeLessThan(zones[1][1]);
   // 간격 + → 700, 그 간격으로 다시
   await page.getByTestId('flat-gap-up').click();
-  await expect(page.getByTestId('flat-gap-value')).toHaveText('700');
+  await expect(page.getByTestId('flat-gap-value')).toHaveText('150'); // + 한 번 = 50
   // 카드는 자유롭게 옮긴다 → 다시 [재정렬]하면 그 자리로
   const before = (await listOf(page))['문'];
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects.find((o) => o.name === '문')!.id, { listX: 20000, listY: 20000 }); });

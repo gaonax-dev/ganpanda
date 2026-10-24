@@ -1163,8 +1163,8 @@ class AppState {
   });
   /** 보드 평면 구역 이동 (보드 px) — 프로젝트 설정 */
   flatOffset = $derived(this.settings.flatOffset && Number.isFinite(this.settings.flatOffset.x) && Number.isFinite(this.settings.flatOffset.y) ? this.settings.flatOffset : { x: 0, y: 0 });
-  /** 카드 간격 mm (설정 flatGap, 0~3000, 기본 600) */
-  flatGap = $derived(Math.min(3000, Math.max(0, Number.isFinite(this.settings.flatGap) ? this.settings.flatGap! : 600)));
+  /** 카드 간격 mm (설정 flatGap, 0~3000, 기본 100 — 2026-10-24 "재정렬 간격 기본값 100으로 하고 50단위로", 전엔 600) */
+  flatGap = $derived(Math.min(3000, Math.max(0, Number.isFinite(this.settings.flatGap) ? this.settings.flatGap! : 100)));
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY })), this.flatGap));
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
   flatArrange = $state(false);
