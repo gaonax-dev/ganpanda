@@ -1430,12 +1430,17 @@ class AppState {
    * 취소되면 그대로. 전에는 누르는 순간 풀고 팬을 시작해 화면만 옮겨도 선택이 사라졌다
    */
   clearSelectionOnTap(e: PointerEvent, onTap?: () => void) {
+    this.whenTap(e, () => { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; onTap?.(); }); // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
+  }
+
+  /** 이 누르기가 탭(6px 안, 손가락 하나)으로 끝나면 fn — 끌기·핀치면 아무것도 안 한다 */
+  whenTap(e: PointerEvent, fn: () => void) {
     const sx = e.clientX, sy = e.clientY;
     let tap = true;
     const move = (ev: PointerEvent) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) tap = false; };
     const second = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) tap = false; };
     const done = () => { window.removeEventListener('pointermove', move, true); window.removeEventListener('pointerdown', second, true); window.removeEventListener('pointerup', up, true); window.removeEventListener('pointercancel', cancel, true); };
-    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; onTap?.(); } }; // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
+    const up = (ev: PointerEvent) => { if (ev.pointerId !== e.pointerId) return; done(); if (tap) fn(); };
     const cancel = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) done(); };
     window.addEventListener('pointermove', move, true); window.addEventListener('pointerdown', second, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', cancel, true);
   }
