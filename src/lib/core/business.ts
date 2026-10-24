@@ -37,4 +37,4 @@ export const BIZ_STATUS_LABEL: Record<string, string> = { active: '계속사업�
 export type BizStatus = keyof typeof BIZ_STATUS_LABEL;
 
 /** 계정에 붙은 사업자 (서버 `businesses` 행의 공개 부분) */
-export interface Business { no: string; name: string; ownerName: string; startDate: string; status: BizStatus; verifiedAt: number; checkedAt: number }
+export interface Business { no: string; name: string; ownerName: string; startDate: string; status: BizStatus; verifiedAt: number; checkedAt: number; /** 사업장 주소 (2026-10-24) */ address?: string; /** 주소의 지역 — 요청 받기 기본 지역 */ region?: string }

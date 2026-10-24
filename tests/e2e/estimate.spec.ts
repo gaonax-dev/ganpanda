@@ -121,7 +121,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await openSettings(shop);
   await shop.getByTestId('settings-tab-requests').click();
   await shop.getByTestId('req-receive').check();
-  await shop.getByTestId('req-regions').fill('경기 광주시');
+  await shop.getByTestId('req-sido').selectOption('경기'); // 지역은 체크 (2026-10-24)
+  await shop.locator('[data-testid="req-area"][data-region="경기 광주시"]').check();
   await shop.getByTestId('req-save').click();
   await expect(shop.getByTestId('req-saved')).toContainText('저장');
   await shop.getByTestId('close-settings').click();

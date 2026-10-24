@@ -59,6 +59,7 @@
 - **업종은 확인 안 함**(API 가 안 줌). 대표자명 불일치 때 사업자등록증 사진 + 운영자 승인 경로는 아직 없음(안내 문구만) — 필요해지면 추가.
 - **로컬·E2E**: `.dev.vars` `NTS_API_KEY=fake` → 가짜 응답(대표자명 "홍길동" = 일치, 번호가 999 로 시작 = 폐업). 테스트: `server/test/business.test.ts`(가짜 국세청 `setNtsFetch`), `tests/unit/business.test.ts`, `tests/e2e/business.spec.ts`.
 - 아직 쓰이지 않는 것: 체험·요금 "사업자당 1번"은 체험 전환을 구현할 때 이 테이블을 쓴다 → [../product/pricing.md](../product/pricing.md).
+- **사업장 주소**(2026-10-24): 사업자 확인에 사업장 주소(선택, `biz-address`) — 국세청은 주소를 확인하지 않는다. 확인된 뒤에도 주소만 바꾼다(`PATCH /api/me/business {address}`, `biz-address-edit`, 다시 확인 안 함). 요청 받기 기본 지역이 된다 → [requests.md](requests.md).
 
 ## 남은 일
 - 운영 자격 등록: 카카오는 됨(2026-10-21). 구글·애플은 각 콘솔에 리디렉션 URI + `wrangler secret put` → [../server/deploy.md](../server/deploy.md)

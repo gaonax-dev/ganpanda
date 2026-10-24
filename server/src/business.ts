@@ -3,21 +3,22 @@
 // 폐업은 월 1회 재조회(cron). 키 NTS_API_KEY (data.go.kr 일반 인증키 Decoding) — 'fake' 면 로컬·E2E 용 가짜 응답
 import { authenticate } from './auth';
 import { json, readJson, text } from './http';
+import { regionOfAddress } from './region';
 
 const NTS = 'https://api.odcloud.kr/api/nts-businessman/v1';
 /** 재조회 주기 (30일) */
 export const RECHECK_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type BizStatus = 'active' | 'suspended' | 'closed';
-export interface BusinessRow { b_no: string; account_id: string; owner_name: string; start_dt: string; name: string; status: BizStatus; verified_at: number; checked_at: number }
-export interface BusinessPublic { no: string; name: string; ownerName: string; startDate: string; status: BizStatus; verifiedAt: number; checkedAt: number }
+export interface BusinessRow { b_no: string; account_id: string; owner_name: string; start_dt: string; name: string; status: BizStatus; verified_at: number; checked_at: number; /** 사업장 주소 (2026-10-24) */ address?: string }
+export interface BusinessPublic { no: string; name: string; ownerName: string; startDate: string; status: BizStatus; verifiedAt: number; checkedAt: number; address: string; /** 주소의 지역 (요청 받기 기본 지역) */ region: string }
 
 /** 국세청 호출 (테스트에서 가짜로 바꿔 끼운다) */
 let ntsFetch: typeof fetch = (input, init) => fetch(input, init);
 export function setNtsFetch(f: typeof fetch | null) { ntsFetch = f ?? ((input, init) => fetch(input, init)); }
 
 export const configured = (env: Env) => !!env.NTS_API_KEY;
-const toPublic = (r: BusinessRow): BusinessPublic => ({ no: r.b_no, name: r.name, ownerName: r.owner_name, startDate: r.start_dt, status: r.status, verifiedAt: r.verified_at, checkedAt: r.checked_at });
+const toPublic = (r: BusinessRow): BusinessPublic => ({ no: r.b_no, name: r.name, ownerName: r.owner_name, startDate: r.start_dt, status: r.status, verifiedAt: r.verified_at, checkedAt: r.checked_at, address: r.address ?? '', region: regionOfAddress(r.address ?? '') });
 const statusOf = (cd: string | undefined): BizStatus | null => (cd === '01' ? 'active' : cd === '02' ? 'suspended' : cd === '03' ? 'closed' : null);
 const isDigits = (s: unknown, n: number): s is string => typeof s === 'string' && new RegExp(`^\\d{${n}}$`).test(s);
 
@@ -90,13 +91,22 @@ export async function handleBusiness(req: Request, env: Env): Promise<Response> 
     await env.DB.prepare('DELETE FROM businesses WHERE account_id = ?').bind(me.id).run();
     return json({ business: null });
   }
+  if (req.method === 'PATCH') {
+    // 사업장 주소만 바꾸기 — 국세청을 다시 부르지 않는다 (2026-10-24)
+    const b = await readJson<{ address?: string }>(req);
+    if (typeof b?.address !== 'string') return json({ error: 'bad_input' }, 400);
+    const r = await env.DB.prepare('UPDATE businesses SET address = ? WHERE account_id = ?').bind(b.address.trim().slice(0, 200), me.id).run();
+    if (!r.meta.changes) return json({ error: 'no_business' }, 404);
+    return json({ business: await businessOf(env, me.id) });
+  }
   if (req.method !== 'PUT') return text('method not allowed', 405);
   if (!configured(env)) return json({ error: 'not_configured' }, 503);
-  const b = await readJson<{ no?: string; ownerName?: string; startDate?: string; name?: string }>(req);
+  const b = await readJson<{ no?: string; ownerName?: string; startDate?: string; name?: string; address?: string }>(req);
   const no = typeof b?.no === 'string' ? b.no.replace(/\D/g, '') : '';
   const ownerName = typeof b?.ownerName === 'string' ? b.ownerName.trim().slice(0, 40) : '';
   const startDate = typeof b?.startDate === 'string' ? b.startDate.replace(/\D/g, '') : '';
   const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 60) : '';
+  const address = typeof b?.address === 'string' ? b.address.trim().slice(0, 200) : '';
   if (!validBizNo(no) || !ownerName || !isDigits(startDate, 8)) return json({ error: 'bad_input' }, 400);
   // 다른 계정이 이미 쓰는 번호 (체험·요금은 사업자당 1번)
   const taken = await env.DB.prepare('SELECT account_id FROM businesses WHERE b_no = ?').bind(no).first<{ account_id: string }>();
@@ -108,8 +118,8 @@ export async function handleBusiness(req: Request, env: Env): Promise<Response> 
   const now = Date.now();
   await env.DB.batch([
     env.DB.prepare('DELETE FROM businesses WHERE account_id = ?').bind(me.id),
-    env.DB.prepare('INSERT INTO businesses (b_no, account_id, owner_name, start_dt, name, status, verified_at, checked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(no, me.id, ownerName, startDate, name, v.status ?? 'active', now, now),
+    env.DB.prepare('INSERT INTO businesses (b_no, account_id, owner_name, start_dt, name, status, verified_at, checked_at, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(no, me.id, ownerName, startDate, name, v.status ?? 'active', now, now, address),
   ]);
   return json({ business: await businessOf(env, me.id) });
 }
