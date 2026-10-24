@@ -120,8 +120,8 @@
       <small>{idx + 1}/{siblings.length}</small>
       <!-- 칸 앞 가로·세로 글자 (2026-10-24 "사이즈 입력에 가로 세로 표시해줘") — 값을 넣으면 안내 글이 사라져도 어느 칸인지 -->
       <label class="dim"><span data-testid="quick-width-label">가로</span>
-      <!-- svelte-ignore a11y_autofocus -->
-      <input data-testid="quick-width" class:need={!obj.widthMm} type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} autofocus
+      <!-- 자동 포커스 없음 — 고를 때마다 휴대폰 키보드가 뜨지 않게 (2026-10-24 "사인물 선택했을때 자동으로 가로 입력필드에 포커싱 되는 작동 제거해줘") -->
+      <input data-testid="quick-width" class:need={!obj.widthMm} type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro}
         placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '가로'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} /></label>
       <span>×</span>
       <label class="dim"><span data-testid="quick-height-label">세로</span>

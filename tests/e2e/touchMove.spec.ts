@@ -46,12 +46,34 @@ test('보드 카드도: 안 고른 카드를 끌면 그대로, 탭 → 손 뗌 �
   const cx = async () => { const b = (await card.boundingBox())!; return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
   const sel = () => page.evaluate(() => (window as unknown as W).__ganpanda.selectedId);
   const c0 = await cx();
+  const placed = () => page.evaluate((id) => (window as unknown as { __ganpanda: { flatPlaced: Map<string, { x: number }> } }).__ganpanda.flatPlaced.get(id)!.x, id);
+  const x0 = await placed();
   await drag(page, c0, 80);
-  expect((await cx()).x).toBeCloseTo(c0.x, 0);
+  expect(await placed()).toBeCloseTo(x0, 0); // 카드는 제자리
+  expect((await cx()).x).toBeGreaterThan(c0.x + 40); // 화면이 움직였다 (한 손가락 팬)
   expect(await sel()).toBeNull();
-  await touch(page, 'pointerdown', c0.x, c0.y);
-  await touch(page, 'pointerup', c0.x, c0.y);
+  const c1 = await cx();
+  await touch(page, 'pointerdown', c1.x, c1.y);
+  await touch(page, 'pointerup', c1.x, c1.y);
   await expect.poll(sel).toBe(id);
-  await drag(page, c0, 80);
-  await expect.poll(async () => (await cx()).x).toBeGreaterThan(c0.x + 40);
+  await drag(page, c1, 80);
+  await expect.poll(placed).toBeGreaterThan(x0 + 1);
+});
+
+test('존: 손가락으로 끌면 존이 골라지지 않고 화면이 움직인다, 탭하면 골라진다 (2026-10-24 "터치 드래그에 존이 선택된다")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; addZone(p: string, z: number[][]): void } }).__ganpanda; a.addZone(a.photos[0].id, [[300, 300], [1200, 300], [1200, 800], [300, 800]]); (a as unknown as { selectZone(z: null): void }).selectZone(null); }); // 만들면 골라지므로 비우고 시작
+  const zone = page.getByTestId('zone-shape').first();
+  const zsel = () => page.evaluate(() => (window as unknown as { __ganpanda: { zoneSel: unknown } }).__ganpanda.zoneSel);
+  const b = (await zone.boundingBox())!;
+  const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  await drag(page, c, 60);
+  expect(await zsel()).toBeNull();
+  expect((await zone.boundingBox())!.x - b.x).toBeGreaterThan(40);
+  const b2 = (await zone.boundingBox())!;
+  const c2 = { x: b2.x + b2.width / 2, y: b2.y + b2.height / 2 };
+  await touch(page, 'pointerdown', c2.x, c2.y);
+  await touch(page, 'pointerup', c2.x, c2.y);
+  await expect.poll(zsel).not.toBeNull();
 });

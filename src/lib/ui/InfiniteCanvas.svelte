@@ -6,6 +6,7 @@
   · 가운데 버튼 드래그, 빈 곳 드래그 → 이동
 -->
 <script lang="ts">
+  import { isPanThrough } from './panThrough';
   import type { Snippet } from 'svelte';
   import { pan, startTwoFinger, toWorld, twoFinger, zoomAt, type TwoFingerState, type Viewport, type XY } from '../core/viewport';
   import { wheelIntent, isWindowsPlatform } from '../core/wheel';
@@ -158,7 +159,7 @@
 
   function down(e: PointerEvent) {
     const bg = e.target === el || (e.target as HTMLElement).dataset.bg !== undefined;
-    const forcePan = e.button === 1 || (e.button === 0 && panKey !== null);
+    const forcePan = e.button === 1 || (e.button === 0 && panKey !== null) || (e.button === 0 && isPanThrough(e)); // 사인물·카드·존 위 한 손가락 = 팬 (2026-10-24)
     if (!forcePan) {
       if (!bg || e.button !== 0) return;
       if (onbackgrounddown?.(e, clientToWorld(e.clientX, e.clientY))) return;
@@ -166,7 +167,7 @@
     e.preventDefault();
     e.stopPropagation();
     drag = { x: e.clientX, y: e.clientY };
-    el.setPointerCapture(e.pointerId);
+    try { el.setPointerCapture(e.pointerId); } catch { /* 이미 끝난 포인터 */ }
   }
   function move(e: PointerEvent) {
     if (!drag || pinching) return;

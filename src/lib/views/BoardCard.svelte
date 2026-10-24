@@ -53,7 +53,7 @@
 </script>
 
 <div class="card" class:standalone class:sel={selected} class:multi data-multi={multi || undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
-  style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
+  style:--z={zoom} style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
@@ -86,6 +86,9 @@
   .standalone .face { background: #e8e4d8; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); }
   .sel .face { outline: 2px solid var(--accent); }
   .multi .face { outline: 2px solid var(--accent); } /* 다중 선택도 진하게 (2026-10-22) */
+  /* 고른 카드 테두리는 화면 기준 2.5px — 보드를 축소해도 가늘어지지 않고, 모양으로 잘린 얼굴(clip-path) 밖에 그린다 (2026-10-24 "사인물카드선택시 강조색이 흐리다") */
+  .card::after { content: ''; position: absolute; inset: calc(-3px / var(--z, 1)); border: calc(2.5px / var(--z, 1)) solid var(--accent); border-radius: calc(3px / var(--z, 1)); pointer-events: none; display: none; }
+  .sel::after, .multi::after { display: block; }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }

@@ -99,6 +99,7 @@ test.describe('휴대폰', () => {
     await expect(page.getByTestId('quick-size-edit')).toHaveCount(0); // 잰 것은 닫힌 채
     await sel(b);
     await expect(page.getByTestId('quick-size-edit')).toBeVisible(); // 모르는 것은 바로 열림
+    await expect(page.getByTestId('quick-width')).not.toBeFocused(); // 자동 포커스 없음 — 키보드가 저절로 뜨지 않게 (2026-10-24 "자동으로 가로 입력필드에 포커싱 되는 작동 제거해줘")
     // 칸 앞에 가로·세로 글자 — 값을 넣어도 어느 칸인지 보인다 (2026-10-24 "사이즈 입력에 가로 세로 표시해줘")
     await expect(page.getByTestId('quick-width-label')).toHaveText('가로');
     await expect(page.getByTestId('quick-height-label')).toHaveText('세로');
