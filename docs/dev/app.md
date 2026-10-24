@@ -24,7 +24,7 @@
 - **Android**: `~/Library/Android/sdk` 는 있으나 Java 없음·`ANDROID_HOME` 미설정·NDK 미확인 → `brew install --cask temurin@17`, `export ANDROID_HOME=~/Library/Android/sdk`, SDK Manager 로 NDK 설치 뒤 `cargo tauri android init`.
 
 ## 남은 일 (로드맵)
-- D1 ✓ 맥 개발판·이동 규칙·iOS 프로젝트. **WebKit 점검**(3D·ORT wasm 자동 분리·IndexedDB·파일 선택)은 실제로 열어 보며.
+- D1 ✓ 맥 개발판·이동 규칙·iOS 프로젝트. **맥 번들에서 카카오 로그인(사파리 → `ganpanda://` 복귀) 확인됨 2026-10-24.** 데스크톱은 카카오톡 앱 로그인이 없어 브라우저(아이디·QR)가 정상; 휴대폰에서는 카카오 페이지의 [카카오톡으로 로그인]으로 앱 간 이동. **WebKit 점검**(3D·ORT wasm 자동 분리·IndexedDB·파일 선택)은 실제로 열어 보며.
 - D2 서명·공증한 맥 배포판(.dmg, Apple 개발자 계정) — 토스 정식 오픈 후.
 - D3 윈도우판(WebView2)·자동 업데이트. 앱이 웹을 품지 않아 업데이트는 Rust 가 바뀔 때만.
 - D4 푸시(톡 알림). iOS·Android 스토어 등록(개발자 계정·심사).
