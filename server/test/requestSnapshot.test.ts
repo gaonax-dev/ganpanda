@@ -72,7 +72,7 @@ describe('요청 = 견적 초안 방의 읽기 전용 복제', () => {
     expect(await role(shop)).toBe('viewer');
     expect(await role(stranger)).toBe(403);
     expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${cust}`)).status).toBe(200);
-    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${shop}`)).status).toBe(403); // 사진은 제안을 보낸 뒤 (2026-10-24, requestCredit.test.ts)
+    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${shop}`)).status).toBe(200); // 사진은 결제 전에도 원본 (2026-10-24 "원본 그대로")
     expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${stranger}`)).status).toBe(403);
   });
 });
@@ -88,7 +88,7 @@ describe('간판집 [제안 만들기] — 그대로 가져오기 · 사진만 �
     expect(dc.getMap('photos').size).toBe(1);
     expect(dc.getMap('objects').size).toBe(1);
     expect(dc.getMap('settings').has('quoteMode')).toBe(false); // 소비자 설정은 안 가져온다
-    expect((await api(`/api/assets/${asset}?project=${copy.project}&session=${copy.s}`)).status).toBe(404); // 사진 자리는 오지만 파일은 제안을 보낸 뒤 (2026-10-24)
+    expect((await api(`/api/assets/${asset}?project=${copy.project}&session=${copy.s}`)).status).toBe(200); // 가져온 사진도 바로 (2026-10-24 "원본 그대로")
     const photos = await respond('photos');
     const dp = await docOf(photos.project);
     expect(dp.getMap('photos').size).toBe(1);
@@ -119,7 +119,7 @@ describe('옛 요청의 실측 보기 (2026-10-22 "실측보기 눌렀는데 프
     expect(project).not.toBe(draft);
     expect((await (await get(`/api/projects/${project}/access`, shop)).json<{ role: string }>()).role).toBe('viewer');
     expect((await docOf(project)).getMap('objects').size).toBe(1);
-    expect((await api(`/api/assets/${asset}?project=${project}&session=${shop}`)).status).toBe(403); // 사진은 제안을 보낸 뒤 (2026-10-24)
+    expect((await api(`/api/assets/${asset}?project=${project}&session=${shop}`)).status).toBe(200); // 사진은 결제 전에도 원본 (2026-10-24 "원본 그대로")
     expect((await (await json(`/api/requests/${id}/board`, {}, shop)).json<{ project: string }>()).project).toBe(project); // 다시 불러도 같은 것
     const stranger = await login(`snap-z-${u()}@example.com`);
     expect((await json(`/api/requests/${id}/board`, {}, stranger)).status).toBe(403);

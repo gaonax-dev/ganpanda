@@ -34,7 +34,7 @@ async function addCard(s: string) {
 }
 const okToss = () => setTossFetch(async () => new Response(JSON.stringify({ status: 'DONE', paymentKey: 'pk', approvedAt: '2026-10-24T10:00:00+09:00' }), { headers: { 'content-type': 'application/json' } }));
 const shopFor = async () => { const s = await login(`cr-s-${u()}@example.com`); await json('/api/me/request-settings', { receive: true, regions: ['경기 광주시'] }, s, 'PUT'); return s; };
-type Pub = { id: string; floor: string; fee: number; estimateTotal: number | null; photosOpen: boolean; snapshot?: { project: string } };
+type Pub = { id: string; floor: string; fee: number; estimateTotal: number | null; snapshot?: { project: string } };
 
 describe('크레딧 금액', () => {
   it('자동 견적 × 0.3%, 100원 단위 올림, 최저 3,000 · 최고 50,000', () => {
@@ -55,7 +55,7 @@ describe('요청: 층·자동 견적·크레딧, 사진은 제안을 보낸 뒤'
     const shop = await shopFor();
     const list = (await (await get('/api/requests', shop)).json<{ requests: Pub[] }>()).requests;
     const r = list.find((x) => x.id === id)!;
-    expect(r).toMatchObject({ floor: '2층', fee: 8_400, estimateTotal: 2_800_000, photosOpen: false });
+    expect(r).toMatchObject({ floor: '2층', fee: 8_400, estimateTotal: 2_800_000 });
     // 제안 전에는 지역·층·사인물만 — 가게 이름·주소·내용·사업자 정보는 가린다 ("층 그리고 지역 만")
     expect(r).toMatchObject({ store: '', address: '', text: '', bizNo: null, region: '경기 광주시', locked: true });
   });
@@ -69,26 +69,18 @@ describe('요청: 층·자동 견적·크레딧, 사진은 제안을 보낸 뒤'
     expect(row).toEqual({ fee: 3_000, estimate_total: null });
   });
 
-  it('요청 보드의 사진: 가게 사장은 받고, 간판집은 제안 전 403 — 가져온 내 프로젝트도 사진 파일은 없음(자리는 있음), 접근 정보 photosLocked. 제안 링크를 만들면 둘 다 열린다', async () => {
+  it('사진은 결제 전에도 원본(2026-10-24 "원본 그대로") — 가게 이름은 제안 전엔 가리고, 제안 링크를 만들면 목록·요청서 이름에 보인다', async () => {
     const { cust, draft, asset } = await draftWithPhoto();
     const { id, snapshotProject } = await (await send(cust, draft)).json<{ id: string; snapshotProject: string }>();
     const shop = await shopFor();
-    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${cust}`)).status).toBe(200);
-    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${shop}`)).status).toBe(403);
+    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${shop}`)).status).toBe(200);
     const acc = await (await get(`/api/projects/${snapshotProject}/access`, shop)).json<{ photosLocked?: boolean; project: { name: string } }>();
-    expect(acc.photosLocked).toBe(true);
+    expect(acc.photosLocked).toBeUndefined();
     expect(acc.project.name).toBe('견적 요청서'); // 가게 이름 가림
     const { project } = await (await json(`/api/requests/${id}/respond`, { mode: 'copy' }, shop)).json<{ project: { id: string } }>();
-    expect((await api(`/api/assets/${asset}?project=${project.id}&session=${shop}`)).status).toBe(404);
-    expect((await (await get(`/api/projects/${project.id}/access`, shop)).json<{ photosLocked?: boolean }>()).photosLocked).toBe(true);
-    // 제안 링크 = 연락처·사진이 열리는 순간 (크레딧 결제)
-    await addCard(shop); okToss();
-    expect((await json(`/api/projects/${project.id}/invites`, { role: 'viewer', kind: 'proposal' }, shop)).status).toBe(201);
     expect((await api(`/api/assets/${asset}?project=${project.id}&session=${shop}`)).status).toBe(200);
-    expect((await api(`/api/assets/${asset}?project=${snapshotProject}&session=${shop}`)).status).toBe(200);
-    expect((await (await get(`/api/projects/${project.id}/access`, shop)).json<{ photosLocked?: boolean }>()).photosLocked).toBeUndefined();
+    expect((await json(`/api/projects/${project.id}/invites`, { role: 'viewer', kind: 'proposal' }, shop)).status).toBe(201);
     const r = (await (await get('/api/requests', shop)).json<{ requests: Pub[] }>()).requests.find((x) => x.id === id)!;
-    expect(r.photosOpen).toBe(true);
     expect(r).toMatchObject({ store: '크레딧 분식', address: '경기도 광주시 경안로 1' }); // 제안 뒤엔 다 열림
     expect((await (await get(`/api/projects/${snapshotProject}/access`, shop)).json<{ project: { name: string } }>()).project.name).toBe('크레딧 분식 요청서');
   });
@@ -155,7 +147,7 @@ describe('크레딧 결제 = 제안 링크를 만들 때', () => {
     reject = true;
     const f = await propose(c.s, b.project);
     expect([f.status, (await f.json<{ error: string }>()).error]).toEqual([402, 'charge_failed']);
-    expect((await (await get(`/api/projects/${b.project}/access`, c.s)).json<{ photosLocked?: boolean }>()).photosLocked).toBe(true);
+    expect((await (await get(`/api/requests`, c.s)).json<{ requests: { id: string; locked?: boolean }[] }>()).requests.find((x) => x.id === b.id)?.locked).toBe(true); // 가게 정보는 그대로 가림
   });
 
   it('이번 달(한국 시각) 크레딧 합계가 500만원을 넘으면 402 credit_limit', async () => {

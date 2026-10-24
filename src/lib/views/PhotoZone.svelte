@@ -570,10 +570,7 @@
       {/each}
     </div>
   {/if}
-  {#if app.photosLocked}
-    <!-- 요청 사진은 제안을 보내면 열린다 (2026-10-24 — 사진의 전화번호·주소로 간판다를 건너뛰지 않게) -->
-    <div class="locked" data-testid="photo-locked"><span>🔒 사진은 제안을 보내면 열립니다</span><small>치수·구성은 리스트에서</small></div>
-  {:else if url}
+  {#if url}
     <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
     {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
     <!-- 안개 시트 = 뒤를 흐리게 (2026-10-22 "안개는 블러처리하면되는데"): 2D·3D 단계에서 사진(3D 면 합성 그림) 위에 외곽선 모양 블러 층 -->
@@ -918,8 +915,6 @@
 <style>
   .zone { position: absolute; box-shadow: 0 6px 30px rgba(0, 0, 0, 0.35); background: #222; }
   img, .loading { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .locked { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: repeating-linear-gradient(45deg, #2a2d33 0 14px, #24272c 14px 28px); color: #cfd3da; font-size: 22px; text-align: center; }
-  .locked small { font-size: 15px; color: #9aa0aa; }
   .loading { display: grid; place-items: center; color: #999; }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .designs { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }

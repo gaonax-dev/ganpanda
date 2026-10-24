@@ -68,6 +68,7 @@ test('제안 보내기: [링크 발급](실사 이미지 안 만듦, 2026-10-24)
   await expect(page.getByTestId('toast')).toContainText('밤에 얼마나 밝나요?');
 
   // 승인
+  await expect(pg.getByTestId('ganpanda-promise')).toContainText('기록이 증거가 됩니다'); // 간판다로 진행하면 (2026-10-24)
   await pg.getByTestId('proposal-approve-button').click();
   await pg.getByTestId('proposal-approver').fill('홍길동');
   await pg.getByTestId('proposal-approve-confirm').click();

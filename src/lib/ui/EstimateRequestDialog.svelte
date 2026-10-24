@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GanpandaPromise from './GanpandaPromise.svelte';
   import { nudgeClose } from './dialogGuard';
   // 소비자 견적 요청 (2026-10-21 "소비자는 간판견적을 보고 견적 요청하는 방식 …") — 2026-10-22 사용자:
   // "견적요청 버튼 클릭하면 사업자등록확인 요청 대화식으로 등록증 요청한다. 하단에는 수동입력버튼도 준비한다. 이미지가 들어오면 내용을 추출하는 효과를 표현하고
@@ -258,6 +259,7 @@
           <small>사업자가 있으면 [변경]에서 언제든 인증할 수 있어요.</small>
         </div>
       {/if}
+      <GanpandaPromise compact />
       <p class="sum" data-testid="estimate-summary">사진 {photos.length}장 · 사인물 {signs.length}개 (치수 입력 {measured}개)</p>
       {#if signs.length === 0}
         <p class="advice" data-testid="estimate-advice">사인물이 없습니다. 사진 위에 간판 자리를 사각으로 그려 주면 간판집이 바로 견적을 낼 수 있습니다. 그대로 보내면 응답이 적을 수 있습니다.</p>

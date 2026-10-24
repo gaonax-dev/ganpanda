@@ -136,7 +136,7 @@ describe('요청 올리기 (로그인한 고객)', () => {
     const asCustomer = await api(`/api/requests/${id}/photos/1?key=${key}`);
     expect(asCustomer.status).toBe(200);
     expect(new Uint8Array(await asCustomer.arrayBuffer())[4]).toBe(2);
-    expect((await get(`/api/requests/${id}/photos/1`, shop)).status).toBe(403); // 간판사는 제안을 보낸 뒤 (2026-10-24, requestCredit.test.ts)
+    expect((await get(`/api/requests/${id}/photos/1`, shop)).status).toBe(200); // 사진은 결제 전에도 원본 (2026-10-24 "원본 그대로")
     expect((await api(`/api/requests/${id}/photos/1`)).status).toBe(401);
     const other = await login(`oth-${crypto.randomUUID().slice(0, 6)}@example.com`); // 요청 받기 안 켠 계정
     expect((await get(`/api/requests/${id}/photos/1`, other)).status).toBe(403);

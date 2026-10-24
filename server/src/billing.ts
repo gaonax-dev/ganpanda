@@ -121,6 +121,24 @@ export async function creditUsed(env: Env, accountId: string, now = Date.now()):
   const r = await env.DB.prepare("SELECT COALESCE(SUM(amount), 0) AS n FROM payments WHERE account_id = ? AND kind = 'credit' AND status = 'DONE' AND created_at >= ?").bind(accountId, kstMonthStart(now)).first<{ n: number }>();
   return Number(r?.n ?? 0);
 }
+/** 등록 카드로 한 번 결제하고 기록 (크레딧·위약금). 성공 true, 실패면 오류 문구 */
+export async function chargeBillingRaw(env: Env, me: { id: string; email: string }, amount: number, orderName: string, kind: 'credit' | 'penalty', requestId: string): Promise<true | string> {
+  if (!configured(env)) return 'not_configured';
+  const row = await rowOf(env, me.id);
+  if (!row?.billing_key_enc) return 'card_required';
+  const orderId = orderIdOf(), now = Date.now();
+  try {
+    const r = await chargeBillingKey(env, await decryptKey(env, row.billing_key_enc), { customerKey: row.customer_key, amount, orderId, orderName, customerEmail: me.email });
+    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, payment_key, receipt_url, created_at, approved_at, request_id) VALUES (?, ?, ?, ?, ?, 'DONE', ?, ?, ?, ?, ?)")
+      .bind(orderId, me.id, kind, amount, kind, r.paymentKey ?? null, r.receipt?.url ?? null, now, r.approvedAt ? Date.parse(r.approvedAt) : now, requestId).run();
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, error, created_at, request_id) VALUES (?, ?, ?, ?, ?, 'FAILED', ?, ?, ?)").bind(orderId, me.id, kind, amount, kind, msg, now, requestId).run();
+    return msg;
+  }
+}
+
 /**
  * 요청 크레딧 결제 (2026-10-24 "등록 카드로 쓴 만큼", 월 한도 500만원): 제안 링크를 만들 때 한 번.
  * 성공 true, 아니면 { status 402, body } — card_required(카드 없음) · credit_limit(이번 달 한도) · charge_failed(카드사 거절)
