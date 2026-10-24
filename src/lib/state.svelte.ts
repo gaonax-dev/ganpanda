@@ -120,6 +120,13 @@ class AppState {
   /** 외주 프로젝트를 연 소유자 (2026-10-22): 핫핑크 + [외주 요청] */
   /** 요청 사진이 닫힘 (제안 전 간판집, 2026-10-24) — 사진 대신 안내, 받지 않는다 */
   get photosLocked(): boolean { return this.access.status === 'ok' && !!this.access.photosLocked; }
+  /** 사진마다 [정보]·[구별선] 숨김 (2026-10-24 "사진에 정보, 구별선 토글버튼으로 사진에서 표시제어") — 이 기기에만 (localStorage) */
+  photoHide = $state<Record<string, { info?: boolean; lines?: boolean }>>((() => { try { return JSON.parse(localStorage.getItem('ganpanda.photoHide') ?? '{}'); } catch { return {}; } })());
+  togglePhotoHide(photoId: string, k: 'info' | 'lines') {
+    const cur = this.photoHide[photoId] ?? {};
+    this.photoHide = { ...this.photoHide, [photoId]: { ...cur, [k]: !cur[k] } };
+    try { localStorage.setItem('ganpanda.photoHide', JSON.stringify(this.photoHide)); } catch { /* 저장 못 해도 됨 */ }
+  }
   get outsourceProject(): boolean { return this.access.status === 'ok' && !!this.access.outsource && this.role === 'owner'; }
   /** 외주 색: 외주 프로젝트, 또는 그 요청 보드(?o=1) */
   readonly outsourceParam = typeof location !== 'undefined' && new URLSearchParams(location.search).get('o') === '1';
@@ -1350,7 +1357,12 @@ class AppState {
   /** keep = 끄되 고른 것은 그대로 (Shift 를 뗄 때, 2026-10-22) */
   setMultiMode(on: boolean, keep = false) {
     this.multiMode = on; // 아무것도 안 골라도 켤 수 있다 — 도구 막대 [다중] (2026-10-22)
-    if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else if (!keep) this.multi = [];
+    if (on) { this.closeChat(); this.panelOpen = false; this.objectSettingsOpen = false; } else if (!keep) { this.multi = []; this.selectedId = null; } // 끄면 선택 모두 해제 (2026-10-24 "다중 끄면 선택 모두 해제")
+  }
+  /** 선택한 사인물 모두에 같은 가로 또는 세로 (2026-10-24 일괄 사이즈) — 한 번의 되돌리기 */
+  setSizeForSelection(patch: { widthMm?: number; heightMm?: number }) {
+    if (!this.canEdit || !this.selectionIds.length) return;
+    this.project.batch(() => { for (const id of this.selectionIds) this.project.updateObject(id, patch); });
   }
   /** 선택한 사인물 모두를 한 분류로 (2026-10-19 "한번에 종류 선택 및 변경"). 이미 그 분류인 것은 그대로 — 한 번의 되돌리기 */
   applyCategoryToSelection(g: Group) {

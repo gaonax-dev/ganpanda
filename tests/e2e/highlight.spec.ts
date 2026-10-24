@@ -69,7 +69,7 @@ test('다중 선택은 도구 막대 [선택] 옆, 켜 두면 중간에 풀리�
   // 빈 곳을 눌러도 그대로, [✕ 선택 해제]·[다중] 끄기로만 끝난다
   await page.getByTestId('tool-multi').click();
   await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
-  expect(await count()).toBe(1);
+  expect(await count()).toBe(0); // 다중을 끄면 선택 모두 해제 (2026-10-24 "다중 끄면 선택 모두 해제")
 });
 
 // 2026-10-22 사용자: "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘"

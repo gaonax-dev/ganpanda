@@ -4,6 +4,8 @@
   배경: 현장에서는 휴대폰으로 치수만 넣고 나머지는 데스크톱에서 (2026-10-14)
 -->
 <script lang="ts">
+  import MultiSize from './MultiSize.svelte';
+  import MultiLast from './MultiLast.svelte';
   import { app } from '../state.svelte';
   import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
@@ -77,7 +79,9 @@
       <option value="" disabled>종류 선택</option>
       {#each CATEGORY_GROUPS as g (g.id)}<option value={g.id}>{g.label}</option>{/each}
     </select>
+    {#if !ro && app.multi.length}<MultiLast />{/if}
   </div>
+  {#if !ro && app.selectionIds.length > 1}<div class="row edit" data-testid="quick-multi-size"><MultiSize /></div>{/if}
   {#if multiPending}
     <div class="row confirm" data-testid="category-confirm">
       <p>선택한 {selObjs.length}개를 <b>{label(multiPending)}</b>(으)로 바꾸면 분류가 다른 사인물은 종류·옵션이 초기화되고 모두에게 적용됩니다.</p>
