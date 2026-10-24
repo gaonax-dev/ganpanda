@@ -99,8 +99,12 @@ test.describe('휴대폰', () => {
     await expect(page.getByTestId('quick-size-edit')).toHaveCount(0); // 잰 것은 닫힌 채
     await sel(b);
     await expect(page.getByTestId('quick-size-edit')).toBeVisible(); // 모르는 것은 바로 열림
+    // 칸 앞에 가로·세로 글자 — 값을 넣어도 어느 칸인지 보인다 (2026-10-24 "사이즈 입력에 가로 세로 표시해줘")
+    await expect(page.getByTestId('quick-width-label')).toHaveText('가로');
+    await expect(page.getByTestId('quick-height-label')).toHaveText('세로');
     await page.getByTestId('quick-width').fill('1800');
     await page.getByTestId('quick-height').fill('450');
+    await expect(page.getByTestId('quick-width-label')).toBeVisible();
     await expect.poll(() => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; widthMm?: number }[] } }).__ganpanda.objects.find((o) => o.id === id)?.widthMm, b)).toBe(1800);
   });
 });
