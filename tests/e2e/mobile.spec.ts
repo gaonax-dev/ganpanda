@@ -127,10 +127,10 @@ test('휴대폰 폭: 사인물을 선택하면 종류 셀렉터 · [이름] [사
   await page.getByTestId('object-panel-close').click();
   await expect(page.getByTestId('quick-bar')).toBeVisible();
   await expect(page.getByTestId('quick-name')).toHaveText('둘째');
-  // 선택된 사인물의 꼭짓점에는 보이는 핸들보다 두 배 넓은 터치 영역이 있다
+  // 선택된 사인물의 꼭짓점에는 보이는 핸들보다 넓은 터치 영역 — 휴대폰은 네 배(24px, 2026-10-24 "컨트롤 포인트의 터치 영역을 조금 넓게", 전엔 두 배)
   await expect(page.getByTestId('sign-handle-hit')).toHaveCount(4);
   const [hit, vis] = await Promise.all([page.getByTestId('sign-handle-hit').first().getAttribute('r'), page.getByTestId('sign-handle').first().getAttribute('r')]);
-  expect(parseFloat(hit!) / parseFloat(vis!)).toBeCloseTo(2);
+  expect(parseFloat(hit!) / parseFloat(vis!)).toBeCloseTo(4);
 });
 
 test('창을 휴대폰 폭으로 줄였다 되돌려도 가로 스와이프(휠)는 막히고 스크롤 연쇄가 없다 (뒤로가기 방지)', async ({ page, request }) => {
@@ -272,13 +272,13 @@ test('휴대폰 터치: 외곽선 띠·변 손잡이를 끌면 그 변만 꼭짓
   await dragTouch(h.x + h.width / 2, h.y + h.height / 2, 50, 30);
   const q1 = await quad();
   expect(edgeMoved(q0, q1, 0)).toBe(true); // 윗변만
-  // 외곽선 띠 (오른쪽 변 위, 손잡이 사이 25% 지점) → 가장 가까운 변 = 오른쪽(1)
-  const c1 = (await page.getByTestId('sign-handle').nth(1).boundingBox())!, c2 = (await page.getByTestId('sign-handle').nth(2).boundingBox())!;
+  // 외곽선 띠 (긴 아랫변 위, 꼭짓점 사이 25% 지점) → 가장 가까운 변 = 아래(2). 짧은 변은 넓어진 꼭짓점·변 손잡이 터치 영역이 덮는다 (2026-10-24)
+  const c1 = (await page.getByTestId('sign-handle').nth(2).boundingBox())!, c2 = (await page.getByTestId('sign-handle').nth(3).boundingBox())!;
   const px = c1.x + c1.width / 2 + (c2.x - c1.x) * 0.25, py = c1.y + c1.height / 2 + (c2.y - c1.y) * 0.25;
   expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), [px, py])).toBe('sign-touch-outline');
-  await dragTouch(px, py, -40, 20);
+  await dragTouch(px, py, 20, 10); // 사진 안에서 (왼쪽으로 크게 끌면 왼쪽 꼭짓점이 사진 가장자리에 막힌다)
   const q2 = await quad();
-  expect(edgeMoved(q1, q2, 1)).toBe(true);
+  expect(edgeMoved(q1, q2, 2)).toBe(true);
 });
 
 test('휴대폰 상단 메뉴: 말풍선·정리·녹음 — 녹음하면 음성 메모가 카드의 🎙 수와 상세의 🎙 목록에 들어간다 (말풍선과 따로, 2026-10-18)', async ({ page, request }) => {

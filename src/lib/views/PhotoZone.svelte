@@ -118,6 +118,11 @@
   const tiny = $derived(photo.width * zoom < 260);
   /** 화면 1px 에 해당하는 사진 픽셀 */
   const u = $derived(1 / (scale * zoom));
+  /** 조절점 터치 영역 반지름(화면 px): 터치 기기는 넓게 (2026-10-24 "컨트롤 포인트의 터치 영역을 조금 넓게 … 원근 컨트롤러도") — 보이는 크기는 그대로 */
+  const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const HIT = COARSE ? 24 : 12;
+  /** 누름으로 볼 이동 범위(화면 px): 손가락은 누르는 동안 흔들려 4px 이면 끌기가 되어 정면 축 바꾸기가 안 먹었다 (2026-10-24 "정면 설정 컨트롤러도 잘 터치되지 않는다") */
+  const TAP = COARSE ? 12 : 4;
   // 자동 원근 효과 (2026-10-19 "좀 신비롭게 처리되는 효과"): 읽는 동안 빛이 훑고 별이 반짝, 잡으면 축 선이 빛나며 그려진다. 길이 반영은 조용히 — 완성도만
   const fx = $derived(app.cameraFx[photo.id]);
   const fxCaption = $derived(!fx ? '' : fx.kind === 'scan' ? '✨ 원근을 읽는 중…' : '✨ 원근을 잡았습니다');
@@ -377,7 +382,7 @@
     const [x, y] = toPhoto(e.clientX, e.clientY);
     if (editing.mode === 'bdepth' && editing.depth && editing.face3 && calib?.pose) {
       const d = editing.depth, dx = x - editing.from[0], dy = y - editing.from[1];
-      if (!d.moved && Math.hypot(dx, dy) < 4 * u) return; // 짧은 누르기는 축 바꾸기로 남겨 둔다
+      if (!d.moved && Math.hypot(dx, dy) < TAP * u) return; // 짧은 누르기는 축 바꾸기로 남겨 둔다 (터치는 12px)
       d.moved = true;
       const nq = shiftOutline(calib.pose, editing.face3, editing.orig, d.dir, ((dx * d.u[0] + dy * d.u[1]) * d.L) / d.px);
       if (nq) editing.quad = nq;
@@ -609,6 +614,7 @@
             <rect data-testid="zone-mid" class="zone-mid" x={m[0] - 4 * u} y={m[1] - 4 * u} width={8 * u} height={8 * u} stroke-width={1.5 * u} role="button" tabindex="-1" onpointerdown={(e) => zoneMidDown(e, zi, i, m)} />
           {/each}
           {#each zone as v, i (i)}
+            <circle class="hit" data-testid="hit-zone-vertex" cx={v[0]} cy={v[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => zoneVertexDown(e, zi, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
             <circle data-testid="zone-vertex" class="zone-vertex" class:sel={zoneSel?.vertex === i} cx={v[0]} cy={v[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
               onpointerdown={(e) => zoneVertexDown(e, zi, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
           {/each}
@@ -721,7 +727,7 @@
           {#each [0, 1, 2, 3] as i (i)}
             {@const a = q[i]}
             {@const b = q[(i + 1) % 4]}
-            <circle class="hit" data-testid="edge-hit-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q, i)} />
+            <circle class="hit" data-testid="edge-hit-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q, i)} />
             <circle class="handle edge" data-testid="edge-handle-{i}" cx={(a[0] + b[0]) / 2} cy={(a[1] + b[1]) / 2} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q, i)}><title>변 옮기기 (양 끝 꼭짓점이 함께)</title></circle>
           {/each}
         {/if}
@@ -729,7 +735,7 @@
         {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
           {#each q as p, i (i)}
             <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
-            <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={12 * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
+            <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
             <circle class="handle" data-testid="sign-handle" cx={p[0]} cy={p[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
               onpointerdown={(e) => shapeDown(e, o, i)} />
           {/each}
@@ -767,10 +773,11 @@
                 {@const next = NEXT_AXIS[cur]}
                 <g class="facebar" data-testid="face-bar" data-axis={cur}>
                   <!-- 막대를 끌면 깊이 이동 (넓은 투명 터치 영역) -->
-                  <line class="bar-hit" data-testid="face-bar-hit" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={12 * gu} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3)}><title>끌면 이 방향으로 깊이 이동</title></line>
+                  <line class="bar-hit" data-testid="face-bar-hit" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={Math.max(12 * gu, 2 * HIT * u)} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3)}><title>끌면 이 방향으로 깊이 이동</title></line>
                   <line class="halo" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={3 * gu} />
                   <line class="ax" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={1.4 * gu} style:stroke={col} />
                   <circle class="dot" data-testid="face-bar-origin" cx={fb.a[0]} cy={fb.a[1]} r={2.5 * gu} pointer-events="none" />
+                  <circle class="hit" data-testid="hit-face-cycle" cx={fb.b[0]} cy={fb.b[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3, next)} />
                   <circle class="gh fcyc" data-testid="face-cycle" data-axis={cur} cx={fb.b[0]} cy={fb.b[1]} r={7 * gu} stroke-width={2 * gu} style:fill={col} role="button" tabindex="-1"
                     onpointerdown={(e) => barDown(e, o, fb, dirNow, L3, next)}><title>{FACE_TITLE[cur]} — 누르면 {next.toUpperCase()} 축으로, 끌면 깊이 이동</title></circle>
                 </g>
@@ -780,6 +787,7 @@
                   <polyline class="ring-hit" points={pts} stroke-width={10 * gu} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
                   <polyline class="halo" points={pts} stroke-width={2.6 * gu} />
                   <polyline class="ring3" data-testid="gizmo-ring-{a}" points={pts} stroke-width={1.2 * gu} style:stroke={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
+                  <circle class="hit" data-testid="hit-gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
                   <circle class="gh rot" data-testid="gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)}><title>박스를 {a.toUpperCase()} 축 둘레로 돌리기 (외곽선은 그대로)</title></circle>
                 {/each}
               {:else if gizmoMode === 'scale'}<!-- none 이면 아무것도 없음 (2026-10-18: 크기 손잡이가 기본으로 보이던 버그) -->
@@ -787,6 +795,7 @@
                 {#each sizeHandlesOf(fr) as h (`${h.sx}_${h.sy}`)}
                   {@const at = applyHomography(face3.H, h.at)}
                   {@const r = (h.sx && h.sy ? 6 : 5) * gu}
+                  <circle class="hit" data-testid="hit-gizmo-size-{h.sx}_{h.sy}" cx={at[0]} cy={at[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)} />
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)}><title>{h.sx && h.sy ? '외곽선 크기 (비율 유지)' : h.sx ? '외곽선 가로' : '외곽선 세로'}</title></rect>
                 {/each}
               {/if}
@@ -802,11 +811,13 @@
               {#if gizmoMode === 'rotate'}
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
+                <circle class="hit" data-testid="hit-gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
                 <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
               {:else if gizmoMode === 'scale'}
                 {#each sizeHandlesOf(fr) as h (`${h.sx}_${h.sy}`)}
                   {@const at = applyHomography(plane.H, h.at)}
                   {@const r = (h.sx && h.sy ? 6 : 5) * gu}
+                  <circle class="hit" data-testid="hit-gizmo-size-{h.sx}_{h.sy}" cx={at[0]} cy={at[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
                   <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
                 {/each}
               {/if}
