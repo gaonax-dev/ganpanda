@@ -1168,6 +1168,12 @@ class AppState {
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY })), this.flatGap));
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
   flatArrange = $state(false);
+  /** 카드 묶음(대지) 누르기: 배열 모드 켜고 끔. 켤 때는 사인물·말풍선·존 선택을 푼다 — 대지를 고른 것이 새 선택 (2026-10-24 "사인물카드 대지선택하면 이전에 선택이 있는 경우 대지 툴이 나오지 않는다": 휴대폰은 사인물 도구가 대지 도구 자리를 차지했다) */
+  toggleFlatArrange() {
+    const on = !this.flatArrange;
+    if (on) { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.panelOpen = false; }
+    this.flatArrange = on;
+  }
   /** 상단 막대의 축척 −/+ 요청 (보드가 피봇을 지키며 적용) — 2026-10-23 도구를 헤더로 */
   flatScaleStep = $state<{ factor: number; n: number } | null>(null);
   scaleFlat(factor: number) { this.flatScaleStep = { factor, n: (this.flatScaleStep?.n ?? 0) + 1 }; }

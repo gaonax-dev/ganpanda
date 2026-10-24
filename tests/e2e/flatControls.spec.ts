@@ -55,3 +55,16 @@ test('글·단추는 상단 헤더 막대에 (재정렬·간격·고정·축척�
   await expect(bar).toHaveCount(0);
   await expect(page.getByTestId('work-tabs')).toBeVisible();
 });
+
+test.describe('휴대폰', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('사인물을 고른 채로 카드 묶음(대지)을 누르면 사인물 선택이 풀리고 대지 도구가 나온다 (2026-10-24 "사인물카드 대지선택하면 이전에 선택이 있는 경우 대지 툴이 나오지 않는다")', async ({ page, request }) => {
+    await setup(page, request);
+    await page.evaluate(() => { const a = (window as unknown as G & { __ganpanda: { selectObject(id: string): void } }).__ganpanda; a.selectObject(a.objects[0].id); });
+    await expect(page.getByTestId('mobile-edit')).toBeVisible(); // 사인물 도구
+    await page.getByTestId('flat-move').tap();
+    await expect(page.getByTestId('flat-bar')).toBeVisible(); // 대지 도구
+    await expect(page.getByTestId('mobile-edit')).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string | null } }).__ganpanda.selectedId)).toBeNull();
+  });
+});
