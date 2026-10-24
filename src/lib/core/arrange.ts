@@ -154,8 +154,33 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
  * 묶음 안: 끝선을 묶어 행·열(gridOf — 겹친 사인물은 같은 열 바로 아래 새 행), 열 너비·행 높이 = 그 칸 카드 중 가장 큰 것 + 간격 → 수평·수직으로 반듯하게, 겹침 없음.
  * 사진 하나 = [왼쪽 옆면][정면][오른쪽 옆면] 위 줄 + 정면 아래 아래면. 사진 묶음은 사진 순서(행·열)대로, 되도록 자기 사진 아래 자리에. 사진 없는 카드는 맨 아래 한 줄
  */
-export interface GridCard { id: string; w: number; h: number; photo: number | null; group: 'front' | 'left' | 'right' | 'bottom'; box: Box }
+export interface GridCard { id: string; w: number; h: number; photo: number | null; group: 'front' | 'left' | 'right' | 'bottom'; box: Box; /** 사진 속 자리(px) — 줄 묶기는 보이는 사진 기준 (펴진 벽 좌표는 원근 때문에 아래 선반이 갈라졌다, 2026-10-24) */ view?: Box }
 interface Block { pos: Map<string, { x: number; y: number }>; w: number; h: number }
+
+/** 격자 칸 수가 카드가 차지한 칸 수의 이 배를 넘으면 성긴 격자 — 줄 묶기로 */
+const SPARSE = 2.5;
+/**
+ * 줄 묶기: 사진 속 가운데 높이 순으로, 이웃 가운데 차이가 사인물 높이 중앙값보다 크면 새 줄. 줄 안은 왼쪽 → 오른쪽, 카드는 간격만 두고 촘촘히.
+ * 흩어진 사인물이 대각선 계단으로 늘어지지 않고, 위·가운데·아래 선반처럼 높이 순서는 남는다 (2026-10-24)
+ */
+function rowPack(cards: GridCard[], gap: number, labelMm: number): Block {
+  const pos = new Map<string, { x: number; y: number }>();
+  const vb = (c: GridCard) => c.view ?? c.box;
+  const cy = (c: GridCard) => (vb(c).y0 + vb(c).y1) / 2, cx = (c: GridCard) => (vb(c).x0 + vb(c).x1) / 2;
+  const hs = cards.map((c) => vb(c).y1 - vb(c).y0).sort((a, b) => a - b);
+  const tol = hs[Math.floor((hs.length - 1) / 2)] || 1;
+  const sorted = [...cards].sort((a, b) => cy(a) - cy(b));
+  const rows: GridCard[][] = [];
+  for (const c of sorted) { const last = rows.at(-1); if (last && cy(c) - cy(last.at(-1)!) <= tol) last.push(c); else rows.push([c]); }
+  let y = 0, w = 0;
+  for (const r of rows) {
+    let x = 0;
+    for (const c of r.sort((a, b) => cx(a) - cx(b))) { pos.set(c.id, { x, y }); x += c.w + gap; }
+    w = Math.max(w, x - gap);
+    y += Math.max(...r.map((c) => c.h + labelMm)) + gap;
+  }
+  return { pos, w, h: y - gap };
+}
 
 function layoutGroup(cards: GridCard[], gap: number, labelMm: number): Block {
   const pos = new Map<string, { x: number; y: number }>();
@@ -163,6 +188,12 @@ function layoutGroup(cards: GridCard[], gap: number, labelMm: number): Block {
   const W = Math.max(1, Math.max(...cards.map((c) => c.box.x1)) - Math.min(...cards.map((c) => c.box.x0)));
   const H = Math.max(1, Math.max(...cards.map((c) => c.box.y1)) - Math.min(...cards.map((c) => c.box.y0)));
   const spans = gridOf(cards.map((c) => ({ id: c.id, box: c.box })), W, H);
+  // 성긴 격자 = 흩어진 사인물(실내 선반 등, 끝선이 서로 안 맞음) → 줄 묶기 (2026-10-24 현장 "신하센터": 16장이 16×16 격자 대각선 계단이 됐다)
+  {
+    const sp = [...spans.values()], nc = Math.max(...sp.map((x) => x.c1)), nr = Math.max(...sp.map((x) => x.r1));
+    const filled = sp.reduce((t, x) => t + (x.c1 - x.c0) * (x.r1 - x.r0), 0); // 카드가 차지한 칸 (여러 칸에 걸친 판 포함)
+    if (cards.length > 2 && nc * nr > SPARSE * filled) return rowPack(cards, gap, labelMm);
+  }
   // 칸 겹침 정리: gridOf 가 끼워 넣은 사이 행을 여러 행에 걸친 카드가 덮을 수 있다 → 큰 카드부터 칸을 차지하고, 찬 칸이면 빈 곳까지 아래로
   const taken = new Set<string>();
   for (const c of [...cards].sort((a, b) => b.w * b.h - a.w * a.h)) {

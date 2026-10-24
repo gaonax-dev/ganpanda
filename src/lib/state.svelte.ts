@@ -1213,7 +1213,7 @@ class AppState {
         const wx = q.map((p) => p[0]), wy = q.map((p) => -p[1]); // 벽 y(위 +) → 아래 +
         box = { x0: Math.min(...wx), y0: Math.min(...wy), x1: Math.max(...wx), y1: Math.max(...wy) };
       }
-      return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'front', box };
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'front', box, view: pxBox }; // view = 사진 속 자리 (흩어진 사인물 줄 묶기, 2026-10-24)
     });
     const at = arrangeByAxisGrid(cards, photos, gap, 100 / k);
     this.editBoundary();
