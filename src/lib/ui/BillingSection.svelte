@@ -58,7 +58,7 @@
       <p class="hint">카드를 등록하면 첫 달이 바로 결제되고, 매달 같은 날 자동으로 결제됩니다. 언제든 해지 예약할 수 있습니다. 결제일로부터 7일 안에 유료 기능을 쓰지 않았다면 전액 환불되고, 쓰기 시작한 기간은 청약철회가 제한됩니다.</p>
     {/if}
     {#if error}<p class="hint err" data-testid="billing-error">{error}</p>{/if}
-    <p class="hint links"><a href="/terms" target="_blank" rel="noopener" data-testid="billing-terms">이용약관</a> · <a href="/refund" target="_blank" rel="noopener" data-testid="billing-refund">환불 정책</a> · 문의 <a href="mailto:support@ganpanda.co.kr">support@ganpanda.co.kr</a></p>
+    <p class="hint links"><a href="/terms" target="_blank" rel="noopener" data-testid="billing-terms">이용약관</a> · <a href="/refund" target="_blank" rel="noopener" data-testid="billing-refund">환불 정책</a> · <a href="/privacy" target="_blank" rel="noopener" data-testid="billing-privacy">개인정보처리방침</a> · 문의 <a href="mailto:support@ganpanda.co.kr">support@ganpanda.co.kr</a></p>
     {#if info.payments.length}
       <details data-testid="billing-history">
         <summary>결제 내역 {info.payments.length}건</summary>

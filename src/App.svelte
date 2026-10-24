@@ -248,6 +248,8 @@
               <button class="btn small" data-testid="open-settings" onclick={() => { accountOpen = false; app.settingsOpen = true; }}>⚙ 설정</button>
               <button class="btn small" data-testid="open-password" onclick={() => { accountOpen = false; app.passwordOpen = 'change'; }}>{app.account.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>
               <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
+              <!-- 약관·개인정보 (2026-10-24 로그인 후 홈 푸터 대신) — 사업자 정보는 각 페이지 아래에 -->
+              <nav class="legal" data-testid="account-legal"><a href="/pricing" target="_blank" rel="noopener">요금제</a><a href="/terms" target="_blank" rel="noopener">이용약관</a><a href="/refund" target="_blank" rel="noopener">환불 정책</a><a href="/privacy" target="_blank" rel="noopener"><b>개인정보처리방침</b></a></nav>
             </div>
           {/if}
         </span>
@@ -419,6 +421,8 @@
   /* 상단 바(.top)가 overflow: hidden 이라 absolute 면 잘려 로그아웃이 안 보였다(휴대폰, 2026-10-21) → fixed 로 바 바깥에 */
   .menu { position: fixed; right: 10px; top: 44px; width: 240px; max-width: calc(100vw - 20px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.45); z-index: 20; }
   .menu small { color: var(--muted); font-size: 11px; }
+  .menu .legal { display: flex; flex-wrap: wrap; gap: 2px 10px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; }
+  .menu .legal a { color: var(--muted); }
   .small-name { font-size: 12px; }
   .who { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
   main { position: relative; overflow: hidden; }
