@@ -118,6 +118,13 @@ class AppState {
   sentCount = $state(0);
   sentShown = $state(false);
   /** 외주 프로젝트를 연 소유자 (2026-10-22): 핫핑크 + [외주 요청] */
+  /** 사진마다 [정보]·[구별선] 숨김 (2026-10-24 "사진에 정보, 구별선 토글버튼으로 사진에서 표시제어") — 이 기기에만 (localStorage) */
+  photoHide = $state<Record<string, { info?: boolean; lines?: boolean }>>((() => { try { return JSON.parse(localStorage.getItem('ganpanda.photoHide') ?? '{}'); } catch { return {}; } })());
+  togglePhotoHide(photoId: string, k: 'info' | 'lines') {
+    const cur = this.photoHide[photoId] ?? {};
+    this.photoHide = { ...this.photoHide, [photoId]: { ...cur, [k]: !cur[k] } };
+    try { localStorage.setItem('ganpanda.photoHide', JSON.stringify(this.photoHide)); } catch { /* 저장 못 해도 됨 */ }
+  }
   get outsourceProject(): boolean { return this.access.status === 'ok' && !!this.access.outsource && this.role === 'owner'; }
   /** 외주 색: 외주 프로젝트, 또는 그 요청 보드(?o=1) */
   readonly outsourceParam = typeof location !== 'undefined' && new URLSearchParams(location.search).get('o') === '1';
