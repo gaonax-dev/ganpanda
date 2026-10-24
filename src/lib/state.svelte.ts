@@ -40,7 +40,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -509,6 +509,8 @@ class AppState {
         this.authError = describeAuthError(e);
         this.loginOpen = true;
       }
+      const next = safeNext(url.searchParams.get('next'));
+      if (next && !this.authError && !this.passwordOpen) { location.replace(next); return; } // 가게 사장 화면에서 보낸 링크 → 그 화면으로 (2026-10-24)
       history.replaceState(null, '', this.room ? `/?room=${this.room}` : '/');
     } else {
       this.applyMe(await fetchMe());

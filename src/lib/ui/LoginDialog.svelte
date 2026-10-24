@@ -49,16 +49,19 @@
     if (mode === 'signup') {
       if (password.length < PASSWORD_MIN) { error = `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`; return; }
       if (password !== password2) { error = '두 비밀번호가 다릅니다.'; return; }
-      return run(async () => { const r = await signup(em, password, name.trim()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; }, 'signup');
+      return run(async () => { const r = await signup(em, password, name.trim(), linkNext()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; }, 'signup');
     }
     // 비밀번호 찾기 / 이메일 링크
     return run(async () => {
-      const r = await requestLink(em, mode === 'forgot');
+      const r = await requestLink(em, mode === 'forgot', mode === 'forgot' ? undefined : linkNext());
       sent = em.toLowerCase();
       sentKind = mode === 'forgot' ? 'reset' : 'login';
       devLink = r.link ?? null;
     }, 'link');
   }
+
+  /** 가게 사장 화면(/estimate)에서 가입·로그인하면 메일 링크도 그 화면으로 돌아온다 — 첫 화면(간판집)에 떨어져 간판집 계정이 되지 않게 (2026-10-24) */
+  const linkNext = () => (location.pathname === '/estimate' ? '/estimate' : undefined);
 
   /** 개발 모드: 서버가 돌려준 링크의 토큰으로 바로 */
   async function useDevLink() {
@@ -73,7 +76,7 @@
   }
   async function resend() {
     const em = email.trim();
-    await run(async () => { const r = await resendVerify(em); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; error = ''; unverified = false; }, 'link');
+    await run(async () => { const r = await resendVerify(em, linkNext()); sent = em.toLowerCase(); sentKind = 'verify'; devLink = r.link ?? null; error = ''; unverified = false; }, 'link');
   }
   const TITLE: Record<Mode, string> = { login: '로그인', signup: '회원가입', forgot: '비밀번호 찾기', link: '이메일 링크로 로그인' };
 </script>

@@ -110,3 +110,18 @@ describe('이메일·비밀번호 로그인', () => {
     expect((await none.json<{ link?: string }>()).link).toBeUndefined();
   });
 });
+
+// 가게 사장 화면에서 이메일 가입·로그인 → 메일 링크가 그 화면으로 돌아온다 (2026-10-24 사용자: "가계사장으로 계정생성했는데 사업자로 등록되었다")
+describe('메일 링크의 돌아갈 곳(next)', () => {
+  it('가입·메일 로그인에 next(/estimate)를 주면 링크에 붙는다 — 외부 주소·이상한 값은 버린다', async () => {
+    const email = `next-${crypto.randomUUID().slice(0, 8)}@example.com`;
+    const r = await post('/api/auth/signup', { email, password: 'abcd1234', name: '가게', next: '/estimate' });
+    expect(new URL((await r.json<{ link: string }>()).link).searchParams.get('next')).toBe('/estimate');
+    const l = await post('/api/auth/email', { email: `n2-${crypto.randomUUID().slice(0, 8)}@example.com`, next: '/estimate' });
+    expect(new URL((await l.json<{ link: string }>()).link).searchParams.get('next')).toBe('/estimate');
+    for (const bad of ['https://evil.example', '//evil.example', 'estimate', 123]) {
+      const b = await post('/api/auth/email', { email: `n3-${crypto.randomUUID().slice(0, 8)}@example.com`, next: bad });
+      expect(new URL((await b.json<{ link: string }>()).link).searchParams.get('next')).toBeNull();
+    }
+  });
+});

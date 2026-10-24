@@ -55,7 +55,7 @@ export async function markEmailVerified(env: Env, a: Account): Promise<Account> 
 }
 
 async function signup(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ email?: string; password?: string; name?: string }>(req);
+  const body = await readJson<{ email?: string; password?: string; name?: string; next?: string }>(req);
   const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
   if (!EMAIL_RE.test(email)) return text('bad email', 400);
   if (!validPassword(body?.password)) return text('bad password', 400);
@@ -71,7 +71,7 @@ async function signup(req: Request, env: Env): Promise<Response> {
     await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)')
       .bind(crypto.randomUUID(), email, name, 'free', Date.now(), hash).run();
   }
-  return sendLink(env, email, 'verify');
+  return sendLink(env, email, 'verify', nextPath(body?.next));
 }
 
 async function passwordLogin(req: Request, env: Env): Promise<Response> {
@@ -92,20 +92,22 @@ async function passwordLogin(req: Request, env: Env): Promise<Response> {
 }
 
 async function requestEmailLogin(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ email?: string; reset?: boolean }>(req);
+  const body = await readJson<{ email?: string; reset?: boolean; next?: string }>(req);
   const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
   if (!EMAIL_RE.test(email)) return text('bad email', 400);
-  return sendLink(env, email, body?.reset === true ? 'reset' : 'login');
+  return sendLink(env, email, body?.reset === true ? 'reset' : 'login', nextPath(body?.next));
 }
 
 type LinkPurpose = 'login' | 'reset' | 'verify';
 /** 메일 링크 발급·발송 (login = 로그인, reset = 비밀번호 재설정, verify = 가입 이메일 인증). 개발 모드는 링크를 응답에 */
-async function sendLink(env: Env, email: string, purpose: LinkPurpose): Promise<Response> {
+/** 메일 링크를 연 뒤 돌아갈 앱 경로 — 같은 사이트의 경로만 (2026-10-24 가게 사장 화면에서 이메일 가입하면 그 화면으로: "가계사장으로 계정생성했는데 사업자로 등록되었다") */
+const nextPath = (n: unknown): string | null => (typeof n === 'string' && /^\/[A-Za-z0-9/_\-]*$/.test(n) && !n.startsWith('//') && n.length <= 100 ? n : null);
+async function sendLink(env: Env, email: string, purpose: LinkPurpose, next?: string | null): Promise<Response> {
   const token = randomToken();
   const now = Date.now();
   await env.DB.prepare('INSERT INTO login_tokens (token_hash, email, created_at, expires_at, purpose) VALUES (?, ?, ?, ?, ?)')
     .bind(await sha256hex(token), email, now, now + (purpose === 'verify' ? VERIFY_TTL : LOGIN_TTL), purpose === 'login' ? null : purpose).run();
-  const link = `${env.APP_URL.replace(/\/+$/, '')}/login?token=${token}${purpose === 'reset' ? '&reset=1' : purpose === 'verify' ? '&verify=1' : ''}`;
+  const link = `${env.APP_URL.replace(/\/+$/, '')}/login?token=${token}${purpose === 'reset' ? '&reset=1' : purpose === 'verify' ? '&verify=1' : ''}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
   if (env.AUTH_DEV_LINK === '1') return json({ ok: true, link }, 202);
   if (!env.EMAIL) return text('email sending not configured', 503);
   try {
@@ -168,11 +170,11 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
   if (pathname === '/api/auth/verify' && req.method === 'POST') return verifyEmailLogin(req, env);
   if (pathname === '/api/auth/signup' && req.method === 'POST') return signup(req, env);
   if (pathname === '/api/auth/resend-verify' && req.method === 'POST') {
-    const body = await readJson<{ email?: string }>(req);
+    const body = await readJson<{ email?: string; next?: string }>(req);
     const email = typeof body?.email === 'string' ? normalizeEmail(body.email) : '';
     if (!EMAIL_RE.test(email)) return text('bad email', 400);
     const a = await env.DB.prepare('SELECT email_verified, password_hash FROM accounts WHERE email = ?').bind(email).first<Account>();
-    if (a && !a.email_verified && a.password_hash) return sendLink(env, email, 'verify');
+    if (a && !a.email_verified && a.password_hash) return sendLink(env, email, 'verify', nextPath(body?.next));
     return json({ ok: true }, 202);
   }
   if (pathname === '/api/auth/login' && req.method === 'POST') return passwordLogin(req, env);

@@ -41,8 +41,8 @@ export const socialStartUrl = (p: SocialProvider, next: string) =>
   `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}`;
 
 /** 메일 링크 요청. reset = 비밀번호 재설정 링크 */
-export const requestLink = (email: string, reset = false) =>
-  call<{ ok: true; link?: string }>('/api/auth/email', { method: 'POST', body: JSON.stringify({ email, reset }) });
+export const requestLink = (email: string, reset = false, next?: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/email', { method: 'POST', body: JSON.stringify({ email, reset, next }) });
 
 /** 메일 링크 검증 → 세션 저장. reset 이면 이어서 새 비밀번호를 정한다 */
 export async function verifyLink(token: string): Promise<{ account: Account; reset: boolean }> {
@@ -53,11 +53,13 @@ export async function verifyLink(token: string): Promise<{ account: Account; res
 export const verifyToken = (token: string) => verifyLink(token).then((r) => r.account);
 
 /** 이메일·비밀번호 가입 (2026-10-15): 인증 메일을 보낸다 — 링크를 열어야 로그인된다. 개발 모드면 링크를 돌려준다 */
-export const signup = (email: string, password: string, name: string) =>
-  call<{ ok: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name }) }, null);
+export const signup = (email: string, password: string, name: string, next?: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password, name, next }) }, null);
 /** 인증 메일 다시 받기 */
-export const resendVerify = (email: string) =>
-  call<{ ok: true; link?: string }>('/api/auth/resend-verify', { method: 'POST', body: JSON.stringify({ email }) }, null);
+export const resendVerify = (email: string, next?: string) =>
+  call<{ ok: true; link?: string }>('/api/auth/resend-verify', { method: 'POST', body: JSON.stringify({ email, next }) }, null);
+/** 메일 링크가 돌아갈 곳 — 같은 사이트 경로만 (서버 nextPath 와 같은 규칙) */
+export const safeNext = (n: string | null | undefined): string | null => (n && /^\/[A-Za-z0-9/_\-]*$/.test(n) && !n.startsWith('//') && n.length <= 100 ? n : null);
 export async function passwordLogin(email: string, password: string): Promise<Account> {
   const r = await call<{ session: string; account: Account }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, null);
   saveSession(r.session);
