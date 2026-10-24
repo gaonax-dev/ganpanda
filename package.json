@@ -17,7 +17,8 @@
     "app:live": "cargo tauri dev --config src-tauri/tauri.live.json",
     "app:build": "cargo tauri build",
     "app:test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "app:ios": "cargo tauri ios dev",
+    "app:ios": "cargo tauri ios dev --config src-tauri/tauri.live.json",
+    "app:ios:local": "cargo tauri ios dev",
     "app:android": "cargo tauri android dev"
   },
   "devDependencies": {

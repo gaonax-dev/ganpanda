@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0FB76D47BDFFF5575B49687F /* libapp.a in Resources */ = {isa = PBXBuildFile; fileRef = DB41B2969A86B83E74FBA0F4 /* libapp.a */; };
 		126467914B7182687E93E540 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = E01A7709657E71601AF1CD93 /* LaunchScreen.storyboard */; };
 		3FF4CEBC824794429B65AE8F /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B57C531C1CF8695A09BF7A25 /* Metal.framework */; };
 		501580E32BE56BCA2F409DDB /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1F060ADAB02872B169D36E74 /* main.mm */; };
@@ -38,6 +39,7 @@
 		BB926A84710597408731246C /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		CA8AF839A79996B5B04A92B3 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
 		CAF26236B73EA74CDFEA807A /* ganpanda_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ganpanda_iOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB41B2969A86B83E74FBA0F4 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
 		E01A7709657E71601AF1CD93 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		E728E461C3739329C00EC56C /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -64,6 +66,7 @@
 		158EF62D0A87BF1869F6EC5D /* Externals */ = {
 			isa = PBXGroup;
 			children = (
+				E2236CFEBC1543A82ABE1424 /* arm64 */,
 			);
 			path = Externals;
 			sourceTree = "<group>";
@@ -74,6 +77,14 @@
 				CAF26236B73EA74CDFEA807A /* ganpanda_iOS.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2DF8070B96A608F9D797BFBB /* debug */ = {
+			isa = PBXGroup;
+			children = (
+				DB41B2969A86B83E74FBA0F4 /* libapp.a */,
+			);
+			path = debug;
 			sourceTree = "<group>";
 		};
 		3BFB7D8DE77704F8CB523B30 /* ganpanda */ = {
@@ -127,6 +138,14 @@
 			path = ../../src;
 			sourceTree = "<group>";
 		};
+		E2236CFEBC1543A82ABE1424 /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+				2DF8070B96A608F9D797BFBB /* debug */,
+			);
+			path = arm64;
+			sourceTree = "<group>";
+		};
 		E68C21A3EE3DC25A7A985CC2 /* bindings */ = {
 			isa = PBXGroup;
 			children = (
@@ -148,6 +167,13 @@
 				1CDEA3F805FEC7588DA95023 /* WebKit.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		"TEMP_2E5247F2-E563-4AAC-9A59-ECD25C4C62C1" /* x86_64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = x86_64;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -182,6 +208,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					72A986F28741A574E39D7893 = {
+						DevelopmentTeam = A2JAXNS7T7;
+					};
 				};
 			};
 			buildConfigurationList = 8A96C57A6D9B4763111856ED /* Build configuration list for PBXProject "ganpanda" */;
@@ -211,6 +240,7 @@
 				EF3DB918C28458B431C5DFC3 /* Assets.xcassets in Resources */,
 				126467914B7182687E93E540 /* LaunchScreen.storyboard in Resources */,
 				CD86A5157B54B71A5FE1E35F /* assets in Resources */,
+				0FB76D47BDFFF5575B49687F /* libapp.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -262,6 +292,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ganpanda_iOS/ganpanda_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = A2JAXNS7T7;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -412,6 +443,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ganpanda_iOS/ganpanda_iOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = A2JAXNS7T7;
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = (

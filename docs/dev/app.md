@@ -19,7 +19,8 @@
 | 맥 개발 실행 — **운영 사이트**를 열기 (카카오 로그인·결제 시험, `src-tauri/tauri.live.json`) | `npm run app:live` |
 | 맥 배포판 만들기 (.app/.dmg, 서명 없음) | `npm run app:build` → `src-tauri/target/release/bundle/` |
 | Rust 테스트 | `npm run app:test` |
-| iOS 시뮬레이터 실행 | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
+| iOS 실행 — **운영 사이트** (시뮬레이터 또는 케이블로 연결한 아이폰, 기기를 고르는 물음이 뜸) | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
+| iOS 실행 — 로컬 vite (LAN 주소로 열리게 `--host`) | `npm run app:ios:local` |
 | Android 실행 | `cargo tauri android init` 뒤 `npm run app:android` — **Java(JDK 17)·ANDROID_HOME·NDK 필요** |
 
 ## 준비물 (이 맥, 2026-10-24 확인)

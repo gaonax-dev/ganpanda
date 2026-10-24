@@ -12,6 +12,7 @@ settingGroups:
     base:
       PRODUCT_NAME: 간판다
       PRODUCT_BUNDLE_IDENTIFIER: kr.co.ganpanda.app
+      DEVELOPMENT_TEAM: A2JAXNS7T7
 targetTemplates:
   app:
     type: application
