@@ -13,13 +13,13 @@ name = "ganpanda_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3" }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3" }
+tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 # 외부 링크·앱 스킴(tel:·카카오톡·카드사 앱)을 시스템에 넘긴다 (2026-10-24 데스크톱·모바일 앱 D1)
 tauri-plugin-opener = "2"
