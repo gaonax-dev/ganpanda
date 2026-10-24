@@ -38,8 +38,12 @@ export const fetchProviders = (): Promise<SocialProvider[]> =>
   call<{ providers: SocialProvider[] }>('/api/auth/providers').then((r) => r.providers).catch(() => []);
 /** 소셜 로그인 시작 주소 (서버가 공급자로 보내고, 끝나면 /login#session= 으로 돌아온다) */
 /** team = 멤버 초대 링크 토큰 (2026-10-24) — 카카오 이메일이 초대 이메일과 달라도 이 로그인으로 팀에 들어간다 */
-export const socialStartUrl = (p: SocialProvider, next: string, team?: string) =>
-  `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}${team ? `&team=${encodeURIComponent(team)}` : ''}`;
+export const socialStartUrl = (p: SocialProvider, next: string, team?: string, app = inNativeApp()) =>
+  `${SERVER_URL}/api/auth/${p}/start?next=${encodeURIComponent(next)}${team ? `&team=${encodeURIComponent(team)}` : ''}${app ? '&app=1' : ''}`;
+/** 데스크톱·모바일 앱(Tauri) 안인가 — 앱의 초기화 스크립트가 표시한다 (2026-10-24). 앱에서는 소셜 로그인을 시스템 브라우저로 열고(카카오톡 앱 로그인) ganpanda:// 로 돌아온다 */
+export const inNativeApp = () => typeof window !== 'undefined' && ((window as unknown as { __GANPANDA_APP__?: boolean }).__GANPANDA_APP__ === true || document.documentElement?.dataset.ganpandaApp === '1');
+/** 앱 안에서는 새 창(= 시스템 브라우저)으로 */
+export const socialTarget = () => (inNativeApp() ? '_blank' : undefined);
 
 /** 메일 링크 요청. reset = 비밀번호 재설정 링크 */
 export const requestLink = (email: string, reset = false, next?: string) =>

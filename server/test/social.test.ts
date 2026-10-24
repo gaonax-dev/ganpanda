@@ -208,3 +208,25 @@ describe('초대 링크 → 카카오로 팀 들어가기', () => {
     expect(q.get('next')).toBe('/');
   });
 });
+
+// 앱(Tauri)에서 카카오 로그인 (2026-10-24 사용자: "카카오 앱으로 로그인 해야지"): 시스템 브라우저에서 start?app=1 → 끝나면 ganpanda://login#session= 으로 앱을 다시 연다
+describe('앱에서 시작한 로그인은 ganpanda:// 로 돌아온다', () => {
+  it('start?app=1 → 콜백이 ganpanda://login#session=…&next=… 으로, 아니면 웹 주소 그대로', async () => {
+    const r = await api('/api/auth/kakao/start?next=%2Festimate&app=1', { redirect: 'manual' });
+    const state = new URL(r.headers.get('location')!).searchParams.get('state')!;
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 5151, kakao_account: {}, properties: { nickname: '앱사장' } });
+    const cb = await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' });
+    expect(cb.status).toBe(302);
+    const loc = cb.headers.get('location')!;
+    expect(loc.startsWith('ganpanda://login#')).toBe(true);
+    const q = new URLSearchParams(loc.split('#')[1]);
+    expect(q.get('session')).toMatch(/^[A-Za-z0-9_-]{32,}$/);
+    expect(q.get('next')).toBe('/estimate');
+    expect((await get('/api/me', q.get('session')!)).status).toBe(200);
+    const { state: s2 } = await startAndState('kakao');
+    mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+    mock('https://kapi.kakao.com/v2/user/me', { id: 5152, kakao_account: {}, properties: { nickname: '웹' } });
+    expect((await api(`/api/auth/kakao/callback?code=c&state=${s2}`, { redirect: 'manual' })).headers.get('location')!.startsWith('http://localhost:5199/login#')).toBe(true);
+  });
+});

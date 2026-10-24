@@ -112,7 +112,8 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
     const next = url.searchParams.get('next') || '/';
     if (!next.startsWith('/')) return text('bad next', 400);
     const team = url.searchParams.get('team'); // 멤버 초대 링크에서 시작 (2026-10-24)
-    await env.DB.prepare('INSERT INTO oauth_states (state, provider, next, created_at, team_token) VALUES (?, ?, ?, ?, ?)').bind(state, p, next, Date.now(), team && /^[A-Za-z0-9_-]{16,}$/.test(team) ? team : null).run();
+    const app = url.searchParams.get('app') === '1' ? 1 : 0; // 앱(Tauri)의 시스템 브라우저에서 시작 → 끝나면 ganpanda:// 로 (2026-10-24 "카카오 앱으로 로그인")
+    await env.DB.prepare('INSERT INTO oauth_states (state, provider, next, created_at, team_token, app) VALUES (?, ?, ?, ?, ?, ?)').bind(state, p, next, Date.now(), team && /^[A-Za-z0-9_-]{16,}$/.test(team) ? team : null, app).run();
     return Response.redirect(authorizeUrl(env, p, redirect, state), 302);
   }
 
@@ -120,7 +121,7 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   const params = req.method === 'POST' ? new URLSearchParams(await req.text()) : url.searchParams;
   const code = params.get('code'), state = params.get('state');
   if (!code || !state) return text('missing code/state', 400);
-  const row = await env.DB.prepare('SELECT * FROM oauth_states WHERE state = ? AND provider = ?').bind(state, p).first<{ next: string; created_at: number; team_token: string | null }>();
+  const row = await env.DB.prepare('SELECT * FROM oauth_states WHERE state = ? AND provider = ?').bind(state, p).first<{ next: string; created_at: number; team_token: string | null; app: number }>();
   if (row) await env.DB.prepare('DELETE FROM oauth_states WHERE state = ?').bind(state).run(); // 1회용
   if (!row || row.created_at < Date.now() - STATE_TTL) return text('bad state', 400);
 
@@ -135,5 +136,7 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   await acceptTeamInvites(env, account.id); // 카카오 이메일 앞으로 온 멤버 초대 (2026-10-24)
   const next = joined ? `${row.next}${row.next.includes('?') ? '&' : '?'}joined=${encodeURIComponent(joined)}` : row.next;
   const hash = new URLSearchParams({ session, next });
+  // 앱에서 시작했으면 앱을 다시 연다 — 앱(Rust)이 ganpanda://login#… 을 웹뷰의 /login#… 으로 바꿔 연다 (카카오톡 앱 로그인은 시스템 브라우저로 돌아오기 때문)
+  if (row.app) return Response.redirect(`ganpanda://login#${hash}`, 302);
   return Response.redirect(`${env.APP_URL.replace(/\/+$/, '')}/login#${hash}`, 302);
 }

@@ -23,4 +23,6 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 # 외부 링크·앱 스킴(tel:·카카오톡·카드사 앱)을 시스템에 넘긴다 (2026-10-24 데스크톱·모바일 앱 D1)
 tauri-plugin-opener = "2"
+# ganpanda:// 딥링크 — 시스템 브라우저의 카카오(톡 앱) 로그인이 끝나면 앱으로 돌아온다 (2026-10-24)
+tauri-plugin-deep-link = "2"
 url = "2"

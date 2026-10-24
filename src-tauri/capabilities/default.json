@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "간판다 앱의 기본 권한 — 웹(ganpanda.co.kr)은 IPC 를 쓰지 않는다. 외부 열기는 Rust 쪽(on_navigation)에서만",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": ["core:default", "opener:default", "deep-link:default"]
 }

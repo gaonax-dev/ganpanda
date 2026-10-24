@@ -4,7 +4,7 @@
 
 ## 방식
 - 앱은 **운영 사이트(https://ganpanda.co.kr)를 웹뷰에 연다**(`src-tauri/tauri.conf.json` `build.frontendDist`). 앱 안에 웹 번들을 넣지 않으므로 **웹을 배포하면 앱 내용도 같이 바뀐다** — 앱을 다시 배포하는 때는 Rust 쪽(이동 규칙·창·권한)이나 아이콘이 바뀔 때뿐. 개발(`cargo tauri dev`)은 로컬 vite(`http://localhost:5173`)를 연다.
-- 카카오 로그인·토스 카드 등록은 모두 http(s) 안에서 돌아오므로(`/login#session=`, `?billing=success`) 웹뷰 안에서 그대로 끝난다 — 딥링크 없음. 구글은 임베드 웹뷰를 막지만 운영 공급자는 카카오뿐.
+- **카카오 로그인은 시스템 브라우저로**(2026-10-24 "카카오 앱으로 로그인 해야지" — 카카오톡 앱 로그인은 시스템 브라우저로 돌아오므로 웹뷰 안에서는 결과를 못 받는다): 앱의 초기화 스크립트가 `window.__GANPANDA_APP__ = true`(+ `<html data-ganpanda-app>`)를 표시 → 웹 `inNativeApp()` 이 참이면 카카오 링크에 `&app=1` + `target=_blank`(→ 시스템 브라우저) → 서버 `oauth_states.app`(0042) → 콜백이 `ganpanda://login#session=…&next=…` 로 → 앱(`tauri-plugin-deep-link`, `login_from_deep_link`)이 지금 열린 사이트의 `/login#…` 으로 웹뷰를 옮기면 웹의 기존 처리가 세션을 저장한다. 토스 카드 등록은 http 로 돌아오므로 웹뷰 안에서 그대로. 맥 개발 실행(`app:dev`·`app:live`)에서는 딥링크가 등록되지 않아 **번들(`app:build`)에서만** 카카오 로그인이 끝까지 된다. iOS 는 `gen/apple/ganpanda_iOS/Info.plist` 의 `CFBundleURLTypes`(ganpanda). Android 는 init 뒤 AndroidManifest 에 intent-filter 추가 필요.
 - **이동 규칙**(`src-tauri/src/lib.rs` `nav_action`, Rust 단위 테스트): http(s)·about·blob·data 는 웹뷰 안, 그 밖의 스킴(`tel:`·`mailto:`·`kakaotalk://`·`intent://`·`ispmobile://` 등 카드사 앱)은 시스템에 넘긴다(opener 플러그인). 웹뷰는 새 창을 못 열므로 초기화 스크립트가 `window.open`·`target=_blank` 링크를 `ganpanda-open:<주소>` 이동으로 바꾸고, Rust 가 http(s)만 바깥 브라우저로 연다(`javascript:` 등은 막음). 페이지는 `document.documentElement.dataset.ganpandaApp = '1'` 로 앱 안임을 알 수 있다.
 - 웹은 IPC 를 쓰지 않는다(권한 `capabilities/default.json` = core:default · opener:default 뿐). 원격 페이지에 Tauri API 를 열지 않는 것이 안전하다.
 - 아이콘: `src-tauri/app-icon.png`(1024, 노랑 바탕 "간판다") → `cargo tauri icon src-tauri/app-icon.png -o src-tauri/icons`.

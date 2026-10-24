@@ -8,7 +8,7 @@
   import { app } from '../state.svelte';
   import { BUSINESS_ERROR } from '../business';
   import { bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
-  import { AuthError, describeAuthError, fetchProviders, inviteSignup, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
+  import { AuthError, describeAuthError, fetchProviders, inviteSignup, passwordLogin, requestLink, resendVerify, signup, socialStartUrl, socialTarget, verifyLink, PASSWORD_MIN, type SocialProvider } from '../auth';
 
   // 카카오가 기본 (2026-10-21 결정: 사람 = 카카오 로그인, 이메일은 대안). 서버가 카카오 키를 갖고 있을 때만 보인다
   const LABEL: Record<SocialProvider, string> = { kakao: '카카오로 시작', google: 'Google로 시작', apple: 'Apple로 시작' };
@@ -134,7 +134,7 @@
       {#if invite && mode === 'signup'}<p class="invite-banner" data-testid="invite-banner"><b>{invite.ownerName}</b>님이 팀 멤버로 초대했습니다. {invite.email ? '카카오로 들어가거나, 아래에서 비밀번호만 정하면 바로 시작합니다.' : '카카오로 들어가면 바로, 이메일로 가입하면 인증 메일을 연 뒤 팀에 들어갑니다.'}</p>{/if}
       {#if providers.length && (mode === 'login' || mode === 'signup')}
         <div class="social">
-          {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next, invite?.token)}>{invite && p === 'kakao' ? '카카오로 팀 들어가기' : LABEL[p]}</a>{/each}
+          {#each providers as p (p)}<a class="btn social-{p}" class:big={p === 'kakao'} data-testid="social-{p}" href={socialStartUrl(p, next, invite?.token)} target={socialTarget()}>{invite && p === 'kakao' ? '카카오로 팀 들어가기' : LABEL[p]}</a>{/each}
           {#if invite}<p class="hint" data-testid="social-hint">카카오 이메일이 초대받은 이메일과 달라도 됩니다. 이 링크에서 시작하면 팀에 들어갑니다.</p>
           {:else if providers.includes('kakao')}<p class="hint" data-testid="social-hint">간판집·직원 모두 카카오로 시작하는 걸 권합니다. 휴대폰에서 한 번에 됩니다.</p>{/if}
         </div>

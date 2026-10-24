@@ -1,6 +1,8 @@
 //! 간판다 데스크톱·모바일 앱 (Tauri 2, 2026-10-24 "데스크탑 모바일 앱 준비해").
 //! 앱은 운영 사이트(https://ganpanda.co.kr)를 웹뷰에 연다 — 웹을 배포하면 앱 내용도 같이 바뀐다 (docs/product/roadmap.md D1).
 //! 여기서 하는 일은 "어디로 가는 주소를 웹뷰 안에서 열고, 무엇을 바깥(시스템 브라우저·앱)으로 넘기는가" 뿐이다.
+use tauri::Manager;
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 
 /// 웹뷰가 어떤 주소로 가려 할 때의 처리
@@ -30,6 +32,15 @@ pub fn nav_action(url: &str) -> Nav {
     if url.contains(':') { Nav::OpenExternal(url.to_string()) } else { Nav::Block }
 }
 
+/// 딥링크 `ganpanda://login#session=…&next=…` → 지금 열린 사이트의 `/login#…` (웹의 기존 처리가 세션을 저장한다). 다른 딥링크는 무시
+pub fn login_from_deep_link(origin: &str, deep: &str) -> Option<String> {
+    let u = url::Url::parse(deep).ok()?;
+    if u.scheme() != "ganpanda" || u.host_str() != Some("login") { return None; }
+    let frag = u.fragment()?;
+    if !frag.contains("session=") { return None; }
+    Some(format!("{}/login#{}", origin.trim_end_matches('/'), frag))
+}
+
 fn percent_decode(s: &str) -> String {
     url::form_urlencoded::parse(format!("u={s}").as_bytes()).find(|(k, _)| k == "u").map(|(_, v)| v.into_owned()).unwrap_or_else(|| s.to_string())
 }
@@ -43,7 +54,9 @@ const INIT_SCRIPT: &str = r#"
     const a = e.target && e.target.closest && e.target.closest('a[target="_blank"]');
     if (a && a.href) { e.preventDefault(); ext(a.href); }
   }, true);
-  document.documentElement.dataset.ganpandaApp = '1';
+  window.__GANPANDA_APP__ = true; // 웹(inNativeApp)이 본다 — 문서 시작 시점엔 <html> 이 없을 수 있어 전역에도
+  const mark = () => { if (document.documentElement) document.documentElement.dataset.ganpandaApp = '1'; };
+  mark(); document.addEventListener('DOMContentLoaded', mark);
 })();
 "#;
 
@@ -51,6 +64,7 @@ const INIT_SCRIPT: &str = r#"
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())
         .setup(|app| {
             // 창은 여기서 만든다 — tauri.conf.json 의 창에는 이동 규칙(on_navigation)을 붙일 수 없다
@@ -61,6 +75,19 @@ pub fn run() {
             #[cfg(desktop)]
             let builder = builder.title("간판다").inner_size(1280.0, 820.0).min_inner_size(900.0, 600.0);
             builder.build()?;
+            // 개발 실행에서도 ganpanda:// 를 이 앱이 받게 (윈도우·리눅스; 맥은 번들에서만)
+            #[cfg(any(windows, target_os = "linux"))]
+            { let _ = app.deep_link().register_all(); }
+            let h = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                let Some(w) = h.get_webview_window("main") else { return };
+                let origin = w.url().ok().map(|u| u.origin().ascii_serialization()).unwrap_or_else(|| "https://ganpanda.co.kr".into());
+                for u in event.urls() {
+                    if let Some(t) = login_from_deep_link(&origin, u.as_str()) {
+                        if let Ok(target) = url::Url::parse(&t) { let _ = w.navigate(target); let _ = w.set_focus(); }
+                    }
+                }
+            });
             Ok(())
         })
         .on_page_load(|webview, _payload| {
@@ -101,6 +128,15 @@ mod tests {
         assert_eq!(nav_action("mailto:support@ganpanda.co.kr"), Nav::OpenExternal("mailto:support@ganpanda.co.kr".into()));
         assert_eq!(nav_action("kakaotalk://x"), Nav::OpenExternal("kakaotalk://x".into()));
         assert_eq!(nav_action("intent://pay#Intent;scheme=ispmobile;end"), Nav::OpenExternal("intent://pay#Intent;scheme=ispmobile;end".into()));
+    }
+
+    #[test]
+    fn deep_link_login_goes_to_current_site() {
+        assert_eq!(login_from_deep_link("https://ganpanda.co.kr", "ganpanda://login#session=abc&next=%2Festimate"), Some("https://ganpanda.co.kr/login#session=abc&next=%2Festimate".into()));
+        assert_eq!(login_from_deep_link("http://localhost:5173/", "ganpanda://login#session=abc"), Some("http://localhost:5173/login#session=abc".into()));
+        assert_eq!(login_from_deep_link("https://ganpanda.co.kr", "ganpanda://other#session=abc"), None);
+        assert_eq!(login_from_deep_link("https://ganpanda.co.kr", "ganpanda://login"), None);
+        assert_eq!(login_from_deep_link("https://ganpanda.co.kr", "https://evil/login#session=abc"), None);
     }
 
     #[test]
