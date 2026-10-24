@@ -52,4 +52,38 @@ describe('축 격자 재정렬', () => {
     const at = arrangeByAxisGrid(cs, [photo], 300, 100);
     expect(at.get('x')!.y).toBeGreaterThan(at.get('a')!.y);
   });
+
+  it('흩어진 사인물(실내 선반 — 끝선이 안 맞아 격자가 대각선으로 성김)은 높이가 비슷한 것끼리 줄로 묶어 촘촘히, 계단이 되지 않는다 (2026-10-24 현장 "신하센터" 재현)', () => {
+    // 2026-10-24 사용자: "사인물카드 재정렬 테스트해줘 지금 상황이 현장에서 사용하는 대부분일거야" — 원근(기준 길이 없음) 한 장, 치수 없는 사인물 16개
+    // 정면 사인물의 펴진 상자 (현장 문서에서 뽑은 값), 카드는 임시 크기
+    // [id, 펴진 벽 상자 x0 y0 x1 y1, 사진 px 상자 x0 y0 x1 y1, 카드 높이]
+    const B: [string, number, number, number, number, number, number, number, number, number][] = [
+      ['2', -14, -750, 507, -471, 746, 675, 1149, 1034, 889], ['4', -1407, 253, -106, 878, 424, 1943, 766, 2027, 246], ['5', -783, 506, -285, 920, 566, 2132, 705, 2272, 1007],
+      ['6', -246, 442, 48, 719, 739, 2248, 867, 2368, 938], ['7', 148, 106, 389, 349, 923, 2009, 1095, 2196, 1087], ['8', 453, -35, 563, 121, 1160, 1881, 1274, 2078, 1728],
+      ['9', 609, -188, 682, -35, 1336, 1643, 1433, 1913, 2784], ['10', 711, -225, 772, -125, 1485, 1607, 1591, 1799, 1811], ['11', 790, -260, 835, -177, 1630, 1550, 1721, 1733, 2011],
+      ['12', 843, -300, 862, -204, 1743, 1457, 1785, 1701, 5810], ['14', 721, -577, 757, -513, 1473, 741, 1538, 891, 2308], ['16', 1074, -480, 1190, -336, 2507, 831, 3188, 1504, 988],
+    ];
+    const cs = B.map(([id, x0, y0, x1, y1, vx0, vy0, vx1, vy1, h]) => ({ ...card(id, x0, y0, x1, y1, 1000, h), view: { x0: vx0, y0: vy0, x1: vx1, y1: vy1 } }));
+    const at = arrangeByAxisGrid(cs, [{ x: 0, y: 0, w: 41800, h: 31350 }], 300, 1200);
+    const R = cs.map((c) => ({ ...at.get(c.id)!, w: c.w, h: c.h + 1200 }));
+    expect(overlaps(R)).toBe(false);
+    const rows = [...new Set(cs.map((c) => at.get(c.id)!.y))];
+    expect(rows.length).toBeLessThanOrEqual(4); // 전엔 12줄 계단
+    expect(rows.length).toBeGreaterThanOrEqual(2); // 한 줄로 뭉치지도 않는다 (위 선반 · 가운데 · 아래)
+    // 같은 줄은 사진 속 왼쪽 → 오른쪽 순서
+    const y = (id: string) => at.get(id)!.y, x = (id: string) => at.get(id)!.x;
+    expect(y('9')).toBe(y('10')); expect(x('9')).toBeLessThan(x('10')); expect(x('10')).toBeLessThan(x('11'));
+    // 사진 속 줄: 위 선반(14·2) · 오른쪽 벽(16) · 가운데(12·11·10·9) · 아래(8·4·7·5·6), 위에서 아래 순서
+    expect(y('2')).toBe(y('14')); expect(y('4')).toBe(y('8')); expect(y('4')).toBe(y('6'));
+    expect(y('2')).toBeLessThan(y('9')); expect(y('9')).toBeLessThan(y('5'));
+    expect(x('4')).toBeLessThan(x('5')); expect(x('5')).toBeLessThan(x('6'));
+    // 전체가 대각선으로 늘어지지 않는다: 높이 ≤ 줄 수 × (가장 큰 카드 + 이름 + 간격)
+    expect(Math.max(...R.map((r) => r.y + r.h))).toBeLessThanOrEqual(rows.length * (5810 + 1200 + 300));
+  });
+
+  it('줄이 맞는 간판 정면(격자가 촘촘)은 지금처럼 축 격자 그대로', () => {
+    const cs = [card('a', 0, 0, 900, 400), card('b', 1500, 0, 2400, 400), card('c', 0, 1000, 900, 1400), card('d', 1500, 1000, 2400, 1400)];
+    const at = arrangeByAxisGrid(cs, [photo], 300, 100);
+    expect(at.get('a')!.x).toBe(at.get('c')!.x); expect(at.get('b')!.x).toBe(at.get('d')!.x);
+  });
 });
