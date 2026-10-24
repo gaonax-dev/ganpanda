@@ -12,7 +12,8 @@
 ## 명령 (저장소 루트)
 | 할 일 | 명령 |
 |---|---|
-| 맥 개발 실행 (로컬 vite 연결) | `npm run app:dev` |
+| 맥 개발 실행 (로컬 vite 연결 — 로컬 서버는 카카오 키가 자리값이라 **카카오 로그인은 안 됨**) | `npm run app:dev` |
+| 맥 개발 실행 — **운영 사이트**를 열기 (카카오 로그인·결제 시험, `src-tauri/tauri.live.json`) | `npm run app:live` |
 | 맥 배포판 만들기 (.app/.dmg, 서명 없음) | `npm run app:build` → `src-tauri/target/release/bundle/` |
 | Rust 테스트 | `npm run app:test` |
 | iOS 시뮬레이터 실행 | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
