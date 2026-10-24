@@ -264,13 +264,14 @@
         {#if formOpen}
           <!-- 제목 빼고 다 선택 (2026-10-21) -->
           <div class="more" data-testid="new-project-details">
-            <label class="chk" class:pink={newOutsource} title="다른 업체에 맡길 프로젝트 — 외주 폴더에 만들어지고, 열면 [외주 요청]"><input data-testid="new-outsource" type="checkbox" bind:checked={newOutsource} /> 외주 (B2B)</label>
             <input data-testid="new-contact" placeholder="연락처" bind:value={newDetails.contact} />
             <input data-testid="new-address" placeholder="주소" bind:value={newDetails.address} />
             <label>계약일<input data-testid="new-contract-date" type="date" bind:value={newDetails.contractDate} /></label>
             <label>시작일<input data-testid="new-start-date" type="date" bind:value={newDetails.startDate} /></label>
             <label>완료일<input data-testid="new-due-date" type="date" bind:value={newDetails.dueDate} /></label>
             <input class="memo" data-testid="new-memo" placeholder="메모" bind:value={newDetails.memo} />
+            <!-- 맨 아래, "다른 간판가게에 외주" (2026-10-24 "오해의 소지가 있으니 '다른 간판가계에 외주'로 표시 그리고 최하단에") — 고객 외주로 읽히지 않게 -->
+            <label class="chk out" class:pink={newOutsource} title="이 일을 다른 간판가게에 맡기는 프로젝트 — 외주 폴더에 만들어지고, 열면 [외주 요청]"><input data-testid="new-outsource" type="checkbox" bind:checked={newOutsource} /> <span data-testid="new-outsource-label">다른 간판가게에 외주</span></label>
             <button class="icon x" type="button" data-testid="new-project-close" title="접기 (입력한 선택 항목은 지움)" onclick={closeForm}>✕</button>
           </div>
         {/if}
@@ -496,6 +497,7 @@
   .new .row1 { display: flex; gap: 8px; }
   /* 만들기 펼침: 제목 빼고 다 선택 (2026-10-21) */
   .more { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; }
+  .more .out { flex-basis: 100%; } /* 맨 아래 한 줄 */
   .more > input { flex: 1 1 160px; }
   .more > input.memo { flex: 2 1 260px; }
   .more label { flex-direction: row; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }

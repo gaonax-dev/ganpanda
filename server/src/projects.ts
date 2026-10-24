@@ -106,7 +106,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
-    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, ...(r.project.outsource ? { outsource: true } : {}), ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
+    return json({ role: r.role, project: { id: r.project.id, name: r.project.name }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}) });
   }
 
   const me = await authenticate(req, env);
