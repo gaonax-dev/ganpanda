@@ -79,4 +79,24 @@ test.describe('휴대폰', () => {
     });
     await expect(page.getByTestId('quick-size')).toHaveAttribute('data-need', '1');
   });
+  test('치수 없는 사인물을 고르면 가로·세로 칸이 바로 열린다 — 누르지 않고 입력 (2026-10-24 "사이즈 가로세로바로 입력할 수있게")', async ({ page, request }) => {
+    await openOwnedProject(page, request, '바로 입력');
+    await uploadPhoto(page);
+    const [a, b] = await page.evaluate(() => {
+      const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+      return [
+        app.project.addObject({ photoId: app.photos[0].id, name: '잰 것', shape: 'rect', quad: [[100, 100], [300, 100], [300, 200], [100, 200]], sheetIds: [], widthMm: 2000, heightMm: 500 }),
+        app.project.addObject({ photoId: app.photos[0].id, name: '모름', shape: 'rect', quad: [[600, 100], [800, 100], [800, 200], [600, 200]], sheetIds: [] }),
+      ];
+    });
+    const sel = (id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), id);
+    await sel(a);
+    await expect(page.getByTestId('quick-bar')).toBeVisible();
+    await expect(page.getByTestId('quick-size-edit')).toHaveCount(0); // 잰 것은 닫힌 채
+    await sel(b);
+    await expect(page.getByTestId('quick-size-edit')).toBeVisible(); // 모르는 것은 바로 열림
+    await page.getByTestId('quick-width').fill('1800');
+    await page.getByTestId('quick-height').fill('450');
+    await expect.poll(() => page.evaluate((id) => (window as unknown as { __ganpanda: { objects: { id: string; widthMm?: number }[] } }).__ganpanda.objects.find((o) => o.id === id)?.widthMm, b)).toBe(1800);
+  });
 });

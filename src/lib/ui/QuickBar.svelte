@@ -25,6 +25,14 @@
 
   /** 열린 간단 입력: 이름 또는 사이즈 */
   let editing: 'name' | 'size' | null = $state(null);
+  // 치수 없는 사인물을 고르면 가로·세로 칸을 바로 연다 (2026-10-24 "사이즈 가로세로바로 입력할 수있게") — 고른 사인물이 바뀔 때만, 잰 사인물은 그대로
+  let lastId = '';
+  $effect(() => {
+    const id = obj.id, need = !obj.widthMm || !obj.heightMm;
+    if (id === lastId) return;
+    lastId = id;
+    if (need && !ro) editing = 'size';
+  });
   let nameDraft = $state('');
   function openName() { nameDraft = obj.name; editing = editing === 'name' ? null : 'name'; }
   function saveName() { const n = nameDraft.trim(); if (n && n !== obj.name) update({ name: n }); editing = null; }
