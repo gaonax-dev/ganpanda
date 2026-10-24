@@ -122,3 +122,19 @@ test('선택 도구에서 Shift 를 누르는 동안만 [다중]이 켜지고(�
   expect(await mode()).toBe(false);
   await page.keyboard.up('Shift');
 });
+
+// 2026-10-24 사용자: "사인물카드선택시 강조색이 흐리다" — 축소해도 화면에서 2px 이상
+test('카드 선택 강조선은 보드를 축소해도 화면에서 굵게 (축척을 따라 가늘어지지 않는다)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda; return a.project.addObject({ photoId: a.photos[0].id, name: 'A', shape: 'rect', quad: [[100, 100], [400, 100], [400, 200], [100, 200]], sheetIds: [], widthMm: 3000, heightMm: 1000 }); });
+  await page.evaluate(() => { const el = document.querySelector('[data-testid="board-canvas"]')!; for (let i = 0; i < 4; i++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, clientX: 600, clientY: 300, bubbles: true, cancelable: true })); });
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string, k: string): void } }).__ganpanda.selectObject(id, 'card'), id);
+  const card = page.locator(`[data-testid="board-card"][data-id="${id}"]`);
+  const px = await card.evaluate((el) => {
+    const w = parseFloat(getComputedStyle(el, '::after').borderTopWidth);
+    const scale = el.getBoundingClientRect().width / (el as HTMLElement).offsetWidth;
+    return w * scale;
+  });
+  expect(px).toBeGreaterThanOrEqual(2);
+});

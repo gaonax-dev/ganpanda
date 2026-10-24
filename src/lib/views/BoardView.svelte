@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { panThrough } from '../ui/panThrough';
   import MultiSize from '../ui/MultiSize.svelte';
   import MultiLast from '../ui/MultiLast.svelte';
   import { untrack } from 'svelte';
@@ -404,7 +405,7 @@
   function cardDown(e: PointerEvent, o: typeof app.objects[number]) {
     if (e.button !== 0) return;
     // 터치: 안 고른 카드는 탭(손 뗌)으로 고르기만, 고른 뒤 다시 끌어야 옮긴다 (2026-10-24 "사인물 이동은 터치에서는 선택 터치업 이후에 다시 드래그에서 작동하게"). 두 손가락 핀치가 되도록 위로 흘린다
-    if (e.pointerType === 'touch' && !e.shiftKey && !app.multiMode && !app.selectionIds.includes(o.id)) { app.whenTap(e, () => app.selectObject(o.id, 'card')); return; }
+    if (e.pointerType === 'touch' && !e.shiftKey && !app.multiMode && !app.selectionIds.includes(o.id)) { panThrough(e); app.whenTap(e, () => app.selectObject(o.id, 'card')); return; }
     e.stopPropagation();
     // Shift+클릭: 평면도 카드도 다중 선택에 더하기/빼기 (2026-10-17 사용자: "정면도는 다중 선택이 안돼") — 끌기는 하지 않는다
     if (e.shiftKey || app.multiMode) { app.toggleSelect(o.id, 'card'); return; }

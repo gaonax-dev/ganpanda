@@ -1,5 +1,6 @@
 <!-- 사진 = 보드 위의 구역. 사인물 영역(사각·원형)을 그리고 편집한다. 좌표는 사진 원본 픽셀. -->
 <script lang="ts">
+  import { panThrough } from '../ui/panThrough';
   import type { Pt } from '../core/homography';
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
@@ -327,6 +328,8 @@
   let zoneDrag: { zone: number; index: number; moved: boolean } | null = null;
   function zoneDown(e: PointerEvent, zi: number) {
     if (e.button !== 0) return;
+    // 터치: 존은 탭으로만 고른다 — 끌면 화면 이동 (2026-10-24 "터치 드래그에 존이 선택된다")
+    if (e.pointerType === 'touch' && tool === 'select') { signTouch.add(e); panThrough(e); app.whenTap(e, () => onselectzone?.(zi, null)); return; }
     e.stopPropagation();
     if (tool === 'zone' && editable) { // 존 도구로 존 위를 눌러도 새로 그린다
       const p = clamp(toPhoto(e.clientX, e.clientY));
@@ -400,7 +403,7 @@
     if (e.button !== 0) return;
     if ((e.shiftKey || app.multiMode) && mode === 'move') { e.stopPropagation(); onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
     // 터치: 안 고른 사인물은 탭(손 뗌)으로 고르기만 — 끌면 화면 이동. 고른 뒤 다시 끌어야 옮긴다 (2026-10-24 "사인물 이동은 터치에서는 선택 터치업 이후에 다시 드래그에서 작동하게")
-    if (e.pointerType === 'touch' && mode === 'move' && tool === 'select' && o.id !== selectedId) { signTouch.add(e); app.whenTap(e, () => onselect(o.id)); return; } // 위로 흘려 캔버스가 이동하되, 사진 배경의 "탭 = 선택 해제"는 건너뛴다
+    if (e.pointerType === 'touch' && mode === 'move' && tool === 'select' && o.id !== selectedId) { signTouch.add(e); panThrough(e); app.whenTap(e, () => onselect(o.id)); return; } // 위로 흘려 캔버스가 이동하되, 사진 배경의 "탭 = 선택 해제"는 건너뛴다
     e.stopPropagation();
     onselect(o.id);
     if (!editable || (tool !== 'select' && mode === 'move')) return;
