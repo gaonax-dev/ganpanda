@@ -26,8 +26,8 @@
   // svelte-ignore state_referenced_locally
   const draft0: Partial<EstimateDraft> = app.settings.estimateDraft ?? localDraft;
   let base = JSON.stringify(draft0);
-  let store = $state(draft0.store ?? ''), phone = $state(draft0.phone ?? ''), email = $state(draft0.email ?? ''), text = $state(draft0.text ?? ''), address = $state(draft0.address ?? '');
-  const draftNow = (): EstimateDraft => ({ store, phone, email, text, address, bizNo: '', ownerName: '', startDate: '' });
+  let store = $state(draft0.store ?? ''), phone = $state(draft0.phone ?? ''), email = $state(draft0.email ?? ''), text = $state(draft0.text ?? ''), address = $state(draft0.address ?? ''), floor = $state(draft0.floor ?? '');
+  const draftNow = (): EstimateDraft => ({ store, phone, email, text, address, bizNo: '', ownerName: '', startDate: '', floor });
   let pushTimer: ReturnType<typeof setTimeout> | undefined;
   let pending: EstimateDraft | null = null;
   const flush = () => { clearTimeout(pushTimer); if (pending) { base = JSON.stringify(pending); app.updateSettings({ estimateDraft: pending }); pending = null; } };
@@ -46,7 +46,7 @@
     if (!s) return;
     const j = JSON.stringify(s);
     if (j === base || untrack(() => JSON.stringify(draftNow())) !== base) return;
-    base = j; store = s.store ?? ''; phone = s.phone ?? ''; email = s.email ?? ''; text = s.text ?? ''; address = s.address ?? '';
+    base = j; store = s.store ?? ''; phone = s.phone ?? ''; email = s.email ?? ''; text = s.text ?? ''; address = s.address ?? ''; floor = s.floor ?? '';
   });
 
   // ---------- 신원: 등록한 사업자(여럿) 또는 일반 주문 ----------
@@ -136,13 +136,13 @@
     return e instanceof Error ? e.message : String(e);
   }
   async function send() {
-    missing = missingForRequest({ identity: chosen || useAccount ? 'store' : general ? 'general' : null, store, phone, address, photos: photos.length });
+    missing = missingForRequest({ identity: chosen || useAccount ? 'store' : general ? 'general' : null, store, phone, address, photos: photos.length, floor });
     if (missing.length || busy) return;
     error = ''; busy = '보내는 중…';
     try {
       const { photoOrder, signs } = serializeRequestSigns(app.photos, app.signs);
       // 보드를 서버에서 복제한다 — 사진을 다시 올리지 않는다 (2026-10-22 "이미 서버에 이미지가 있는데 이중으로 작동한다")
-      const r = await createRequest({ ...(app.room ? { fromProject: app.room } : {}), ...(chosen ? { storeId: chosen.id } : useAccount ? { accountBusiness: true } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs });
+      const r = await createRequest({ ...(app.room ? { fromProject: app.room } : {}), ...(chosen ? { storeId: chosen.id } : useAccount ? { accountBusiness: true } : { general: true }), store: store.trim(), region, text: text.trim(), phone: phone.replace(/\D/g, ''), ...(email.trim() ? { email: email.trim() } : {}), address: address.trim(), signs, floor: floor.trim(), estimateTotal: app.quote.total }); // 층·자동 견적 → 간판집 크레딧 (2026-10-24)
       for (let i = 0; !r.snapshotProject && i < photoOrder.length; i++) { // 복제가 안 된 경우(옛 서버)만 사진을 따로 올린다
         busy = `사진 올리는 중… ${i + 1}/${photoOrder.length}`;
         const url = await assetUrl(photoOrder[i].assetId);
@@ -266,6 +266,7 @@
       <form onsubmit={(e) => { e.preventDefault(); send(); }}>
         <label>가게 이름 *<input data-testid="est-store" bind:value={store} placeholder="예: 바로바로 정육점" /></label>
         <label>전화 *<input data-testid="est-phone" inputmode="tel" bind:value={phone} placeholder="010-0000-0000" /></label>
+        <label>층 * <small>간판이 들어갈 층</small><input data-testid="est-floor" bind:value={floor} placeholder="예: 1층, 2~3층, 옥상" maxlength="30" /></label>
         <label>가게 주소 * <small>{region ? `${region} 간판집에 전달` : '시/도부터 도로명까지'}</small><input data-testid="est-address" bind:value={address} placeholder="경기도 성남시 중원구 성남대로 1" /></label>
         <label>이메일 <small>(선택)</small><input data-testid="est-email" type="email" bind:value={email} /></label>
         <label>요청 내용 <small>(선택 — 원하는 것, 예산, 기한)</small><textarea data-testid="est-text" rows="3" bind:value={text}></textarea></label>

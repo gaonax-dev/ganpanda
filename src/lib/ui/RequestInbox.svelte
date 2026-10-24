@@ -52,10 +52,12 @@
         {#each requests as r (r.id)}
           <!-- 이름·사인물 정보만, 누르면 요청 그대로의 보드(복제)가 바로 열린다, 단추는 [견적 넣기] 하나 (2026-10-22) -->
           {@const sized = (r.signs ?? []).filter((s) => s.widthMm && s.heightMm)}
-          <div class="rcard open" data-testid="request-item" data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
+          <div class="rcard open" data-testid="request-item" data-id={r.id} data-status={r.status} data-responded={r.responded} role="link" tabindex="0"
             onclick={() => view(r)} onkeydown={(e) => { if (e.key === 'Enter') view(r); }}>
             <div class="rbody">
-              <span class="rhead"><b>{r.store}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
+              <span class="rhead"><b>{r.store || `${r.region}${r.floor ? ` ${r.floor}` : ''} 요청`}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
+              <!-- 층·크레딧 (2026-10-24): 제안을 보내면 크레딧이 쓰이고 사진·가게 정보·연락처가 열린다 -->
+              <p class="muted">{#if r.floor}<span class="tag" data-testid="request-floor">{r.floor}</span> {/if}{#if !r.responded && r.fee}<span data-testid="request-fee">제안 크레딧 {r.fee.toLocaleString('ko-KR')}원</span>{/if}{#if r.locked} · 사진·가게 정보는 제안 뒤{/if}</p>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               <!-- 가게 사장 요구사항 (2026-10-22 "요청보기는 제거하고 카드 하단에 소비자 요구사항표시") -->
               {#if r.text}<p class="need" data-testid="request-need">“{r.text}”</p>{/if}

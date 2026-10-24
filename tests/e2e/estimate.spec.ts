@@ -73,6 +73,8 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   // 빠진 것이 있으면 말로 알려 준다 (2026-10-22 "왜 작동안하는지 모르겠다")
   await dlg.getByTestId('estimate-send').click();
   await expect(dlg.getByTestId('estimate-missing')).toContainText('전화번호');
+  await expect(dlg.getByTestId('estimate-missing')).toContainText('층'); // 층은 요청마다 한 번 (2026-10-24)
+  await dlg.getByTestId('est-floor').fill('1층');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
   await dlg.getByTestId('est-text').fill('예산 200만 원');
   // 창을 닫았다 열어도 적던 내용·고른 사업자가 남는다
@@ -132,8 +134,12 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   await shop.getByTestId('request-inbox-link').click();
   await expect(shop).toHaveURL(/\/requests$/);
   await expect(shop.getByTestId('request-list')).toBeVisible();
-  const item = shop.getByTestId('request-item').filter({ hasText: store });
+  // 제안 전엔 가게 이름·주소·내용이 가려진다 — 지역·층·사인물·크레딧만 (2026-10-24 "사진을 모두 제거하고 사이즈와 구성만 … 층 그리고 지역 만")
+  await expect(shop.getByTestId('request-item').filter({ hasText: store })).toHaveCount(0);
+  const item = shop.getByTestId('request-item').filter({ hasText: '경기 광주시 1층' }).first();
   await expect(item).toBeVisible();
+  await expect(item.getByTestId('request-floor')).toHaveText('1층');
+  await expect(item.getByTestId('request-fee')).toContainText('크레딧');
   // 목록은 이름·사인물 정보만, 단추는 [견적 넣기] 하나 (2026-10-22 "리스트는 이름 사인물 정보만 표시하고 클릭하면 복제된 페이지 바로보이게 … 견적넣기 버튼만")
   await expect(item.getByTestId('request-signs')).toContainText('사인물 1개 · 치수 1개');
   await expect(item.getByTestId('request-signs')).toContainText('4,000×700');
@@ -142,15 +148,16 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   // 카드 단추는 파란 [실측 보기] 하나 — 가져오기는 요청 보드에서 (2026-10-22 "내 견적보기 -> 실측보기(강조색 파란색) 수정안됨 프로젝트 창에서 내프로젝트로 가져오기로 복제하기")
   await expect(item.getByTestId('request-respond')).toHaveCount(0);
   await expect(item.getByTestId('request-view')).toHaveText('실측 보기');
-  await expect(item.getByTestId('request-need')).toContainText('예산 200만 원'); // 카드 아래 요구사항 (2026-10-22)
+  await expect(item.getByTestId('request-need')).toHaveCount(0); // 요청 내용도 제안 뒤 (전화번호가 적혀 있을 수 있다)
   expect(await item.getByTestId('request-view').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(59, 130, 246)');
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 간판집은 노랑
   // 누르면 요청 그대로의 보드(읽기 전용) + 요청 정보 줄 + [견적 넣기]
   await item.getByTestId('request-view').click();
   await expect(shop.getByTestId('request-bar')).toBeVisible({ timeout: 15_000 });
   await expect(shop.getByTestId('request-respond')).toHaveText('내 프로젝트로 가져오기');
-  // 견적 요청서 = 사인물 리스트 뷰 (2026-10-22 "견적요청서 리스트가 있어야 견적이 쉽다" → "모바일에서는 … 사인물 리스트를 사용하면 안되나?") — 금액은 없음
-  await shop.getByTestId('request-sheet-toggle').click();
+  await expect(shop.getByTestId('request-bar')).toContainText('1층');
+  await expect(shop.getByTestId('request-lock-note')).toContainText('제안을 보내면');
+  // 사진이 닫힌 요청은 리스트(치수·구성)로 바로 열린다 — 견적 요청서 = 사인물 리스트 뷰, 금액 없음
   await expect(shop.getByTestId('list-card')).toHaveCount(1);
   await expect(shop.getByTestId('list-card').locator('.price')).toHaveCount(0);
   // 견적 패널은 금액 빠진 품목 리스트 (2026-10-22 "데스크탑의 견적을 약간 개량해서 금액이 빠진 품목 리스트로")
@@ -163,21 +170,28 @@ test('시작 화면 분기 → 가게 사장은 /estimate 에서 사진·사각�
   for (const t of ['tab-order', 'tab-quote-sheet', 'open-quote-sheet']) await expect(shop.getByTestId(t)).toHaveCount(0);
   await expect(shop.getByTestId('quote-toggle')).toHaveText(/^품목/); // 휴대폰: [품목] (금액 없음)
   await shop.setViewportSize({ width: 1280, height: 800 }); // 주문서도 금액 — 감춤 (2026-10-22 "주문서를 누르면 가격이 나온다")
-  await shop.getByTestId('request-sheet-toggle').click(); // 사진 보드로
+  await shop.getByTestId('request-sheet-toggle').click(); // 사진 보드로 — 사진 자리는 안내만
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6'); // 실측 보기 = 파랑
-  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-locked').first()).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-img')).toHaveCount(0);
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1);
-  await expect(shop.getByTestId('request-address')).toContainText('경안로 1');
-  await expect(shop.getByTestId('request-text')).toContainText('예산 200만 원');
-  await expect(shop.getByTestId('request-bizdoc')).toContainText('견적을 넣으면 열립니다'); // 사본은 견적 뒤
+  await expect(shop.getByTestId('request-address')).toHaveCount(0);
+  await expect(shop.getByTestId('request-text')).toHaveCount(0);
   await shop.getByTestId('request-respond').click();
   await expect(shop).not.toHaveURL(/request=/, { timeout: 15_000 }); // 요청 보드("…요청서")에서 내 프로젝트로 넘어갈 때까지 — 이름이 비슷해 앞 화면에서 통과하던 경쟁
   await expect(shop.getByTestId('request-bar')).toHaveCount(0);
-  await expect(shop.getByTestId('project-title')).toHaveText(`${store} 요청`);
+  await expect(shop.getByTestId('project-title')).toHaveText('경기 광주시 1층 요청');
   expect(await shop.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#ffcc00'); // 가져온 내 프로젝트 = 노랑
   await expect(shop.getByTestId('request-propose')).toHaveText('가게 사장님께 제안 보내기'); // 다음 할 일: 제안 (2026-10-22)
-  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-locked').first()).toBeVisible({ timeout: 15_000 }); // 가져와도 사진은 제안 뒤
   await expect(shop.getByTestId('sign-shape')).toHaveCount(1, { timeout: 15_000 });
+  // 제안 링크를 만들면 사진이 열린다
+  const pid = new URL(shop.url()).searchParams.get('room')!;
+  const ss = await shop.evaluate(() => localStorage.getItem('ganpanda.session'));
+  expect((await request.post(`http://localhost:8787/api/projects/${pid}/invites`, { data: { role: 'viewer', kind: 'proposal' }, headers: { authorization: `Bearer ${ss}` } })).status()).toBe(201);
+  await shop.reload();
+  await expect(shop.getByTestId('photo-img')).toBeVisible({ timeout: 15_000 });
+  await expect(shop.getByTestId('photo-locked')).toHaveCount(0);
   await shop.getByTestId('sign-shape').first().click();
   await openObjectSettings(shop);
   await expect(shop.getByTestId('width-mm')).toHaveValue('4000');
@@ -214,6 +228,7 @@ test('직접 입력으로 인증(틀리면 안내) → [변경]에서 일반 주
   await dlg.getByTestId('est-store').fill(store);
   await dlg.getByTestId('est-address').fill('경기도 광주시 경안로 2');
   await dlg.getByTestId('est-phone').fill(`010-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}-${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`);
+  await dlg.getByTestId('est-floor').fill('1층'); // 층 필수 (2026-10-24)
   await dlg.getByTestId('estimate-send').click();
   const link = await dlg.getByTestId('estimate-done-link').inputValue({ timeout: 20_000 });
   // 요청 페이지: 일반 주문 배지·진행 단계 → 취소

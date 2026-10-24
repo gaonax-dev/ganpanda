@@ -3,13 +3,14 @@
 import { regionOfAddress } from './region';
 
 export type Identity = 'store' | 'general' | null;
-export function missingForRequest(f: { identity: Identity; store: string; phone: string; address: string; photos: number }): string[] {
+export function missingForRequest(f: { identity: Identity; store: string; phone: string; address: string; photos: number; /** 층 (2026-10-24, 요청마다 한 번) */ floor?: string }): string[] {
   const out: string[] = [];
   if (!f.identity) out.push('사업자 인증 또는 일반 주문 선택');
   if (!f.store.trim()) out.push('가게 이름');
   if (!/^\d{9,11}$/.test(f.phone.replace(/\D/g, ''))) out.push('전화번호 (숫자 9~11자리)');
   if (!f.address.trim()) out.push('가게 주소');
   else if (!regionOfAddress(f.address)) out.push('가게 주소에 시/군/구 (예: 경기도 광주시 …)');
+  if (f.floor !== undefined && !f.floor.trim()) out.push('층 (예: 1층, 2~3층, 옥상)');
   if (f.photos < 1) out.push('사진 (보드에 가게 사진을 올려 주세요)');
   return out;
 }

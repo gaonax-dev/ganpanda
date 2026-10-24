@@ -18,9 +18,10 @@
 {#if req}
   <div class="bar" data-testid="request-bar">
     <div class="info">
-      <b>{req.store}</b>{#if req.b2b}<span class="b2b" data-testid="request-b2b">B2B</span>{/if}
+      <b>{req.store || '견적 요청'}</b>{#if req.floor}<span class="tag" data-testid="request-floor">{req.floor}</span>{/if}{#if req.b2b}<span class="b2b" data-testid="request-b2b">B2B</span>{/if}
       {#if req.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if req.general}<span class="tag">일반 주문</span>{/if}
-      <span class="muted" data-testid="request-address">{req.address || req.region}</span>
+      {#if req.address}<span class="muted" data-testid="request-address">{req.address}</span>{:else}<span class="muted">{req.region}</span>{/if}
+      {#if req.locked}<span class="lock" data-testid="request-lock-note">🔒 제안을 보내면 사진·가게 정보·연락처가 열립니다{#if req.fee} · 크레딧 {req.fee.toLocaleString('ko-KR')}원{/if}</span>{/if}
       {#if req.text}<span class="text" data-testid="request-text">“{req.text}”</span>{/if}
       {#if req.bizDoc}<span class="muted" data-testid="request-bizdoc">📄 사업자등록증 {#if req.responded}<a href={bizDocUrl(req.id)} target="_blank" rel="noopener">열기</a>{:else}— 견적을 넣으면 열립니다{/if}</span>{/if}
     </div>
@@ -39,6 +40,7 @@
   .text { font-size: 12px; }
   .biz { color: var(--ok); font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; }
   .b2b { color: #ff3d9a; border: 1px solid #ff3d9a; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 0 6px; }
+  .lock { font-size: 12px; color: var(--accent); }
   .tag { color: var(--muted); font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
   a { color: var(--accent); }
   a.btn { text-decoration: none; color: var(--accent-ink); }
