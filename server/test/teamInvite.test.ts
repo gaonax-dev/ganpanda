@@ -96,3 +96,38 @@ describe('멤버 초대 메일', () => {
     expect(msg.text).toMatch(/https:\/\/ganpanda\.co\.kr\/login\?team=/);
   });
 });
+
+// 카카오톡으로 초대 (2026-10-24 사용자: "맴버 초대를 카카오톡으로 할수 있나?" → "진행해줘"): 이메일 없는 초대 링크를 만들어 공유 창·복사로 보낸다
+describe('링크 초대 (이메일 없이)', () => {
+  it('POST /api/me/team/link → 링크(7일·1회), 목록에 이메일 없는 대기 초대(id), 한도에 센다, id 로 취소', async () => {
+    const owner = await login(`lk-${rnd()}@example.com`);
+    const r = await json('/api/me/team/link', { canBilling: false }, owner);
+    expect(r.status).toBe(201);
+    const { link, invite } = await r.json<{ link: string; invite: { id: string; email: string } }>();
+    expect(link).toMatch(/\/login\?team=/);
+    expect(invite.email).toBe('');
+    const t = await (await get('/api/me/team', owner)).json<{ invites: { id: string; email: string }[] }>();
+    expect(t.invites).toEqual([expect.objectContaining({ id: invite.id, email: '' })]);
+    expect((await (await get(`/api/team-invite/${tokenOf(link)}`)).json<{ email: string; ownerName: string }>()).email).toBe('');
+    expect((await json('/api/me/team/link', {}, owner)).status).toBe(201);
+    expect((await json('/api/me/team/link', {}, owner)).status).toBe(403); // 무료 2명 — 대기 초대 둘
+    expect((await del(`/api/me/team/invites/${invite.id}`, owner)).status).toBe(204);
+    expect((await get(`/api/team-invite/${tokenOf(link)}`)).status).toBe(404);
+  });
+
+  it('링크로 이메일 가입하면 인증 메일(그 이메일이 맞는지) → 인증하면 팀 멤버. 사업자 확인은 없다', async () => {
+    const owner = await login(`lk2-${rnd()}@example.com`);
+    const { link } = await (await json('/api/me/team/link', {}, owner)).json<{ link: string }>();
+    const email = `lk2s-${rnd()}@example.com`;
+    const s = await json('/api/auth/signup', { email, password: 'staff-pass-1', name: '박직원', teamInvite: tokenOf(link) });
+    expect(s.status).toBe(202);
+    const verify = (await s.json<{ link: string; verify: boolean }>());
+    expect(verify.verify).toBe(true);
+    expect((await json('/api/auth/login', { email, password: 'staff-pass-1' })).status).toBe(403); // 인증 전
+    expect((await (await get('/api/me/team', owner)).json<Team>()).members).toEqual([]);
+    const v = await json('/api/auth/verify', { token: new URL(verify.link).searchParams.get('token') });
+    expect(v.status).toBe(200);
+    expect((await (await get('/api/me/team', owner)).json<Team>()).members.map((m) => m.email)).toEqual([email]);
+    expect((await get(`/api/team-invite/${tokenOf(link)}`)).status).toBe(410); // 다 썼다
+  });
+});

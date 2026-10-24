@@ -4,7 +4,7 @@
   import { AuthError, PLAN_LABEL } from '../auth';
   import { setRequestSettings } from '../requests';
   import { ACTIONS, DEFAULT_KEYMAP, comboFromEvent, findConflicts, formatCombo, type Action } from '../core/keymap';
-  import { addTeamMember, cancelTeamInvite, listTeam, removeTeamMember, setTeamMember, type TeamInvite, type TeamMember } from '../projects';
+  import { addTeamMember, cancelTeamInvite, createTeamLink, listTeam, removeTeamMember, setTeamMember, type TeamInvite, type TeamMember } from '../projects';
   import { formatBytes } from '../core/format';
   import { glossaryCsv } from '../core/terms';
   import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
@@ -66,6 +66,26 @@
   /** 가입 링크를 보낸 이메일 (2026-10-24 "맴버는 메일로 가입링크 들어오기로") */
   let memberSent = $state('');
   let invites = $state<TeamInvite[]>([]);
+  /** 카카오톡으로 초대 (2026-10-24 "맴버 초대를 카카오톡으로 할수 있나?"): 이메일 없는 링크 → 휴대폰은 공유 창, 아니면 복사 */
+  let teamLink = $state('');
+  let teamLinkNote = $state('');
+  async function kakaoInvite() {
+    memberError = ''; memberSent = ''; teamLink = '';
+    try {
+      const r = await createTeamLink(false);
+      teamLink = r.link;
+      await loadTeam(); app.refreshMe();
+      const text = `${app.account?.name || '간판다'} 팀에 초대합니다. 링크를 열고 [카카오로 팀 들어가기]를 누르세요 (7일 동안).`;
+      if (typeof navigator.share === 'function' && app.compact) {
+        try { await navigator.share({ title: '간판다 팀 초대', text, url: r.link }); teamLinkNote = '공유했습니다. 받은 사람이 링크를 열면 팀에 들어옵니다.'; return; } catch { /* 공유 취소 → 복사로 */ }
+      }
+      try { await navigator.clipboard.writeText(r.link); teamLinkNote = '링크를 복사했습니다 — 카카오톡 대화방에 붙여 넣어 보내세요. 한 사람만, 7일 동안 쓸 수 있습니다.'; }
+      catch { teamLinkNote = '아래 링크를 복사해 카카오톡으로 보내세요. 한 사람만, 7일 동안 쓸 수 있습니다.'; }
+    } catch (e) {
+      const limit = (() => { try { const j = JSON.parse(e instanceof Error ? e.message : ''); return j?.error === 'member_limit' ? j.limit as number : null; } catch { return null; } })();
+      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다(가입 대기 포함). 더 필요하면 요금제를 올려 주세요.` : '초대 링크를 만들지 못했습니다. 잠시 뒤 다시 해 주세요.';
+    }
+  }
   async function loadTeam() { try { const t = await listTeam(); members = t.members; invites = t.invites; } catch { members = []; invites = []; } }
   $effect(() => { if (app.account) { app.refreshMe(); loadTeam(); } });
   async function addMember() {
@@ -266,9 +286,9 @@
           {/each}
           {#each invites as v (v.email)}
             <div class="member invite" data-testid="member-invite">
-              <span>{v.email}<small>가입 대기 · 링크 {new Date(v.expiresAt).toLocaleDateString('ko-KR')}까지</small></span>
-              <button class="btn small" title="링크를 새로 보내기" data-testid="member-invite-resend" onclick={async () => { await addTeamMember(v.email, v.canBilling); memberSent = v.email; await loadTeam(); }}>다시 보내기</button>
-              <button class="icon" title="초대 취소" data-testid="member-invite-cancel" onclick={async () => { await cancelTeamInvite(v.email); await loadTeam(); app.refreshMe(); }}>✕</button>
+              <span>{v.email || '링크 초대 (카카오톡)'}<small>가입 대기 · 링크 {new Date(v.expiresAt).toLocaleDateString('ko-KR')}까지</small></span>
+              {#if v.email}<button class="btn small" title="링크를 새로 보내기" data-testid="member-invite-resend" onclick={async () => { await addTeamMember(v.email, v.canBilling); memberSent = v.email; await loadTeam(); }}>다시 보내기</button>{/if}
+              <button class="icon" title="초대 취소" data-testid="member-invite-cancel" onclick={async () => { await cancelTeamInvite(v.email || v.id); await loadTeam(); app.refreshMe(); }}>✕</button>
             </div>
           {/each}
           <form class="add" onsubmit={(e) => { e.preventDefault(); addMember(); }}>
@@ -276,6 +296,8 @@
             <button class="btn small" data-testid="member-add" type="submit" disabled={!memberEmail.trim()}>추가</button>
           </form>
           {#if memberError}<p class="hint err" data-testid="member-error">{memberError}</p>{/if}
+          <p class="row kakao"><button class="btn small kakao" data-testid="member-kakao" onclick={kakaoInvite}>카카오톡으로 초대</button><span class="hint">이메일 없이 링크로 — 받은 사람이 [카카오로 팀 들어가기]</span></p>
+          {#if teamLink}<p class="row"><input data-testid="member-link" readonly value={teamLink} onfocus={(e) => e.currentTarget.select()} /></p><p class="hint ok" data-testid="member-link-note">{teamLinkNote}</p>{/if}
           {#if memberSent}<p class="hint ok" data-testid="member-sent"><b>{memberSent}</b>로 가입 링크를 보냈습니다. 링크를 열어 비밀번호만 정하면 멤버가 됩니다.</p>{/if}
         </section>
       {/if}
@@ -361,6 +383,9 @@
   .bar i { display: block; height: 100%; background: var(--accent); }
   .member { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .member.invite > span { color: var(--muted); }
+  .btn.kakao { background: #fee500; color: #191919; border-color: #fee500; font-weight: 700; }
+  .row.kakao { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  input[data-testid='member-link'] { width: 100%; }
   .member > span { flex: 1; } .member small { display: block; color: var(--muted); font-size: 11px; }
   .add { display: flex; gap: 6px; margin-top: 8px; }
   .err { color: var(--danger); }
