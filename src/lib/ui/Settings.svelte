@@ -8,7 +8,8 @@
   import { formatBytes } from '../core/format';
   import { glossaryCsv } from '../core/terms';
   import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
-  import { describeBusinessError, removeBusiness, verifyBusiness } from '../business';
+  import { describeBusinessError, removeBusiness, updateBusinessAddress, verifyBusiness } from '../business';
+  import { KOREA_REGIONS, regionLabel, sidoOf } from '../core/regions';
   import BillingSection from './BillingSection.svelte';
   /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
   function exportGlossary() {
@@ -18,12 +19,12 @@
   }
 
   // ---------- 사업자 확인 (2026-10-21 결정: 로그인 위에 "어느 사업체인가" — 국세청 진위확인, 숨고·크몽 방식) ----------
-  let bizNo = $state(''), bizOwner = $state(''), bizStart = $state(''), bizName = $state('');
+  let bizNo = $state(''), bizOwner = $state(''), bizStart = $state(''), bizName = $state(''), bizAddress = $state('');
   let bizBusy = $state(false), bizError = $state('');
   const bizReady = $derived(isValidBizNo(bizNo) && !!bizOwner.trim() && !!bizStartDate(bizStart));
   async function verifyBiz() {
     bizBusy = true; bizError = '';
-    try { app.business = await verifyBusiness({ no: bizNo, ownerName: bizOwner.trim(), startDate: bizStartDate(bizStart)!, name: bizName.trim() }); }
+    try { app.business = await verifyBusiness({ no: bizNo, ownerName: bizOwner.trim(), startDate: bizStartDate(bizStart)!, name: bizName.trim(), address: bizAddress.trim() }); }
     catch (e) { bizError = describeBusinessError(e); }
     finally { bizBusy = false; }
   }
@@ -31,17 +32,32 @@
     if (!confirm('사업자 확인을 해제하면 제안 페이지의 "사업자 확인" 배지가 사라지고, 이 번호를 다른 계정에서 확인할 수 있게 됩니다. 해제할까요?')) return;
     try { app.business = await removeBusiness(); } catch (e) { bizError = describeBusinessError(e); }
   }
+  // 사업장 주소 (2026-10-24): 확인된 사업자도 주소만 바꾼다 — 요청 받기 기본 지역
+  let addrDraft = $state(app.business?.address ?? '');
+  const savedAddr = $derived(app.business?.address ?? '');
+  $effect(() => { addrDraft = savedAddr; }); // 저장된 주소가 실제로 바뀔 때만 칸을 맞춘다 (같은 값으로 다시 받아도 입력 중인 글은 그대로)
+  async function saveAddress() {
+    bizBusy = true; bizError = '';
+    try { app.business = await updateBusinessAddress(addrDraft.trim()); } catch (e) { bizError = describeBusinessError(e); } finally { bizBusy = false; }
+  }
   const dateLabel = (d: string) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
 
   // ---------- 계정 · 구독 · 사용량 · 멤버 (2026-10-15 사용자: "멤버 관리는 설정에서, 설정에 계정 구독 상태와 사용량 표시") ----------
   let members = $state<TeamMember[] | null>(null);
   // 요청 받기 설정 (요청판)
   let reqReceive = $state(app.requestSettings?.receive ?? false);
-  let reqRegions = $state((app.requestSettings?.regions ?? []).join(', '));
+  let reqRegions = $state((app.requestSettings?.regions ?? []).join(', ')); // 요청판이 꺼진 빌드의 "내 지역" 글 칸
+  /** 요청 받기 지역 (2026-10-24 "요청 지역설정을 사업자 주소로 먼저 설정하고 나머지는 원하는 지역을 설정할 수 있게 체크방식으로"): 기본 = 사업장 주소의 지역(서버가 맨 앞에), 나머지는 체크 */
+  const homeRegion = $derived(app.business?.region ?? '');
+  let reqPicked = $state<string[]>(app.requestSettings?.regions ?? []);
+  const reqExtras = $derived(reqPicked.filter((r) => r !== homeRegion));
+  let reqSido = $state(sidoOf(app.business?.region ?? '') || '서울');
+  const togglePick = (r: string) => (reqPicked = reqPicked.includes(r) ? reqPicked.filter((x) => x !== r) : [...reqPicked, r]);
   let reqBusy = $state(false), reqSaved = $state('');
   async function saveRequests() {
     reqBusy = true; reqSaved = '';
-    try { await setRequestSettings({ receive: reqReceive, regions: reqRegions.split(',').map((s) => s.trim()).filter(Boolean) }); await app.refreshMe(); reqSaved = '저장했습니다'; }
+    const regions = app.requestsEnabled ? reqExtras : reqRegions.split(',').map((s) => s.trim()).filter(Boolean);
+    try { await setRequestSettings({ receive: reqReceive, regions }); await app.refreshMe(); reqPicked = app.requestSettings?.regions ?? reqPicked; reqSaved = '저장했습니다'; }
     catch (e) { reqSaved = e instanceof Error ? e.message : String(e); }
     finally { reqBusy = false; }
   }
@@ -164,9 +180,10 @@
           <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>
           {#if app.business}
             <p class="row biz" data-testid="biz-verified">
-              <span>✓ <b>{app.business.name || '상호 없음'}</b> · {formatBizNo(app.business.no)} · {app.business.ownerName} · 개업 {dateLabel(app.business.startDate)} · <b class:warn={app.business.status !== 'active'}>{BIZ_STATUS_LABEL[app.business.status]}</b> <small>확인 {new Date(app.business.verifiedAt).toLocaleDateString('ko-KR')}</small></span>
+              <span>✓ <b>{app.business.name || '상호 없음'}</b> · {formatBizNo(app.business.no)} · {app.business.ownerName} · 개업 {dateLabel(app.business.startDate)} · <b class:warn={app.business.status !== 'active'}>{BIZ_STATUS_LABEL[app.business.status]}</b> <small>확인 {new Date(app.business.verifiedAt).toLocaleDateString('ko-KR')}</small>{#if app.business.address} · {app.business.address}{/if}</span>
               <button class="btn small" data-testid="biz-remove" onclick={removeBiz}>확인 해제</button>
             </p>
+            <p class="row addr"><input data-testid="biz-address-edit" placeholder="사업장 주소 (요청 받기 기본 지역)" bind:value={addrDraft} /><button class="btn small" data-testid="biz-address-save" disabled={bizBusy || addrDraft.trim() === (app.business.address ?? '')} onclick={saveAddress}>주소 저장</button></p>
             {#if app.business.status !== 'active'}<p class="hint err">국세청 기준 {BIZ_STATUS_LABEL[app.business.status]} 상태입니다. 다시 열었으면 사업자등록증 정보로 다시 확인해 주세요.</p>{/if}
           {:else}
             <form class="bizform" onsubmit={(e) => { e.preventDefault(); if (bizReady && !bizBusy) verifyBiz(); }}>
@@ -174,6 +191,7 @@
               <label>대표자 성명<input data-testid="biz-owner" placeholder="사업자등록증의 성명" bind:value={bizOwner} /></label>
               <label>개업일자 <small>(등록증의 개업연월일)</small><input data-testid="biz-start" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} bind:value={bizStart} /></label>
               <label>상호 <small>(선택)</small><input data-testid="biz-name" placeholder="간판집 상호" bind:value={bizName} /></label>
+              <label class="wide">사업장 주소 <small>(요청 받기 기본 지역)</small><input data-testid="biz-address" placeholder="예: 경기도 광주시 경안로 1" bind:value={bizAddress} /></label>
               <p class="row"><span class="hint">사업자등록증에 적힌 그대로 넣어 주세요. 확인은 보통 1초 안에 끝납니다.</span><button class="btn small primary" type="submit" data-testid="biz-verify" disabled={!bizReady || bizBusy}>{bizBusy ? '확인 중…' : '확인'}</button></p>
             </form>
           {/if}
@@ -214,7 +232,19 @@
           <h3>견적 요청 받기</h3>
           <p class="hint">켜 두면 이 지역 가게 사장들의 간판 견적 요청이 홈 "받은 요청"과 이메일로 옵니다. 요청에서 바로 프로젝트를 만들어 제안 링크로 답하고(요금제의 제안 건수), 제안을 보내면 연락처가 보입니다.</p>
           <label class="check"><input type="checkbox" data-testid="req-receive" bind:checked={reqReceive} /> 요청 받기</label>
-          <label class="opt">지역 <small>(시/군/구까지, 여러 곳은 쉼표)</small><input data-testid="req-regions" bind:value={reqRegions} placeholder="예: 경기 광주시, 성남시 분당구" /></label>
+          <!-- 지역: 기본 = 사업장 주소의 지역, 나머지는 시·도를 골라 체크 (2026-10-24) -->
+          {#if homeRegion}<p class="row"><span>기본 지역</span><b data-testid="req-home">{homeRegion} <small class="hint">(사업장 주소)</small></b></p>
+          {:else}<p class="hint" data-testid="req-home-missing">계정 탭의 사업자 확인에서 <b>사업장 주소</b>를 넣으면 그 지역이 기본으로 들어갑니다.</p>{/if}
+          <div class="regions">
+            <label class="opt">다른 지역 더하기 <select data-testid="req-sido" bind:value={reqSido}>{#each KOREA_REGIONS as r (r.sido)}<option value={r.sido}>{r.sido}</option>{/each}</select></label>
+            <div class="areas">
+              {#each KOREA_REGIONS.find((r) => r.sido === reqSido)?.areas ?? [] as a (a)}
+                {@const name = regionLabel(reqSido, a)}
+                <label class="area"><input type="checkbox" data-testid="req-area" data-region={name} checked={name === homeRegion || reqPicked.includes(name)} disabled={name === homeRegion} onchange={() => togglePick(name)} /> {a}</label>
+              {/each}
+            </div>
+            {#if reqExtras.length}<div class="chips">{#each reqExtras as r (r)}<button class="chip" data-testid="req-chip" title="빼기" onclick={() => togglePick(r)}>{r} ✕</button>{/each}</div>{/if}
+          </div>
           <p class="row"><span class="hint" data-testid="req-saved">{reqSaved}</span><button class="btn small primary" data-testid="req-save" onclick={saveRequests} disabled={reqBusy}>저장</button></p>
         </section>
       {/if}
@@ -325,6 +355,14 @@
   .bizform { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
   .bizform label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
   .bizform .row { grid-column: 1 / -1; align-items: center; }
+  .bizform .wide { grid-column: 1 / -1; }
+  .addr input { flex: 1; min-width: 0; }
+  .regions { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+  .areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 4px 8px; max-height: 220px; overflow-y: auto; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
+  .area { display: flex; flex-direction: row; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
+  .area input { width: auto; margin: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 12px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; }
   .biz .warn { color: var(--warn); }
   @media (max-width: 720px) { .bizform { grid-template-columns: 1fr; } }
   .count { font-weight: 400; margin-left: 6px; }

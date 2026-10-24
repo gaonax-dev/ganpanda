@@ -71,7 +71,8 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   await openSettings(shop);
   await shop.getByTestId('settings-tab-requests').click();
   await shop.getByTestId('req-receive').check();
-  await shop.getByTestId('req-regions').fill('경기 광주시');
+  await shop.getByTestId('req-sido').selectOption('경기'); // 지역은 체크 (2026-10-24)
+  await shop.locator('[data-testid="req-area"][data-region="경기 광주시"]').check();
   await shop.getByTestId('req-save').click();
   await expect(shop.getByTestId('req-saved')).toContainText('저장');
   await shop.getByTestId('close-settings').click();

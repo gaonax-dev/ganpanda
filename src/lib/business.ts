@@ -28,6 +28,9 @@ export function describeBusinessError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export const verifyBusiness = (b: { no: string; ownerName: string; startDate: string; name?: string }) =>
+export const verifyBusiness = (b: { no: string; ownerName: string; startDate: string; name?: string; address?: string }) =>
   call<{ business: Business }>('/api/me/business', { method: 'PUT', body: JSON.stringify(b) }).then((r) => r.business);
 export const removeBusiness = () => call<{ business: null }>('/api/me/business', { method: 'DELETE' }).then(() => null);
+/** 사업장 주소만 바꾸기 (다시 확인 없이, 2026-10-24) */
+export const updateBusinessAddress = (address: string) =>
+  call<{ business: Business }>('/api/me/business', { method: 'PATCH', body: JSON.stringify({ address }) }).then((r) => r.business);

@@ -113,7 +113,9 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     if (req.method !== 'PUT') return text('method not allowed', 405);
     const body = await readJson<{ receive?: boolean; regions?: string[] }>(req);
     if (!body || typeof body.receive !== 'boolean' || !Array.isArray(body.regions) || body.regions.some((g) => typeof g !== 'string')) return text('bad body', 400);
-    const regions = [...new Set(body.regions.map((g) => g.trim().slice(0, REGION_MAX)).filter(Boolean))].slice(0, 20);
+    // 사업장 주소의 지역이 언제나 맨 앞 (2026-10-24 "요청 지역설정을 사업자 주소로 먼저 설정하고 나머지는 원하는 지역을 … 체크방식으로")
+    const home = (await businessOf(env, me.id))?.region ?? '';
+    const regions = [...new Set([home, ...body.regions].map((g) => g.trim().slice(0, REGION_MAX)).filter(Boolean))].slice(0, 20);
     await env.DB.prepare('UPDATE accounts SET receive_requests = ?, regions = ? WHERE id = ?').bind(body.receive ? 1 : 0, regions.join(','), me.id).run();
     return json({ requestSettings: { receive: body.receive, regions } });
   }

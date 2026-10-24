@@ -95,3 +95,30 @@ describe('검증 자릿수', () => {
     expect(validBizNo('2208162518')).toBe(false);
   });
 });
+
+// 사업장 주소 · 요청 지역 (2026-10-24 사용자: "요청 지역설정을 사업자 주소로 먼저 설정하고 나머지는 원하는 지역을 설정할 수 있게 체크방식으로 해줘")
+describe('사업장 주소', () => {
+  it('확인할 때 주소를 같이 저장하고, 확인된 뒤에도 주소만 바꿀 수 있다(다시 확인 안 함)', async () => {
+    const s = await login('bizaddr1@example.com');
+    mock(VALIDATE, ok('01'));
+    const inp = { ...inputFor('400000001'), address: '경기도 광주시 경안로 1' };
+    expect((await json('/api/me/business', inp, s, 'PUT')).status).toBe(200);
+    expect(await me(s)).toMatchObject({ address: '경기도 광주시 경안로 1', region: '경기 광주시' });
+    routes = []; // 국세청을 다시 부르면 실패하게
+    const r = await json('/api/me/business', { address: '서울특별시 송파구 올림픽로 300' }, s, 'PATCH');
+    expect(r.status).toBe(200);
+    expect(await me(s)).toMatchObject({ address: '서울특별시 송파구 올림픽로 300', region: '서울 송파구' });
+    expect((await json('/api/me/business', { address: '서울' }, await login('bizaddr2@example.com'), 'PATCH')).status).toBe(404); // 사업자 없음
+  });
+
+  it('요청 지역을 저장하면 사업장 주소의 지역이 언제나 맨 앞 (중복 없이)', async () => {
+    const s = await login('bizaddr3@example.com');
+    mock(VALIDATE, ok('01'));
+    await json('/api/me/business', { ...inputFor('400000002'), address: '경기도 광주시 경안로 1' }, s, 'PUT');
+    const r = await json('/api/me/request-settings', { receive: true, regions: ['경기 성남시', '경기 광주시', '서울 송파구'] }, s, 'PUT');
+    expect(r.status).toBe(200);
+    expect((await r.json<{ requestSettings: { regions: string[] } }>()).requestSettings.regions).toEqual(['경기 광주시', '경기 성남시', '서울 송파구']);
+    const r2 = await json('/api/me/request-settings', { receive: true, regions: [] }, s, 'PUT');
+    expect((await r2.json<{ requestSettings: { regions: string[] } }>()).requestSettings.regions).toEqual(['경기 광주시']);
+  });
+});
