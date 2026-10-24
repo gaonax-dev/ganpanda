@@ -40,7 +40,7 @@ import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
-import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, teamInviteInfo, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets } from './auth';
+import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, teamInviteInfo, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets, savePrices } from './auth';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -431,7 +431,7 @@ class AppState {
   quote = $derived(quoteProject(
     // 치수가 없어도 개(1식) 단위 종류(사인미러·전광판·지주·에어간판)는 견적에 넣는다 (2026-10-15 한울 조합형)
     this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : productById(signParts(o).bodyId)?.unit === 'ea' ? [o] : []; }),
-    this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null, mode: this.settings.quoteMode ?? 'auto', lineAmounts: this.settings.lineAmounts ?? {} },
+    this.prices, { extras: this.settings.extras ?? [], installFee: this.settings.installFee ?? null, mode: this.settings.quoteMode ?? 'auto', lineAmounts: this.settings.lineAmounts ?? {}, lineUnits: this.settings.lineUnits ?? {} },
   ));
   unread = $derived(unreadByObject(this.messages, this.seen, this.nickname));
   /** 대상별 대화 수 — 말풍선 숫자 (2026-10-22) */
@@ -941,6 +941,37 @@ class AppState {
     const next = { ...(this.settings.lineAmounts ?? {}) };
     if (v === null) delete next[key]; else next[key] = v;
     this.updateSettings({ lineAmounts: next });
+  }
+  /** 견적 줄의 단가를 바로 (2026-10-24 "단가을 사장이 바로 입력"): 이 줄만 — 금액은 수량 × 이 단가를 따른다(그 줄에 직접 넣은 금액은 지운다). null = 단가표 단가로 */
+  setLineUnit(key: string, v: number | null) {
+    const units = { ...(this.settings.lineUnits ?? {}) };
+    const amounts = { ...(this.settings.lineAmounts ?? {}) };
+    if (v === null) delete units[key]; else { units[key] = v; if (typeof amounts[key] === 'number') delete amounts[key]; }
+    this.updateSettings({ lineUnits: units, lineAmounts: amounts });
+  }
+  /**
+   * 이 줄의 단가를 전체에: 'project' = 이 견적의 단가표(같은 품목 줄 모두, 그 줄들의 "이 줄만" 단가는 지우고 자동 금액으로),
+   * 'account' = 거기에 더해 내 기본 단가표(새 프로젝트)에도 그 항목만 저장
+   */
+  async applyLineUnit(key: string, scope: 'project' | 'account'): Promise<void> {
+    const l = this.quote.lines.find((x) => x.key === key);
+    if (!l?.priceId || l.unitPrice === undefined) return;
+    const id = l.priceId, price = l.unitPrice;
+    const p = this.prices;
+    const isSheet = id in p.sheets && !(id in p.products);
+    const next: PriceTable = isSheet ? { ...p, sheets: { ...p.sheets, [id]: price } } : { ...p, products: { ...p.products, [id]: price } };
+    if (next.links?.[id]) { const links = { ...next.links }; delete links[id]; next.links = links; } // 직접 넣은 단가 = 공급 연결 풀림
+    const same = this.quote.lines.filter((x) => x.priceId === id).map((x) => x.key);
+    const units = { ...(this.settings.lineUnits ?? {}) };
+    const amounts = { ...(this.settings.lineAmounts ?? {}) };
+    for (const k of same) { delete units[k]; if (typeof amounts[k] !== 'number') amounts[k] = 'auto'; }
+    this.updateSettings({ prices: next, lineUnits: units, lineAmounts: amounts });
+    if (scope === 'account') {
+      const mine = mergePrices(this.accountPrices);
+      const saved: PriceTable = isSheet ? { ...mine, sheets: { ...mine.sheets, [id]: price } } : { ...mine, products: { ...mine.products, [id]: price } };
+      await savePrices(saved);
+      this.accountPrices = saved;
+    }
   }
   /** 지금 보이는 모든 줄을 자동으로 */
   autoAllLines() {
