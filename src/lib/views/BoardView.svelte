@@ -381,7 +381,9 @@
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
       const d = draft!; draft = null;
       const w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
-      if (w < 8 || h < 8) return;
+      // 화면에서 조금만 끈 것은 만들지 않는다(화면 px — 축소된 보드에서는 보드 8칸이 1~2px이라 화면을 옮기려다 점 같은 사인물이 생겼다, 2026-10-24 "사인물 17이 없는데 요청에 있다고 나온다")
+      const sw = w * viewport.zoom, sh = h * viewport.zoom; // 화면 px — 긴 변 24px(휴대폰 32px)·짧은 변 8px 이상 (얇은 띠 간판은 그릴 수 있게)
+      if (Math.max(sw, sh) < (touchDevice ? 32 : 24) || Math.min(sw, sh) < 8) return;
       const at = boardToList(origin, Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), k);
       app.createStandalone(at.x, at.y, mmFromBoardRect(w, h, k));
     };
