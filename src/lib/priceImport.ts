@@ -5,7 +5,7 @@ import { AuthError, loadSession } from './auth';
 import { CATALOG, CATEGORY_LABEL, SHEETS } from './core/catalog';
 
 export interface ImportItem { id: string; price: number; sourceLabel: string; sourcePrice: string; note: string }
-export interface ImportResult { items: ImportItem[]; unmatched: { label: string; price: string }[]; left: number }
+export interface ImportResult { items: ImportItem[]; unmatched: { label: string; price: string }[]; left: number; /** 읽은 AI — workers = Claude 가 안 돼 Cloudflare 보조 AI 로 (2026-10-24) */ engine?: 'claude' | 'workers' | 'fake' }
 
 /** 서버에 보낼 우리 항목 목록 (금액 없는 몸통 제외) */
 export function importCatalog() {

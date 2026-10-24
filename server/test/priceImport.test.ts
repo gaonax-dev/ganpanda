@@ -1,7 +1,7 @@
 // 쓰던 단가표 AI 읽기 (2026-10-24 "기존에 사용하던 단가를 입력받으면 ai로 이것을 우리의 단가표에 넣어야한다" → Claude API)
 import { afterEach, describe, expect, it } from 'vitest';
 import { json, login } from './helpers';
-import { cleanResult, IMPORT_PER_DAY, setClaudeFetch } from '../src/priceImport';
+import { cleanResult, IMPORT_PER_DAY, setClaudeFetch, setWorkersAi } from '../src/priceImport';
 
 const catalog = [
   { id: 'board-galva', name: '갈바', unit: 'm2', group: '간판' },
@@ -12,7 +12,7 @@ const reply = (input: unknown) => setClaudeFetch(async (url, init) => {
   seen = { url: String(url), body: JSON.parse(String(init?.body)), headers: new Headers(init?.headers) };
   return new Response(JSON.stringify({ content: [{ type: 'tool_use', name: 'price_table', input }] }), { headers: { 'content-type': 'application/json' } });
 });
-afterEach(() => { setClaudeFetch(null); seen = null; });
+afterEach(() => { setClaudeFetch(null); setWorkersAi(null); seen = null; });
 
 describe('단가표 AI 읽기', () => {
   it('글을 보내면 Claude 에 카탈로그와 함께 묻고(도구 강제), 카탈로그에 있는 id 만·정수 단가로 돌려준다', async () => {
@@ -50,8 +50,37 @@ describe('단가표 AI 읽기', () => {
     expect([over.status, (await over.json<{ error: string }>()).error]).toEqual([429, 'daily_limit']);
   });
 
-  it('Claude 가 실패하면 502 read_failed', async () => {
+  it('Claude 가 실패하면(크레딧 부족 등) Cloudflare Workers AI 로 다시 읽는다 — engine: workers (2026-10-24 "예비 경로로 붙여줘")', async () => {
+    setClaudeFetch(async () => new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low' } }), { status: 400 }));
+    const calls: string[] = [];
+    setWorkersAi({
+      run: async (model: string, input: { messages?: { content: string }[]; prompt?: string }) => {
+        calls.push(model);
+        if (model.includes('vision')) return { response: '갈바 간판\t70,000' };
+        expect(input.messages?.map((m) => m.content).join('\n')).toContain('board-galva | 간판 | 갈바');
+        return { response: { items: [{ id: 'board-galva', price: 70000, sourceLabel: '갈바 간판', sourcePrice: '70,000', note: '' }], unmatched: [] } };
+      },
+      toMarkdown: async () => [{ data: '| 갈바 | 70,000 |' }],
+    });
+    const s = await login(`pi4-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    const t = await (await json('/api/me/prices/import', { catalog, text: '갈바 간판 70000' }, s)).json<{ engine: string; items: { id: string; price: number }[] }>();
+    expect(t).toMatchObject({ engine: 'workers', items: [{ id: 'board-galva', price: 70000 }] });
+    expect(calls.at(-1)).toContain('llama-3.3');
+    await json('/api/me/prices/import', { catalog, file: { type: 'image/png', data: 'iVBORw0K' } }, s);
+    expect(calls.slice(-2)[0]).toContain('vision'); // 사진: 비전 모델이 글로 옮기고 → 텍스트 모델
+    const pdf = await (await json('/api/me/prices/import', { catalog, file: { type: 'application/pdf', data: 'JVBERi0x' } }, s)).json<{ engine: string }>();
+    expect(pdf.engine).toBe('workers'); // PDF: 문서 변환 → 텍스트 모델
+  });
+
+  it('Claude 가 성공하면 engine: claude', async () => {
+    reply({ items: [], unmatched: [] });
+    const s = await login(`pi5-${crypto.randomUUID().slice(0, 6)}@example.com`);
+    expect((await (await json('/api/me/prices/import', { catalog, text: '갈바 1' }, s)).json<{ engine: string }>()).engine).toBe('claude');
+  });
+
+  it('둘 다 실패하면 502 read_failed', async () => {
     setClaudeFetch(async () => new Response('x', { status: 529 }));
+    setWorkersAi({ run: async () => { throw new Error('ai down'); }, toMarkdown: async () => [] });
     const s = await login(`pi3-${crypto.randomUUID().slice(0, 6)}@example.com`);
     expect((await json('/api/me/prices/import', { catalog, text: '갈바 1000' }, s)).status).toBe(502);
   });
