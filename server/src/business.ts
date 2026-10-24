@@ -100,26 +100,39 @@ export async function handleBusiness(req: Request, env: Env): Promise<Response> 
     return json({ business: await businessOf(env, me.id) });
   }
   if (req.method !== 'PUT') return text('method not allowed', 405);
-  if (!configured(env)) return json({ error: 'not_configured' }, 503);
-  const b = await readJson<{ no?: string; ownerName?: string; startDate?: string; name?: string; address?: string }>(req);
+  const c = await checkBusiness(env, await readJson<BusinessInput>(req), me.id);
+  if ('error' in c) return json({ error: c.error }, c.status);
+  await saveBusiness(env, me.id, c);
+  return json({ business: await businessOf(env, me.id) });
+}
+
+export interface BusinessInput { no?: string; ownerName?: string; startDate?: string; name?: string; address?: string }
+export interface CheckedBusiness { no: string; ownerName: string; startDate: string; name: string; address: string; status: BizStatus }
+/** 입력 검사 + 번호 중복 + 진위확인. 설정 화면(PUT)과 이메일 가입(2026-10-24)이 같이 쓴다. accountId = 이 번호를 가져도 되는 계정(가입 중이면 null) */
+export async function checkBusiness(env: Env, b: BusinessInput | null, accountId: string | null): Promise<CheckedBusiness | { error: string; status: 400 | 409 | 502 | 503 }> {
+  if (!configured(env)) return { error: 'not_configured', status: 503 };
   const no = typeof b?.no === 'string' ? b.no.replace(/\D/g, '') : '';
   const ownerName = typeof b?.ownerName === 'string' ? b.ownerName.trim().slice(0, 40) : '';
   const startDate = typeof b?.startDate === 'string' ? b.startDate.replace(/\D/g, '') : '';
   const name = typeof b?.name === 'string' ? b.name.trim().slice(0, 60) : '';
   const address = typeof b?.address === 'string' ? b.address.trim().slice(0, 200) : '';
-  if (!validBizNo(no) || !ownerName || !isDigits(startDate, 8)) return json({ error: 'bad_input' }, 400);
-  // 다른 계정이 이미 쓰는 번호 (체험·요금은 사업자당 1번)
-  const taken = await env.DB.prepare('SELECT account_id FROM businesses WHERE b_no = ?').bind(no).first<{ account_id: string }>();
-  if (taken && taken.account_id !== me.id) return json({ error: 'taken' }, 409);
+  if (!validBizNo(no) || !ownerName || !isDigits(startDate, 8)) return { error: 'bad_input', status: 400 };
+  // 다른 계정이 이미 쓰는 번호 (체험·요금은 사업자당 1번). 이메일 인증을 안 마친 가입(비밀번호만 있고 미인증)이 잡아 둔 번호는 묶지 않는다
+  const taken = await env.DB.prepare('SELECT b.account_id, a.email_verified, a.password_hash FROM businesses b LEFT JOIN accounts a ON a.id = b.account_id WHERE b.b_no = ?').bind(no)
+    .first<{ account_id: string; email_verified: number | null; password_hash: string | null }>();
+  if (taken && taken.account_id !== accountId && !(taken.email_verified === 0 && taken.password_hash)) return { error: 'taken', status: 409 };
   const v = await validateBusiness(env, { b_no: no, p_nm: ownerName, start_dt: startDate, b_nm: '' }); // 상호는 안 맞춘다 — 등록 상호와 표기가 달라 불일치가 나지 않게
-  if (!v) return json({ error: 'nts_unavailable' }, 502);
-  if (!v.registered) return json({ error: 'not_registered' }, 400);
-  if (!v.valid) return json({ error: 'mismatch' }, 400);
+  if (!v) return { error: 'nts_unavailable', status: 502 };
+  if (!v.registered) return { error: 'not_registered', status: 400 };
+  if (!v.valid) return { error: 'mismatch', status: 400 };
+  return { no, ownerName, startDate, name, address, status: v.status ?? 'active' };
+}
+/** 계정의 사업자를 바꾼다 (같은 번호를 잡고 있던 미인증 가입의 것은 지운다) */
+export async function saveBusiness(env: Env, accountId: string, c: CheckedBusiness) {
   const now = Date.now();
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM businesses WHERE account_id = ?').bind(me.id),
+    env.DB.prepare('DELETE FROM businesses WHERE account_id = ? OR b_no = ?').bind(accountId, c.no),
     env.DB.prepare('INSERT INTO businesses (b_no, account_id, owner_name, start_dt, name, status, verified_at, checked_at, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(no, me.id, ownerName, startDate, name, v.status ?? 'active', now, now, address),
+      .bind(c.no, accountId, c.ownerName, c.startDate, c.name, c.status, now, now, c.address),
   ]);
-  return json({ business: await businessOf(env, me.id) });
 }

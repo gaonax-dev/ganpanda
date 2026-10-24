@@ -16,7 +16,7 @@
 | GET, HEAD | `/api/assets/:id` `?project=&session\|invite` | 에셋 다운로드·존재 확인 (viewer 포함, 소유 계정에 등록된 에셋만) | 200 / 403 / 404 |
 | OPTIONS | 모든 경로 | CORS 사전 요청 | 204 |
 | GET, HEAD | `/api/models/*` | AI 모델 파일 (R2 `models/` 아래, 공개·`immutable` 캐시, 경로 탈출 400) | 200 / 404 |
-| POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 503 이메일 미설정 |
+| POST | `/api/auth/email` `{email}` | 매직링크 요청 (링크 유효 15분, 1회용) — **가입한 계정만**(2026-10-24), `next?` 돌아갈 경로 | 202 `{ok}` (개발·테스트: `link` 포함) / 400 / 404 `{error:'no_account'}` / 503 이메일 미설정 |
 | POST | `/api/auth/verify` `{token}` | 링크 검증 → 계정 생성(최초)·세션 발급 | 200 `{session, account}` / 404 없음 / 410 만료·사용됨 |
 | GET | `/api/auth/providers` | 자격이 설정된 소셜 공급자 | `{providers:[…]}` |
 | GET | `/api/auth/{kakao\|google\|apple}/start?next=` | 소셜 로그인 시작 (302 → 공급자) | 302 / 400 next 형식 / 503 미설정 |
@@ -90,7 +90,7 @@
 - 역할: `owner`(소유자 세션) / `editor` / `viewer`. **viewer 소켓이 보낸 문서 변경은 서버가 버립니다**(동기화 요청만 처리). → [../features/projects-invites.md](../features/projects-invites.md)
 
 ## 인증 (1-2a)
-- `POST /api/auth/signup {email, password(8+), name?}` → 202 인증 메일(`/login?token=&verify=1`, 24시간) / 400 / 409(인증된 이메일) · `POST /api/auth/resend-verify {email}` → 항상 202 · 비밀번호 로그인은 인증 전 403 · `POST /api/auth/login {email, password}` → `{session, account}` / 401 / 429(15분 10회) · `POST /api/auth/email {email, reset?}` (reset 이면 재설정 링크 `&reset=1`) · `POST /api/auth/verify` → `{session, account, reset}` · `POST /api/me/password {password, current?}` → 200 / 400 / 403. → [../features/accounts.md](../features/accounts.md)
+- `POST /api/auth/signup {email, password(8+), name?, business:{no, ownerName, startDate, name?, address?}, next?}` → 202 인증 메일(`/login?token=&verify=1[&next=]`, 24시간) / 400 (`business_required`·`bad_input`·`mismatch`·`not_registered` JSON) / 409(인증된 이메일, 또는 `{error:'taken'}`) / 502·503 (2026-10-24 사업자 확인) · `POST /api/auth/resend-verify {email}` → 항상 202 · 비밀번호 로그인은 인증 전 403 · `POST /api/auth/login {email, password}` → `{session, account}` / 401 / 429(15분 10회) · `POST /api/auth/email {email, reset?}` (reset 이면 재설정 링크 `&reset=1`) · `POST /api/auth/verify` → `{session, account, reset}` · `POST /api/me/password {password, current?}` → 200 / 400 / 403. → [../features/accounts.md](../features/accounts.md)
 - 세션은 90일 Bearer 토큰. 서버에는 SHA-256 해시만 저장(`sessions.token_hash`). 매직링크 토큰도 해시만 저장.
 - 이메일은 소문자·공백 제거 후 저장. 계정 `plan` 기본값 `free`.
 - `AUTH_DEV_LINK=1`(`.dev.vars`, 테스트 바인딩)이면 이메일 대신 응답에 링크를 넣습니다. 운영에는 설정하지 않습니다.
