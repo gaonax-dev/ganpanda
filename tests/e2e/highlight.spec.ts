@@ -80,15 +80,22 @@ test('[다중]은 선택 도구에서만 켜진다 — 켜면 ✓, 다른 도구
   await multi.click();
   await expect(multi).toHaveClass(/on/);
   await expect(multi).toContainText('✓');
+  // 사각 도구: [다중] 자리가 [연속] 이 되고 다중은 꺼짐 (2026-10-24)
   await page.getByTestId('tool-rect').click();
+  await expect(multi).toHaveCount(0);
+  await expect(page.getByTestId('tool-continuous')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { multiMode: boolean } }).__ganpanda.multiMode)).toBe(false);
+  // 다른 도구(존) 중에 [다중]을 누르면 선택 도구로 바뀌며 켜진다
+  await page.getByTestId('tool-zone').click();
   await expect(multi).not.toHaveClass(/on/);
   await expect(multi).not.toContainText('✓');
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { multiMode: boolean } }).__ganpanda.multiMode)).toBe(false);
   await multi.click();
   await expect(multi).toHaveClass(/on/);
   await expect(page.getByTestId('tool-select')).toHaveClass(/on/);
-  await page.keyboard.press('o'); // 타원 단축키도 같다
-  await expect(multi).not.toHaveClass(/on/);
+  await page.keyboard.press('o'); // 원 단축키(= 사각 도구)도 같다 — 사각 도구에서는 [다중] 자리가 [연속] (2026-10-24)
+  await expect(multi).toHaveCount(0);
+  await page.getByTestId('tool-select').click();
+  await expect(page.getByTestId('tool-multi')).not.toHaveClass(/on/);
 });
 
 // 2026-10-22 사용자: "선택에서 데스크탑의 시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"
@@ -109,8 +116,9 @@ test('선택 도구에서 Shift 를 누르는 동안만 [다중]이 켜지고(�
   await expect(multi).toHaveClass(/on/);
   await multi.click();
   // 다른 도구에서는 Shift 로 켜지지 않는다, 입력 칸에서도
-  await page.getByTestId('tool-rect').click();
+  await page.getByTestId('tool-zone').click();
   await page.keyboard.down('Shift');
   await expect(multi).not.toHaveClass(/on/);
+  expect(await mode()).toBe(false);
   await page.keyboard.up('Shift');
 });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettings } from './helpers';
+import { clickOnPhoto, dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettings } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -22,22 +22,58 @@ test('사각 도구로 사인물 영역을 그리면 오브젝트가 생기고 �
   await expect(page.getByTestId('object-panel')).toBeVisible();
 });
 
-test('원형 도구 = 모서리 50% 둥근 사각형. 설정에서 둥글기를 조절하고 디자인은 그 모양으로 잘린다', async ({ page }) => {
+test('사각 도구 안에서 모양 고르기: 원은 진짜 타원(라운드와 다름), 단축키 O 는 사각 도구 + 원 (2026-10-24 "원 툴은 거의 사용하지 않는다. 사각에서 원, 다각형을 선택할 수 있게 라운드와 원은 다른것이다")', async ({ page }) => {
   await uploadPhoto(page);
-  await page.keyboard.press('o');
+  await page.getByTestId('tool-rect').click();
+  const shapes = page.getByTestId('draw-shapes');
+  await expect(shapes).toBeVisible();
+  await expect(shapes.getByTestId('draw-shape-rect')).toHaveClass(/on/);
+  await shapes.getByTestId('draw-shape-ellipse').click();
   await dragOnPhoto(page, [1000, 100], [1200, 300]);
   const shape = page.getByTestId('sign-shape');
-  await expect(shape).toHaveAttribute('data-shape', 'rect');
-  await expect(shape).toHaveAttribute('data-corner', '0.5');
-  const round = (await shape.getAttribute('points'))!.split(' ').length;
-  expect(round).toBeGreaterThan(8);
-  await openObjectSettings(page);
-  await expect(page.getByTestId('corner-ratio')).toHaveValue('50');
-  await page.getByTestId('corner-ratio').fill('0');
-  await expect(shape).toHaveAttribute('data-corner', '0');
-  expect((await shape.getAttribute('points'))!.split(' ').length).toBe(4);
-  await page.getByTestId('corner-ratio').fill('20');
-  await expect(shape).toHaveAttribute('data-corner', '0.2');
+  await expect(shape).toHaveAttribute('data-shape', 'ellipse');
+  expect((await shape.getAttribute('points'))!.split(' ').length).toBeGreaterThan(8);
+  // 단축키 O = 사각 도구 + 원
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('o');
+  await expect(page.getByTestId('tool-rect')).toHaveClass(/on/);
+  await expect(page.getByTestId('draw-shape-ellipse')).toHaveClass(/on/);
+});
+
+test('다각형: 점을 차례로 누르고 첫 점을 다시 누르면 닫힌다 (3점 이상)', async ({ page }) => {
+  await uploadPhoto(page);
+  await page.getByTestId('tool-rect').click();
+  await page.getByTestId('draw-shape-polygon').click();
+  for (const p of [[300, 150], [700, 120], [760, 330], [320, 360]] as [number, number][]) await clickOnPhoto(page, p);
+  await expect(page.getByTestId('poly-draft')).toBeVisible();
+  await clickOnPhoto(page, [302, 152]); // 첫 점 근처
+  const shape = page.getByTestId('sign-shape');
+  await expect(shape).toHaveCount(1);
+  await expect(shape).toHaveAttribute('data-shape', 'polygon');
+  await expect(page.getByTestId('poly-draft')).toHaveCount(0);
+  const o = await page.evaluate(() => (window as unknown as { __ganpanda: { objects: { polygon?: number[][]; quad: number[][] }[] } }).__ganpanda.objects[0]);
+  expect(o.polygon).toHaveLength(4);
+  expect(o.quad).toHaveLength(4);
+});
+
+test('사각 도구를 켜면 [다중] 자리가 [연속] — 켜면 그린 뒤에도 사각 도구 유지, 다른 도구를 고르면 꺼짐 (2026-10-24 "사각툴을 켜면 다중버튼은 연속으로변경하고 계속 사각툴이 유지되게 그리고 다른 툴이 선택되면 리셋")', async ({ page }) => {
+  await uploadPhoto(page);
+  await expect(page.getByTestId('tool-continuous')).toHaveCount(0);
+  await page.getByTestId('tool-rect').click();
+  await expect(page.getByTestId('tool-multi')).toHaveCount(0);
+  const cont = page.getByTestId('tool-continuous');
+  await expect(cont).not.toHaveClass(/on/);
+  await cont.click();
+  await expect(cont).toHaveClass(/on/);
+  await dragOnPhoto(page, [100, 100], [300, 200]);
+  await dragOnPhoto(page, [400, 100], [600, 200]);
+  await expect(page.getByTestId('sign-shape')).toHaveCount(2);
+  await expect(page.getByTestId('tool-rect')).toHaveClass(/on/); // 계속 사각
+  await page.getByTestId('tool-select').click();
+  await page.getByTestId('tool-rect').click();
+  await expect(page.getByTestId('tool-continuous')).not.toHaveClass(/on/); // 다른 도구를 고르면 리셋
+  await dragOnPhoto(page, [700, 100], [900, 200]);
+  await expect(page.getByTestId('tool-select')).toHaveClass(/on/); // 연속이 아니면 그린 뒤 선택 도구
 });
 
 test('치수 입력 → 다른 영역 추정 → 잘못된 치수는 경고(옵션 켜면) → 추정값 적용', async ({ page }) => {
@@ -135,10 +171,13 @@ test('하단 도구 막대 순서: 선택·다중(2026-10-22)·말풍선 | 존·
   // 2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기 / 언두 리두 아이콘 일반적인 모양으로 사진은 사진기 아이콘으로"
   await uploadPhoto(page);
   const ids = await page.locator('.tools[role="toolbar"] > [data-testid]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-zone', 'undo', 'redo', 'tool-rect', 'tool-ellipse', 'tool-photo', 'zoom-fit', 'zoom-label']);
+  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-zone', 'undo', 'redo', 'tool-rect', 'tool-photo', 'zoom-fit', 'zoom-label']); // 원(타원) 도구는 사각 안으로 (2026-10-24)
   await expect(page.getByTestId('tool-magic')).toHaveCount(0);
-  await expect(page.getByTestId('tool-ellipse')).toContainText('타원');
-  for (const t of ['undo', 'redo', 'tool-photo']) await expect(page.getByTestId(t).locator('svg')).toHaveCount(1);
+  await expect(page.getByTestId('tool-ellipse')).toHaveCount(0);
+  // 사각·전체 보기도 같은 선 두께의 아이콘, 사각은 정사각 (2026-10-24 "사각형 툴 아이콘 정사각으로 하고 다른 툴 아이콘과 같은 두께로 해줘 확대도 마찮가지로")
+  for (const t of ['undo', 'redo', 'tool-photo', 'tool-rect', 'zoom-fit']) await expect(page.getByTestId(t).locator('svg.ico')).toHaveCount(1);
+  const r = page.getByTestId('tool-rect').locator('svg rect');
+  expect(await r.getAttribute('width')).toBe(await r.getAttribute('height'));
   await expect(page.getByTestId('tool-photo')).not.toContainText('＋');
   await expect(page.getByTestId('undo')).not.toContainText('↶');
 });

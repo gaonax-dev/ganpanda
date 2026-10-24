@@ -106,6 +106,19 @@
   let photoInput = $state<HTMLInputElement>();
   let cameraInput = $state<HTMLInputElement>();
   let photoMenu = $state(false);
+  /** 사각 도구의 모양 고르기 자리 (화면 좌표 — 사각 단추 바로 위) */
+  let rectBtn = $state<HTMLButtonElement>();
+  let shapesAt = $state<{ x: number; y: number } | null>(null);
+  $effect(() => {
+    const on = (app.tool === 'rect' || app.tool === 'ellipse') && !!rectBtn;
+    if (!on) { shapesAt = null; return; }
+    const place = () => { const r = rectBtn!.getBoundingClientRect(); shapesAt = { x: r.left + r.width / 2, y: r.top - 6 }; };
+    place();
+    const bar = rectBtn!.closest('.tools');
+    bar?.addEventListener('scroll', place);
+    window.addEventListener('resize', place);
+    return () => { bar?.removeEventListener('scroll', place); window.removeEventListener('resize', place); };
+  });
   export async function addPhotos(files: FileList | File[]) {
     let i = 0;
     for (const f of files) {
@@ -146,15 +159,15 @@
     };
   }
 
-  function create(photoId: string, shape: ShapeKind, quad: Pt[]) {
+  function create(photoId: string, shape: ShapeKind, quad: Pt[], polygon?: Pt[]) {
     const n = app.signs.length + 1;
     app.editBoundary();
-    // 원형 도구 = 모서리 50% 둥근 사각형 (이미지 맵핑이 되도록 사각형 기반, 사용자 결정 2026-10-14)
+    // 원 = 진짜 타원 (2026-10-24 "라운드와 원은 다른것이다" — 전엔 모서리 50% 둥근 사각형, 2026-10-14 결정은 대체됨), 다각형 = 찍은 점
     // 소비자 견적 요청 모드(2026-10-21)는 종류를 모르니 간판(후렉스)으로 시작 — 참고 견적이 바로 나온다
-    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape: shape === 'ellipse' ? 'rect' : shape, quad, sheetIds: [], ...(shape === 'ellipse' ? { corner: 0.5 } : {}), ...(app.consumer ? { productId: defaultProductFor('sign') } : {}) });
+    const id = app.project.addObject({ photoId, name: `사인물 ${n}`, shape, quad, sheetIds: [], ...(shape === 'polygon' && polygon ? { polygon } : {}), ...(app.consumer ? { productId: defaultProductFor('sign') } : {}) });
     app.editBoundary();
     app.selectedId = id;
-    app.tool = 'select';
+    if (!app.drawContinuous) app.tool = 'select'; // 연속 그리기면 사각 도구 유지 (2026-10-24)
   }
 
   function onkey(e: KeyboardEvent) {
@@ -181,7 +194,7 @@
     if (action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoRotate' ? 'rotate' : 'scale'; return; } // 단추는 숨겼지만 단축키로는
     if (action === 'toolSelect') app.tool = 'select';
     else if (action === 'toolRect') app.tool = 'rect';
-    else if (action === 'toolEllipse') app.tool = 'ellipse';
+    else if (action === 'toolEllipse') { app.tool = 'rect'; app.drawShape = 'ellipse'; } // 원 = 사각 도구의 모양 (2026-10-24)
     else if (action === 'deleteSelection' && app.selectedId) {
       e.preventDefault();
       app.deleteSelection(); // 다중 선택이면 모두 (2026-10-17)
@@ -258,6 +271,8 @@
   // [다중]은 선택 도구에서만 — 다른 도구를 고르면 꺼진다 (2026-10-22 "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘")
   $effect(() => { if (app.tool !== 'select' && untrack(() => app.multiMode)) app.setMultiMode(false); });
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
+  // 다른 도구를 고르면 연속 그리기 리셋 (2026-10-24)
+  $effect(() => { if (app.tool !== 'rect' && app.tool !== 'ellipse') app.drawContinuous = false; });
   /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
   const no3d = $derived(app.stage === '3d');
   const NO3D = ' — 3D 단계에서는 사용할 수 없습니다 (원본·2D 에서)';
@@ -357,7 +372,7 @@
   function backgroundDown(_e: PointerEvent, world: { x: number; y: number }) {
     if (marqueeDown(_e, world)) return true;
     if (!app.multiMode) app.clearSelectionOnTap(_e); // 탭일 때만 푼다 — 팬·줌에는 선택 유지 (2026-10-22 "개별선택시 화면 팬이나 줌시 선택유지 되게"). 다중 선택 중에는 그대로
-    if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false;
+    if (!app.canEdit || (app.tool !== 'rect' && app.tool !== 'ellipse')) return false; // 보드 빈 곳 = 사진 없는 사각 사인물 (원·다각형도 사각으로)
     draft = { x0: world.x, y0: world.y, x1: world.x, y1: world.y };
     const move = (ev: PointerEvent) => { const w = canvas.clientToWorld(ev.clientX, ev.clientY); draft = { ...draft!, x1: w.x, y1: w.y }; };
     const cancel = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); draft = null; }; // 두 손가락이 먼저 — 그리던 사각은 버림
@@ -502,7 +517,7 @@
         onzonemoveend={() => app.editBoundary()}
         onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
-        oncreate={(shape, quad) => create(p.id, shape, quad)}
+        oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}
@@ -599,7 +614,12 @@
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
           <!-- 다중 선택은 [선택] 옆 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 켜 두면 탭할 때마다 더하기/빼기, 끄거나 ✕ 로 끝 -->
-          <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => { if (shiftHeld) { shiftHeld = false; return; } /* Shift 로 켠 채 누르면 켠 상태로 고정 */ if (!app.multiMode) app.tool = 'select'; app.setMultiMode(!app.multiMode); }}>{app.multiMode ? '✓ ' : ''}다중</button>
+          {#if app.tool === 'rect' || app.tool === 'ellipse'}
+          <!-- 사각 도구에서는 [다중] 자리가 [연속]: 켜면 그린 뒤에도 사각 도구 유지, 다른 도구를 고르면 꺼짐 (2026-10-24 "사각툴을 켜면 다중버튼은 연속으로변경하고 계속 사각툴이 유지되게 그리고 다른 툴이 선택되면 리셋") -->
+          <button data-testid="tool-continuous" class:on={app.drawContinuous} title={app.drawContinuous ? '연속 그리기 끄기' : '연속 그리기 — 그린 뒤에도 사각 도구 유지'} onclick={() => (app.drawContinuous = !app.drawContinuous)}>{app.drawContinuous ? '✓ ' : ''}연속</button>
+          {:else}
+            <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => { if (shiftHeld) { shiftHeld = false; return; } /* Shift 로 켠 채 누르면 켠 상태로 고정 */ if (!app.multiMode) app.tool = 'select'; app.setMultiMode(!app.multiMode); }}>{app.multiMode ? '✓ ' : ''}다중</button>
+          {/if}
           {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
           <!-- 말풍선 단추는 상단 [톡]으로 (2026-10-22 "툴의 말풍선은 톡으로 변경한다") — 위치 번호는 톡의 📍 또는 단축키 -->
           <span class="sep"></span>
@@ -607,8 +627,8 @@
           {/if}
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
-          <button data-testid="tool-rect" class:on={app.tool === 'rect'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}>▭<span class="lbl"> 사각</span></button>
-          <button data-testid="tool-ellipse" class:on={app.tool === 'ellipse'} disabled={no3d} title="타원 영역 ({hint('toolEllipse')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'ellipse')}>⬭<span class="lbl"> 타원</span></button>
+          <!-- 사각 아이콘 = 정사각, 다른 아이콘과 같은 선 두께 (2026-10-24) -->
+          <button class="file" bind:this={rectBtn} data-testid="tool-rect" class:on={app.tool === 'rect' || app.tool === 'ellipse'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5" /></svg><span class="lbl"> 사각</span></button>
           <button class="file" data-testid="tool-photo" title="사진 추가" onclick={() => (touchDevice ? (photoMenu = !photoMenu) : photoInput?.click())}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span></button>
           {#if photoMenu}
             <div class="photo-menu" data-testid="photo-menu">
@@ -619,9 +639,18 @@
         {:else}
           <span class="readonly">보기·대화만 가능</span>
         {/if}
-        <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={() => fitAll(true)}>⤢</button>
+        <button data-testid="zoom-fit" title="전체 보기 ({hint('zoomFit')})" onclick={() => fitAll(true)}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
         <span class="zoom" data-testid="zoom-label">{Math.round(viewport.zoom * 100)}%</span>
       </div>
+      <!-- 모양 고르기는 도구 막대 밖(휴대폰 막대는 가로로 넘겨 위로 나간 것이 잘린다), 사각 단추 바로 위 -->
+          {#if (app.tool === 'rect' || app.tool === 'ellipse') && !no3d && shapesAt}
+            <!-- 사각 도구의 모양: 사각 · 원(진짜 타원 — 라운드는 모서리 설정) · 다각형 (2026-10-24 "원 툴은 거의 사용하지 않는다. 사각에서 원, 다각형을 선택할 수 있게") -->
+            <div class="draw-shapes" data-testid="draw-shapes" role="group" aria-label="그릴 모양" style:left="{shapesAt?.x ?? 0}px" style:top="{shapesAt?.y ?? 0}px">
+              <button data-testid="draw-shape-rect" class:on={app.drawShape === 'rect'} title="사각" onclick={() => (app.drawShape = 'rect')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5" /></svg></button>
+              <button data-testid="draw-shape-ellipse" class:on={app.drawShape === 'ellipse'} title="원 ({hint('toolEllipse')})" onclick={() => (app.drawShape = 'ellipse')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="7.5" /></svg></button>
+              <button data-testid="draw-shape-polygon" class:on={app.drawShape === 'polygon'} title="다각형 — 점을 차례로, 첫 점을 다시 누르거나 두 번 누르면 완성" onclick={() => (app.drawShape = 'polygon')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4 L20 10 L17 19.5 L7 19.5 L4 10 Z" /></svg></button>
+            </div>
+          {/if}
     {/snippet}
   </InfiniteCanvas>
 </div>
@@ -662,6 +691,12 @@
   .tools button:hover, .tools .file:hover { background: var(--hover); }
   .tools button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
   .tools button:disabled { opacity: 0.35; cursor: default; }
+  .draw-shapes { position: fixed; z-index: 30; transform: translate(-50%, -100%); display: flex; gap: 4px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+  .draw-shapes button { background: none; border: 0; color: var(--text); padding: 6px 9px; border-radius: 8px; cursor: pointer; }
+  .draw-shapes button:hover { background: var(--hover); }
+  .draw-shapes button.on { background: var(--accent); color: var(--accent-ink); }
+  .draw-shapes .ico { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .tools .file.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
   .tools .ico { display: block; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .tools .file { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; } /* 전역 label 은 세로 배치 — 아이콘 옆에 글자 */
   .ai-status { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 13px; z-index: 4; }

@@ -72,7 +72,7 @@
     selectedId: string | null;
     tool: Tool;
     toPhoto: (cx: number, cy: number) => Pt;
-    oncreate: (shape: ShapeKind, quad: Pt[]) => void;
+    oncreate: (shape: ShapeKind, quad: Pt[], polygon?: Pt[]) => void;
     /** add = Shift+클릭 (다중 선택에 더하기, 2026-10-17) */
     onselect: (id: string | null, add?: boolean) => void;
     /** 사인물 말풍선을 눌렀을 때 (그 사인물의 대화 열기) — 2026-10-17 말풍선 = 소통 창구 */
@@ -280,7 +280,36 @@
     onquad(o.id, frameToQuad(plane, snapFrame(frameOf(plane, alignQuad(plane, o.quad)), 25))); // 단추가 25° 까지 나오므로 맞추기도 25° 까지
   }
 
-  const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : 'rect');
+  const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : app.drawShape === 'ellipse' ? 'ellipse' : 'rect');
+  // ---------- 다각형 그리기 (2026-10-24): 점을 차례로 누르고 첫 점을 다시 누르거나 두 번 누르기·Enter 로 닫는다(3점 이상), Esc 취소 ----------
+  const polyMode = $derived(tool === 'rect' && app.drawShape === 'polygon' && editable);
+  let polyDraft = $state<Pt[] | null>(null);
+  let polyHover = $state<Pt | null>(null);
+  $effect(() => { if (!polyMode) { polyDraft = null; polyHover = null; } });
+  function finishPoly() {
+    const pts = polyDraft;
+    polyDraft = null; polyHover = null;
+    if (!pts || pts.length < 3) return;
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+    if ((x1 - x0) / u < 8 || (y1 - y0) / u < 8) return;
+    oncreate('polygon', [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], pts.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt));
+  }
+  function polyDown(e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const p = clamp(toPhoto(e.clientX, e.clientY));
+    const pts = polyDraft ?? [];
+    if (pts.length >= 3 && Math.hypot(p[0] - pts[0][0], p[1] - pts[0][1]) <= HIT * u) { finishPoly(); return; } // 첫 점을 다시 누르면 닫힘
+    const last = pts.at(-1);
+    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) <= 3 * u) return; // 두 번 누르기의 둘째 — 같은 점
+    polyDraft = [...pts, p];
+  }
+  function polyKey(e: KeyboardEvent) {
+    if (!polyDraft) return;
+    if (e.key === 'Enter') { e.preventDefault(); finishPoly(); }
+    else if (e.key === 'Backspace') { e.preventDefault(); polyDraft = polyDraft.length > 1 ? polyDraft.slice(0, -1) : null; }
+  }
   const quadOf = (o: SignObject) => (editing?.id === o.id ? editing.quad : o.quad);
   /** 영역 윤곽 (사진 px): 둥근 사각 / 옛 타원 / 다각형 / 사각 */
   const outlinePts = (shape: ShapeKind, quad: Pt[], poly?: Pt[], corner?: number): Pt[] =>
@@ -460,6 +489,8 @@
     return { w: Math.max(1, Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1])), h: Math.max(1, Math.hypot(q[3][0] - q[0][0], q[3][1] - q[0][1])) };
   }
 </script>
+
+<svelte:window onkeydown={polyKey} />
 
 <!-- 이동 모드: 외곽선 변마다 잡는 막대 — 변을 잡아 면 위에서 옮긴다 (2026-10-17 사용자: "메니폴레이터 이동 형태 - 영역도 막대 보이게") -->
 
@@ -835,7 +866,18 @@
       <text class="status" data-testid="photo-ai-status" x={photo.w / 2} y={photo.h / 2} font-size={18 * u} text-anchor="middle" stroke-width={4 * u}>AI 가 사진을 분석하는 중…</text>
     {/if}
     {#if draft}
-      <polygon class="draft" points={outline('rect', quadFromDrag(draft.start, draft.end), undefined, drawShape === 'ellipse' ? 0.5 : 0)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
+      <polygon class="draft" points={outline(drawShape === 'ellipse' ? 'ellipse' : 'rect', quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
+    {/if}
+    <!-- 다각형 그리기: 사진 전체를 덮는 투명 층이 누르기를 받는다(기존 사인물 위에도 점을 찍게) -->
+    {#if polyMode}
+      <rect class="poly-catch" data-testid="poly-catch" x="0" y="0" width={photo.w} height={photo.h} role="button" tabindex="-1"
+        onpointerdown={polyDown} onpointermove={(e) => { if (polyDraft) polyHover = clamp(toPhoto(e.clientX, e.clientY)); }} ondblclick={finishPoly} />
+      {#if polyDraft}
+        <g class="poly-draft" data-testid="poly-draft" pointer-events="none">
+          <polyline points={[...polyDraft, ...(polyHover ? [polyHover] : [])].map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
+          {#each polyDraft as p, i (i)}<circle cx={p[0]} cy={p[1]} r={(i === 0 && polyDraft.length >= 3 ? 8 : 4) * u} class:first={i === 0} stroke-width={1.5 * u} />{/each}
+        </g>
+      {/if}
     {/if}
   </svg>
   {#if fx}
@@ -952,6 +994,10 @@
   svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
   .unmeasured { fill: #ef4444; stroke: #fff; }
+  .poly-catch { fill: transparent; cursor: crosshair; }
+  .poly-draft polyline { fill: none; stroke: var(--accent); }
+  .poly-draft circle { fill: #fff; stroke: var(--accent); }
+  .poly-draft circle.first { fill: var(--accent); }
   .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
   svg.zoning { cursor: crosshair; }

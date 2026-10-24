@@ -169,7 +169,7 @@
 
       {#if obj.shape !== 'polygon'}
         <section>
-          <h3>모양 <span class="cat">{obj.shape === 'ellipse' ? '타원 (옛 형식)' : !obj.corner ? '사각' : obj.corner >= 0.5 ? '원·알약' : `둥근 사각 ${Math.round(obj.corner * 100)}%`}</span></h3>
+          <h3>모양 <span class="cat">{obj.shape === 'ellipse' ? '원 (타원)' : !obj.corner ? '사각' : obj.corner >= 0.5 ? '원·알약' : `둥근 사각 ${Math.round(obj.corner * 100)}%`}</span></h3>
           <label class="slider">모서리 둥글기
             <input data-testid="corner-ratio" type="range" min="0" max="50" step="1" value={obj.shape === 'ellipse' ? 50 : Math.round((obj.corner ?? 0) * 100)} disabled={ro}
               oninput={(e) => update({ shape: 'rect', corner: Number(e.currentTarget.value) / 100 || undefined })} />

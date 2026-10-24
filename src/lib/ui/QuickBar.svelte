@@ -115,10 +115,10 @@
       <button class="icon" data-testid="quick-prev" title="이전 사인물" disabled={siblings.length < 2} onclick={() => step(-1)}>‹</button>
       <small>{idx + 1}/{siblings.length}</small>
       <!-- svelte-ignore a11y_autofocus -->
-      <input data-testid="quick-width" type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} autofocus
+      <input data-testid="quick-width" class:need={!obj.widthMm} type="number" inputmode="decimal" min="0" step="10" value={obj.widthMm ?? ''} disabled={ro} autofocus
         placeholder={m?.estimate ? `≈${fmt(m.estimate.widthMm)}` : '가로'} oninput={(e) => update({ widthMm: num(e.currentTarget.value) })} />
       <span>×</span>
-      <input data-testid="quick-height" type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
+      <input data-testid="quick-height" class:need={!obj.heightMm} type="number" inputmode="decimal" min="0" step="10" value={obj.heightMm ?? ''} disabled={ro}
         placeholder={m?.estimate ? `≈${fmt(m.estimate.heightMm)}` : '세로'} oninput={(e) => update({ heightMm: num(e.currentTarget.value) })} />
       <span>mm</span>
       <button class="icon" data-testid="quick-next" title="다음 사인물" disabled={siblings.length < 2} onclick={() => step(1)}>›</button>
@@ -142,6 +142,7 @@
   .kind { flex: 1 1 90px; min-width: 0; width: auto; padding: 6px 6px; font-size: 12px; }
   .val { max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
   .val.on { border-color: var(--accent); color: var(--accent); }
+  .edit input.need { outline: 2px solid var(--accent); outline-offset: 1px; } /* 빈 칸만 강조 (2026-10-24) */
   .val.need { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--muted); } /* 치수 없음 — 강조 테두리, 예상(≈)은 회색 (2026-10-24) */
   .edit input { flex: 1; min-width: 0; padding: 6px 6px; font-size: 13px; }
   .edit input[type='number'] { text-align: right; }

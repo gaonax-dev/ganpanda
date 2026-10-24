@@ -1142,7 +1142,7 @@ class AppState {
     const id = this.project.addObject({ photoId: '', name: `사인물 ${n}`, shape: 'rect', quad: [], sheetIds: [], listX: Math.round(listX), listY: Math.round(listY), ...size });
     this.editBoundary();
     this.selectObject(id);
-    this.tool = 'select';
+    if (!this.drawContinuous) this.tool = 'select'; // 연속 그리기면 사각 도구 유지 (2026-10-24)
     return id;
   }
   /** 사진 없는 사인물(보드 직접 생성) */
@@ -1167,6 +1167,10 @@ class AppState {
   flatGap = $derived(Math.min(3000, Math.max(0, Number.isFinite(this.settings.flatGap) ? this.settings.flatGap! : 100)));
   flatPlaced = $derived(layoutList(this.flatCards.map(({ o, w, h }) => ({ id: o.id, w, h, x: o.listX, y: o.listY })), this.flatGap));
   /** 카드 배열 모드 (✥ 를 누르면): 전체 외곽선 + 상단 [재정렬]·간격 −/+ (2026-10-20) */
+  /** 사각 도구의 모양 (2026-10-24 "원 툴은 거의 사용하지 않는다. 사각에서 원, 다각형을 선택할 수 있게 라운드와 원은 다른것이다"): 원 = 진짜 타원, 라운드는 모서리 설정 */
+  drawShape = $state<'rect' | 'ellipse' | 'polygon'>('rect');
+  /** 연속 그리기: 켜면 그린 뒤에도 사각 도구 유지, 다른 도구를 고르면 꺼짐 (2026-10-24 "사각툴을 켜면 다중버튼은 연속으로변경 …") */
+  drawContinuous = $state(false);
   flatArrange = $state(false);
   /** 카드 묶음(대지) 누르기: 배열 모드 켜고 끔. 켤 때는 사인물·말풍선·존 선택을 푼다 — 대지를 고른 것이 새 선택 (2026-10-24 "사인물카드 대지선택하면 이전에 선택이 있는 경우 대지 툴이 나오지 않는다": 휴대폰은 사인물 도구가 대지 도구 자리를 차지했다) */
   toggleFlatArrange() {

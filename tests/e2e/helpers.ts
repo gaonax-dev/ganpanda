@@ -32,6 +32,13 @@ export async function dragOnPhoto(page: Page, from: [number, number], to: [numbe
   await page.mouse.up();
 }
 
+/** 사진 원본 픽셀 좌표를 누른다 (다각형 그리기 등) */
+export async function clickOnPhoto(page: Page, at: [number, number]) {
+  const b = (await page.getByTestId('photo-img').first().boundingBox())!;
+  const k = b.width / 1600;
+  await page.mouse.click(b.x + at[0] * k, b.y + at[1] * k);
+}
+
 // ---------- 계정·프로젝트 (서버 API 직접 호출) ----------
 
 const rand = () => Math.random().toString(36).slice(2, 10);
