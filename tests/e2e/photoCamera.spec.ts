@@ -30,3 +30,25 @@ test('데스크톱은 [사진] 한 단추(파일 고르기) 그대로', async ({
   await expect(page.getByTestId('photo-camera')).toHaveCount(0);
   await expect(page.getByTestId('photo-input')).toHaveCount(1);
 });
+
+test.describe('휴대폰 길게 누르기', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  test('사진을 길게 눌러도 브라우저 메뉴(이미지 저장·공유)가 뜨지 않는다 (2026-10-24 "사진을 길게 누르면 나오는 외부 작동이 있다. 제거해줘")', async ({ page, request }) => {
+    await openOwnedProject(page, request, '길게 누르기');
+    await page.getByTestId('photo-input').setInputFiles({ name: '정면.png', mimeType: 'image/png', buffer: await makePhoto(page) });
+    const img = page.getByTestId('photo-img').first();
+    await expect(img).toBeVisible();
+    // 안드로이드: 길게 누르면 contextmenu → 막는다
+    expect(await img.evaluate((e) => { const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); e.dispatchEvent(ev); return ev.defaultPrevented; })).toBe(true);
+    // 아이폰: 이미지 길게 누르기 메뉴(callout)·글자 선택 끔
+    expect(await img.evaluate((e) => { const cs = getComputedStyle(e) as CSSStyleDeclaration & { webkitTouchCallout?: string }; return [cs.webkitTouchCallout ?? 'none', cs.userSelect]; })).toEqual(['none', 'none']);
+  });
+});
+
+test('데스크톱 오른쪽 클릭은 막지 않는다', async ({ page, request }) => {
+  await openOwnedProject(page, request, '오른쪽 클릭');
+  await page.getByTestId('photo-input').setInputFiles({ name: '정면.png', mimeType: 'image/png', buffer: await makePhoto(page) });
+  const img = page.getByTestId('photo-img').first();
+  await expect(img).toBeVisible();
+  expect(await img.evaluate((e) => { const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); e.dispatchEvent(ev); return ev.defaultPrevented; })).toBe(false);
+});

@@ -184,6 +184,8 @@
     while (s > 48) s /= 4;
     return s;
   });
+  /** 터치 기기: 길게 누르기의 브라우저 메뉴(이미지 저장·공유·텍스트 선택)를 막는다 — 보드에서는 길게 누르기도 조작 (2026-10-24 "사진을 길게 누르면 나오는 외부 작동이 있다. 제거해줘"). 데스크톱 오른쪽 클릭은 그대로 */
+  const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 </script>
 
 <div
@@ -192,6 +194,7 @@
   class:pinching
   bind:this={el}
   data-testid={testid}
+  oncontextmenu={(e) => { if (COARSE) e.preventDefault(); }}
   role="application"
   style:cursor={drag ? 'grabbing' : panKey ? 'grab' : cursor}
   style:background-size="{gridStep}px {gridStep}px"
@@ -234,5 +237,9 @@
     width: 0;
     height: 0;
     transform-origin: 0 0;
+  }
+  /* 아이폰 길게 누르기 메뉴(callout)·선택 끔 — 입력 칸은 그대로 (2026-10-24) */
+  @media (pointer: coarse) {
+    .ic, .ic :global(*:not(input):not(textarea)) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   }
 </style>
