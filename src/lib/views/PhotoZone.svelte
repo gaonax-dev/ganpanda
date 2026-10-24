@@ -367,8 +367,10 @@
     }, 60);
   }
 
+  /** 사인물에서 시작해 위로 흘려보낸 터치 (bgDown 이 선택 해제로 받지 않게) */
+  const signTouch = new WeakSet<Event>();
   function bgDown(e: PointerEvent) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || signTouch.has(e)) return;
     if (tool === 'zone') {
       if (!editable) return;
       e.stopPropagation();
@@ -394,8 +396,10 @@
 
   function shapeDown(e: PointerEvent, o: SignObject, mode: number | 'move') {
     if (e.button !== 0) return;
+    if ((e.shiftKey || app.multiMode) && mode === 'move') { e.stopPropagation(); onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
+    // 터치: 안 고른 사인물은 탭(손 뗌)으로 고르기만 — 끌면 화면 이동. 고른 뒤 다시 끌어야 옮긴다 (2026-10-24 "사인물 이동은 터치에서는 선택 터치업 이후에 다시 드래그에서 작동하게")
+    if (e.pointerType === 'touch' && mode === 'move' && tool === 'select' && o.id !== selectedId) { signTouch.add(e); app.whenTap(e, () => onselect(o.id)); return; } // 위로 흘려 캔버스가 이동하되, 사진 배경의 "탭 = 선택 해제"는 건너뛴다
     e.stopPropagation();
-    if ((e.shiftKey || app.multiMode) && mode === 'move') { onselect(o.id, true); return; } // Shift+클릭 = 다중 선택 (끌지 않음)
     onselect(o.id);
     if (!editable || (tool !== 'select' && mode === 'move')) return;
     // Alt/Option + 끌기: 제자리에 복사하고 복사본을 끈다 (2026-10-17 "alt/option 누르고 이동하면 복사")
