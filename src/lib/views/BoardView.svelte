@@ -30,6 +30,8 @@
   let urls: Record<string, string> = $state({});
   let fitted = false;
 
+  // 이 프로젝트에 사진이 있었다고 기억 (2026-10-25) — 다음에 열 때 동기화 전엔 빈 화면 대신 로딩
+  $effect(() => { if (app.room && app.photos.length) { try { localStorage.setItem(`ganpanda.hadPhotos.${app.room}`, '1'); } catch { /* 저장 못 해도 됨 */ } } });
   // 사진 에셋 URL 지연 로딩 (못 받았던 에셋이 나중에 오면 assetEpoch 가 바뀌어 다시 요청)
   $effect(() => {
     void app.assetEpoch;
@@ -587,8 +589,11 @@
           {:else}AI 모델 불러오는 중… (처음 한 번, 약 14MB){/if}
         </div>
       {/if}
-      {#if app.ready && !app.photos.length && app.canEdit}
-        <div class="empty">
+      {#if app.ready && !app.photos.length && !app.boardSettled}
+        <!-- 동기화 전 (2026-10-25 "미리 상태를 저장했다가 로딩시 스피너"): 사진이 있던 프로젝트는 빈 화면 대신 로딩 -->
+        <div class="empty loading" data-testid="board-loading"><span class="spin"></span><p>{app.hadPhotos ? '사진을 불러오는 중…' : '불러오는 중…'}</p>{#if app.sync === 'offline' || app.sync === 'connecting'}<small>서버에 연결하는 중입니다</small>{/if}</div>
+      {:else if app.ready && !app.photos.length && app.canEdit}
+        <div class="empty" data-testid="photo-empty">
           <p>건물 사진을 올려 시작하세요</p>
           {#if touchDevice}
             <!-- 휴대폰: 카메라와 앨범을 따로 (2026-10-24 "어떤 안드로이드 기계의 경우엔 사진라이브러로 바로 이동해 사진을 찍을 수 없게") -->
@@ -676,6 +681,9 @@
     color: var(--muted); pointer-events: none;
   }
   .empty > * { pointer-events: auto; }
+  .empty.loading { pointer-events: none; color: var(--muted); }
+  .spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: board-spin 0.9s linear infinite; }
+  @keyframes board-spin { to { transform: rotate(360deg); } }
   .empty p { font-size: 16px; color: var(--text); margin: 0; }
   .pick2 { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .photo-menu { position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 6px; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }

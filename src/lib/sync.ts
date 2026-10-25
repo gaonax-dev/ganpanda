@@ -12,6 +12,10 @@ export const SERVER_URL = syncServerUrl(import.meta.env.VITE_SYNC_URL, import.me
 export class SyncClient {
   private provider: WebsocketProvider | null = null;
   private onOnline: (() => void)[] = [];
+  private onSynced: (() => void)[] = [];
+  private syncedOnce = false;
+  /** 서버와 첫 동기화가 끝나면 (이미 끝났으면 바로) */
+  whenSynced(f: () => void) { if (this.syncedOnce) f(); else this.onSynced.push(f); }
 
   /** params: 자격 (?session= 또는 ?invite=) — 서버가 역할을 정한다 */
   constructor(room: string, doc: Y.Doc, onStatus: (s: SyncStatus) => void, onPeers: (p: Peer[]) => void, params: Record<string, string> = {}) {
@@ -22,6 +26,8 @@ export class SyncClient {
       onStatus(status === 'connected' ? 'online' : status === 'connecting' ? 'connecting' : 'offline');
       if (status === 'connected') this.onOnline.forEach((f) => f());
     });
+    // 서버와 첫 동기화가 끝남 (2026-10-25 보드 로딩): 그 전엔 문서가 비어 보여 "사진 없음"이 먼저 떴다
+    p.on('sync', (isSynced: boolean) => { if (isSynced && !this.syncedOnce) { this.syncedOnce = true; this.onSynced.forEach((f) => f()); } });
     p.awareness.on('change', () => onPeers(peersFrom(p.awareness.getStates(), p.awareness.clientID)));
     this.provider = p;
     // 나감 알리기 (2026-10-15 사용자: "사용자가 나가도 표시가 계속 남는다"): 브라우저는 탭을 숨기거나 닫을 때 소켓을 바로 닫지 않는 일이 많다
