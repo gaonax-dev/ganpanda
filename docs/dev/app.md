@@ -4,7 +4,7 @@
 
 ## 방식
 - 앱은 **운영 사이트(https://ganpanda.co.kr)를 웹뷰에 연다**(`src-tauri/tauri.conf.json` `build.frontendDist`). 앱 안에 웹 번들을 넣지 않으므로 **웹을 배포하면 앱 내용도 같이 바뀐다** — 앱을 다시 배포하는 때는 Rust 쪽(이동 규칙·창·권한)이나 아이콘이 바뀔 때뿐. 개발(`cargo tauri dev`)은 로컬 vite(`http://localhost:5173`)를 연다.
-- **카카오 로그인은 시스템 브라우저로**(2026-10-24 "카카오 앱으로 로그인 해야지" — 카카오톡 앱 로그인은 시스템 브라우저로 돌아오므로 웹뷰 안에서는 결과를 못 받는다): 앱의 초기화 스크립트가 `window.__GANPANDA_APP__ = true`(+ `<html data-ganpanda-app>`)를 표시 → 웹 `inNativeApp()` 이 참이면 카카오 링크에 `&app=1` + `target=_blank`(→ 시스템 브라우저) → 서버 `oauth_states.app`(0042) → 콜백이 `ganpanda://login#session=…&next=…` 로 → 앱(`tauri-plugin-deep-link`, `login_from_deep_link`)이 지금 열린 사이트의 `/login#…` 으로 웹뷰를 옮기면 웹의 기존 처리가 세션을 저장한다. 토스 카드 등록은 http 로 돌아오므로 웹뷰 안에서 그대로. 맥 개발 실행(`app:dev`·`app:live`)에서는 딥링크가 등록되지 않아 **번들(`app:build`)에서만** 카카오 로그인이 끝까지 된다. iOS 는 `gen/apple/ganpanda_iOS/Info.plist` 의 `CFBundleURLTypes`(ganpanda). Android 는 init 뒤 AndroidManifest 에 intent-filter 추가 필요.
+- **카카오 로그인은 시스템 브라우저로**(2026-10-24 "카카오 앱으로 로그인 해야지" — 카카오톡 앱 로그인은 시스템 브라우저로 돌아오므로 웹뷰 안에서는 결과를 못 받는다): 앱의 초기화 스크립트가 `window.__GANPANDA_APP__ = true`(+ `<html data-ganpanda-app>`)를 표시 → 웹 `inNativeApp()` 이 참이면 카카오 링크에 `&app=1` + `target=_blank`(→ 시스템 브라우저) → 서버 `oauth_states.app`(0042) → 콜백이 `ganpanda://login#session=…&next=…` 로 → 앱(`tauri-plugin-deep-link`, `login_from_deep_link`)이 지금 열린 사이트의 `/login#…` 으로 웹뷰를 옮기면 웹의 기존 처리가 세션을 저장한다. 토스 카드 등록은 http 로 돌아오므로 웹뷰 안에서 그대로. 맥 개발 실행(`app:dev`·`app:live`)에서는 딥링크가 등록되지 않아 **번들(`app:build`)에서만** 카카오 로그인이 끝까지 된다. iOS 는 **`gen/apple/project.yml` 의 `info.properties.CFBundleURLTypes`**(ganpanda) — Info.plist 는 xcodegen 이 project.yml 에서 만들므로 Info.plist 를 직접 고치면 다음 `xcodegen generate` 때 지워진다(2026-10-25 그래서 사파리 "주소가 유효하지 않음"). 카메라·사진 권한 문구, 상태 막대 흰 글자도 거기에. Android 는 init 뒤 AndroidManifest 에 intent-filter 추가 필요.
 - **이동 규칙**(`src-tauri/src/lib.rs` `nav_action`, Rust 단위 테스트): http(s)·about·blob·data 는 웹뷰 안, 그 밖의 스킴(`tel:`·`mailto:`·`kakaotalk://`·`intent://`·`ispmobile://` 등 카드사 앱)은 시스템에 넘긴다(opener 플러그인). 웹뷰는 새 창을 못 열므로 초기화 스크립트가 `window.open`·`target=_blank` 링크를 `ganpanda-open:<주소>` 이동으로 바꾸고, Rust 가 http(s)만 바깥 브라우저로 연다(`javascript:` 등은 막음). 페이지는 `document.documentElement.dataset.ganpandaApp = '1'` 로 앱 안임을 알 수 있다.
 - 웹은 IPC 를 쓰지 않는다(권한 `capabilities/default.json` = core:default · opener:default 뿐). 원격 페이지에 Tauri API 를 열지 않는 것이 안전하다.
 - 아이콘: `src-tauri/app-icon.png`(1024, 노랑 바탕 "간판다") → `cargo tauri icon src-tauri/app-icon.png -o src-tauri/icons`.
@@ -19,7 +19,7 @@
 | 맥 개발 실행 — **운영 사이트**를 열기 (카카오 로그인·결제 시험, `src-tauri/tauri.live.json`) | `npm run app:live` |
 | 맥 배포판 만들기 (.app/.dmg, 서명 없음) | `npm run app:build` → `src-tauri/target/release/bundle/` |
 | Rust 테스트 | `npm run app:test` |
-| iOS 실행 — **운영 사이트** (시뮬레이터 또는 케이블로 연결한 아이폰, 기기를 고르는 물음이 뜸) | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
+| iOS 실행 — **운영 사이트** (시뮬레이터 또는 케이블로 연결한 아이폰 — 아이폰은 Xcode 에 Apple 계정 로그인 + `project.yml` `DEVELOPMENT_TEAM`, 설치 뒤 자동 실행은 아이폰이 잠겨 있으면 실패하니 직접 연다) | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
 | iOS 실행 — 로컬 vite (LAN 주소로 열리게 `--host`) | `npm run app:ios:local` |
 | Android 실행 | `cargo tauri android init` 뒤 `npm run app:android` — **Java(JDK 17)·ANDROID_HOME·NDK 필요** |
 

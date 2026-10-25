@@ -41,6 +41,15 @@ targets:
       path: ganpanda_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
+        # ganpanda:// 딥링크 — 시스템 브라우저 카카오 로그인 복귀 (2026-10-24). Info.plist 는 xcodegen 이 여기서 만든다 (직접 고치면 지워짐)
+        CFBundleURLTypes:
+          - CFBundleURLName: kr.co.ganpanda.app
+            CFBundleURLSchemes: [ganpanda]
+        # 사진 올리기·카메라 촬영 권한 문구 (없으면 막힘)
+        NSCameraUsageDescription: 가게 사진을 찍어 간판 자리를 정하기 위해 카메라를 씁니다.
+        NSPhotoLibraryUsageDescription: 가게 사진을 골라 올리기 위해 사진 보관함을 씁니다.
+        UIViewControllerBasedStatusBarAppearance: false
+        UIStatusBarStyle: UIStatusBarStyleLightContent
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
