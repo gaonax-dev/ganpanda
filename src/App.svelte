@@ -1,7 +1,11 @@
 <script lang="ts">
   import AskDialog from './lib/ui/AskDialog.svelte';
   import { askPrompt } from './lib/ui/ask.svelte';
+  import { homeTalks } from './lib/ui/homeTalkList.svelte';
+  import { saveRoomView } from './lib/core/roomView';
   import { app } from './lib/state.svelte';
+  // 작업 탭을 이 기기에 기억 — 다시 열면 그 탭 (2026-10-25 "헤더 텝의 상태를 돌아왔을때 복원") · 복원은 state.svelte.ts 생성자
+  $effect(() => { if (app.room && app.access.status === 'ok' && !app.proposalMode) saveRoomView(app.room, { tab: app.tab }); });
   import { PLAN_LABEL, fetchProviders, socialStartUrl, socialTarget, type SocialProvider } from './lib/auth';
   // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
   let providers = $state<SocialProvider[]>([]);
@@ -218,10 +222,13 @@
     </div>
     <div class="right">
       <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"). 받은 요청 페이지 안에서는 감춘다 — 페이지에 받은/보낸 탭이 있다 ("견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘") -->
-      {#if app.sentShown && !app.consumer && !app.inbox}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">{app.compact ? '보냄' : '보낸 요청'} <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
-      {#if app.requestInboxShown && !app.consumer && !app.inbox}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">{app.compact ? '요청' : '견적 요청'} <b data-testid="request-count">{app.requestCount}</b></a>{/if}
+      <!-- 프로젝트 안에서는 감춘다 — 홈에서만 (2026-10-25 "프로젝트 뷰에서 요청 제거해주고 톡을 키워줘") -->
+      {#if app.sentShown && !app.consumer && !app.inbox && !app.room}<a class="reqs sent" data-testid="request-sent-link" href="/requests?tab=sent" title="내가 보낸 견적·외주 요청 — 진행 중인 수">{app.compact ? '보냄' : '보낸 요청'} <b data-testid="sent-count">{app.sentCount}</b></a>{/if}
+      {#if app.requestInboxShown && !app.consumer && !app.inbox && !app.room}<a class="reqs" class:hot={app.requestCount > 0} data-testid="request-inbox-link" href="/requests" title="받은 견적 요청 — 답 안 한 요청 수">{app.compact ? '요청' : '견적 요청'} <b data-testid="request-count">{app.requestCount}</b></a>{/if}
       <!-- 톡 (2026-10-22 "톡은 메인화면의 상단에 톡버튼") -->
-      {#if app.room && app.access.status === 'ok' && !app.inbox}<button class="talkbtn" class:on={app.talkOpen} data-testid="talk-open" title="톡 — 회사 멤버·고객과 방별 대화" onclick={() => (app.talkOpen ? app.closeTalk() : app.openTalk())}>톡{#if app.talkUnreadInfo.total}<b data-testid="talk-unread">{app.talkUnreadInfo.total}</b>{/if}</button>{/if}
+      {#if app.room && app.access.status === 'ok' && !app.inbox}<button class="talkbtn" class:on={app.talkOpen} data-testid="talk-open" title="톡 — 회사 멤버·고객과 방별 대화" onclick={() => (app.talkOpen ? app.closeTalk() : app.openTalk())}>톡{#if app.talkUnreadInfo.total}<b data-testid="talk-unread">{app.talkUnreadInfo.total}</b>{/if}</button>
+      <!-- 홈: 내 모든 프로젝트의 톡 목록 창 (2026-10-25 "메인화면에 톡을 헤더로 이동시키고 누르면 톡 목록으로") — 수는 새 대화가 있는 방 -->
+      {:else if !app.room && app.account && !app.page && !app.inbox}<button class="talkbtn" class:on={homeTalks.open} data-testid="talk-open" title="톡 — 내 모든 프로젝트의 톡방" onclick={() => (homeTalks.open = !homeTalks.open)}>톡{#if homeTalks.newCount}<b data-testid="talk-unread">{homeTalks.newCount}</b>{/if}</button>{/if}
       <!-- 설정 ⚙ 는 로그인하면 닉네임 메뉴 안으로 (2026-10-22 "기어마크 설정버튼을 사용자닉에 메뉴로 추가") — 로그인 전에는 메뉴가 없어 여기 -->
       {#if !app.account}<button class="icon" data-testid="open-settings" title="설정 (단축키)" onclick={() => (app.settingsOpen = true)}>⚙</button>{/if}
       <span class="peers">
@@ -410,9 +417,10 @@
     border: 1px solid rgba(185, 164, 255, 0.6); box-shadow: 0 0 24px rgba(160, 130, 255, 0.55), 0 8px 30px rgba(0, 0, 0, 0.45); animation: flash-in 3.2s ease-out both; }
   @keyframes flash-in { 0% { opacity: 0; transform: translate(-50%, -12px) scale(0.96); } 10% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
-  .talkbtn { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 14px; padding: 3px 11px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  /* 톡은 크게 — 누르기 쉽게 (2026-10-25 "톡을 키워줘") */
+  .talkbtn { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 18px; padding: 7px 18px; min-height: 38px; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
   .talkbtn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  .talkbtn b { background: #ef4444; color: #fff; border-radius: 9px; padding: 0 6px; font-size: 11px; }
+  .talkbtn b { background: #ef4444; color: #fff; border-radius: 10px; padding: 0 7px; font-size: 12px; }
   .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
   .toast { display: flex; flex-direction: column; gap: 2px; text-align: left; width: 300px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
   .toast span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

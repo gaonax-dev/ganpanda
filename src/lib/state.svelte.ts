@@ -16,6 +16,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
+import { loadRoomView } from './core/roomView';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -491,6 +492,8 @@ class AppState {
     this.startFocus = f ? { kind: f[1] as TalkRef['kind'], id: f[2], label: '' } : null;
     const v = url.searchParams.get('view'); // 홈 그룹의 프로젝트 링크 → 바로 리스트 뷰(견적 세부)
     if (v === 'list' || v === 'uv' || v === 'board') this.view = v;
+    // 주소에 view 가 없으면 이 기기에서 마지막에 보던 작업 탭으로 (2026-10-25 "헤더 텝의 상태를 돌아왔을때 복원") — 저장은 App.svelte
+    else if (this.room && !this.proposalMode) { const t = loadRoomView(this.room).tab; if (t) this.setTab(t); }
     if (this.room && inviteParam) {
       save(`ganpanda.invite.${this.room}`, inviteParam);
       history.replaceState(null, '', `/?room=${this.room}${this.proposalMode ? '&proposal=1' : ''}`); // 주소에서 토큰 제거

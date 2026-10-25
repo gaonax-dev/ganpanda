@@ -2,68 +2,64 @@
   메인 화면 톡 (2026-10-22 사용자: "메인화면에서 모든 톡방을 열어서 확인하고 링크를 누르면 해당 프로젝트의 링크로 이동하는거 맞지?")
   · 내가 멤버(계정 아이디)인 모든 프로젝트의 톡방 — 서버 톡 색인(/api/me/talks), 최근 대화 순
   · 방을 누르면 여기서 읽고 답한다. 링크(사인물·사진·번호)를 누르면 그 프로젝트로 가서 방을 열고 그 대상을 화면에 잡는다
+  · 홈 본문의 칸이 아니라 헤더 [톡] 을 누르면 열리는 목록 창 (2026-10-25 "메인화면에 톡을 헤더로 이동시키고 누르면 톡 목록으로") — 상태는 homeTalkList.svelte.ts
 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { listMyTalks, readTalk, sendTalkFromHome, type TalkSummary } from '../projects';
+  import { homeTalks } from './homeTalkList.svelte';
+  import { readTalk, sendTalkFromHome, type TalkSummary } from '../projects';
   import { refLabel } from '../core/talk';
   import type { Message, TalkRef } from '../core/model';
 
-  let talks = $state<TalkSummary[]>([]);
   let open = $state<TalkSummary | null>(null);
   let messages = $state<Message[]>([]);
   let text = $state('');
   let sending = $state(false);
 
-  const seenKey = (t: TalkSummary) => `ganpanda.seen.${t.projectId}`;
-  function seenOf(t: TalkSummary): number {
-    try { return (JSON.parse(localStorage.getItem(seenKey(t)) ?? '{}') as Record<string, number>)[`talk:${t.roomId}`] ?? 0; } catch { return 0; }
-  }
-  function markSeen(t: TalkSummary, ts: number) {
-    try { const m = JSON.parse(localStorage.getItem(seenKey(t)) ?? '{}') as Record<string, number>; if ((m[`talk:${t.roomId}`] ?? 0) < ts) { m[`talk:${t.roomId}`] = ts; localStorage.setItem(seenKey(t), JSON.stringify(m)); } } catch { /* 저장 불가 */ }
-  }
-  let seenTick = $state(0);
-  const isNew = (t: TalkSummary) => (void seenTick, !!t.last && t.last.author !== app.nickname && t.last.ts > seenOf(t));
-
-  async function load() { try { talks = await listMyTalks(); } catch { talks = []; } }
-  $effect(() => { if (app.account) void load(); });
+  $effect(() => { if (app.account) void homeTalks.load(); else homeTalks.reset(); });
 
   async function show(t: TalkSummary) {
     open = t;
     messages = [];
     try { messages = await readTalk(t.projectId, t.roomId); } catch { messages = []; }
     const last = messages.at(-1)?.ts ?? t.last?.ts ?? 0;
-    markSeen(t, last); seenTick++;
+    homeTalks.markSeen(t, last);
   }
   async function send() {
     if (!open || !text.trim() || sending) return;
     sending = true;
-    try { await sendTalkFromHome(open.projectId, open.roomId, text.trim()); text = ''; await show(open); void load(); } finally { sending = false; }
+    try { await sendTalkFromHome(open.projectId, open.roomId, text.trim()); text = ''; await show(open); void homeTalks.load(); } finally { sending = false; }
   }
   const goto = (t: TalkSummary, r?: TalkRef) => (location.href = `/?room=${encodeURIComponent(t.projectId)}&talk=${encodeURIComponent(t.roomId)}${r ? `&focus=${r.kind}:${encodeURIComponent(r.id)}` : ''}`);
   const time = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const close = () => { homeTalks.open = false; open = null; };
 </script>
 
-{#if talks.length}
-  <section class="talks" data-testid="home-talks">
-    <h1>톡 <small>{talks.filter(isNew).length ? `새 대화 ${talks.filter(isNew).length}` : ''}</small></h1>
+{#if homeTalks.open}
+  <section class="talks" data-testid="home-talks" class:split={!!open}>
+    <header class="bar">
+      <h1>톡 <small>{homeTalks.newCount ? `새 대화 ${homeTalks.newCount}` : ''}</small></h1>
+      <button class="x" data-testid="home-talks-close" title="닫기" onclick={close}>✕</button>
+    </header>
     <div class="wrap" class:split={!!open}>
       <ul>
-        {#each talks as t (t.projectId + t.roomId)}
+        {#each homeTalks.talks as t (t.projectId + t.roomId)}
           <li><button class:on={open?.projectId === t.projectId && open?.roomId === t.roomId} data-testid="home-talk" data-room={t.roomId} onclick={() => show(t)}>
             <span class="pj">{t.projectName}</span>
             <b>{t.roomId === 'team' ? '🏢' : '💬'} {t.roomName}</b>
-            {#if isNew(t)}<i class="dot" data-testid="home-talk-new">새</i>{/if}
+            {#if homeTalks.isNew(t)}<i class="dot" data-testid="home-talk-new">새</i>{/if}
             {#if t.last}<span class="last">{t.last.author}: {t.last.text}</span>{/if}
           </button></li>
+        {:else}
+          <li class="hint">{homeTalks.loaded ? '아직 톡방이 없습니다. 프로젝트 안의 [톡]에서 방을 만들면 여기에 모입니다.' : '불러오는 중…'}</li>
         {/each}
       </ul>
       {#if open}
         <div class="room" data-testid="home-talk-room">
           <header>
+            <button class="back" title="목록으로" onclick={() => (open = null)}>←</button>
             <b>{open.projectName} · {open.roomName}</b>
             <button class="go" data-testid="home-talk-open-project" onclick={() => goto(open!)}>프로젝트에서 열기 →</button>
-            <button class="x" title="닫기" onclick={() => (open = null)}>✕</button>
           </header>
           <div class="list">
             {#each messages as m (m.id)}
@@ -88,21 +84,27 @@
 {/if}
 
 <style>
-  .talks { margin-bottom: 22px; }
+  /* 헤더 아래 오른쪽에 붙는 목록 창 — 휴대폰은 전체 폭 */
+  .talks { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: min(420px, calc(100vw - 16px)); z-index: 40; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); overflow: hidden; }
+  .talks.split { width: min(820px, calc(100vw - 16px)); }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .bar h1 { flex: 1; margin: 0; font-size: 16px; }
   h1 small { font-size: 13px; color: var(--accent); margin-left: 6px; }
-  .wrap { display: grid; gap: 12px; }
-  .wrap.split { grid-template-columns: minmax(220px, 1fr) 2fr; }
-  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
-  li button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 9px 11px; font: inherit; cursor: pointer; }
+  .x, .back { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; min-width: 32px; min-height: 32px; font: inherit; cursor: pointer; }
+  .wrap { flex: 1; min-height: 0; display: grid; gap: 10px; padding: 10px; }
+  .wrap.split { grid-template-columns: minmax(200px, 1fr) 2fr; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; }
+  li.hint { color: var(--muted); font-size: 13px; padding: 8px 4px; }
+  li button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 10px 12px; font: inherit; cursor: pointer; }
   li button.on { border-color: var(--accent); }
   .pj { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
   .dot { font-style: normal; background: #ef4444; color: #fff; border-radius: 9px; padding: 0 7px; font-size: 11px; font-weight: 800; align-self: center; }
   .last { grid-column: 1 / -1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .room { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 300px; max-height: 520px; }
+  .room { display: flex; flex-direction: column; min-height: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
   .room header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
   .room header b { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .room header button { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
-  .room .go { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  .room header .go { background: none; border: 1px solid var(--accent); color: var(--accent); font-weight: 700; border-radius: 8px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  .room header .back { display: none; }
   .list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--chat-bg); }
   .msg { align-self: flex-start; max-width: 85%; background: #fff; color: #191919; border-radius: 4px 12px 12px 12px; padding: 6px 10px; }
   .msg.mine { align-self: flex-end; background: #fee500; border-radius: 12px 4px 12px 12px; }
@@ -111,9 +113,15 @@
   .refs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
   .ref { background: rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.18); color: #1d4ed8; border-radius: 10px; padding: 2px 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
   form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
-  form input { flex: 1; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px; font: inherit; }
+  form input { flex: 1; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px; font: inherit; font-size: 16px; }
   form button { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; }
   form button:disabled { opacity: 0.5; }
   .hint { color: var(--muted); font-size: 12px; }
-  @media (max-width: 720px) { .wrap.split { grid-template-columns: 1fr; } }
+  /* 휴대폰: 목록 ↔ 방 한 칸씩, 방에서 [←] 로 목록 */
+  @media (max-width: 720px) {
+    .talks, .talks.split { right: 0; left: 0; width: auto; bottom: 0; border-radius: 14px 14px 0 0; }
+    .wrap.split { grid-template-columns: 1fr; }
+    .wrap.split ul { display: none; }
+    .room header .back { display: inline-block; }
+  }
 </style>

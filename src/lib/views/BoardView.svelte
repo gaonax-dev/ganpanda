@@ -22,14 +22,24 @@
   import { prepareUpload } from '../photoPrep';
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
+  import { loadRoomView, saveRoomView } from '../core/roomView';
   import { formatCombo, matchAction, type Action } from '../core/keymap';
   import type { Pt } from '../core/homography';
   import type { ShapeKind } from '../core/model';
 
-  let viewport: Viewport = $state({ x: 80, y: 80, zoom: 0.5 });
+  // 이 기기에서 마지막에 보던 확대·위치로 시작 (2026-10-25 "뷰도 떠날때 위치로") — 리스트 탭에 갔다 와도, 다시 열어도. 없으면 처음 열 때 전체 보기
+  const remembered = app.room ? loadRoomView(app.room).viewport : undefined;
+  let viewport: Viewport = $state(remembered ?? { x: 80, y: 80, zoom: 0.5 });
   let canvas: InfiniteCanvas;
   let urls: Record<string, string> = $state({});
-  let fitted = false;
+  let fitted = !!remembered;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const v = { x: viewport.x, y: viewport.y, zoom: viewport.zoom }, room = app.room;
+    if (!room || !fitted) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveRoomView(room, { viewport: v }), 250);
+  });
 
   // 이 프로젝트에 사진이 있었다고 기억 (2026-10-25) — 다음에 열 때 동기화 전엔 빈 화면 대신 로딩
   $effect(() => { if (app.room && app.photos.length) { try { localStorage.setItem(`ganpanda.hadPhotos.${app.room}`, '1'); } catch { /* 저장 못 해도 됨 */ } } });

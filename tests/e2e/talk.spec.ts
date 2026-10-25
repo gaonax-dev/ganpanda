@@ -138,11 +138,15 @@ test('톡 멤버는 아이디로 — 이름을 바꿔도 방에 남고, 메인 �
   await guest.getByTestId('talk-open').click();
   await expect(guest.getByTestId('talk-room')).toContainText('고객 상담');
 
-  // 메인 화면: 내 모든 톡방 → 읽기 → 링크 누르면 그 프로젝트(초대 링크 없이)의 방과 사인물
+  // 메인 화면: 헤더 [톡](새 대화 수) → 톡 목록 → 읽기 → 링크 누르면 그 프로젝트(초대 링크 없이)의 방과 사인물
+  // (2026-10-25 "메인화면에 톡을 헤더로 이동시키고 누르면 톡 목록으로")
   await expect(async () => {
     await guest.goto('/');
-    await expect(guest.getByTestId('home-talk')).toHaveCount(1, { timeout: 1500 });
+    await expect(guest.getByTestId('talk-unread')).toHaveText('1', { timeout: 1500 });
   }).toPass({ timeout: 10_000 });
+  await expect(guest.getByTestId('home-talks')).toHaveCount(0);
+  await guest.getByTestId('talk-open').click();
+  await expect(guest.getByTestId('home-talk')).toHaveCount(1);
   await expect(guest.getByTestId('home-talk')).toContainText('고객 상담');
   await expect(guest.getByTestId('home-talk-new')).toBeVisible();
   await guest.getByTestId('home-talk').click();
