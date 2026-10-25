@@ -354,3 +354,4 @@
 | 2026-10-25 | 요청·제안·받은 요청 페이지 맨 위에 **[← 돌아가기]**(같은 사이트에서 왔으면 뒤로, 아니면 홈) — 앱에는 브라우저 뒤로 가기가 없어서 | 사용자: "요청보기 내요청 미리보기 화면으로 이동후 돌아갈 방법이 없다" → [../features/requests.md](../features/requests.md) |
 | 2026-10-25 | **Android 앱 시작**: Java 17(Homebrew openjdk@17 — 비밀번호 없이)·명령줄 도구·NDK 29 설치, `cargo tauri android init`, `ganpanda://` intent-filter·카메라 권한·아이콘, 상태 막대 겹침은 MainActivity 에서 inset 패딩. 에뮬레이터(API 36)에서 실행 확인 | 사용자: "안드로이드 시작해도 될까?" → [../dev/app.md](../dev/app.md) |
 | 2026-10-25 | 확인·입력 창은 **앱 안에서는 자체 창**(`askConfirm`·`askPrompt`), 브라우저는 native — iOS·맥 웹뷰가 `confirm()`/`prompt()` 를 지원하지 않아 사진 삭제 등 20곳이 안 되던 문제 | 사용자: "아이폰에서 사진 삭제가 안된다" → [../dev/app.md](../dev/app.md) |
+| 2026-10-25 | 사진 위 사인물 정보 글자와 실측 없음 빨간 점은 **사인물 가운데** — 점이 있으면 점 위·글자 아래로 겹치지 않게 | 사용자: "사진에 사인물 사이즈 없는 표시 인디케이터를 센터로 해줘", "사진의 사인물 정보 사인물 센터로 사이즈 없음일때 인디케이터 있으면 겹치지 않게" → [../features/photo-board.md](../features/photo-board.md) |
