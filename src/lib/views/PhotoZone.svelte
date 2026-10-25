@@ -632,7 +632,8 @@
     </div>
     {/if}
   {:else}
-    <div class="loading">불러오는 중…</div>
+    <!-- 사진 파일을 받는 동안 (2026-10-25 "이미지 로딩이 표시되지 않는다"): 보드 축척과 상관없이 화면 크기의 스피너 -->
+    <div class="loading" data-testid="photo-loading"><div class="lbox" style:transform="scale({1 / zoom})"><span class="lspin" data-testid="photo-loading-spin"></span><small>사진 불러오는 중…</small></div></div>
   {/if}
   <svg
     class:tiny={tiny}
@@ -915,7 +916,10 @@
 <style>
   .zone { position: absolute; box-shadow: 0 6px 30px rgba(0, 0, 0, 0.35); background: #222; }
   img, .loading { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .loading { display: grid; place-items: center; color: #999; }
+  .loading { display: grid; place-items: center; color: #aaa; }
+  .lbox { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+  .lspin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid #444; border-top-color: var(--accent); animation: photo-spin 0.9s linear infinite; }
+  @keyframes photo-spin { to { transform: rotate(360deg); } }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .designs { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
   .pbox { position: relative; }
