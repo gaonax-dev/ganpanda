@@ -1,4 +1,6 @@
 <script lang="ts">
+  import AskDialog from './lib/ui/AskDialog.svelte';
+  import { askPrompt } from './lib/ui/ask.svelte';
   import { app } from './lib/state.svelte';
   import { PLAN_LABEL, fetchProviders, socialStartUrl, socialTarget, type SocialProvider } from './lib/auth';
   // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
@@ -256,7 +258,7 @@
         </span>
       {:else if app.authReady || app.sync === 'local'}
         <button class="who" data-testid="login-button" onclick={() => (app.loginOpen = true)}>로그인</button>
-        <button class="icon small-name" title="이름만 설정 (로그인 없이)" onclick={() => { const n = prompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>{app.nickname || '이름'}</button>
+        <button class="icon small-name" title="이름만 설정 (로그인 없이)" onclick={async () => { const n = await askPrompt('표시 이름', app.nickname); if (n?.trim()) app.setNickname(n.trim()); }}>{app.nickname || '이름'}</button>
       {/if}
     </div>
   </nav>
@@ -352,6 +354,7 @@
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.estimateOpen && (app.consumer || app.outsourceProject)}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
+<AskDialog />
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.versionsOpen && app.room}<VersionsDialog />{/if}

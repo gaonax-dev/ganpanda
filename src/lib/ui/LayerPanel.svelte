@@ -4,6 +4,7 @@
   눈(보이기)·자물쇠(잠금)·▲▼(순서)·체크 → [그룹]·[풀기]·이름(더블클릭)·✕. 편집은 트리에 바로 쓰고 거울(parts)을 다시 만든다(commitLayers).
 -->
 <script lang="ts">
+  import { askPrompt } from './ask.svelte';
   import type { Layer, SignObject, SignPart } from '../core/model';
   import { groupLayers, isGroup, isItemLayer, isPartLayer, layersOf, moveLayer, nearestPartId, removeLayer, setLayerProps, ungroupLayer } from '../core/layers';
   import { commitLayers, partsOf } from '../core/parts';
@@ -51,8 +52,8 @@
   const rename = (l: Layer, v: string) => { commit(setLayerProps(layers, l.id, { name: v.trim() || undefined })); renaming = null; };
   const stop = (e: Event) => e.stopPropagation();
   /** 세트로 저장 (4단계): 체크한 레이어(없으면 전체)를 이름 붙여 계정 라이브러리에 */
-  function saveSet() {
-    const name = prompt('세트 이름', '');
+  async function saveSet() {
+    const name = await askPrompt('세트 이름', '');
     if (name === null) return;
     const set = setFrom(layers, checked, obj, name);
     if (!set) return;

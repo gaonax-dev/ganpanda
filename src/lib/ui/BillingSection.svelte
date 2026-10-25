@@ -3,6 +3,7 @@
   구독 중: 다음 결제일·카드·결제 내역, [다음 결제일부터 요금제 바꾸기], [카드 바꾸기], [해지 예약]/[해지 취소]. 결제 실패 유예(7일) 안내
 -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { PLAN_LABEL } from '../auth';
   import { cancelSubscription, describeBillingError, fetchBilling, resumeSubscription, setNextPlan, startCardRegistration, type BillingInfo } from '../billing';
@@ -20,7 +21,7 @@
     try { await fn(); await load(); await app.refreshMe(); } catch (e) { error = describeBillingError(e); } finally { busy = false; }
   }
   const subscribe = (plan: string) => run(() => startCardRegistration(plan, app.account?.email ?? '', app.account?.name ?? ''));
-  const cancel = () => { if (confirm(`해지를 예약할까요? ${day(sub?.periodEnd ?? null)}까지는 지금처럼 쓰고, 그 뒤로 결제하지 않습니다. 기간 안에는 해지를 취소할 수 있습니다.`)) void run(cancelSubscription); };
+  const cancel = async () => { if (await askConfirm(`해지를 예약할까요? ${day(sub?.periodEnd ?? null)}까지는 지금처럼 쓰고, 그 뒤로 결제하지 않습니다. 기간 안에는 해지를 취소할 수 있습니다.`)) void run(cancelSubscription); };
 </script>
 
 {#if info?.configured}

@@ -12,7 +12,7 @@
 - **iOS 26.1 시뮬레이터 크래시 우회**: Tauri 런타임이 시작할 때 묻는 WebKit 버전(`NSBundle bundleWithIdentifier("com.apple.WebKit")`)이 시뮬레이터 안에서 죽는다(앱 코드와 무관). `src-tauri/patches/tauri-runtime-wry`(2.12.3 사본, 한 줄: iOS 는 묻지 않음) + `Cargo.toml [patch.crates-io]`. 상위 버전에서 고쳐지면 지운다. **iOS 시뮬레이터에서 앱 실행 확인됨 2026-10-24.**
 - **안전 영역**: 웹 `.shell` 에 `padding-top: env(safe-area-inset-top)`, 알림·빠른 막대·도구 막대는 아래·위 inset 만큼 띄움(브라우저에선 0). 아이콘은 `icons/ios/*` 를 `gen/apple/Assets.xcassets/AppIcon.appiconset/` 에 복사(ios init 이 기본 아이콘을 넣는다).
 
-- **할 일 (2026-10-25 "아이폰에서 사진 삭제가 안된다")**: 웹뷰 엔진(wry)은 **iOS·맥에서 `confirm()`·`prompt()`·`alert()` 를 지원하지 않는다**(안드로이드는 지원) — 확인 창이 즉시 "취소"로 끝나 사진 삭제·프로젝트 삭제·요청 취소·이름 바꾸기 등 약 20곳이 앱에서 동작하지 않는다. 계획: `src/lib/ui/ask.ts`(`askConfirm`·`askPrompt`, 앱 안이면 자체 대화 창 `AskDialog.svelte`, 브라우저면 기존 native) + 호출부 async 전환(BoardView 사진 삭제, Home 프로젝트·그룹 삭제·간판집 전환, RequestView 확정·취소, EstimateLock, Settings 사업자 해제·전환, BillingSection 해지, VersionsDialog 되돌리기, Chat 삭제·이름, ColorCardDialog, ObjectPanel 음성 삭제, LayerPanel 세트 이름, PhotoZone 사진 이름, App 표시 이름).
+- **확인·입력 창**(2026-10-25 "아이폰에서 사진 삭제가 안된다"): 웹뷰 엔진(wry)은 **iOS·맥에서 `confirm()`·`prompt()`·`alert()` 를 지원하지 않는다**(안드로이드는 지원) — 확인이 즉시 "취소"로 끝나 사진 삭제·프로젝트 삭제·요청 취소·이름 바꾸기 등 20곳이 앱에서 동작하지 않았다. 이제 모든 곳이 `src/lib/ui/ask.svelte.ts` 의 `askConfirm`·`askPrompt` 를 쓴다: **앱 안(`inNativeApp()`)이면 자체 창 `AskDialog.svelte`**(`ask-dialog`·`ask-message`·`ask-input`·`ask-ok`·`ask-cancel`, Esc = 취소, Enter = 확인, 바깥 누름은 무시), 브라우저면 native 그대로(e2e 의 native 대화 처리가 유지됨). `alert()` 는 쓰는 곳이 없다. 새 확인 창은 반드시 `askConfirm` 으로. 테스트 `tests/e2e/askDialog.spec.ts`.
 
 ## 명령 (저장소 루트)
 | 할 일 | 명령 |

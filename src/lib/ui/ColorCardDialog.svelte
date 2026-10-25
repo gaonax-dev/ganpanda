@@ -5,6 +5,7 @@
   테스트 id 는 필드 접두사를 그대로 (<tp><prefix>-swatch-<색> · -none · -picker · -lib-<id>) — 이전에 필드 안에 있던 견본이 창으로 옮겨 왔다
 -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { NAMED_COLORS, PAINT_SYSTEMS } from '../core/materials';
   import { COLOR_KINDS, allTags, cardRef, newColorCard, searchCards, tagSuggestions, type ColorCard, type ColorKind } from '../core/colorLibrary';
@@ -105,7 +106,7 @@
               {#if menuFor === c.id}
                 <div class="menu" data-testid="color-menu">
                   <button data-testid="color-edit-{c.id}" onclick={() => startEdit(c)}>수정</button>
-                  <button class="danger" data-testid="color-delete-{c.id}" onclick={() => { menuFor = null; if (confirm(`"${c.name}" 색을 라이브러리에서 지울까요? (이미 쓴 사인물의 색은 그대로)`)) app.removeColorCard(c.id); }}>삭제</button>
+                  <button class="danger" data-testid="color-delete-{c.id}" onclick={async () => { menuFor = null; if (await askConfirm(`"${c.name}" 색을 라이브러리에서 지울까요? (이미 쓴 사인물의 색은 그대로)`)) app.removeColorCard(c.id); }}>삭제</button>
                 </div>
               {/if}
             </li>

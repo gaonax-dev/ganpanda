@@ -5,6 +5,7 @@
   그룹을 클릭하면 전체 정보·비용 계산서. 멤버 관리는 설정에서."
 -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
@@ -42,7 +43,7 @@
   let myRequests = $state<MyRequest[]>([]);
   /** 가게 사장 → 간판집 전환 (2026-10-22): 되돌릴 수 없음, 견적 보드는 내 프로젝트로 */
   async function toShop() {
-    if (!confirm('간판집(사업자) 계정으로 바꿀까요?\n\n견적 보드는 내 프로젝트로 옮겨지고, 보낸 요청과 등록한 사업자는 그대로 남습니다. 바꾼 뒤에는 가게 사장 견적 요청 대신 외주 요청을 씁니다. 되돌릴 수 없습니다.')) return;
+    if (!(await askConfirm('간판집(사업자) 계정으로 바꿀까요?\n\n견적 보드는 내 프로젝트로 옮겨지고, 보낸 요청과 등록한 사업자는 그대로 남습니다. 바꾼 뒤에는 가게 사장 견적 요청 대신 외주 요청을 씁니다. 되돌릴 수 없습니다.'))) return;
     try { await app.becomeShop(); await reload(); app.showFlash('간판집 계정으로 바꿨습니다'); } catch (e) { app.notice = e instanceof Error ? e.message : String(e); }
   }
   async function reload() {
@@ -168,14 +169,14 @@
   async function removeSelected() {
     const ids = [...selected];
     const names = ids.map((id) => projects?.find((p) => p.id === id)?.name ?? id);
-    if (!confirm(`프로젝트 ${ids.length}개를 삭제할까요?\n${names.join(', ')}\n사진·사인물·대화가 모두 지워지고 되돌릴 수 없습니다.`)) return;
+    if (!(await askConfirm(`프로젝트 ${ids.length}개를 삭제할까요?\n${names.join(', ')}\n사진·사인물·대화가 모두 지워지고 되돌릴 수 없습니다.`))) return;
     selected = new Set(); selectMode = false;
     for (const id of ids) await deleteProject(id);
     await reload();
   }
   const selectedGrouped = $derived([...selected].some((id) => projects?.find((p) => p.id === id)?.groupId));
   async function removeGroup(g: GroupInfo) {
-    if (!confirm(`"${g.name}" 그룹을 지울까요? 프로젝트는 남습니다.`)) return;
+    if (!(await askConfirm(`"${g.name}" 그룹을 지울까요? 프로젝트는 남습니다.`))) return;
     await deleteGroup(g.id);
     await reload();
   }

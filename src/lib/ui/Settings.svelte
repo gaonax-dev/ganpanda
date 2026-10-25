@@ -1,5 +1,6 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { nudgeClose } from './dialogGuard';
   import { app, type SettingsTab } from '../state.svelte';
   import { AuthError, PLAN_LABEL } from '../auth';
@@ -30,7 +31,7 @@
     finally { bizBusy = false; }
   }
   async function removeBiz() {
-    if (!confirm('사업자 확인을 해제하면 제안 페이지의 "사업자 확인" 배지가 사라지고, 이 번호를 다른 계정에서 확인할 수 있게 됩니다. 해제할까요?')) return;
+    if (!(await askConfirm('사업자 확인을 해제하면 제안 페이지의 "사업자 확인" 배지가 사라지고, 이 번호를 다른 계정에서 확인할 수 있게 됩니다. 해제할까요?'))) return;
     try { app.business = await removeBusiness(); } catch (e) { bizError = describeBusinessError(e); }
   }
   // 사업장 주소 (2026-10-24): 확인된 사업자도 주소만 바꾼다 — 요청 받기 기본 지역
@@ -147,7 +148,7 @@
     try { await app.deleteMyAccount(); } catch (e) { app.notice = `계정을 지우지 못했습니다: ${e instanceof Error ? e.message : String(e)}`; deleteBusy = false; }
   }
   async function toShop() {
-    if (!confirm('간판집(사업자) 계정으로 바꿀까요? 되돌릴 수 없습니다.')) return;
+    if (!(await askConfirm('간판집(사업자) 계정으로 바꿀까요? 되돌릴 수 없습니다.'))) return;
     try { await app.becomeShop(); app.showFlash('간판집 계정으로 바꿨습니다'); } catch (e) { app.notice = e instanceof Error ? e.message : String(e); }
   }
 

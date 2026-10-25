@@ -4,6 +4,7 @@
   무료는 요금제 안내, 베이직 7일·프로 30일(+직접 저장 계속) — 서버가 기간을 거른다. 되돌리면 함께 보는 모두에게 안내(설정 restored)
 -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
   import { copyVersion, listVersions, restoreVersion, saveVersion, type VersionInfo } from '../projects';
@@ -27,8 +28,8 @@
   const when = (t: number) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   async function run(f: () => Promise<unknown>) { busy = true; error = ''; try { await f(); await load(); } catch { error = '처리하지 못했습니다. 다시 시도해 주세요.'; } finally { busy = false; } }
   const save = () => run(async () => { await saveVersion(room, invite, label.trim()); label = ''; });
-  function restore(v: VersionInfo) {
-    if (!confirm(`${when(v.at)} ${v.label ?? KIND[v.kind]} 버전으로 되돌릴까요? 함께 보는 모든 사람에게 적용됩니다. 지금 상태는 "되돌리기 전" 버전으로 남습니다. (대화는 그대로)`)) return;
+  async function restore(v: VersionInfo) {
+    if (!(await askConfirm(`${when(v.at)} ${v.label ?? KIND[v.kind]} 버전으로 되돌릴까요? 함께 보는 모든 사람에게 적용됩니다. 지금 상태는 "되돌리기 전" 버전으로 남습니다. (대화는 그대로)`))) return;
     void run(() => restoreVersion(room, invite, v.key));
   }
   const copy = (v: VersionInfo) => run(async () => { copied = await copyVersion(room, invite, v.key); });

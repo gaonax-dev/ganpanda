@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { askConfirm } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
   import MultiSize from '../ui/MultiSize.svelte';
   import MultiLast from '../ui/MultiLast.svelte';
@@ -541,7 +542,7 @@
         cameraSet={app.cameras.has(p.id)}
         threeD={app.threeDOk(p.id) ? 'ok' : 'none'}
         showWarnings={app.warnMeasure}
-        ondelete={() => { if (confirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
+        ondelete={async () => { if (await askConfirm(`"${p.name}" 사진과 사인물을 삭제할까요?`)) { app.editBoundary(); app.project.removePhoto(p.id); app.editBoundary(); } }}
         onreplace={app.canEdit ? () => { replacingId = p.id; replaceInput?.click(); } : undefined}
         onadjust={app.canEdit ? () => (app.adjustPhotoId = p.id) : undefined}
       />
