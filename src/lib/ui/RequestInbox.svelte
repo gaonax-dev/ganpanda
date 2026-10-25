@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BackLink from './BackLink.svelte';
   // 받은 견적 요청 페이지 (/requests, 2026-10-22 사용자: "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"):
   // 헤더의 "견적 요청 N" 을 누르면 여기로. 목록은 이름·사인물 정보만, 누르면 요청 보드(복제), 단추는 [견적 넣기] 하나
   import { app } from '../state.svelte';
@@ -30,6 +31,7 @@
 
 <div class="page" data-testid="request-list">
   <header>
+    <BackLink label="홈" />
     <div class="tabs" role="tablist">
       <button role="tab" class:on={tab === 'received'} data-testid="inbox-tab-received" onclick={() => setTab('received')}>받은 요청 {#if unanswered}<small class="hot" data-testid="request-unanswered">{unanswered}</small>{/if}</button>
       <button role="tab" class:on={tab === 'sent'} data-testid="inbox-tab-sent" onclick={() => setTab('sent')}>보낸 요청 <small>{sent.length}</small></button>

@@ -1,5 +1,6 @@
 <!-- 고객이 보는 제안 페이지 (휴대폰 우선, 로그인 없음): 실사 주간/야간 · 사인물 목록·치수·금액 · 질문 · [진행 동의] (2026-10-22, 전에는 [이걸로 할게요]) -->
 <script lang="ts">
+  import BackLink from './BackLink.svelte';
   import GanpandaPromise from './GanpandaPromise.svelte';
   import { signTextOf } from '../core/parts';
   import { app } from '../state.svelte';
@@ -48,6 +49,7 @@
 
 <div class="page" data-testid="proposal-page">
   <header class="hero">
+    <BackLink />
     <small>간판 제안</small>
     <h1>{projectName}</h1>
     {#if proposal?.note}<p class="note" data-testid="proposal-note-view">{proposal.note}</p>{/if}
