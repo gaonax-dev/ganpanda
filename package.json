@@ -19,7 +19,9 @@
     "app:test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "app:ios": "cargo tauri ios dev --config src-tauri/tauri.live.json",
     "app:ios:local": "cargo tauri ios dev",
-    "app:android": "cargo tauri android dev"
+    "app:android": "scripts/android-env.sh cargo tauri android dev --config src-tauri/tauri.live.json",
+    "app:android:local": "scripts/android-env.sh cargo tauri android dev",
+    "app:android:build": "scripts/android-env.sh cargo tauri android build"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

@@ -21,14 +21,17 @@
 | Rust 테스트 | `npm run app:test` |
 | iOS 실행 — **운영 사이트** (시뮬레이터 또는 케이블로 연결한 아이폰 — 아이폰은 Xcode 에 Apple 계정 로그인 + `project.yml` `DEVELOPMENT_TEAM`, 설치 뒤 자동 실행은 아이폰이 잠겨 있으면 실패하니 직접 연다) | `npm run app:ios` (처음엔 `cargo tauri ios init` — 한 번, 결과 `src-tauri/gen/apple` 은 커밋) |
 | iOS 실행 — 로컬 vite (LAN 주소로 열리게 `--host`) | `npm run app:ios:local` |
-| Android 실행 | `cargo tauri android init` 뒤 `npm run app:android` — **Java(JDK 17)·ANDROID_HOME·NDK 필요** |
+| Android 실행 — **운영 사이트** (에뮬레이터 `Medium_Phone_API_36.1` 또는 USB 디버깅 켠 폰; 환경은 `scripts/android-env.sh` 가 잡음) | `npm run app:android` |
+| Android 실행 — 로컬 vite | `npm run app:android:local` |
+| Android 배포판(.apk/.aab) | `npm run app:android:build` → `src-tauri/gen/android/app/build/outputs/` (서명 키는 D3 때) |
 
 ## 준비물 (이 맥, 2026-10-24 확인)
 - 있음: Rust 1.97, tauri-cli 2.11, Xcode 26.1(시뮬레이터), iOS rust 타깃(aarch64-apple-ios·-sim).
-- **Android**: `~/Library/Android/sdk` 는 있으나 Java 없음·`ANDROID_HOME` 미설정·NDK 미확인 → `brew install --cask temurin@17`, `export ANDROID_HOME=~/Library/Android/sdk`, SDK Manager 로 NDK 설치 뒤 `cargo tauri android init`.
+- **Android**(2026-10-25 "안드로이드 시작해도 될까?" — 준비 완료): Java 17 = Homebrew `openjdk@17`(비밀번호 없이) + Temurin 17(사용자 설치), SDK `~/Library/Android/sdk`(platforms 35·36, build-tools 36), 명령줄 도구는 Google zip 을 `cmdline-tools/latest` 에 직접 풀어 설치, NDK 29(`sdkmanager --install "ndk;29.0.14206865"`), Rust 타깃 4개. 환경 변수는 `scripts/android-env.sh` 가 매번 잡는다(JAVA_HOME = `/usr/libexec/java_home -v 17` 또는 openjdk@17, ANDROID_HOME, NDK_HOME = ndk 중 최신). `cargo tauri android init` 결과 `src-tauri/gen/android` 은 커밋. **에뮬레이터(API 36)에서 앱 실행 확인됨.**
+- **Android 손본 것**: `AndroidManifest.xml` 에 `ganpanda://` intent-filter(딥링크)와 CAMERA 권한(사진 찍기), 아이콘은 `icons/android/mipmap-*` 를 `res/mipmap-*` 에 복사(init 이 기본 아이콘을 넣는다), **상태 막대 겹침**: targetSdk 36 부터 끝까지 그리기(edge-to-edge)가 강제되고(테마의 `windowOptOutEdgeToEdgeEnforcement` 도 무시) 웹뷰는 안전 영역 값을 주지 않아 상단 막대가 시계와 겹쳤다 → `MainActivity.kt` 에서 템플릿의 `enableEdgeToEdge()` 를 빼고 **시스템 막대·컷아웃·키보드 inset 만큼 content 에 padding**(`ViewCompat.setOnApplyWindowInsetsListener`). 막대 뒤 색은 테마(`res/values*/themes.xml`) `windowBackground`.
 
 ## 남은 일 (로드맵)
 - D1 ✓ 맥 개발판·이동 규칙·iOS 프로젝트. **맥 번들에서 카카오 로그인(사파리 → `ganpanda://` 복귀) 확인됨 2026-10-24.** 데스크톱은 카카오톡 앱 로그인이 없어 브라우저(아이디·QR)가 정상; 휴대폰에서는 카카오 페이지의 [카카오톡으로 로그인]으로 앱 간 이동. **WebKit 점검**(3D·ORT wasm 자동 분리·IndexedDB·파일 선택)은 실제로 열어 보며.
 - D2 서명·공증한 맥 배포판(.dmg, Apple 개발자 계정) — 토스 정식 오픈 후.
-- D3 윈도우판(WebView2)·자동 업데이트. 앱이 웹을 품지 않아 업데이트는 Rust 가 바뀔 때만.
+- D3 윈도우판(WebView2)·자동 업데이트·Android 서명 키(.aab). 앱이 웹을 품지 않아 업데이트는 Rust 가 바뀔 때만.
 - D4 푸시(톡 알림). iOS·Android 스토어 등록(개발자 계정·심사).

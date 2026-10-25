@@ -1,0 +1,11 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- 간판다 (2026-10-25): 안드로이드 15+ 는 앱이 상태 막대 밑까지 그리는 게 기본인데 웹뷰는 안전 영역 값을 주지 않아 상단 막대가 시계와 겹친다 → 끝까지 그리기 끔, 막대 색은 앱 패널색 -->
+    <style name="Theme.ganpanda" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+        <item name="android:statusBarColor">#15181d</item>
+        <item name="android:navigationBarColor">#15181d</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+        <item name="android:windowBackground">#111418</item>
+    </style>
+</resources>

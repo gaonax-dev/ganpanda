@@ -352,3 +352,4 @@
 | 2026-10-24 | 앱(Tauri)에서 카카오 로그인은 **시스템 브라우저에서 하고 `ganpanda://login#session=` 딥링크로 앱에 돌아온다** — 카카오톡 앱 로그인이 되게. 웹은 `app=1`·새 창, 서버는 `oauth_states.app` | 사용자: "카카오 앱으로 로그인 해야지" → [../dev/app.md](../dev/app.md) |
 | 2026-10-25 | 보드는 **서버 첫 동기화가 끝난 뒤에만 "사진 없음"** 을 보이고 그 전엔 스피너. 사진이 있던 프로젝트는 기기에 기억해 계속 기다림, 새 프로젝트는 4초 뒤 빈 화면 | 사용자: "사진이 이미 있는 프로젝트가 열리면서 사진 없을때 채워지는 내용이 나온다 … 미리 상태를 저장했다가 로딩시 스피너 돌리고 이미지 가져오게" → [../features/photo-board.md](../features/photo-board.md) |
 | 2026-10-25 | 요청·제안·받은 요청 페이지 맨 위에 **[← 돌아가기]**(같은 사이트에서 왔으면 뒤로, 아니면 홈) — 앱에는 브라우저 뒤로 가기가 없어서 | 사용자: "요청보기 내요청 미리보기 화면으로 이동후 돌아갈 방법이 없다" → [../features/requests.md](../features/requests.md) |
+| 2026-10-25 | **Android 앱 시작**: Java 17(Homebrew openjdk@17 — 비밀번호 없이)·명령줄 도구·NDK 29 설치, `cargo tauri android init`, `ganpanda://` intent-filter·카메라 권한·아이콘, 상태 막대 겹침은 MainActivity 에서 inset 패딩. 에뮬레이터(API 36)에서 실행 확인 | 사용자: "안드로이드 시작해도 될까?" → [../dev/app.md](../dev/app.md) |
