@@ -2,6 +2,7 @@
      2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "취소만 남기고 환불 재요청 빼줘":
      진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import BackLink from './BackLink.svelte';
   import GanpandaPromise from './GanpandaPromise.svelte';
   import { cancelRequest, chooseShop, getRequest, type CustomerRequestView } from '../requests';
@@ -28,12 +29,12 @@
   const signs = $derived(r?.signs ?? []);
   const measured = $derived(signs.filter((s) => s.widthMm && s.heightMm).length);
   async function choose(projectId: string, shop: string) {
-    if (busy || !confirm(`${shop}(으)로 확정할까요?\n\n다른 간판집에는 다른 곳과 진행하게 됐다고 알려 드립니다. 마음이 바뀌면 다른 제안에서 다시 바꿀 수 있어요.`)) return;
+    if (busy || !(await askConfirm(`${shop}(으)로 확정할까요?\n\n다른 간판집에는 다른 곳과 진행하게 됐다고 알려 드립니다. 마음이 바뀌면 다른 제안에서 다시 바꿀 수 있어요.`))) return;
     busy = true;
     try { await chooseShop(id, projectId, key); await load(); } catch { error = '확정하지 못했습니다. 잠시 뒤 다시 해 주세요.'; } finally { busy = false; }
   }
   async function cancel() {
-    if (busy || !confirm('견적 요청을 취소할까요?\n\n요청이 닫혀 더는 새 제안이 오지 않아요. 이미 제안한 간판집은 연락처를 받았으니 필요하면 직접 연락이 올 수 있어요.')) return;
+    if (busy || !(await askConfirm('견적 요청을 취소할까요?\n\n요청이 닫혀 더는 새 제안이 오지 않아요. 이미 제안한 간판집은 연락처를 받았으니 필요하면 직접 연락이 올 수 있어요.'))) return;
     busy = true;
     try { await cancelRequest(id, key); await load(); } catch { error = '취소하지 못했습니다. 잠시 뒤 다시 해 주세요.'; } finally { busy = false; }
   }

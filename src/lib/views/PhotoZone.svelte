@@ -1,5 +1,6 @@
 <!-- 사진 = 보드 위의 구역. 사인물 영역(사각·원형)을 그리고 편집한다. 좌표는 사진 원본 픽셀. -->
 <script lang="ts">
+  import { askPrompt } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
   import type { Pt } from '../core/homography';
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
@@ -557,7 +558,7 @@
         <button class="citem" data-testid="photo-menu-lines" onclick={() => { menuOpen = false; app.togglePhotoHide(photo.id, 'lines'); }}>{hideLines ? '구별선 보이기' : '구별선 숨기기'} <span>사인물 외곽선 — 눌러서 고를 수는 있다</span></button>
       {/if}
       <!-- 이름 변경 (2026-10-22 "사진도 사진이름으로 사진 설정에 이름변경추가") — 톡 링크·목록에 이 이름이 보인다 -->
-      <button class="citem" data-testid="photo-rename" onclick={() => { menuOpen = false; const n = prompt('사진 이름', photo.name); if (n !== null) app.renamePhoto(photo.id, n); }}>이름 변경 <span>톡 링크·목록에 보이는 이름</span></button>
+      <button class="citem" data-testid="photo-rename" onclick={async () => { menuOpen = false; const n = await askPrompt('사진 이름', photo.name); if (n !== null) app.renamePhoto(photo.id, n); }}>이름 변경 <span>톡 링크·목록에 보이는 이름</span></button>
       {#if onreplace}<button class="citem" data-testid="photo-replace" onclick={() => { menuOpen = false; onreplace(); }}>사진 교체 <span>같은 자리에서 다시 찍은 사진으로 — 영역·원근은 그대로</span></button>{/if}
       {#if onadjust}<button class="citem" data-testid="photo-adjust" onclick={() => { menuOpen = false; onadjust(); }}>이미지 조절 <span>크롭(여백 더하기도)·밝기</span></button>{/if}
       <button class="citem danger" data-testid="photo-delete" onclick={() => { menuOpen = false; ondelete(); }}>사진 삭제 <span>사인물·말풍선도 함께</span></button>

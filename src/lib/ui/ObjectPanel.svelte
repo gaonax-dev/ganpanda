@@ -1,5 +1,6 @@
 <!-- 선택한 사인물: 이름·분류(간판/스카시/시트)·한 줄 요약 + 대화. 세부 설정은 ObjectSettingsDialog -->
 <script lang="ts">
+  import { askConfirm } from './ask.svelte';
   import { untrack } from 'svelte';
   import { app } from '../state.svelte';
   import { voicesOf } from '../core/voices';
@@ -89,7 +90,7 @@
       {#each voices as v (v.id)}
         <div class="voice-row"><span class="who">{v.author}</span><span class="t">{new Date(v.ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>{#if v.text}<span class="t">{v.text}</span>{/if}
           {#each v.attachments ?? [] as a (a.assetId + a.name)}<AttachmentView att={a} />{/each}
-          {#if app.canDeleteMessage(v)}<button class="icon vdel" data-testid="voice-delete" title="이 음성 메모 지우기" onclick={() => { if (confirm('이 음성 메모를 지울까요?')) void app.deleteMessage(v); }}>✕</button>{/if}</div>
+          {#if app.canDeleteMessage(v)}<button class="icon vdel" data-testid="voice-delete" title="이 음성 메모 지우기" onclick={async () => { if (await askConfirm('이 음성 메모를 지울까요?')) void app.deleteMessage(v); }}>✕</button>{/if}</div>
       {:else}
         <p class="none">음성 메모가 없습니다. 휴대폰에서 사인물을 고르고 상단의 🎙 녹음으로 남깁니다.</p>
       {/each}

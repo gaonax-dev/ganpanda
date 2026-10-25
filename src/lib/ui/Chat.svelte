@@ -1,5 +1,6 @@
 <!-- 오브젝트별 대화창 (카톡형) + 코멘트 -->
 <script lang="ts">
+  import { askConfirm, askPrompt } from './ask.svelte';
   import { app } from '../state.svelte';
   import type { Attachment, Message } from '../core/model';
   import { ATTACH_ACCEPT, ATTACH_MAX } from '../core/attachments';
@@ -38,7 +39,7 @@
 
   const messages = $derived.by(() => (app.version, app.project.messagesOf(objectId)));
   /** 지우기 (2026-10-18 "말풍선 안의 이전 녹음을 지울 수가 없다") — 확인 뒤 */
-  function del(m: Message) { if (confirm(m.attachments?.length ? '이 메시지와 첨부를 지울까요?' : '이 메시지를 지울까요?')) void app.deleteMessage(m); }
+  async function del(m: Message) { if (await askConfirm(m.attachments?.length ? '이 메시지와 첨부를 지울까요?' : '이 메시지를 지울까요?')) void app.deleteMessage(m); }
   const shown = $derived(messages.filter((m) => m.kind === kind));
   const counts = $derived({ chat: messages.filter((m) => m.kind === 'chat').length, comment: messages.filter((m) => m.kind === 'comment').length });
 
@@ -47,12 +48,12 @@
     queueMicrotask(() => list?.scrollTo({ top: list.scrollHeight }));
   });
 
-  function send() {
+  async function send() {
     const t = text.trim();
     if ((!t && !pending.length && !(talk && app.talkRefs.length)) || uploading) return;
     let name = app.nickname;
     if (!name) {
-      name = prompt('대화에 표시할 이름을 입력하세요', '') ?? '';
+      name = (await askPrompt('대화에 표시할 이름을 입력하세요', '')) ?? '';
       if (!name.trim()) return;
       app.setNickname(name.trim());
     }
@@ -105,7 +106,7 @@
     {#if attachError}<span class="err">{attachError}</span>{/if}
   </div>
 {/if}
-<form class="input" onsubmit={(e) => { e.preventDefault(); send(); }}>
+<form class="input" onsubmit={(e) => { e.preventDefault(); void send(); }}>
   <!-- 녹음 (2026-10-20 "말풍선 속성창에 녹음도 추가"): 사인물이면 음성 메모(🎙 목록), 지점 말풍선이면 이 대화에 음성 첨부. 상단 메뉴와 같은 녹음 하나 -->
   {#if !app.isCustomer && !talk}
     {@const mine = !!recording.recorder && recording.target === objectId}
