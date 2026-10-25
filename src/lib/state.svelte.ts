@@ -76,6 +76,14 @@ class AppState {
   zoneSel = $state<{ photoId: string; zone: number; vertex: number | null } | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
+  /** 서버와 첫 동기화 끝 (2026-10-25) — 보드 로딩 표시용 */
+  synced = $state(false);
+  /** 동기화를 기다린 지 오래됨 (사진이 없던 프로젝트는 그냥 빈 화면으로) */
+  syncWaited = $state(false);
+  /** 이 기기에서 이 프로젝트에 사진이 있었다 (localStorage) — 동기화 전엔 빈 화면 대신 로딩 */
+  get hadPhotos(): boolean { try { return !!this.room && localStorage.getItem(`ganpanda.hadPhotos.${this.room}`) === '1'; } catch { return false; } }
+  /** 보드가 "사진 없음"을 보여도 되는 때: 로컬 캐시를 읽었고(ready), 서버 동기화가 끝났거나 서버가 없거나, 기억이 없는데 오래 기다렸거나 */
+  get boardSettled(): boolean { return this.ready && (this.synced || this.sync === 'local' || (!this.hadPhotos && this.syncWaited)); }
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
   keymap = $state<Keymap>(mergeKeymap(parse(load('ganpanda.keymap'))));
   /** 설정 창: true 또는 처음 보일 탭 이름 (2026-10-21 탭 분리) */
@@ -1006,6 +1014,8 @@ class AppState {
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
+    this.client.whenSynced(() => (this.synced = true));
+    setTimeout(() => (this.syncWaited = true), 4000);
     this.client.whenOnline(flushPendingUploads);
     this.client.whenOnline(() => void retryMissingAssets()); // 못 받은 에셋 다시 (2026-10-17)
     // 요청에서 만든 프로젝트: 문서에 사진이 없으면 요청 사진을 가져온다 (요청판, 2026-10-17)
