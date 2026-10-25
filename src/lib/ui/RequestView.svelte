@@ -2,6 +2,7 @@
      2026-10-22 사용자: "견적요청 페이지는 견적 요청된 상태를 더 잘 포장해서", "취소만 남기고 환불 재요청 빼줘":
      진행 단계(접수 → 제안 도착 → 간판집 선택), 사업자 인증 배지(또는 일반 주문), 요청 요약, 받은 제안, [요청 취소](요청을 닫기만) → [새로 요청하기] -->
 <script lang="ts">
+  import BackLink from './BackLink.svelte';
   import GanpandaPromise from './GanpandaPromise.svelte';
   import { cancelRequest, chooseShop, getRequest, type CustomerRequestView } from '../requests';
   import { loadSession } from '../auth';
@@ -43,6 +44,7 @@
   {:else if !view || !r}<p class="hint">불러오는 중…</p>
   {:else}
     <header class="hero" data-status={r.status}>
+      <BackLink />
       <div class="top">
         <small>간판 견적 요청 · {date(r.createdAt)}</small>
         {#if r.b2b}<span class="badge b2b" data-testid="request-b2b">B2B 외주</span>{/if}
