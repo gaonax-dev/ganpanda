@@ -19,6 +19,7 @@ test('요청에서 가져온 프로젝트의 제안 창에 크레딧 금액 — 
   await expect(credit).toContainText('8,400원');
   await expect(credit).toContainText('가게 정보·연락처');
   await expect(credit).toContainText('정식 결제 전');
+  await expect(credit).toContainText('고객이 제안을 열 때'); // 결제는 고객이 볼 때 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고")
 });
 
 test('설정: 구독 없이 [카드만 등록] — 견적 요청 크레딧용, 구독 상태로 보이지 않는다', async ({ page, request }) => {

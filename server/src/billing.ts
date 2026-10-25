@@ -140,7 +140,22 @@ export async function chargeBillingRaw(env: Env, me: { id: string; email: string
 }
 
 /**
- * 요청 크레딧 결제 (2026-10-24 "등록 카드로 쓴 만큼", 월 한도 500만원): 제안 링크를 만들 때 한 번.
+ * 요청 크레딧 예약 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고"): 제안 링크를 만들 때 — 결제는 하지 않고
+ * 카드가 있는지, 이번 달 결제 + 아직 결제 안 된 예약 + 이번 금액이 한도 안인지만 본다. 성공 true, 아니면 chargeCredit 과 같은 402 모양
+ */
+export async function reserveCredit(env: Env, me: { id: string; email: string }, fee: number, limit: number, reserved: number): Promise<true | { status: 402 | 403 | 503; body: Record<string, unknown> }> {
+  if (!configured(env)) return { status: 503, body: { error: 'not_configured' } };
+  if (!allowedToPay(env, me.email)) return { status: 403, body: { error: 'not_allowed' } };
+  const row = await rowOf(env, me.id);
+  if (!row?.billing_key_enc) return { status: 402, body: { error: 'card_required', fee } };
+  const used = await creditUsed(env, me.id);
+  if (used + reserved + fee > limit) return { status: 402, body: { error: 'credit_limit', used, reserved, limit, fee } };
+  return true;
+}
+
+/**
+ * 요청 크레딧 결제 (2026-10-24 "등록 카드로 쓴 만큼", 월 한도 500만원): 고객이 제안을 처음 열 때 한 번 (2026-10-25 — 전엔 제안 링크를 만들 때).
+ * 한도는 예약 때 봤으므로 결제 때는 limit = Infinity 로 부른다.
  * 성공 true, 아니면 { status 402, body } — card_required(카드 없음) · credit_limit(이번 달 한도) · charge_failed(카드사 거절)
  */
 export async function chargeCredit(env: Env, me: { id: string; email: string }, requestId: string, fee: number, limit: number): Promise<true | { status: 402 | 403 | 503; body: Record<string, unknown> }> {

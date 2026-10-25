@@ -18,10 +18,10 @@ export function requestFee(total: number | null | undefined): number {
 /** 보낸 자동 견적: 0 초과 100억 미만 정수만, 아니면 null */
 export const cleanTotal = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1e10 ? Math.round(v) : null);
 
-/** 이 간판집에게 요청 사진이 열렸나: 제안을 보냈거나(request_responses) 운영자 */
+/** 이 간판집에게 가게 정보가 열렸나: 크레딧이 결제됐거나(고객이 제안을 열었을 때 — 2026-10-25, 예약만으로는 아님) 운영자 */
 export async function photosOpen(env: Env, me: Account, requestId: string): Promise<boolean> {
   if (isOperator(env, me.email)) return true;
-  return !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(requestId, me.id).first());
+  return !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ? AND paid_at IS NOT NULL').bind(requestId, me.id).first());
 }
 
 /** 제안을 보낸 순간: 요청 보드의 사진을 그 간판집 계정에 등록 → 가져온 내 프로젝트에서 사진이 열린다 */

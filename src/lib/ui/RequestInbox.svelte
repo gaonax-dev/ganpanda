@@ -63,7 +63,7 @@
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               <!-- 가게 사장 요구사항 (2026-10-22 "요청보기는 제거하고 카드 하단에 소비자 요구사항표시") -->
               {#if r.text}<p class="need" data-testid="request-need">“{r.text}”</p>{/if}
-              {#if r.responded}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{/if}
+              {#if r.responded && r.phone}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{:else if r.responded && r.reserved}<p class="muted" data-testid="request-reserved">제안을 보냈습니다 — 고객이 열면 크레딧{r.fee ? ` ${r.fee.toLocaleString('ko-KR')}원` : ''}이 결제되고 연락처가 열립니다</p>{/if}
             </div>
             <div class="ract">
               <!-- 단추는 [실측 보기] 하나 — 고칠 수 없는 요청 보드를 열고, 거기서 [내 프로젝트로 가져오기]로 복제 (2026-10-22 "내 견적보기 -> 실측보기(강조색 파란색) 수정안됨 프로젝트 창에서 내프로젝트로 가져오기로 복제하기") -->

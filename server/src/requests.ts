@@ -245,8 +245,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   if (pathname === '/api/requests' && req.method === 'GET') {
     const me = await authenticate(req, env);
     if (!me) return text('unauthorized', 401);
-    const mine = await env.DB.prepare('SELECT p.request_id, p.id AS project_id, rr.proposal_url FROM projects p LEFT JOIN request_responses rr ON rr.request_id = p.request_id AND rr.account_id = p.owner_id WHERE p.owner_id = ? AND p.request_id IS NOT NULL')
-      .bind(me.id).all<{ request_id: string; project_id: string; proposal_url: string | null }>();
+    const mine = await env.DB.prepare('SELECT p.request_id, p.id AS project_id, rr.proposal_url, rr.paid_at FROM projects p LEFT JOIN request_responses rr ON rr.request_id = p.request_id AND rr.account_id = p.owner_id WHERE p.owner_id = ? AND p.request_id IS NOT NULL')
+      .bind(me.id).all<{ request_id: string; project_id: string; proposal_url: string | null; paid_at: number | null }>();
     const byReq = new Map(mine.results.map((m) => [m.request_id, m]));
     const regions = me.receive_requests && !me.requests_blocked ? regionsOf(me) : [];
     const operator = isOperator(env, me.email);
@@ -257,9 +257,10 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     for (const r of [...open, ...answered]) if (r.account_id !== me.id && r.status !== 'approved') all.set(r.id, r);
     const requests = [...all.values()].sort((a, b) => b.created_at - a.created_at).map((r) => {
       const m = byReq.get(r.id);
-      // 연락처는 제안 링크를 보낸(요금이 발생한) 요청에만 (숨고식: 제안이 곧 연락처)
-      const open = operator || !!m?.proposal_url;
-      return { ...(open ? pubRequest(r) : lockedRequest(r)), responded: !!m?.proposal_url, ...(m ? { projectId: m.project_id } : {}), ...(m?.proposal_url ? { phone: r.phone, ...(r.email ? { email: r.email } : {}) } : {}) };
+      // 연락처는 크레딧이 결제된 요청에만 — 고객이 제안을 열었을 때 (2026-10-25, 전엔 제안 링크를 보낼 때). 예약(paid_at 없음)은 아직 가림
+      const paid = !!m?.proposal_url && !!m.paid_at;
+      const open = operator || paid;
+      return { ...(open ? pubRequest(r) : lockedRequest(r)), responded: !!m?.proposal_url, ...(m?.proposal_url && !m.paid_at ? { reserved: true } : {}), ...(m ? { projectId: m.project_id } : {}), ...(paid ? { phone: r.phone, ...(r.email ? { email: r.email } : {}) } : {}) };
     });
     return json({ requests });
   }
@@ -303,7 +304,7 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
       if (!ok) {
         const me = await authenticate(withSessionParam(req, url), env);
         if (!me) return text('unauthorized', 401);
-        ok = !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(r.id, me.id).first()); // 제안을 보낸 간판사만
+        ok = !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ? AND paid_at IS NOT NULL').bind(r.id, me.id).first()); // 크레딧이 결제된 간판사만 (연락처와 같은 기준)
       }
       if (!ok) return text('forbidden', 403);
       const meta = bizDocOf(r);
@@ -410,11 +411,15 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
   return text('not found', 404);
 }
 
-/** 제안 링크 발급 시 호출 (projects.ts): 요청에서 만든 프로젝트면 응답 기록 — 요금 발생·홍보자 정산 근거, 이때부터 연락처 공개. proposalUrl = 서버 기준 경로 `/p/<project>/<token>` */
-export async function recordResponse(env: Env, project: { id: string; owner_id: string; request_id?: string | null }, proposalUrl: string) {
+/**
+ * 제안 링크 발급 시 호출 (projects.ts): 요청에서 만든 프로젝트면 응답 기록 — 고객의 제안 목록에 나온다. proposalUrl = 서버 기준 경로 `/p/<project>/<token>`.
+ * paid = 바로 열림(크레딧 꺼짐·운영자). 아니면 예약 — 고객이 제안을 열 때 결제되고 연락처가 열린다 (2026-10-25). 이미 결제된 것은 그대로
+ */
+export async function recordResponse(env: Env, project: { id: string; owner_id: string; request_id?: string | null }, proposalUrl: string, paid = true) {
   if (!project.request_id) return;
-  await env.DB.prepare('INSERT INTO request_responses (request_id, account_id, project_id, proposal_url, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(request_id, account_id) DO UPDATE SET proposal_url = excluded.proposal_url, project_id = excluded.project_id')
-    .bind(project.request_id, project.owner_id, project.id, proposalUrl, Date.now()).run();
+  const now = Date.now();
+  await env.DB.prepare('INSERT INTO request_responses (request_id, account_id, project_id, proposal_url, created_at, paid_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(request_id, account_id) DO UPDATE SET proposal_url = excluded.proposal_url, project_id = excluded.project_id, paid_at = COALESCE(request_responses.paid_at, excluded.paid_at)')
+    .bind(project.request_id, project.owner_id, project.id, proposalUrl, now, paid ? now : null).run();
   await unlockPhotos(env, project.request_id, project.owner_id); // 제안 = 사진도 열림 (2026-10-24)
 }
 
