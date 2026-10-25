@@ -124,6 +124,8 @@
   const u = $derived(1 / (scale * zoom));
   /** 조절점 터치 영역 반지름(화면 px): 터치 기기는 넓게 (2026-10-24 "컨트롤 포인트의 터치 영역을 조금 넓게 … 원근 컨트롤러도") — 보이는 크기는 그대로 */
   const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  /** 외곽선 가운데 (꼭짓점 평균) — 정보 글자·실측 없음 점 자리 (2026-10-25) */
+  const centerOf = (pts: Pt[]): Pt => pts.length ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : [0, 0];
   const HIT = COARSE ? 24 : 12;
   /** 누름으로 볼 이동 범위(화면 px): 손가락은 누르는 동안 흔들려 4px 이면 끌기가 되어 정면 축 바꾸기가 안 먹었다 (2026-10-24 "정면 설정 컨트롤러도 잘 터치되지 않는다") */
   const TAP = COARSE ? 12 : 4;
@@ -737,12 +739,15 @@
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         {#if !hideInfo || sel || multiSel}
-        <text data-testid="sign-label" x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
+        {@const c = centerOf(q)}
+        {@const dot = !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}
+        <!-- 정보 글자는 사인물 가운데, 실측 없음 점이 있으면 점 아래로 (2026-10-25 "사인물 정보 사인물 센터로 … 겹치지 않게") -->
+        <text data-testid="sign-label" x={c[0]} y={dot ? c[1] + 12 * u : c[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle">
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
         {/if}
         <!-- 실측 없음 = 외곽선 왼쪽 위 빨간 점 (2026-10-24 "실측 없으면 사인물 왼쪽상단에 빨강 인디케이터 점") — 예상 치수(≈)만 있어도 실측은 아니다 -->
-        {#if (!hideInfo || sel || multiSel) && !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={q[0][0]} cy={q[0][1]} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
+        {#if (!hideInfo || sel || multiSel) && !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={centerOf(q)[0]} cy={centerOf(q)[1] - 6 * u} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
           {@const H = solveHomography(UNIT_RECT, q)}

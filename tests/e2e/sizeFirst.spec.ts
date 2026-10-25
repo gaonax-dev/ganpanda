@@ -44,9 +44,18 @@ test('실측 없는 사인물은 사진 위 외곽선 왼쪽 위에 빨간 점 �
   await expect(dots).toHaveAttribute('data-id', b);
   const fill = await dots.evaluate((e) => getComputedStyle(e).fill);
   expect(fill).toBe('rgb(239, 68, 68)');
-  // 점 = 외곽선 왼쪽 위 꼭짓점
+  // 점 = 사인물 가운데, 정보 글자도 가운데 — 점이 있으면 글자는 점 아래로 겹치지 않게 (2026-10-25 "인디케이터를 센터로", "사인물 정보 사인물 센터로 … 겹치지 않게")
   const [cx, cy] = await dots.evaluate((e) => [Number(e.getAttribute('cx')), Number(e.getAttribute('cy'))]);
-  expect([cx, cy]).toEqual([600, 100]);
+  expect(cx).toBe(700);
+  expect(cy).toBeGreaterThan(110); expect(cy).toBeLessThan(150);
+  const label = page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${b}"]) [data-testid="sign-label"]`);
+  const lb = await label.evaluate((e) => ({ x: Number(e.getAttribute('x')), y: Number(e.getAttribute('y')), anchor: getComputedStyle(e).textAnchor }));
+  expect(lb.x).toBe(700); expect(lb.anchor).toBe('middle');
+  const r = Number(await dots.getAttribute('r'));
+  expect(lb.y - Number(await label.evaluate((e) => parseFloat(e.getAttribute('font-size')!)))).toBeGreaterThanOrEqual(cy + r - 0.01); // 글자 위쪽이 점 아래
+  // 치수가 있는 사인물의 글자는 가운데
+  const la = page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${a}"]) [data-testid="sign-label"]`);
+  expect(Number(await la.getAttribute('x'))).toBe(300);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 2000, heightMm: 500 }), b);
   await expect(dots).toHaveCount(0);
   expect(a).toBeTruthy();
