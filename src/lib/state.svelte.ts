@@ -61,7 +61,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; on: boolean } }
+  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -126,10 +126,16 @@ class AppState {
   /** 헤더의 "보낸 요청 M" (2026-10-22 "사업자도 요청을 올릴수 있다. 해당 내역도 헤더에 표시"): 열린 내 요청 수, 보낸 요청이 있으면 보인다 */
   sentCount = $state(0);
   sentShown = $state(false);
-  /** 제안 링크를 만들어 크레딧을 냈다 → 가게 정보·연락처가 열린다 */
+  /** 제안 링크를 만들었다 → 크레딧 예약 (고객이 열면 결제, 2026-10-25). 크레딧이 꺼져 있으면 바로 열림 */
+  creditReserved() {
+    if (this.access.status !== 'ok' || !this.access.credit) return;
+    const c = this.access.credit;
+    this.access = { ...this.access, credit: c.on ? { ...c, reserved: !c.paid } : { ...c, paid: true } };
+  }
+  /** [다시 결제] 성공 → 가게 정보·연락처가 열린다 */
   creditPaid() {
-    if (this.access.status !== 'ok') return;
-    if (this.access.credit) this.access = { ...this.access, credit: { ...this.access.credit, paid: true } };
+    if (this.access.status !== 'ok' || !this.access.credit) return;
+    this.access = { ...this.access, credit: { ...this.access.credit, paid: true, reserved: false, error: undefined } };
   }
   /** 사진마다 [정보]·[구별선] 숨김 (2026-10-24 "사진에 정보, 구별선 토글버튼으로 사진에서 표시제어") — 이 기기에만 (localStorage) */
   photoHide = $state<Record<string, { info?: boolean; lines?: boolean }>>((() => { try { return JSON.parse(localStorage.getItem('ganpanda.photoHide') ?? '{}'); } catch { return {}; } })());

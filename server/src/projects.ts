@@ -1,6 +1,6 @@
 // 프로젝트(= 방)·초대 링크·접근 권한 (1-2b)
 import { CREDIT_MONTH_LIMIT, creditsOn, photosOpen, requestFee } from './credit';
-import { chargeCredit } from './billing';
+import { chargeCredit, reserveCredit } from './billing';
 import { recordView } from './bypass';
 import { isOperator } from './operator';
 import { talkMember } from './talk';
@@ -110,6 +110,9 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
+    // 고객이 제안 링크로 열었다 → 예약된 크레딧 결제 (2026-10-25). 소유자·회사 멤버의 미리보기는 아니다. 카카오톡 미리보기(OG) 봇은 /p/ 랜딩만 받고 여기는 부르지 않는다
+    const inviteToken = url.searchParams.get('invite');
+    if (inviteToken && r.role !== 'owner' && r.project.request_id && (await inviteByToken(env, inviteToken))?.kind === 'proposal' && !(r.account && (await teamAccess(env, r.project.owner_id, r.account)))) await settleCredit(env, r.project, true);
     // credit: 요청에서 가져온 내 프로젝트 — 첫 제안에 쓰일 크레딧 (2026-10-24). on = 실제 결제 여부(REQUEST_CREDITS)
     const credit = r.role === 'owner' && r.project.request_id && r.account ? { ...(await creditState(env, r.project.request_id, r.account)), on: creditsOn(env) && !isOperator(env, r.account.email) } : null;
     // 요청 보드를 여는 간판집: 열람 기록(신고 근거, 2026-10-24) + 제안 전엔 요청서 이름(가게 이름)을 가린다. 사진은 결제 전에도 원본 (2026-10-24 "원본 그대로")
@@ -124,6 +127,16 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
 
   const me = await authenticate(req, env);
   if (!me) return text('unauthorized', 401);
+
+  // 크레딧 다시 결제 (2026-10-25): 고객이 제안을 열었는데 카드 결제가 안 됐을 때 — 소유 간판집이 카드를 바꾸고 누른다
+  const retry = pathname.match(/^\/api\/projects\/([^/]+)\/credit$/);
+  if (retry && req.method === 'POST') {
+    const project = await getProject(env, retry[1]);
+    if (!project || project.owner_id !== me.id) return text('not found', 404);
+    const c = await settleCredit(env, project, false);
+    if (c === 'not_viewed') return json({ error: 'not_viewed' }, 409);
+    return c === true ? json({ ok: true }) : json(c.body, c.status);
+  }
 
   if (pathname === '/api/projects') {
     if (req.method === 'GET') {
@@ -217,10 +230,12 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       if (!role || !INVITE_ROLES.has(role)) return text('bad role', 400);
       // kind = 'proposal': 제안 보내기 링크 — 무료 요금제는 한 달 건수 한도 (2026-10-17). 보통 초대는 세지 않는다
       const kind = body?.kind === 'proposal' ? 'proposal' : null;
-      // 요청에서 가져온 프로젝트의 첫 제안 = 크레딧 결제 (2026-10-24) — 요금제 건수 대신. 운영자·이미 제안한 요청은 결제 없음
+      // 요청에서 가져온 프로젝트의 첫 제안 = 크레딧 예약 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고", 전엔 이때 결제) — 요금제 건수 대신.
+      // 카드·한도(결제 + 예약)만 보고, 결제는 고객이 제안을 열 때(settleCredit). 운영자는 결제 없이 바로 열림
       const credit = kind && project.request_id && creditsOn(env) ? await creditState(env, project.request_id, me) : null;
-      if (credit && !credit.paid) {
-        const c = isOperator(env, me.email) ? true : await chargeCredit(env, me, project.request_id!, credit.fee, CREDIT_MONTH_LIMIT);
+      const free = !credit || isOperator(env, me.email);
+      if (credit && !free && !credit.paid && !credit.reserved) {
+        const c = await reserveCredit(env, me, credit.fee, CREDIT_MONTH_LIMIT, await reservedTotal(env, me.id));
         if (c !== true) return json(c.body, c.status);
       }
       if (kind && !credit) {
@@ -231,7 +246,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       const token = randomToken();
       await env.DB.prepare('INSERT INTO invites (token_hash, project_id, role, created_at, kind, token) VALUES (?, ?, ?, ?, ?, ?)')
         .bind(await sha256hex(token), project.id, role, Date.now(), kind, token).run();
-      if (kind) await recordResponse(env, project, `/p/${project.id}/${token}`); // 요청판 응답 기록 (경로만 — 앱이 서버 주소를 붙인다)
+      if (kind) await recordResponse(env, project, `/p/${project.id}/${token}`, free); // 요청판 응답 기록 (경로만 — 앱이 서버 주소를 붙인다)
       return json({ token, role, url: inviteUrl(env, project.id, token) }, 201);
     }
   } else if (req.method === 'DELETE') {
@@ -258,9 +273,35 @@ export async function handleEstimateProject(req: Request, env: Env): Promise<Res
   return json({ project: pubProject(p, 'owner') }, 201);
 }
 
-/** 요청 하나에 대한 이 간판집의 크레딧: 금액(요청에 저장된 것)과 이미 제안했는지 */
-async function creditState(env: Env, requestId: string, me: { id: string }): Promise<{ fee: number; paid: boolean }> {
+/** 요청 하나에 대한 이 간판집의 크레딧: 금액(요청에 저장된 것), 결제됨(paid), 예약 중(reserved — 제안했지만 고객이 아직 안 열었거나 결제 실패), 결제 실패 사유 */
+async function creditState(env: Env, requestId: string, me: { id: string }): Promise<{ fee: number; paid: boolean; reserved: boolean; error?: string }> {
   const r = await env.DB.prepare('SELECT fee, estimate_total FROM requests WHERE id = ?').bind(requestId).first<{ fee: number | null; estimate_total: number | null }>();
-  const paid = !!(await env.DB.prepare('SELECT 1 FROM request_responses WHERE request_id = ? AND account_id = ?').bind(requestId, me.id).first());
-  return { fee: r?.fee ?? requestFee(r?.estimate_total), paid };
+  const rr = await env.DB.prepare('SELECT paid_at, charge_error FROM request_responses WHERE request_id = ? AND account_id = ?').bind(requestId, me.id).first<{ paid_at: number | null; charge_error: string | null }>();
+  return { fee: r?.fee ?? requestFee(r?.estimate_total), paid: !!rr?.paid_at, reserved: !!rr && !rr.paid_at, ...(rr && !rr.paid_at && rr.charge_error ? { error: rr.charge_error } : {}) };
+}
+/** 아직 결제되지 않은 예약 합계 — 한도에 함께 센다 */
+async function reservedTotal(env: Env, accountId: string): Promise<number> {
+  const r = await env.DB.prepare('SELECT COALESCE(SUM(COALESCE(q.fee, 3000)), 0) AS n FROM request_responses rr JOIN requests q ON q.id = rr.request_id WHERE rr.account_id = ? AND rr.paid_at IS NULL').bind(accountId).first<{ n: number }>();
+  return r?.n ?? 0;
+}
+/**
+ * 예약된 크레딧 결제 (2026-10-25): 고객이 제안을 처음 열면(viewed) 소유 간판집의 등록 카드로 한 번. 동시에 두 번 열려도 charging_at 으로 한 번만.
+ * 실패하면 charge_error 로 남기고 고객 화면은 막지 않는다 — 간판집이 [다시 결제](POST /api/projects/:id/credit). 크레딧이 꺼졌거나 운영자면 결제 없이 열림
+ * 'not_viewed' = 고객이 아직 안 열었거나 결제할 예약이 없다
+ */
+async function settleCredit(env: Env, project: ProjectRow, viewed: boolean): Promise<true | 'not_viewed' | { status: 402 | 403 | 503; body: Record<string, unknown> }> {
+  if (!project.request_id) return 'not_viewed';
+  const now = Date.now(), key = [project.request_id, project.owner_id] as const;
+  if (viewed) await env.DB.prepare('UPDATE request_responses SET viewed_at = ? WHERE request_id = ? AND account_id = ? AND viewed_at IS NULL').bind(now, ...key).run();
+  const claim = await env.DB.prepare('UPDATE request_responses SET charging_at = ? WHERE request_id = ? AND account_id = ? AND paid_at IS NULL AND viewed_at IS NOT NULL AND (charging_at IS NULL OR charging_at < ?)').bind(now, ...key, now - 60_000).run();
+  if (!claim.meta.changes) return 'not_viewed';
+  const owner = await env.DB.prepare('SELECT id, email FROM accounts WHERE id = ?').bind(project.owner_id).first<{ id: string; email: string }>();
+  const done = () => env.DB.prepare('UPDATE request_responses SET paid_at = ?, charging_at = NULL, charge_error = NULL WHERE request_id = ? AND account_id = ?').bind(Date.now(), ...key).run();
+  if (!owner || !creditsOn(env) || isOperator(env, owner.email)) { await done(); return true; }
+  const { fee } = await creditState(env, project.request_id, owner);
+  const c = await chargeCredit(env, owner, project.request_id, fee, Infinity); // 한도는 예약 때 봤다
+  if (c === true) { await done(); return true; }
+  const msg = String(c.body.message ?? c.body.error ?? 'charge_failed');
+  await env.DB.prepare('UPDATE request_responses SET charging_at = NULL, charge_error = ? WHERE request_id = ? AND account_id = ?').bind(msg, ...key).run();
+  return c;
 }

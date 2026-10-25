@@ -46,7 +46,7 @@ export async function handleOperator(req: Request, env: Env, pathname: string): 
     for (const r of rows) {
       const q = await env.DB.prepare('SELECT store, region, floor, fee, estimate_total FROM requests WHERE id = ?').bind(r.request_id).first<{ store: string; region: string; floor: string; fee: number | null; estimate_total: number | null }>();
       const viewers = (await env.DB.prepare(`SELECT v.account_id, v.first_at, a.email, a.name, a.requests_blocked, b.name AS biz, b.b_no,
-          EXISTS(SELECT 1 FROM request_responses rr WHERE rr.request_id = v.request_id AND rr.account_id = v.account_id) AS paid
+          EXISTS(SELECT 1 FROM request_responses rr WHERE rr.request_id = v.request_id AND rr.account_id = v.account_id AND rr.paid_at IS NOT NULL) AS paid
         FROM request_views v JOIN accounts a ON a.id = v.account_id LEFT JOIN businesses b ON b.account_id = v.account_id WHERE v.request_id = ? ORDER BY v.first_at`).bind(r.request_id)
         .all<{ account_id: string; first_at: number; email: string; name: string; requests_blocked: number; biz: string | null; b_no: string | null; paid: number }>()).results;
       const fee = q?.fee ?? requestFee(q?.estimate_total);

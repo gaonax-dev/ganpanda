@@ -2,7 +2,7 @@
 <script lang="ts">
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
-  import { createInvite } from '../projects';
+  import { createInvite, retryCredit } from '../projects';
   import { AuthError } from '../auth';
   import { proposalProblems, type ProposalInfo } from '../core/proposal';
   import { SERVER_URL } from '../sync';
@@ -23,14 +23,21 @@
     try { const j = JSON.parse(body) as { used: number; limit: number }; return `무료 요금제는 제안 링크가 한 달 ${j.limit}건까지입니다 (이번 달 ${j.used}건). 다음 달에 다시 만들거나 베이직 요금제로 올리면 무제한입니다.`; }
     catch { return '무료 요금제의 이번 달 제안 링크 한도에 도달했습니다. 베이직 요금제로 올리면 무제한입니다.'; }
   }
-  /** 요청 크레딧 (2026-10-24): 이 요청의 첫 제안이면 크레딧 결제 → 사진·가게 정보·연락처가 열린다 */
+  /** 요청 크레딧: 첫 제안 = 예약, 고객이 제안을 열 때 등록 카드로 결제 → 가게 정보·연락처가 열린다 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고", 전엔 제안 때 결제) */
   const credit = $derived(app.access.status === 'ok' && app.access.credit && !app.access.credit.paid ? app.access.credit : null);
+  async function retry() {
+    if (!app.room) return;
+    error = '';
+    try { busy = '결제하는 중…'; await retryCredit(app.room); app.creditPaid(); }
+    catch (e) { error = e instanceof AuthError && e.status === 402 ? creditError(e.message) ?? e.message : e instanceof AuthError && e.status === 409 ? '고객이 아직 제안을 열지 않았습니다.' : e instanceof Error ? e.message : String(e); }
+    finally { busy = ''; }
+  }
   let needCard = $state(false);
   function creditError(body: string): string | null {
     try {
       const j = JSON.parse(body) as { error?: string; fee?: number; used?: number; limit?: number; message?: string };
-      if (j.error === 'card_required') { needCard = true; return `결제 카드가 없습니다. 설정 → 계정 · 구독에서 카드를 등록하면 크레딧 ${won(j.fee ?? 0)}이 결제되고 제안이 만들어집니다.`; }
-      if (j.error === 'credit_limit') return `이번 달 크레딧 한도(${won(j.limit ?? 0)})를 넘습니다 — 이번 달 ${won(j.used ?? 0)} 사용. 다음 달 1일에 다시 열립니다.`;
+      if (j.error === 'card_required') { needCard = true; return `결제 카드가 없습니다. 설정 → 계정 · 구독에서 카드를 등록하면 제안을 보낼 수 있습니다 — 크레딧 ${won(j.fee ?? 0)}은 고객이 제안을 열 때 결제됩니다.`; }
+      if (j.error === 'credit_limit') return `이번 달 크레딧 한도(${won(j.limit ?? 0)})를 넘습니다 — 이번 달 결제 ${won(j.used ?? 0)}${(j as { reserved?: number }).reserved ? ` · 예약 ${won((j as { reserved?: number }).reserved!)}` : ''}. 다음 달 1일에 다시 열립니다.`;
       if (j.error === 'charge_failed') { needCard = true; return `카드 결제가 되지 않았습니다${j.message ? ` (${j.message})` : ''}. 카드를 바꾸거나 잠시 뒤 다시 해 주세요.`; }
       return null;
     } catch { return null; }
@@ -46,7 +53,7 @@
       const inv = await createInvite(app.room, 'viewer', 'proposal');
       link = `${SERVER_URL}/p/${app.room}/${inv.token}`;
       copied = false;
-      if (app.access.status === 'ok' && app.access.credit) app.creditPaid(); // 가게 정보·연락처가 열린다
+      if (app.access.status === 'ok' && app.access.credit) app.creditReserved(); // 예약 — 고객이 열면 결제되고 가게 정보·연락처가 열린다
     } catch (e) {
       // 무료 요금제 월 건수 한도 (2026-10-17): 서버 402 proposal_limit
       error = e instanceof AuthError && e.status === 402 ? creditError(e.message) ?? proposalLimitMessage(e.message) : e instanceof Error ? e.message : String(e);
@@ -83,7 +90,13 @@
       {/if}
 
       {#if credit}
-        <p class="credit" data-testid="proposal-credit">이 요청에 첫 제안을 보내면 <b>크레딧 {won(credit.fee)}</b>{credit.on ? '이 등록 카드로 결제되고' : '이 쓰이고'}, 가게 사장님의 <b>가게 정보·연락처</b>가 열립니다.{#if !credit.on} <small>(지금은 정식 결제 전이라 무료입니다)</small>{/if}</p>
+        {#if credit.error}
+          <p class="credit err" data-testid="proposal-credit-failed">고객이 제안을 열었지만 <b>크레딧 {won(credit.fee)}</b> 카드 결제가 되지 않았습니다 ({credit.error}). 카드를 확인하고 다시 결제하면 <b>가게 정보·연락처</b>가 열립니다. <button class="btn small primary" data-testid="proposal-credit-retry" disabled={!!busy} onclick={retry}>다시 결제</button></p>
+        {:else if credit.reserved}
+          <p class="credit" data-testid="proposal-credit-reserved"><b>크레딧 {won(credit.fee)} 예약됨</b> — 고객이 제안을 열 때 등록 카드로 결제되고, 그때 가게 사장님의 <b>가게 정보·연락처</b>가 열립니다.</p>
+        {:else}
+          <p class="credit" data-testid="proposal-credit">이 요청에 첫 제안을 보내면 <b>크레딧 {won(credit.fee)}</b>이 예약되고, 고객이 제안을 열 때 등록 카드로 결제됩니다. 그때 가게 사장님의 <b>가게 정보·연락처</b>가 열립니다.{#if !credit.on} <small>(지금은 정식 결제 전이라 무료 — 제안을 보내면 바로 열립니다)</small>{/if}</p>
+        {/if}
       {/if}
       <section>
         {#if busy}
@@ -111,6 +124,7 @@
 
 <style>
   .credit { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .credit.err { background: color-mix(in srgb, #ef4444 14%, transparent); }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
   .dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }

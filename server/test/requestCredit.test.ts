@@ -94,7 +94,8 @@ describe('요청: 층·자동 견적·크레딧, 사진은 제안을 보낸 뒤'
 });
 
 // 2단계: 제안을 보낼 때 등록 카드로 크레딧 결제 (2026-10-24 "등록 카드로 쓴 만큼", 월 한도 500만원). REQUEST_CREDITS=1 일 때만 (토스 정식 키 전에는 무료)
-describe('크레딧 결제 = 제안 링크를 만들 때', () => {
+// 2026-10-25 사용자: "요청 크레딧을 고객이 견적을 확인하면 그때 결제하는 건 어떤가? 간판집은 예약하고" → 제안 = 예약, 고객 열람 = 결제 (앞의 "제안 링크를 만들 때 결제"는 대체됨)
+describe('크레딧: 제안 = 예약, 고객이 제안을 열면 결제', () => {
   let charges: { amount: number; orderName: string }[] = [];
   let reject = false;
   afterEach(() => { (env as unknown as { REQUEST_CREDITS: string }).REQUEST_CREDITS = ''; });
@@ -123,20 +124,35 @@ describe('크레딧 결제 = 제안 링크를 만들 때', () => {
   };
   const propose = (s: string, project: string) => json(`/api/projects/${project}/invites`, { role: 'viewer', kind: 'proposal' }, s);
 
-  it('카드가 있으면 크레딧을 결제하고 제안 링크를 만든다(사진 열림) — 같은 요청에 다시 제안해도 또 결제하지 않는다. 접근 정보에 크레딧', async () => {
+  /** 고객이 제안 링크를 연다 (로그인 없이 — 앱이 접근 정보를 묻는 순간) */
+  const openAsCustomer = (project: string, token: string) => api(`/api/projects/${project}/access?invite=${token}`);
+  const creditOf = async (s: string, project: string) => (await (await get(`/api/projects/${project}/access`, s)).json<{ credit?: { fee: number; paid: boolean; reserved: boolean; on: boolean; error?: string } }>()).credit;
+  const lockedFor = async (s: string, id: string) => (await (await get('/api/requests', s)).json<{ requests: { id: string; locked?: boolean }[] }>()).requests.find((x) => x.id === id)?.locked;
+
+  it('제안을 보내면 예약(결제 없음) — 고객이 제안을 열 때 등록 카드로 결제되고 가게 정보·연락처가 열린다. 다시 열어도·다시 제안해도 한 번만, 간판집이 자기 링크를 열면 결제 안 됨', async () => {
     const { s } = await shopWithCard();
-    const { project } = await requestAndImport(s);
-    expect((await (await get(`/api/projects/${project}/access`, s)).json<{ credit?: { fee: number; paid: boolean; on: boolean } }>()).credit).toEqual({ fee: 8_400, paid: false, on: true });
-    expect((await propose(s, project)).status).toBe(201);
+    const { id, project } = await requestAndImport(s);
+    expect(await creditOf(s, project)).toEqual({ fee: 8_400, paid: false, reserved: false, on: true });
+    const r = await propose(s, project);
+    expect(r.status).toBe(201);
+    const { token } = await r.json<{ token: string }>();
+    expect(charges).toEqual([]); // 예약만
+    expect(await creditOf(s, project)).toEqual({ fee: 8_400, paid: false, reserved: true, on: true });
+    expect(await lockedFor(s, id)).toBe(true); // 고객이 보기 전엔 가림
+    expect((await api(`/api/projects/${project}/access?invite=${token}&session=${s}`, { headers: { authorization: `Bearer ${s}` } })).status).toBe(200); // 간판집 미리보기
+    expect(charges).toEqual([]);
+    expect((await openAsCustomer(project, token)).status).toBe(200);
     expect(charges).toEqual([{ amount: 8_400, orderName: expect.stringContaining('견적 요청 크레딧') }]);
+    expect(await creditOf(s, project)).toEqual({ fee: 8_400, paid: true, reserved: false, on: true });
+    expect(await lockedFor(s, id)).toBeUndefined(); // 열림
+    await openAsCustomer(project, token);
     expect((await propose(s, project)).status).toBe(201);
     expect(charges.length).toBe(1);
-    expect((await (await get(`/api/projects/${project}/access`, s)).json<{ credit?: { paid: boolean } }>()).credit?.paid).toBe(true);
     const pay = (await (await get('/api/me/billing', s)).json<{ payments: { kind: string; amount: number; status: string }[] }>()).payments;
     expect(pay[0]).toMatchObject({ kind: 'credit', amount: 8_400, status: 'DONE' });
   });
 
-  it('카드가 없으면 402 card_required(금액), 카드 거절이면 402 charge_failed — 제안·사진은 안 열린다', async () => {
+  it('카드가 없으면 예약도 402 card_required. 고객이 열 때 카드가 거절되면 고객은 그대로 보고, 간판집에 오류 — 고객이 본 뒤 간판집이 [다시 결제]', async () => {
     const { s } = await shopWithCard(false);
     const { project } = await requestAndImport(s);
     const r = await propose(s, project);
@@ -144,32 +160,46 @@ describe('크레딧 결제 = 제안 링크를 만들 때', () => {
     expect(await r.json()).toMatchObject({ error: 'card_required', fee: 8_400 });
     const c = await shopWithCard();
     const b = await requestAndImport(c.s);
+    const { token } = await (await propose(c.s, b.project)).json<{ token: string }>();
+    expect((await json(`/api/projects/${b.project}/credit`, {}, c.s)).status).toBe(409); // 고객이 보기 전엔 결제할 것이 없다
     reject = true;
-    const f = await propose(c.s, b.project);
-    expect([f.status, (await f.json<{ error: string }>()).error]).toEqual([402, 'charge_failed']);
-    expect((await (await get(`/api/requests`, c.s)).json<{ requests: { id: string; locked?: boolean }[] }>()).requests.find((x) => x.id === b.id)?.locked).toBe(true); // 가게 정보는 그대로 가림
+    expect((await openAsCustomer(b.project, token)).status).toBe(200);
+    expect(charges).toEqual([]);
+    expect(await creditOf(c.s, b.project)).toMatchObject({ paid: false, reserved: true, error: expect.stringContaining('카드사 거절') });
+    expect(await lockedFor(c.s, b.id)).toBe(true);
+    reject = false;
+    expect((await json(`/api/projects/${b.project}/credit`, {}, c.s)).status).toBe(200);
+    expect(charges.length).toBe(1);
+    expect(await creditOf(c.s, b.project)).toEqual({ fee: 8_400, paid: true, reserved: false, on: true });
+    expect(await lockedFor(c.s, b.id)).toBeUndefined();
   });
 
-  it('이번 달(한국 시각) 크레딧 합계가 500만원을 넘으면 402 credit_limit', async () => {
+  it('이번 달(한국 시각) 결제 + 예약 합계가 500만원을 넘으면 예약 402 credit_limit', async () => {
     expect(CREDIT_MONTH_LIMIT).toBe(5_000_000);
     const { s, id } = await shopWithCard();
-    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, created_at) VALUES (?, ?, 'credit', ?, 'credit', 'DONE', ?)").bind(`gp-${u()}`, id, 4_995_000, Date.now()).run();
-    const { project } = await requestAndImport(s);
-    const r = await propose(s, project);
+    await env.DB.prepare("INSERT INTO payments (order_id, account_id, plan, amount, kind, status, created_at) VALUES (?, ?, 'credit', ?, 'credit', 'DONE', ?)").bind(`gp-${u()}`, id, 4_985_000, Date.now()).run();
+    const a = await requestAndImport(s);
+    expect((await propose(s, a.project)).status).toBe(201); // 4,985,000 + 8,400 — 예약
+    const b = await requestAndImport(s);
+    const r = await propose(s, b.project);
     expect(r.status).toBe(402);
-    expect(await r.json()).toMatchObject({ error: 'credit_limit', limit: 5_000_000, used: 4_995_000, fee: 8_400 });
+    expect(await r.json()).toMatchObject({ error: 'credit_limit', limit: 5_000_000, used: 4_985_000, reserved: 8_400, fee: 8_400 });
   });
 
   it('요청 제안은 요금제의 월 제안 건수에 세지 않는다(크레딧으로 낸다), 운영자는 결제 없이', async () => {
     const { s, id } = await shopWithCard();
     for (let i = 0; i < 3; i++) { const p = await (await json('/api/projects', { name: `일반${i}` }, s)).json<{ project: { id: string } }>(); expect((await propose(s, p.project.id)).status).toBe(201); } // 무료 월 3건 다 씀
     const { project } = await requestAndImport(s);
-    expect((await propose(s, project)).status).toBe(201);
+    const { token } = await (await propose(s, project)).json<{ token: string }>();
+    expect(charges.length).toBe(0); // 예약
+    await openAsCustomer(project, token);
     expect(charges.length).toBe(1);
     const op = await login('op@example.com');
     const o = await requestAndImport(op);
-    expect((await propose(op, o.project)).status).toBe(201);
-    expect(charges.length).toBe(1);
+    const ot = (await (await propose(op, o.project)).json<{ token: string }>()).token;
+    await openAsCustomer(o.project, ot);
+    expect(charges.length).toBe(1); // 운영자는 결제 없이
+    expect(await creditOf(op, o.project)).toMatchObject({ paid: true });
     void id;
   });
 
