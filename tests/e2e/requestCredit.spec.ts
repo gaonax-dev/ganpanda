@@ -22,6 +22,7 @@ test('요청에서 가져온 프로젝트의 제안 창에 크레딧 금액 — 
 });
 
 test('설정: 구독 없이 [카드만 등록] — 견적 요청 크레딧용, 구독 상태로 보이지 않는다', async ({ page, request }) => {
+  test.setTimeout(60_000); // 카드 등록 → 돌아오기 → 설정 다시 열기 — 전체 실행 중 부하가 걸리면 30초를 넘겨 시간 초과가 났다 (2026-10-25)
   const s = await apiSignup(request, undefined, true); // 사업자 확인된 계정
   await page.goto('/');
   await page.evaluate((x) => { localStorage.clear(); localStorage.setItem('ganpanda.session', x); }, s);

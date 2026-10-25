@@ -12,9 +12,10 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
     val content = findViewById<View>(android.R.id.content)
     ViewCompat.setOnApplyWindowInsetsListener(content) { v, insets ->
-      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())
+      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
       v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-      insets
+      // 다 썼다고 알린다 — 안 그러면 웹뷰가 카메라 구멍(컷아웃) 여백을 env(safe-area-inset-*) 로 한 번 더 더해 띠가 생긴다 (갤럭시 Z 폴드, 2026-10-25)
+      WindowInsetsCompat.CONSUMED
     }
   }
 }

@@ -387,7 +387,9 @@
   .banners { position: absolute; left: 0; right: 0; top: env(safe-area-inset-top, 0px); z-index: 40; display: flex; flex-direction: column; pointer-events: none; }
   .banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 16px; font-size: 13px; pointer-events: auto; }
   .banner.warn { background: rgba(60, 46, 10, 0.96); border-bottom: 1px solid rgba(255, 170, 0, 0.5); color: var(--text); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
-  .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+  /* 넘치면 옆으로 민다 (2026-10-25 폴더블 가로 ~830px 에서 오른쪽이 잘렸다) — 막대는 숨김 */
+  .top { display: flex; align-items: center; gap: 16px; padding: 0 14px; min-height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: none; }
+  .top::-webkit-scrollbar { display: none; }
   .project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .logo { font-weight: 800; color: var(--accent); font-size: 17px; letter-spacing: -0.5px; text-decoration: none; }
   .project { font-weight: 600; font-size: 14px; }
