@@ -104,7 +104,9 @@ pub fn handle_navigation(app: &tauri::AppHandle, url: &url::Url) -> bool {
     match nav_action(url.as_str()) {
         Nav::Keep => true,
         Nav::OpenExternal(target) => {
-            if let Err(e) = app.opener().open_url(&target, None::<&str>) { log::warn!("외부 열기 실패 {target}: {e}"); }
+            // 다른 스레드에서: 안드로이드는 이 콜백이 화면 스레드라 여기서 플러그인 결과를 기다리면 앱이 멈춘다(ANR, 2026-10-25 갤럭시에서 [카카오로 시작] 누르면 꺼짐)
+            let app = app.clone();
+            std::thread::spawn(move || { if let Err(e) = app.opener().open_url(&target, None::<&str>) { log::warn!("외부 열기 실패 {target}: {e}"); } });
             false
         }
         Nav::Block => false,
