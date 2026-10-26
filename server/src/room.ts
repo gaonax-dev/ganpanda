@@ -311,6 +311,31 @@ export class Room extends DurableObject<Env> {
     return msg;
   }
 
+  /**
+   * 탈퇴한 회원의 대화 익명화 (2026-10-27 약관 제3조의3): 그 아이디로 남긴 메시지의 이름·아이디를 "탈퇴한 회원"으로 — 글은 다른 회원의 거래 기록으로 남는다.
+   * 톡방 멤버 이름도. 바꾼 수를 돌려준다
+   */
+  async anonymizeAuthor(accountId: string): Promise<number> {
+    let n = 0;
+    this.doc.transact(() => {
+      const arr = this.doc.getArray<Message>('messages');
+      const items = arr.toArray();
+      for (let i = items.length - 1; i >= 0; i--) {
+        const m = items[i];
+        if (m.authorId !== accountId) continue;
+        arr.delete(i, 1);
+        arr.insert(i, [{ ...m, author: '탈퇴한 회원', authorId: 'deleted' }]);
+        n++;
+      }
+      for (const t of this.doc.getMap<Y.Map<unknown>>('talks').values()) {
+        const names = t.get('memberNames') as Record<string, string> | undefined;
+        if (names && names[accountId]) t.set('memberNames', { ...names, [accountId]: '탈퇴한 회원' });
+        if (t.get('createdById') === accountId) t.set('createdBy', '탈퇴한 회원');
+      }
+    });
+    return n;
+  }
+
   /** 메시지 글 (신고 증거, 2026-10-26) */
   async messageText(id: string): Promise<string | null> {
     const m = this.doc.getArray<Message>('messages').toArray().find((x) => x.id === id);

@@ -5,9 +5,35 @@
   import BackLink from './BackLink.svelte';
   import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
-  import { listBypassReports, listContentReports, resolveBypassReport, resolveContentReport, unblockRequests, type BypassReport, type ContentReport } from '../projects';
+  import { actOnMember, decideAppeal, listAppeals, listBypassReports, listContentReports, resolveBypassReport, resolveContentReport, searchMembers, unblockRequests, type Appeal, type BypassReport, type ContentReport, type MemberAction, type MemberRecord } from '../projects';
+  import { askPrompt } from './ask.svelte';
 
-  let tab = $state<'content' | 'bypass'>('content');
+  let tab = $state<'content' | 'bypass' | 'members'>('content');
+  // ---- 회원 조치 · 이의 신청 (2026-10-27 약관 개정안 제5조의2) ----
+  let q = $state('');
+  let members = $state<MemberRecord[]>([]);
+  let appeals = $state<Appeal[]>([]);
+  let searched = $state(false);
+  const STATUS: Record<MemberRecord['status'], string> = { active: '이용 중', suspended: '기간 정지', banned: '영구 정지' };
+  const ACTION: Record<MemberAction, string> = { warn: '경고', suspend: '정지', ban: '영구 정지', lift: '해제' };
+  async function search(term = q) {
+    q = term; error = '';
+    try { members = await searchMembers(term.trim()); searched = true; } catch { error = '회원을 찾지 못했습니다.'; }
+  }
+  async function memberAct(m: MemberRecord, action: MemberAction, days?: number) {
+    const what = action === 'suspend' ? `${days}일 이용 정지` : ACTION[action];
+    const reason = await askPrompt(`${m.email} — ${what}\n\n사유 (회원에게 이메일로 알립니다)`, '');
+    if (reason === null) return;
+    busy = m.id;
+    try { await actOnMember(m.id, action, reason, days); await search(q || m.id); } catch { error = '조치하지 못했습니다.'; } finally { busy = ''; }
+  }
+  async function decide(a: Appeal, decision: 'accept' | 'reject') {
+    const reply = await askPrompt(decision === 'accept' ? `${a.email} 이의 신청을 받아들여 이용 제한을 풉니다.\n\n회원에게 보낼 말 (선택)` : `${a.email} 이의 신청을 기각합니다.\n\n사유 (회원에게 이메일로 알립니다)`, '');
+    if (reply === null) return;
+    busy = a.id;
+    try { await decideAppeal(a.id, decision, reply); appeals = await listAppeals(); } catch { error = '처리하지 못했습니다.'; } finally { busy = ''; }
+  }
+  async function openMember(id: string) { tab = 'members'; await search(id); }
   let filter = $state<'open' | 'all'>('all');
   let content = $state<ContentReport[]>([]);
   let bypass = $state<BypassReport[]>([]);
@@ -19,7 +45,7 @@
   async function load() {
     error = '';
     try {
-      [content, bypass] = await Promise.all([listContentReports(), listBypassReports()]);
+      [content, bypass, appeals] = await Promise.all([listContentReports(), listBypassReports(), listAppeals()]);
       app.opsOpen = content.filter((r) => r.status === 'open').length;
     } catch (e) { if ((e as { status?: number }).status === 403) forbidden = true; else error = '신고 목록을 불러오지 못했습니다.'; }
     loaded = true;
@@ -62,6 +88,7 @@
     {#if !forbidden}
       <div class="tabs" role="tablist">
         <button role="tab" class:on={tab === 'content'} data-testid="ops-tab-content" onclick={() => (tab = 'content')}>대화·사용자 신고 {#if content.some((r) => r.status === 'open')}<b class="n">{content.filter((r) => r.status === 'open').length}</b>{/if}</button>
+        <button role="tab" class:on={tab === 'members'} data-testid="ops-tab-members" onclick={() => (tab = 'members')}>회원 조치 {#if appeals.some((a) => a.status === 'open')}<b class="n">{appeals.filter((a) => a.status === 'open').length}</b>{/if}</button>
         <button role="tab" class:on={tab === 'bypass'} data-testid="ops-tab-bypass" onclick={() => (tab = 'bypass')}>간판다 밖 거래 신고 {#if bypass.some((r) => r.status === 'open')}<b class="n">{bypass.filter((r) => r.status === 'open').length}</b>{/if}</button>
       </div>
       <div class="filters">
@@ -94,11 +121,47 @@
             <div class="acts">
               {#if r.messageId}<button class="btn small danger" data-testid="ops-hide" disabled={busy === r.id} onclick={() => act(r, 'hide')}>메시지 숨김</button>{/if}
               <button class="btn small" data-testid="ops-dismiss" disabled={busy === r.id} onclick={() => act(r, 'dismiss')}>기각</button>
+              {#if r.targetId && !r.targetId.startsWith('g:')}<button class="btn small" data-testid="ops-member-open" onclick={() => openMember(r.targetId!)}>작성자 조치</button>{/if}
             </div>
           {:else if r.resolvedAt}<p class="meta">처리 {when(r.resolvedAt)}</p>{/if}
         </article>
       {:else}
         <p class="hint" data-testid="ops-empty">{filter === 'open' ? '처리 대기 신고가 없습니다.' : '신고가 없습니다.'}</p>
+      {/each}
+    {:else if tab === 'members'}
+      <p class="hint">약관 제5조의2: 경고 → 기간 정지 → 영구 정지(이용계약 해지). 조치하면 회원에게 사유와 이의 신청(14일) 안내를 이메일로 보냅니다.</p>
+      {#if appeals.some((a) => filter === 'all' || a.status === 'open')}
+        <h2 class="sub">이의 신청</h2>
+        {#each appeals.filter((a) => filter === 'all' || a.status === 'open') as a (a.id)}
+          <article class="card" data-testid="ops-appeal" data-status={a.status}>
+            <div class="top"><b class="reason">{a.name || a.email}</b><span class="age" title={when(a.createdAt)}>{age(a.createdAt)}</span><span class="st" class:open={a.status === 'open'}>{a.status === 'open' ? '처리 대기' : a.status === 'accepted' ? '인정(해제)' : '기각'}</span></div>
+            <p class="meta">{a.email}</p>
+            <blockquote>{a.text}</blockquote>
+            {#if a.reply}<p class="detail">답: {a.reply}</p>{/if}
+            {#if a.status === 'open'}<div class="acts"><button class="btn small primary" data-testid="ops-appeal-accept" disabled={busy === a.id} onclick={() => decide(a, 'accept')}>받아들이기(해제)</button><button class="btn small" data-testid="ops-appeal-reject" disabled={busy === a.id} onclick={() => decide(a, 'reject')}>기각</button><button class="btn small" onclick={() => openMember(a.accountId)}>회원 보기</button></div>{/if}
+          </article>
+        {/each}
+      {/if}
+      <h2 class="sub">회원 찾기</h2>
+      <form class="search" onsubmit={(e) => { e.preventDefault(); void search(); }}>
+        <input data-testid="ops-member-q" bind:value={q} placeholder="이메일 · 이름 · 아이디 (비우면 정지된 회원)" />
+        <button class="btn small" data-testid="ops-member-search" type="submit">찾기</button>
+      </form>
+      {#each members as m (m.id)}
+        <article class="card" data-testid="ops-member" data-status={m.status}>
+          <div class="top"><b class="reason">{m.name || m.email}</b><span class="st" class:open={m.status !== 'active'} data-testid="ops-member-status">{STATUS[m.status]}{m.status === 'suspended' && m.until ? ` · ${when(m.until)}까지` : ''}</span></div>
+          <p class="meta">{m.email} · 가입 {when(m.createdAt)}{m.requestsBlocked ? ' · 요청 받기 정지' : ''}{m.reason ? ` · 사유: ${m.reason}` : ''}</p>
+          {#if m.actions.length}<ul class="hist">{#each m.actions as h, k (k)}<li>{when(h.at)} <b>{ACTION[h.action]}</b>{h.until ? ` (${when(h.until)}까지)` : ''}{h.reason ? ` — ${h.reason}` : ''} <small>{h.by}</small></li>{/each}</ul>{/if}
+          <div class="acts">
+            <button class="btn small" data-testid="ops-member-warn" disabled={busy === m.id} onclick={() => memberAct(m, 'warn')}>경고</button>
+            <button class="btn small" data-testid="ops-member-suspend7" disabled={busy === m.id} onclick={() => memberAct(m, 'suspend', 7)}>7일 정지</button>
+            <button class="btn small" data-testid="ops-member-suspend30" disabled={busy === m.id} onclick={() => memberAct(m, 'suspend', 30)}>30일 정지</button>
+            <button class="btn small danger" data-testid="ops-member-ban" disabled={busy === m.id} onclick={() => memberAct(m, 'ban')}>영구 정지</button>
+            {#if m.status !== 'active'}<button class="btn small primary" data-testid="ops-member-lift" disabled={busy === m.id} onclick={() => memberAct(m, 'lift')}>해제</button>{/if}
+          </div>
+        </article>
+      {:else}
+        {#if searched}<p class="hint">찾은 회원이 없습니다.</p>{/if}
       {/each}
     {:else}
       <p class="hint">가게 사장님이 "간판다 밖에서 진행했다"고 알린 신고. 요청을 열람한 간판집 중 확인된 곳에 위약금(크레딧 3배·최대 15만원) + 요청 받기 정지.</p>
@@ -156,5 +219,10 @@
   .viewers li span { flex: 1; min-width: 0; }
   .viewers small { display: block; color: var(--muted); font-size: 11px; }
   .hint { color: var(--muted); font-size: 13px; margin: 0; }
+  .sub { margin: 8px 0 0; font-size: 15px; }
+  .search { display: flex; gap: 6px; }
+  .search input { flex: 1; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px 10px; font: inherit; }
+  .hist { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+  .hist b { color: var(--text); }
   .err { color: #f87171; font-size: 13px; margin: 0; }
 </style>

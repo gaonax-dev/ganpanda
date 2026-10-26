@@ -110,6 +110,8 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
     // requestId: 요청에서 만든 프로젝트 — 소유자 앱이 요청 사진을 가져오는 신호 (2026-10-17)
     // business: 소유자의 확인된 사업자(상호·상태) → 제안 페이지 "사업자 확인된 간판집" 배지 (2026-10-21)
     const biz = await businessOf(env, r.project.owner_id);
+    // 남의 프로젝트에 들어간 기록 (2026-10-27) — 탈퇴할 때 거기 남긴 대화를 익명화(약관 제3조의3)
+    if (r.account && r.account.id !== r.project.owner_id) await env.DB.prepare('INSERT OR IGNORE INTO project_seen (account_id, project_id) VALUES (?, ?)').bind(r.account.id, r.project.id).run();
     // 고객이 제안 링크로 열었다 → 예약된 크레딧 결제 (2026-10-25). 소유자·회사 멤버의 미리보기는 아니다. 카카오톡 미리보기(OG) 봇은 /p/ 랜딩만 받고 여기는 부르지 않는다
     const inviteToken = url.searchParams.get('invite');
     if (inviteToken && r.role !== 'owner' && r.project.request_id && (await inviteByToken(env, inviteToken))?.kind === 'proposal' && !(r.account && (await teamAccess(env, r.project.owner_id, r.account)))) await settleCredit(env, r.project, true);

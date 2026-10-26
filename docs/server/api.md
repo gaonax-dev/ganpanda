@@ -123,3 +123,9 @@
 - `POST /api/reports` {projectId?, messageId?, targetId?, targetName?, reason: spam|abuse|sexual|fraud|other, detail?} — 프로젝트 메시지면 `?invite=` 손님도, 아니면 로그인. 메시지 글을 증거로 저장, 운영자 메일.
 - `GET/POST /api/me/blocks` {id, name} · `DELETE /api/me/blocks/:id` — 내 차단 목록(나 자신은 400).
 - 운영자: `GET /api/operator/content-reports` · `POST /api/operator/content-reports/:id` {action: hide|dismiss}(hide = 메시지 삭제).
+
+## 계정 조치 · 이의 신청 (2026-10-27, 약관 개정안 제5조의2)
+- 정지된 계정(`accounts.banned` 또는 `suspended_until > 지금`)의 로그인 요청은 라우터가 403 `{error: 'suspended', until, banned, reason}` — 예외: `/api/me`, `/api/me/appeals`, `/api/auth/*`.
+- `POST /api/me/appeals` {text} — 이의 신청(처리 대기 중이면 409), 운영자 메일.
+- 운영자: `GET /api/operator/members?q=`(이메일·이름·아이디, 비우면 정지된 회원, 조치 이력 포함) · `POST /api/operator/members/:id/action` {action: warn|suspend|ban|lift, days?, reason}(회원 이메일) · `GET /api/operator/appeals` · `POST /api/operator/appeals/:id` {decision: accept|reject, reply}(accept = 해제).
+- 가입: 계정 생성 때 `terms_version`·`terms_at`. 영구 정지 뒤 탈퇴한 이메일(해시, 1년)은 가입 403 `banned`.

@@ -4,14 +4,14 @@ export { Account } from './account';
 import { handlePriceImport } from './priceImport';
 import { handleOperator } from './bypass';
 import { handleMyPeople, handleMyTalks, syncTalkIndex } from './talk';
-import { handleBlocks, handleContentReports, handleReports } from './moderation';
+import { handleAppeal, handleBlocks, handleContentReports, handleMemberActions, handleReports } from './moderation';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
 import { handleAdmin } from './admin';
 import { handleVersions } from './versions';
 import { storageUsed } from './usage';
-import { handleAuth } from './auth';
+import { authenticate, handleAuth, suspensionOf } from './auth';
 import { handleBusiness, recheckBusinesses } from './business';
 import { handleBilling, runBillingCycle } from './billing';
 import { handleStores } from './stores';
@@ -272,6 +272,13 @@ export default {
       return withCors(Response.json({ ok: !mail.danger, mail }, { status: mail.danger ? 503 : 200, headers: { 'cache-control': 'no-store' } }));
     }
     if (pathname === '/api/auth/providers' || /^\/api\/auth\/(kakao|google|apple)\//.test(pathname)) return withCors(await handleSocial(req, env, pathname));
+    // 이용 정지 (2026-10-27 약관 제5조의2): 정지된 계정의 로그인 요청은 403 suspended — 상태 확인(/api/me)·탈퇴·이의 신청·인증만 된다
+    if (!pathname.startsWith('/api/auth/') && pathname !== '/api/me' && pathname !== '/api/me/appeals' && (req.headers.get('authorization') || url.searchParams.get('session'))) {
+      const who = await authenticate(withSessionParam(req, url), env);
+      const sp = who && suspensionOf(who);
+      if (sp) return withCors(Response.json({ error: 'suspended', ...sp }, { status: 403 }));
+    }
+    if (pathname === '/api/me/appeals') return withCors(await handleAppeal(req, env)); // 이의 신청 (2026-10-27)
     if (pathname === '/api/me/prices/import') return withCors(await handlePriceImport(req, env)); // 쓰던 단가표 AI 읽기 (2026-10-24)
     if (pathname === '/api/me/prices') return withCors(await handlePrices(req, env));
     if (pathname === '/api/me/colors') return withCors(await handleColors(req, env));
@@ -294,6 +301,7 @@ export default {
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/operator/content-reports')) return withCors(await handleContentReports(req, env, pathname)); // 신고 처리 (2026-10-26)
+    if (pathname.startsWith('/api/operator/members') || pathname.startsWith('/api/operator/appeals')) return withCors(await handleMemberActions(req, env, pathname, url)); // 계정 조치·이의 신청 처리 (2026-10-27)
     if (pathname.startsWith('/api/operator/')) return withCors(await handleOperator(req, env, pathname)); // 간판다 밖 거래 신고 처리 (2026-10-24)
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));
     if (/^\/api\/projects\/[^/]+\/versions/.test(pathname)) return withCors(await handleVersions(req, env, pathname, url)); // 사용자 버전 기록 (2026-10-21)

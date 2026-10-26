@@ -1,6 +1,6 @@
 // 계정 종류·전환·삭제 (2026-10-22 사용자: "사업자는 소비자 등록이 안된다. 소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다, 계정삭제도 필요하다.")
 import { authenticate, type Account } from './auth';
-import { json, readJson, text } from './http';
+import { json, readJson, sha256hex, text } from './http';
 
 export type AccountKind = 'shop' | 'consumer';
 
@@ -50,7 +50,18 @@ async function remove(req: Request, env: Env, me: Account): Promise<Response> {
   const stores = (await env.DB.prepare('SELECT id FROM stores WHERE account_id = ?').bind(me.id).all<{ id: string }>()).results.map((s) => s.id);
   const assets = (await env.DB.prepare('SELECT asset_id FROM account_assets WHERE account_id = ?').bind(me.id).all<{ asset_id: string }>()).results.map((a) => a.asset_id);
   const inList = (ids: string[]) => ids.map(() => '?').join(',');
+  // 남의 프로젝트에 남긴 대화는 "탈퇴한 회원"으로 (2026-10-27 약관 제3조의3) — 들어간 적 있는 프로젝트 + 톡방 멤버였던 프로젝트
+  const seen = new Set([
+    ...(await env.DB.prepare('SELECT project_id FROM project_seen WHERE account_id = ?').bind(me.id).all<{ project_id: string }>()).results.map((x) => x.project_id),
+    ...(await env.DB.prepare('SELECT DISTINCT project_id FROM talk_index WHERE account_id = ?').bind(me.id).all<{ project_id: string }>()).results.map((x) => x.project_id),
+  ].filter((id) => !projects.includes(id)));
+  for (const pid of seen) { try { await env.ROOM.getByName(pid).anonymizeAuthor(me.id); } catch { /* 방이 없으면 넘어간다 */ } }
   const stmts: D1PreparedStatement[] = [
+    // 영구 정지된 채 탈퇴하면 1년 동안 같은 이메일로 다시 가입 못 함 (약관 개정안 제3조의2) — 이메일은 해시로만 남긴다
+    ...(me.banned ? [env.DB.prepare('INSERT OR REPLACE INTO banned_emails (email_hash, until) VALUES (?, ?)').bind(await sha256hex(me.email.toLowerCase()), now + 365 * 86_400_000)] : []),
+    env.DB.prepare('DELETE FROM project_seen WHERE account_id = ?').bind(me.id),
+    env.DB.prepare('DELETE FROM talk_index WHERE account_id = ?').bind(me.id),
+    env.DB.prepare('DELETE FROM blocks WHERE account_id = ?').bind(me.id),
     // 내가 보낸 요청: 닫고 개인정보를 지운다
     env.DB.prepare("UPDATE requests SET status = CASE WHEN status = 'open' THEN 'cancelled' ELSE status END, cancelled_at = COALESCE(cancelled_at, ?), phone = '', email = NULL, address = '', owner_name = NULL, start_date = NULL, biz_no = NULL, biz_doc = NULL, store_id = NULL, account_id = NULL WHERE account_id = ?").bind(now, me.id),
     env.DB.prepare('DELETE FROM request_responses WHERE account_id = ?').bind(me.id),

@@ -88,3 +88,97 @@ export async function handleContentReports(req: Request, env: Env, pathname: str
   }
   return text('not found', 404);
 }
+
+// ---------- 운영자 계정 조치 · 이의 신청 (2026-10-27 "전부 진행해줘" — 약관 개정안 제5조의2) ----------
+const FROM_NOTICE = { email: 'login@ganpanda.co.kr', name: '간판다' };
+type MemberRow = { id: string; email: string; name: string; created_at: number; suspended_until: number | null; banned: number; suspend_reason: string | null; requests_blocked: number | null };
+const statusOf = (m: MemberRow, now = Date.now()) => (m.banned ? 'banned' : m.suspended_until && m.suspended_until > now ? 'suspended' : 'active');
+const ACTION_LABEL: Record<string, string> = { warn: '경고', suspend: '이용 정지', ban: '영구 이용 정지(이용계약 해지)', lift: '이용 제한 해제' };
+
+async function notifyMember(env: Env, email: string, subject: string, body: string) {
+  if (!env.EMAIL || email.endsWith('@noemail.ganpanda.co.kr')) return;
+  try { await env.EMAIL.send({ to: email, from: FROM_NOTICE, subject: `[간판다] ${subject}`, text: body }); } catch { /* 무시 */ }
+}
+
+/**
+ * 운영자: GET /api/operator/members?q= (이메일·이름·아이디) · POST /api/operator/members/:id/action {action: warn|suspend|ban|lift, days?, reason}
+ * · GET /api/operator/appeals · POST /api/operator/appeals/:id {decision: accept|reject, reply}
+ */
+export async function handleMemberActions(req: Request, env: Env, pathname: string, url: URL): Promise<Response> {
+  const me = await authenticate(req, env);
+  if (!me) return text('unauthorized', 401);
+  if (!isOperator(env, me.email)) return text('forbidden', 403);
+  const now = Date.now();
+  if (pathname === '/api/operator/members' && req.method === 'GET') {
+    const q = str(url.searchParams.get('q'), 80);
+    const rows = q
+      ? (await env.DB.prepare('SELECT id, email, name, created_at, suspended_until, banned, suspend_reason, requests_blocked FROM accounts WHERE id = ? OR email LIKE ? OR name LIKE ? ORDER BY created_at DESC LIMIT 20').bind(q, `%${q}%`, `%${q}%`).all<MemberRow>()).results
+      : (await env.DB.prepare('SELECT id, email, name, created_at, suspended_until, banned, suspend_reason, requests_blocked FROM accounts WHERE banned = 1 OR suspended_until > ? ORDER BY created_at DESC LIMIT 50').bind(now).all<MemberRow>()).results;
+    const out = [];
+    for (const m of rows) {
+      const acts = (await env.DB.prepare('SELECT action, reason, until, by_email, created_at FROM account_actions WHERE account_id = ? ORDER BY created_at DESC LIMIT 20').bind(m.id).all<{ action: string; reason: string; until: number | null; by_email: string; created_at: number }>()).results;
+      out.push({ id: m.id, email: m.email, name: m.name, createdAt: m.created_at, status: statusOf(m, now), until: m.suspended_until, reason: m.suspend_reason ?? '', requestsBlocked: !!m.requests_blocked, actions: acts.map((a) => ({ action: a.action, reason: a.reason, until: a.until, by: a.by_email, at: a.created_at })) });
+    }
+    return json({ members: out });
+  }
+  const act = pathname.match(/^\/api\/operator\/members\/([^/]+)\/action$/);
+  if (act && req.method === 'POST') {
+    const b = await readJson<{ action?: string; days?: number; reason?: string }>(req);
+    const action = b?.action;
+    if (action !== 'warn' && action !== 'suspend' && action !== 'ban' && action !== 'lift') return json({ error: 'bad_action' }, 400);
+    const m = await env.DB.prepare('SELECT id, email, name, created_at, suspended_until, banned, suspend_reason, requests_blocked FROM accounts WHERE id = ?').bind(decodeURIComponent(act[1])).first<MemberRow>();
+    if (!m) return text('not found', 404);
+    if (isOperator(env, m.email)) return json({ error: 'operator' }, 400);
+    const reason = str(b?.reason, 300);
+    const days = Math.min(365, Math.max(1, Math.round(Number(b?.days) || 7)));
+    const until = action === 'suspend' ? now + days * 86_400_000 : null;
+    const stmts = [env.DB.prepare('INSERT INTO account_actions (id, account_id, action, reason, until, by_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(randomToken().slice(0, 16), m.id, action, reason, until, me.email, now)];
+    if (action === 'suspend') stmts.push(env.DB.prepare('UPDATE accounts SET suspended_until = ?, suspend_reason = ? WHERE id = ?').bind(until, reason, m.id));
+    if (action === 'ban') stmts.push(env.DB.prepare('UPDATE accounts SET banned = 1, suspend_reason = ? WHERE id = ?').bind(reason, m.id)); // 세션은 남긴다 — 로그인한 채 정지 화면과 이의 신청을 보게
+    if (action === 'lift') stmts.push(env.DB.prepare('UPDATE accounts SET banned = 0, suspended_until = NULL, suspend_reason = NULL WHERE id = ?').bind(m.id));
+    await env.DB.batch(stmts);
+    const when = until ? ` (${new Date(until).toLocaleDateString('ko-KR')}까지)` : '';
+    await notifyMember(env, m.email, ACTION_LABEL[action],
+      action === 'lift' ? '간판다 이용 제한이 해제되었습니다. 다시 이용하실 수 있습니다.'
+        : `간판다 이용약관에 따라 ${ACTION_LABEL[action]}${when} 조치를 했습니다.\n\n사유: ${reason || '-'}\n\n이 조치에 이의가 있으면 통지를 받은 날부터 14일 안에 간판다에 로그인해 이의를 신청하거나 support@ganpanda.co.kr 로 알려 주세요.`);
+    return json({ ok: true, status: action === 'warn' ? statusOf(m, now) : action === 'lift' ? 'active' : action === 'ban' ? 'banned' : 'suspended' });
+  }
+  if (pathname === '/api/operator/appeals' && req.method === 'GET') {
+    const rows = (await env.DB.prepare('SELECT p.*, a.email, a.name FROM appeals p LEFT JOIN accounts a ON a.id = p.account_id ORDER BY p.created_at DESC LIMIT 100').all<{ id: string; account_id: string; text: string; status: string; reply: string; created_at: number; resolved_at: number | null; email: string | null; name: string | null }>()).results;
+    return json({ appeals: rows.map((r) => ({ id: r.id, accountId: r.account_id, email: r.email ?? '', name: r.name ?? '', text: r.text, status: r.status, reply: r.reply, createdAt: r.created_at, ...(r.resolved_at ? { resolvedAt: r.resolved_at } : {}) })) });
+  }
+  const ap = pathname.match(/^\/api\/operator\/appeals\/([A-Za-z0-9_-]{1,32})$/);
+  if (ap && req.method === 'POST') {
+    const b = await readJson<{ decision?: string; reply?: string }>(req);
+    const decision = b?.decision === 'accept' ? 'accepted' : b?.decision === 'reject' ? 'rejected' : null;
+    if (!decision) return json({ error: 'bad_decision' }, 400);
+    const row = await env.DB.prepare('SELECT * FROM appeals WHERE id = ?').bind(ap[1]).first<{ id: string; account_id: string; status: string }>();
+    if (!row) return text('not found', 404);
+    const reply = str(b?.reply, 1000);
+    const stmts = [env.DB.prepare('UPDATE appeals SET status = ?, reply = ?, resolved_at = ? WHERE id = ?').bind(decision, reply, now, row.id)];
+    if (decision === 'accepted') stmts.push(env.DB.prepare('UPDATE accounts SET banned = 0, suspended_until = NULL, suspend_reason = NULL WHERE id = ?').bind(row.account_id), env.DB.prepare('INSERT INTO account_actions (id, account_id, action, reason, until, by_email, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?)').bind(randomToken().slice(0, 16), row.account_id, 'lift', `이의 신청 인정${reply ? ` — ${reply}` : ''}`, me.email, now));
+    await env.DB.batch(stmts);
+    const acc = await env.DB.prepare('SELECT email FROM accounts WHERE id = ?').bind(row.account_id).first<{ email: string }>();
+    if (acc) await notifyMember(env, acc.email, decision === 'accepted' ? '이의 신청이 받아들여졌습니다' : '이의 신청 결과', decision === 'accepted' ? `이용 제한을 해제했습니다.${reply ? `\n\n${reply}` : ''}` : `검토 결과 조치를 유지합니다.${reply ? `\n\n사유: ${reply}` : ''}`);
+    return json({ ok: true });
+  }
+  return text('not found', 404);
+}
+
+/** 이의 신청: POST /api/me/appeals {text} — 정지 중에도 된다(라우터 예외). 처리 대기 중이면 하나만 */
+export async function handleAppeal(req: Request, env: Env): Promise<Response> {
+  if (req.method !== 'POST') return text('method not allowed', 405);
+  const me = await authenticate(req, env);
+  if (!me) return text('unauthorized', 401);
+  const b = await readJson<{ text?: string }>(req);
+  const t = str(b?.text, 2000);
+  if (!t) return json({ error: 'text_required' }, 400);
+  const open = await env.DB.prepare("SELECT id FROM appeals WHERE account_id = ? AND status = 'open'").bind(me.id).first();
+  if (open) return json({ error: 'already_open' }, 409);
+  const id = randomToken().slice(0, 16);
+  await env.DB.prepare('INSERT INTO appeals (id, account_id, text, created_at) VALUES (?, ?, ?, ?)').bind(id, me.id, t, Date.now()).run();
+  if (env.EMAIL) for (const to of operatorEmails(env)) {
+    try { await env.EMAIL.send({ to, from: FROM_NOTICE, subject: '[간판다] 이의 신청', text: `${me.email} 님의 이의 신청:\n\n${t}\n\n운영자 화면 /ops 에서 처리하세요.` }); } catch { /* 무시 */ }
+  }
+  return json({ ok: true, id }, 201);
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TermsNotice from './TermsNotice.svelte';
   import GanpandaPromise from './GanpandaPromise.svelte';
   import { nudgeClose } from './dialogGuard';
   // 소비자 견적 요청 (2026-10-21 "소비자는 간판견적을 보고 견적 요청하는 방식 …") — 2026-10-22 사용자:
@@ -172,7 +173,7 @@
     {#if !app.account}
       <div class="gate" data-testid="estimate-login">
         <p>견적 요청을 보내려면 <b>로그인</b>이 필요합니다. 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다.</p>
-        {#if providers.includes('kakao')}<a class="btn kakao" data-testid="estimate-login-kakao" href={socialStartUrl('kakao', '/estimate')} target={socialTarget()}>카카오로 시작</a>{/if}
+        {#if providers.includes('kakao')}<a class="btn kakao" data-testid="estimate-login-kakao" href={socialStartUrl('kakao', '/estimate')} target={socialTarget()}>카카오로 시작</a>{/if}<TermsNotice />
         <button class="btn" data-testid="estimate-login-other" onclick={() => { app.estimateOpen = false; app.loginOpen = true; }}>다른 방법으로 로그인</button>
       </div>
     {:else if step === 'who'}

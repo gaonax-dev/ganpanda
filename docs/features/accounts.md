@@ -79,3 +79,8 @@
 - **계정 삭제**(`DELETE /api/me {confirm:'삭제'}`, 설정 계정 탭 `delete-section` — "삭제" 를 적어야): 내 프로젝트(방·백업 포함)·그룹·팀(내 팀·남의 팀 멤버십)·사업자(stores·businesses)·사양 규칙·로그인 정보(세션·소셜 연결·메일 토큰)를 지운다. **내가 보낸 요청은 닫고(취소) 연락처·주소·사업자 정보를 지운다** — 받은 간판집 기록은 남되 개인정보 없음. 사진은 다른 계정이 쓰지 않는 것만 지운다(내용 해시로 공유). 같은 메일로 다시 가입하면 새 계정.
 - **설정 탭도 종류에 맞게**: 가게 사장은 **계정 · 표시**만(멤버·사양 사전·요청 받기·단축키는 간판집 일), 계정 탭의 멤버 수·제안 건수와 "사업자 확인"(간판집 배지)도 감추고 대신 전환.
 
+## 가입 동의 · 이용 정지 · 탈퇴 익명화 (2026-10-27)
+- 가입 화면에 동의 안내(`ui/TermsNotice.svelte`), 계정을 만들 때 `terms_version`·`terms_at`(`server/src/auth.ts TERMS_VERSION`).
+- 이용 정지: `accounts.suspended_until`(기간)·`banned`(영구)·`suspend_reason`. 서버 라우터가 정지된 계정의 로그인 요청을 403 `suspended` 로(상태 확인 `/api/me`·탈퇴·이의 신청 `/api/me/appeals`·인증 `/api/auth/*` 만). `/api/me` 의 `account.suspension` → 앱은 `SuspendedPage`. 운영자 조치·이의 신청은 [communication.md](communication.md) "신고 · 차단"과 `/ops`.
+- 탈퇴: 남의 프로젝트(`project_seen`·톡방)에 남긴 메시지를 "탈퇴한 회원"으로(`Room.anonymizeAuthor`). 영구 정지 상태로 탈퇴하면 이메일 해시를 1년 `banned_emails` — 다시 가입하면 403 `banned`.
+- 근거: [../product/terms-amendment-2026-11.md](../product/terms-amendment-2026-11.md).

@@ -96,7 +96,7 @@ export async function openOwnedProject(page: Page, request: APIRequestContext, n
   const session = await apiLogin(request);
   const projectId = await apiCreateProject(request, session, name);
   await page.goto('/');
-  await page.evaluate(([s, n]) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', n); localStorage.setItem('ganpanda.touchHelp', 'off'); }, [session, displayName]); // 휴대폰 조작 안내는 끈 채로 (tests/e2e/touchHelp.spec.ts 에서 따로)
+  await page.evaluate(([s, n]) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.nickname', n); localStorage.setItem('ganpanda.touchHelp', 'off'); localStorage.setItem('ganpanda.termsNotice.2026-12-01', '1'); }, [session, displayName]); // 휴대폰 조작 안내는 끈 채로 (tests/e2e/touchHelp.spec.ts 에서 따로)
   await page.goto(`/?room=${projectId}`);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   return { session, projectId };
@@ -107,7 +107,7 @@ export async function openInvited(browser: Browser, inviteUrl: string, displayNa
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto('/');
-  await page.evaluate(([n, s]) => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', n); localStorage.setItem('ganpanda.touchHelp', 'off'); if (s) localStorage.setItem('ganpanda.session', s); }, [displayName, session ?? ''] as const);
+  await page.evaluate(([n, s]) => { localStorage.clear(); localStorage.setItem('ganpanda.nickname', n); localStorage.setItem('ganpanda.touchHelp', 'off'); localStorage.setItem('ganpanda.termsNotice.2026-12-01', '1'); if (s) localStorage.setItem('ganpanda.session', s); }, [displayName, session ?? ''] as const);
   await page.goto(new URL(inviteUrl).pathname + new URL(inviteUrl).search);
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-status', 'online');
   return Object.assign(page, { ctx });

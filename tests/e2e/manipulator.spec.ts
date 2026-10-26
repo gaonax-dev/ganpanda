@@ -129,7 +129,7 @@ test('면 막대 자리 = 외곽선 대각선 교점 (새로 그린 사인물도
   const q = await quadOf(page, id);
   const at = await page.evaluate(async (q) => { const mp = '/src/lib/core/manipulator.ts'; const { quadCenter } = await import(/* @vite-ignore */ mp); return quadCenter(q) as Pt; }, q);
   const c = (await page.getByTestId('face-bar-origin').boundingBox())!; // 면 막대가 시작하는 점
-  const z = await page.evaluate(() => { const svg = document.querySelector('[data-testid="photo-zone"] svg:not(.opt-ico)') as SVGSVGElement; const m = svg.getScreenCTM()!; return { a: m.a, e: m.e, d: m.d, f: m.f }; });
+  const z = await page.evaluate(() => { const svg = document.querySelector('[data-testid="photo-zone"] svg:not(.opt-ico):not(.gicon)') as SVGSVGElement; const m = svg.getScreenCTM()!; return { a: m.a, e: m.e, d: m.d, f: m.f }; });
   expect(Math.abs(c.x + c.width / 2 - (z.a * at[0] + z.e))).toBeLessThan(2);
   expect(Math.abs(c.y + c.height / 2 - (z.d * at[1] + z.f))).toBeLessThan(2);
 });

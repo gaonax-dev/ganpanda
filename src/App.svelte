@@ -1,4 +1,6 @@
 <script lang="ts">
+  import TermsNotice from './lib/ui/TermsNotice.svelte';
+  import SuspendedPage from './lib/ui/SuspendedPage.svelte';
   import AskDialog from './lib/ui/AskDialog.svelte';
   import { askPrompt } from './lib/ui/ask.svelte';
   import { homeTalks } from './lib/ui/homeTalkList.svelte';
@@ -296,7 +298,10 @@
         <div class="banner warn" data-testid="notice">{app.notice}<button class="icon" onclick={() => (app.notice = '')}>✕</button></div>
       {/if}
     </div>
-    {#if app.page === 'request-view'}
+    {#if app.account?.suspension}
+      <!-- 이용 정지 (2026-10-27): 다른 화면 대신 사유·기간·이의 신청 -->
+      <SuspendedPage />
+    {:else if app.page === 'request-view'}
       <div class="proposal"><RequestView /></div>
     {:else if app.consumer && app.consumerBlocked}
       <!-- 간판집 계정은 가게 사장 견적 요청을 못 쓴다 (2026-10-22 "사업자는 소비자 등록이 안된다") -->
@@ -312,6 +317,7 @@
         <p>사진에 간판을 그려 참고 견적을 보고, 동네 간판집에 견적을 요청합니다. 먼저 <b>로그인</b>해 주세요 — 허위 요청을 막고, 받은 제안을 나중에 다시 볼 수 있게 하기 위해서입니다.</p>
         {#if providers.includes('kakao')}<a class="btn kakao big" data-testid="consumer-login-kakao" href={socialStartUrl('kakao', '/estimate')} target={socialTarget()}>카카오로 시작</a>{/if}
         <button class="btn" data-testid="consumer-login-other" onclick={() => (app.loginOpen = true)}>다른 방법으로 로그인</button>
+        <TermsNotice />
         <p class="hint"><a href="/">간판집입니다 → 홈으로</a></p>
       </section>
     {:else if app.inbox}
