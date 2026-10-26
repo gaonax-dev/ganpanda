@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeByAxisGrid, homeOf, type GridCard } from './core/arrange';
+import { arrangeLikePhotos, homeOf, photoScales } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type PriceTable } from './core/pricing';
@@ -32,7 +32,7 @@ import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
-import { faceOf, faceSizeOf, quadOnWall, wallPlaneOf, sideWallOf } from './core/wallPlane';
+import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -1270,55 +1270,40 @@ class AppState {
   get flatLocked() { return !!this.settings.flatLocked; }
   setFlatLocked(v: boolean) { this.updateSettings({ flatLocked: v }); }
   /**
-   * 카드 재정렬 — 사진과 같은 비율 (2026-10-22 사용자: "재정렬 예전에 똑똑하게 잘된거 같은데 자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다"; 2026-10-20 그리드는 대체됨):
-   * 보드 px → mm 는 **실제 벽 축척**(치수 있는 사인물의 mm ÷ 사진 속 폭(보드 px), 중앙값 — 없으면 1/축척)으로 바꿔 사진 배치를 mm 로 옮기고, 카드 가운데 = 사진 속 사인물 가운데(core/arrange.ts arrangeLikePhotos).
-   * 묶음 왼쪽 위는 기본 자리: flatOffset 도 0 으로. 카드 아래 이름 줄(보드 약 100px)도 겹침에. 한 번의 ⌘Z
+   * 카드 재정렬 — 사진과 같은 비율 (2026-10-22 사용자: "재정렬 예전에 똑똑하게 잘된거 같은데 자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다").
+   * 2026-10-26 사용자: "재정렬 이전 커밋중에 가장 잘 되는 걸로 손봐줘 … 사진의 구성과 크기와 배열이 비슷할 수록 좋아" → 초대 링크가 있는 현장 5곳에서 지난 재정렬 11가지를 비교해
+   * 10-23 "사진과 같은 비율 + 가장 가까운 빈 곳"(arrangeLikePhotos)을 되살리고, ① 사진마다 실제 벽 축척(photoScales) ② 겹치면 사진 속 간격을 같은 배율로 넓힘(최대 1.5배)을 더했다.
+   * 10-23~24 축 격자·줄 묶기(arrangeByAxisGrid)는 대체됨 — 격자로 반듯하게 펴면 사진 속 구성(선반 대각선·매장 앞 격자)이 한 줄로 뭉개졌다.
+   * 보드 px → mm: 사진 자리는 전체 축척, 사진 안은 그 사진의 축척. 카드 가운데 = 사진 속 사인물 가운데. 묶음 왼쪽 위는 기본 자리(flatOffset 0). 이름 줄(보드 약 100px)도 겹침에. 한 번의 ⌘Z
    */
   arrangeFlatCards(gap = this.flatGap) {
     if (!this.canEdit || !this.flatCards.length) return;
     const k = this.flatScale;
-    const ratios = this.flatCards.flatMap(({ o, w, placeholder }) => {
+    const idx = new Map(this.photos.map((p, i) => [p.id, i]));
+    const samples = this.flatCards.flatMap(({ o, w, placeholder }) => {
       const p = this.photos.find((x) => x.id === o.photoId);
       if (placeholder || !p || o.quad.length !== 4 || !p.w) return [];
       const [tl, tr, br, bl] = o.quad;
       const px = ((Math.hypot(tr[0] - tl[0], tr[1] - tl[1]) + Math.hypot(br[0] - bl[0], br[1] - bl[1])) / 2) * (p.width / p.w);
-      return px > 0 ? [w / px] : [];
-    }).sort((a, b) => a - b);
-    const s = ratios.length ? ratios[Math.floor(ratios.length / 2)] : 1 / k; // mm / 보드 px
-    const photos = this.photos.map((p) => ({ x: p.x * s, y: p.y * s, w: p.width * s, h: p.width * (p.h / p.w) * s, imgW: p.w, imgH: p.h }));
-    const idx = new Map(this.photos.map((p, i) => [p.id, i]));
-    // 사진별 벽면 (원근이 있으면): 정면 사인물을 벽 mm 로 편다 — 축 격자 재정렬 (2026-10-23 "원근으로 정의된 각축의 격자를 기준으로 정면 판정된 사인물들을 묶어 랩핑")
-    const planes = new Map(this.photos.map((p) => [p.id, wallPlaneOf(this.objects.filter((o) => o.photoId === p.id), this.calibrations.get(p.id))]));
-    const cards: GridCard[] = this.flatCards.map(({ o, w, h }) => {
+      return px > 0 ? [{ photo: idx.get(p.id)!, r: w / px }] : [];
+    });
+    const sc = photoScales(samples, this.photos.length, 1 / k); // mm / 보드 px
+    const photos = this.photos.map((p, i) => ({ x: p.x * sc.all, y: p.y * sc.all, w: p.width * sc.each[i], h: p.width * (p.h / p.w) * sc.each[i], imgW: p.w, imgH: p.h }));
+    const cards = this.flatCards.map(({ o, w, h }) => {
       // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21)
       const inst = [o, ...this.objects.filter((x) => x.sameAs === o.id)].filter((x) => x.quad.length === 4 && idx.has(x.photoId));
       const home = inst.length ? homeOf(inst as (SignObject & { quad: [number, number][] })[]) : null;
-      if (!home) return { id: o.id, w, h, photo: null, group: 'front', box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
-      const photo = this.photos.find((p) => p.id === home.photoId)!;
+      if (!home) return { id: o.id, w, h, photo: null, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
       const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
-      const pxBox = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
-      const plane = planes.get(home.photoId) ?? null;
-      const face = plane?.source === 'calibration' ? faceOf(home, plane) : null;
-      // 옆면(x)은 사진 가운데 기준 왼쪽·오른쪽, 위아래면(z)은 아래 묶음 — 그 면끼리는 사진 속 위치로 순서
-      // 왼쪽·오른쪽 벽은 카메라 기준 (2026-10-24 "사인물이 왼쪽 끝에 있는데 오른쪽끝에 오기도 한다" — 사진 가운데로 나누면 안쪽으로 이어진 왼쪽 벽 끝이 오른쪽 묶음이 됐다)
-      if (face && face.axis === 'x') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: sideWallOf(home, plane) ?? ((pxBox.x0 + pxBox.x1) / 2 < photo.w / 2 ? 'left' : 'right'), box: pxBox, view: pxBox };
-      if (face && face.axis === 'z') return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'bottom', box: pxBox };
-      // 정면: 원근(실측 벽면)이 있으면 벽 mm 로 펴서(축선이 수평·수직), 없으면 사진 px 그대로(이미 정면)
-      let box = pxBox;
-      if (plane?.source === 'calibration') {
-        const q = quadOnWall(plane, home);
-        const wx = q.map((p) => p[0]), wy = q.map((p) => -p[1]); // 벽 y(위 +) → 아래 +
-        box = { x0: Math.min(...wx), y0: Math.min(...wy), x1: Math.max(...wx), y1: Math.max(...wy) };
-      }
-      return { id: o.id, w, h, photo: idx.get(home.photoId)!, group: 'front', box, view: pxBox }; // view = 사진 속 자리 (흩어진 사인물 줄 묶기, 2026-10-24)
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
-    const at = arrangeByAxisGrid(cards, photos, gap, 100 / k);
+    const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
     // ✥ 를 기본 자리로. 축척은 사용자가 정한 값을 지킨다 (2026-10-25 "기존에 설정한 비율 유지하고 재정렬") — 정한 적이 없을 때만 사진과 같은 비율로 저장
     // (2026-10-22 스크린샷 "상태가 점점 심각해지고 있어": 저장된 축척 572% 로 카드가 흩어졌다 → 그땐 늘 되돌렸으나 대체됨)
     const keepScale = Number.isFinite(this.settings.flatScale);
-    this.updateSettings({ flatOffset: { x: 0, y: 0 }, ...(!keepScale && ratios.length ? { flatScale: Math.round(clampFlatScale(1 / s) * 10000) / 10000 } : {}) });
+    this.updateSettings({ flatOffset: { x: 0, y: 0 }, ...(!keepScale && samples.length ? { flatScale: Math.round(clampFlatScale(1 / sc.all) * 10000) / 10000 } : {}) });
     this.editBoundary();
   }
   /** 카드 간격 바꾸고 그 간격으로 다시 정렬 */
