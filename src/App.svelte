@@ -141,7 +141,7 @@
   /** 정면도 카드 배열 막대 (2026-10-23): 배열 모드 · 사진 보드 · 편집 권한 */
 </script>
 
-<svelte:window onpointerdowncapture={gestureDown} onpointermovecapture={gestureMove} onpointerupcapture={gestureUp} onpointercancelcapture={gestureUp} />
+<svelte:window onpagehide={() => app.flushTalkSync()} onpointerdowncapture={gestureDown} onpointermovecapture={gestureMove} onpointerupcapture={gestureUp} onpointercancelcapture={gestureUp} />
 
 <div class="shell">
   <!-- 고객용 제안 페이지에서는 작업용 상단 바를 숨긴다 (휴대폰 폭에서 넘치지 않게) -->

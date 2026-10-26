@@ -1592,7 +1592,16 @@ class AppState {
   private syncTalks() {
     const room = this.room;
     if (!room) return;
-    setTimeout(() => void talkSync(room, this.invite).catch(() => {}), 600);
+    this.talkSyncPending = room;
+    setTimeout(() => { if (this.talkSyncPending !== room) return; this.talkSyncPending = null; void talkSync(room, this.invite).catch(() => {}); }, 600);
+  }
+  /** 아직 안 보낸 톡 색인 갱신 — 페이지를 떠날 때(pagehide) keepalive 로 바로 보낸다 (2026-10-26: 방을 만들고 곧바로 홈으로 가면 갱신이 사라졌다) */
+  private talkSyncPending: string | null = null;
+  flushTalkSync() {
+    const room = this.talkSyncPending;
+    if (!room) return;
+    this.talkSyncPending = null;
+    void talkSync(room, this.invite, true).catch(() => {});
   }
   /** 사인물을 고르면 열린 방의 보낼 링크로 */
   talkPickObject(id: string | null) {

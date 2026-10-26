@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { env } from 'cloudflare:test';
 import * as Y from 'yjs';
 import { TestClient, until } from './client';
 import { createProject, get, json, login } from './helpers';
@@ -58,6 +59,50 @@ describe('톡 색인 · 메인 화면 톡', () => {
     const t = await (await get('/api/me/talks', staff)).json<{ talks: { roomId: string; roomName: string }[] }>();
     expect(t.talks[0]).toMatchObject({ roomId: 'team', roomName: '회사 멤버' });
     expect((await (await get(`/api/projects/${project.id}/access`, staff)).json<{ role: string }>()).role).toBe('editor');
+    o.close();
+  });
+});
+
+// 2026-10-26 사용자: "톡 하단에 사용자, 톡으로 탭바, 사용자에 맴버, 요청, 고객 배지, 톡방에는 프로젝트 배지와 고객 배지(고객이 대화방에 있는곳)"
+describe('메인 톡: 사용자 목록(멤버·요청·고객) · 방의 고객 표시', () => {
+  it('방마다 고객이 있는지(customer)와 방 멤버 아이디, 사용자 목록은 회사 멤버·톡방 고객·견적 요청 고객을 배지로', async () => {
+    const owner = await login(mail('own')), staff = await login(mail('stf')), customer = await login(mail('cus')), asker = await login(mail('ask'));
+    const [ownerId, staffId, customerId, askerId] = [await idOf(owner), await idOf(staff), await idOf(customer), await idOf(asker)];
+    const staffMail = (await (await get('/api/me', staff)).json<{ account: { email: string } }>()).account.email;
+    expect((await json('/api/me/team', { email: staffMail }, owner)).status).toBeLessThan(300);
+    await env.DB.prepare("UPDATE accounts SET name = '김고객' WHERE id = ?").bind(customerId).run();
+    const project = await createProject(owner, '카페 간판');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    o.doc.transact(() => {
+      const t = new Y.Map<unknown>();
+      for (const [k, v] of Object.entries({ id: 'r1', name: '고객 상담', memberIds: [customerId], createdById: ownerId, createdBy: '사장', createdAt: 1 })) t.set(k, v);
+      o.doc.getMap('talks').set('r1', t);
+      const g = new Y.Map<unknown>();
+      for (const [k, v] of Object.entries({ id: 'r2', name: '손님 방', memberIds: ['g:guest1'], createdById: ownerId, createdBy: '사장', createdAt: 2 })) g.set(k, v);
+      o.doc.getMap('talks').set('r2', g);
+      o.doc.getArray('messages').push([{ id: 'm1', objectId: 'talk:team', author: '사장', text: '내일 시공', kind: 'chat', ts: Date.now() }]);
+    });
+    await untilAsync(async () => (await json(`/api/rooms/${project.id}/talk-sync`, {}, owner)).status === 200 && ((await (await get('/api/me/talks', owner)).json<{ talks: unknown[] }>()).talks.length === 3));
+    const talks = (await (await get('/api/me/talks', owner)).json<{ talks: { roomId: string; customer: boolean; memberIds: string[] }[] }>()).talks;
+    const room = (id: string) => talks.find((t) => t.roomId === id)!;
+    expect(room('r1').customer).toBe(true);
+    expect(room('r2').customer).toBe(true); // 계정 없는 손님도 고객
+    expect(room('team').customer).toBe(false);
+    expect(room('r1').memberIds).toEqual(expect.arrayContaining([ownerId, customerId]));
+    // 견적 요청 고객: 내가 제안해 연락처가 열린(결제된) 요청을 보낸 계정
+    const rid = `rq${crypto.randomUUID().replace(/-/g, '').slice(0, 14)}`;
+    await env.DB.prepare("INSERT INTO requests (id, key_hash, store, region, phone, created_at, account_id) VALUES (?, 'k', '분식집', '경기 광주시', '01000000000', ?, ?)").bind(rid, Date.now(), askerId).run();
+    await env.DB.prepare("INSERT INTO request_responses (request_id, account_id, project_id, proposal_url, created_at, paid_at) VALUES (?, ?, ?, '/p/x/y', ?, ?)").bind(rid, ownerId, project.id, Date.now(), Date.now()).run();
+    const people = (await (await get('/api/me/people', owner)).json<{ people: { id: string; name: string; badges: string[] }[] }>()).people;
+    const who = (id: string) => people.find((x) => x.id === id);
+    expect(who(staffId)?.badges).toEqual(['member']);
+    expect(who(customerId)).toMatchObject({ name: '김고객', badges: ['customer'] });
+    expect(who(askerId)?.badges).toEqual(['request']);
+    expect(who(ownerId)).toBeUndefined(); // 나는 빼고
+    // 팀 멤버에게는 소유자가 멤버
+    const fromStaff = (await (await get('/api/me/people', staff)).json<{ people: { id: string; badges: string[] }[] }>()).people;
+    expect(fromStaff.find((x) => x.id === ownerId)?.badges).toEqual(['member']);
+    expect((await get('/api/me/people')).status).toBe(401);
     o.close();
   });
 });

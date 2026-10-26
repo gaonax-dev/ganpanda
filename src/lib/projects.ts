@@ -85,8 +85,13 @@ export const postMessage = (room: string, invite: string | null, body: { objectI
   call<void>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 /** 톡 (2026-10-22): 서버 톡 색인 갱신 · 메인 화면 톡 목록 · 한 방 읽기/보내기 */
-export const talkSync = (room: string, invite: string | null) => call<void>(`/api/rooms/${room}/talk-sync${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: '{}' });
-export interface TalkSummary { projectId: string; projectName: string; roomId: string; roomName: string; last: { ts: number; text: string; author: string } | null }
+/** keepalive: 페이지를 떠나는 중에도 보낸다 (2026-10-26 — 방을 만들고 곧바로 홈으로 가면 색인 갱신이 사라져 메인 톡 목록에 방이 없었다) */
+export const talkSync = (room: string, invite: string | null, keepalive = false) => call<void>(`/api/rooms/${room}/talk-sync${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: '{}', keepalive });
+export interface TalkSummary { projectId: string; projectName: string; roomId: string; roomName: string; /** 고객(회사 밖 사람)이 있는 방 (2026-10-26) */ customer?: boolean; /** 방 멤버 계정 아이디 */ memberIds?: string[]; last: { ts: number; text: string; author: string } | null }
+/** 메인 톡 [사용자] 탭 (2026-10-26): 같은 회사 member · 견적 요청 고객 request · 톡방 고객 customer */
+export type PersonBadge = 'member' | 'request' | 'customer';
+export interface Person { id: string; name: string; badges: PersonBadge[] }
+export const listMyPeople = () => call<{ people: Person[] }>('/api/me/people').then((r) => r.people);
 export const listMyTalks = () => call<{ talks: TalkSummary[] }>('/api/me/talks').then((r) => r.talks);
 export const readTalk = (projectId: string, roomId: string) => call<{ messages: Message[] }>(`/api/me/talks/${projectId}/${roomId}`).then((r) => r.messages);
 export const sendTalkFromHome = (projectId: string, roomId: string, text: string) => call<void>(`/api/me/talks/${projectId}/${roomId}`, { method: 'POST', body: JSON.stringify({ text }) });
