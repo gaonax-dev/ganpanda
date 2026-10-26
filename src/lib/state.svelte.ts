@@ -4,6 +4,7 @@ import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } f
 import { loadLocalDefaults, loadLocalRules, saveLocalDefaults, saveLocalRules, validRule, type SpecDefault, type SpecRule } from './core/specRules';
 import { loadLocalSets, saveLocalSets, validSetLibrary, type SignSet } from './core/setLibrary';
 import { IndexeddbPersistence } from 'y-indexeddb';
+import { dropCachedAccess, dropCachedHome, dropCachedMe, loadCachedAccess, loadCachedMe, saveCachedAccess, saveCachedMe, whoKey } from './localOpen';
 import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
@@ -88,7 +89,12 @@ class AppState {
   /** 이 기기에서 이 프로젝트에 사진이 있었다 (localStorage) — 동기화 전엔 빈 화면 대신 로딩 */
   get hadPhotos(): boolean { try { return !!this.room && localStorage.getItem(`ganpanda.hadPhotos.${this.room}`) === '1'; } catch { return false; } }
   /** 보드가 "사진 없음"을 보여도 되는 때: 로컬 캐시를 읽었고(ready), 서버 동기화가 끝났거나 서버가 없거나, 기억이 없는데 오래 기다렸거나 */
-  get boardSettled(): boolean { return this.ready && (this.synced || this.sync === 'local' || (!this.hadPhotos && this.syncWaited)); }
+  get boardSettled(): boolean { return this.ready && (this.synced || this.sync === 'local' || (!this.hadPhotos && (this.syncWaited || this.openedBefore))); }
+  /** 이 기기에서 연 적 있는 프로젝트 — 기기 문서로 바로 열었다 (2026-10-27): 사진이 없던 곳이면 동기화를 기다리지 않고 빈 화면 */
+  openedBefore = $state(false);
+  /** 계정 확인(/api/me)이 끝나면 — 방 열기와 나란히 돌린다 (2026-10-27) */
+  private authDone: Promise<void> = Promise.resolve();
+  private persist: IndexeddbPersistence | null = null;
   /** 사용자 단축키 (localStorage 'ganpanda.keymap') */
   keymap = $state<Keymap>(mergeKeymap(parse(load('ganpanda.keymap'))));
   /** 설정 창: true 또는 처음 보일 탭 이름 (2026-10-21 탭 분리) */
@@ -589,7 +595,10 @@ class AppState {
   }
 
   private async init() {
-    await this.initAuth();
+    // 계정 확인과 방 열기를 나란히 (2026-10-27 "프로젝트 오픈에도 한참 걸린다"): 전엔 /api/me → /access → 접속이 줄줄이였다. 견적 초안 방은 계정이 있어야 정해진다
+    this.authDone = this.initAuth();
+    if (!this.consumer && this.room) { await this.initRoom(this.room); await this.authDone; return; }
+    await this.authDone;
     // 소비자 견적 초안 (2026-10-22 "휴대폰에서 작성한 내용을 pc에서 확인을 못하는데"): 로그인했으면 계정의 초안 방을 서버에서 받아 보통 방처럼 동기화
     if (this.consumer && this.account && SERVER_URL) {
       try { this.room = (await estimateProject()).id; }
@@ -644,9 +653,23 @@ class AppState {
       if (next && !this.authError && !this.passwordOpen) { location.replace(next); return; } // 가게 사장 화면에서 보낸 링크 → 그 화면으로 (2026-10-24)
       history.replaceState(null, '', this.room ? `/?room=${this.room}` : '/');
     } else {
-      this.applyMe(await fetchMe());
+      // 기기에 기억한 내 계정으로 먼저 그리고(홈 목록·메뉴가 바로), 서버 답이 오면 바꾼다 (2026-10-27)
+      const session = loadSession();
+      const cachedMe = loadCachedMe<NonNullable<Awaited<ReturnType<typeof fetchMe>>>>(session);
+      if (cachedMe) { this.applyCachedMe(cachedMe); this.authReady = true; }
+      const me = await fetchMe();
+      if (me) { this.applyMe(me); saveCachedMe(session!, me); }
+      else if (!cachedMe || !loadSession()) { this.applyMe(null); dropCachedMe(); } // 로그아웃·만료(세션이 지워짐) — 인터넷 문제면 기억한 계정으로 계속
     }
     this.authReady = true;
+  }
+  /** 기억한 계정: 화면에 필요한 값만 (서버 호출·저장 같은 부수 효과 없이) */
+  private applyCachedMe(me: NonNullable<Awaited<ReturnType<typeof fetchMe>>>) {
+    this.applyAccount(me.account);
+    this.usage = { limits: me.limits, usage: me.usage };
+    this.accountPrices = me.prices ?? null;
+    this.requestSettings = me.requestSettings ?? null;
+    this.business = me.business ?? null;
   }
 
   /** 요청 사진 → 내 프로젝트의 사진 (소유자 용량에 쌓임). 동기화가 끝난 뒤 사진이 하나도 없을 때만, 한 번만 */
@@ -676,7 +699,10 @@ class AppState {
   }
 
   async refreshMe() {
-    this.applyMe(await fetchMe());
+    const me = await fetchMe();
+    this.applyMe(me);
+    const session = loadSession();
+    if (me && session) saveCachedMe(session, me); else if (!session) dropCachedMe();
   }
 
   private applyMe(me: Awaited<ReturnType<typeof fetchMe>>) {
@@ -711,7 +737,7 @@ class AppState {
   /** 가게 사장 → 간판집 (2026-10-22 "소비자는 사업자로 변경하고 기존 데이터는 사업자로 이관된다"): 견적 보드는 보통 프로젝트로 */
   async becomeShop() { await convertToShop(); await this.refreshMe(); }
   /** 계정 삭제 (2026-10-22 "계정삭제도 필요하다") */
-  async deleteMyAccount() { await deleteAccount(); location.href = '/'; }
+  async deleteMyAccount() { await deleteAccount(); dropCachedMe(); location.href = '/'; }
   /** 헤더 "견적 요청 N" (2026-10-22): 요청 받기를 켰거나 운영자이거나 받은 요청이 있으면 보인다. 2분마다 다시 */
   private requestTimer: ReturnType<typeof setInterval> | undefined;
   async refreshRequestCount() {
@@ -1086,32 +1112,83 @@ class AppState {
     this.updateSettings({ lineAmounts: { ...(this.settings.lineAmounts ?? {}), ...Object.fromEntries(this.quote.lines.map((l) => [l.key, 'auto' as const])) } });
   }
 
-  /** 방 접근 권한을 확인한 뒤에만 문서 저장·동기화를 시작한다 */
+  /** 서버 답 → 방 접근 상태 */
+  private accessFrom(a: Awaited<ReturnType<typeof checkAccess>>): Extract<Access, { status: 'ok' }> {
+    return { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.credit ? { credit: a.credit } : {}), ...(a.costMarkup !== undefined ? { costMarkup: a.costMarkup } : {}) };
+  }
+  /** 이 역할로 방에 들어갈 자격 (세션 또는 초대) */
+  private roomParams(room: string, role: Role): Record<string, string> {
+    const session = loadSession();
+    const useSession = (role === 'owner' || !this.invite) && !!session;
+    setAssetScope({ project: room, session: useSession ? session : null, invite: useSession ? null : this.invite });
+    return useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
+  }
+  private applyAccess(access: Extract<Access, { status: 'ok' }>) {
+    this.access = access;
+    // 사진 보드만 보는 고객(보기 초대)은 탭이 없으니 디자인(2D)으로 — 실측 화면에서 시작하면 디자인이 안 보인다 (2026-10-22 작업 탭)
+    if (access.role === 'viewer' && !this.requestView) this.stage = '2d';
+  }
+
+  /**
+   * 방 열기. 처음 여는 방은 서버 권한 확인 뒤에 문서 저장·동기화를 시작한다.
+   * 이 기기에서 연 적 있는 방(같은 로그인·초대)은 기억한 권한으로 **기기 문서를 바로** 열고 확인은 뒤에서 (2026-10-27) —
+   * 권한이 없어졌으면(401·403·404) 닫고 기기 사본을 지운다. 인터넷이 안 되면 기기 문서로 계속.
+   */
   private async initRoom(room: string) {
-    let params: Record<string, string> = {};
-    if (SERVER_URL) {
-      try {
-        const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.credit ? { credit: a.credit } : {}), ...(a.costMarkup !== undefined ? { costMarkup: a.costMarkup } : {}) };
-        // 사진 보드만 보는 고객(보기 초대)은 탭이 없으니 디자인(2D)으로 — 실측 화면에서 시작하면 디자인이 안 보인다 (2026-10-22 작업 탭)
-        if (a.role === 'viewer' && !this.requestView) this.stage = '2d';
-        const session = loadSession();
-        const useSession = (a.role === 'owner' || !this.invite) && !!session;
-        params = useSession ? { session: session! } : { invite: this.invite!, guest: guestId() };
-        setAssetScope({ project: room, session: useSession ? session : null, invite: useSession ? null : this.invite });
-      } catch (e) {
-        const code = e instanceof AuthError ? e.status : 0;
-        this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 ? code : 0 };
-        return;
-      }
-    } else {
+    if (!SERVER_URL) {
       this.access = { status: 'ok', role: 'owner', projectName: '로컬 작업' };
       setAssetScope(null);
+      this.startRoom(room, {});
+      return;
     }
+    const who = whoKey(loadSession(), this.invite);
+    const cached = loadCachedAccess<Extract<Access, { status: 'ok' }>>(room, who);
+    if (cached?.status === 'ok') {
+      this.openedBefore = true;
+      this.applyAccess(cached);
+      this.startRoom(room, this.roomParams(room, cached.role));
+      void this.verifyAccess(room, who, cached.role);
+      return;
+    }
+    try {
+      const access = this.accessFrom(await checkAccess(room, this.invite));
+      saveCachedAccess(room, who, access);
+      this.applyAccess(access);
+      this.startRoom(room, this.roomParams(room, access.role));
+    } catch (e) {
+      const code = e instanceof AuthError ? e.status : 0;
+      this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 ? code : 0 };
+    }
+  }
+
+  /** 기억한 권한으로 연 뒤 서버에 확인 */
+  private async verifyAccess(room: string, who: string, cachedRole: Role) {
+    try {
+      const access = this.accessFrom(await checkAccess(room, this.invite));
+      saveCachedAccess(room, who, access);
+      if (access.role !== cachedRole) { location.reload(); return; } // 역할이 바뀌었다 — 자격·화면을 새로
+      this.applyAccess(access);
+    } catch (e) {
+      const code = e instanceof AuthError ? e.status : 0;
+      if (code !== 401 && code !== 403 && code !== 404) return; // 인터넷 문제 → 기기 문서로 계속
+      dropCachedAccess(room);
+      this.client?.destroy();
+      this.client = null;
+      const persist = this.persist;
+      this.persist = null;
+      await persist?.clearData().catch(() => undefined); // 기기 사본 지우기
+      try { localStorage.removeItem(`ganpanda.hadPhotos.${room}`); } catch { /* 없음 */ }
+      this.access = { status: 'denied', code };
+    }
+  }
+
+  /** 문서 저장(IndexedDB)·동기화 시작 */
+  private startRoom(room: string, params: Record<string, string>) {
     this.seen = (parse(load(`ganpanda.seen.${room}`)) as SeenMap | null) ?? {};
     this.project.onChange(() => this.detectNewMessages());
     this.project.onChange(() => this.detectRestore());
     const persist = new IndexeddbPersistence(`ganpanda-${room}`, this.project.doc);
+    this.persist = persist;
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
     this.client.whenSynced(() => (this.synced = true));
@@ -1121,10 +1198,10 @@ class AppState {
     // 요청에서 만든 프로젝트: 문서에 사진이 없으면 요청 사진을 가져온다 (요청판, 2026-10-17)
     this.client.whenOnline(() => { if (this.role === 'owner' && this.access.status === 'ok' && this.access.requestId) this.importRequestPhotos(this.access.requestId); });
     // 소유자가 열었는데 문서에 단가표가 없으면 계정 기본값(없으면 예시값)을 복사해 모두가 같은 단가를 보게 한다
-    this.client.whenOnline(() => {
+    this.client.whenOnline(() => void this.authDone.then(() => {
       // 새 프로젝트는 견적 줄 금액을 직접 입력 (2026-10-16 "사인물 견적서는 수동으로 입력되어야한다")
       if (this.role === 'owner' && !this.project.settings().prices) this.project.updateSettings({ prices: mergePrices(this.consumer ? null : this.accountPrices), quoteMode: this.consumer ? 'auto' : 'manual' }); // 소비자 초안은 예시 단가 자동 계산 = "참고 금액"
-    });
+    })); // 계정 단가(accountPrices)를 받은 뒤에 (계정 확인과 나란히 열므로)
     this.client.setName(this.nickname, this.myId);
     if (this.startTalk || this.startFocus) this.client.whenOnline(() => this.applyStartTalk());
   }
@@ -1772,6 +1849,8 @@ class AppState {
 
   async logout() {
     await apiLogout();
+    dropCachedMe();
+    if (this.account) dropCachedHome(this.account.id); // 같은 기기를 다른 사람이 쓸 수 있다
     this.account = null;
     this.sessionConflict = false;
     if (this.room) location.href = '/';
