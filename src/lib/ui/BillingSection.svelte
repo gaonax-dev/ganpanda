@@ -3,6 +3,7 @@
   구독 중: 다음 결제일·카드·결제 내역, [다음 결제일부터 요금제 바꾸기], [카드 바꾸기], [해지 예약]/[해지 취소]. 결제 실패 유예(7일) 안내
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { PLAN_LABEL } from '../auth';
@@ -11,7 +12,9 @@
   let info = $state<BillingInfo | null>(null);
   let busy = $state(false), error = $state('');
   const load = async () => { try { info = await fetchBilling(); } catch (e) { error = describeBillingError(e); } };
-  $effect(() => { void app.business; void app.account?.plan; void app.billingEpoch; void load(); }); // 사업자 확인·요금제가 바뀌면 다시
+  // 사업자 확인·요금제가 실제로 바뀌면 다시 — 객체가 아니라 값으로 (refreshMe 마다 새 객체라 매번 다시 불렀다, 2026-10-27)
+  const reloadKey = $derived(`${app.business?.status ?? ''}|${app.account?.plan ?? ''}|${app.billingEpoch}`);
+  $effect(() => { void reloadKey; untrack(() => void load()); });
   const won = (n: number) => `${n.toLocaleString('ko-KR')}원`;
   const day = (ts: number | null) => (ts ? new Date(ts).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
   const sub = $derived(info?.sub?.plan ? info.sub : null);

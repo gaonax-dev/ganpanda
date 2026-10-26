@@ -1,5 +1,6 @@
 <!-- 설정: 단축키 변경 (화면 조작 기본값은 xlpop 과 동일) -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { askConfirm } from './ask.svelte';
   import { nudgeClose } from './dialogGuard';
   import { app, type SettingsTab } from '../state.svelte';
@@ -90,7 +91,10 @@
     }
   }
   async function loadTeam() { try { const t = await listTeam(); members = t.members; invites = t.invites; } catch { members = []; invites = []; } }
-  $effect(() => { if (app.account) { app.refreshMe(); loadTeam(); } });
+  // 계정이 바뀔 때(아이디)만 다시 — refreshMe 는 account 를 새 객체로 바꾸므로 account 자체를 따라가면 끝없이 다시 부른다 (2026-10-27 버그)
+  const accountId = $derived(app.account?.id ?? null);
+  $effect(() => { if (accountId) untrack(() => { void app.refreshMe(); void loadTeam(); }); });
+  $effect(() => { if (accountId && tab === 'team') untrack(() => void loadTeam()); }); // 멤버 탭을 열 때마다 새로 (초대받은 사람이 들어왔는지)
   async function addMember() {
     const em = memberEmail.trim();
     if (!em) return;
