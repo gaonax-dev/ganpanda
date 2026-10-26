@@ -18,7 +18,17 @@ test('견적 줄 아래 단가 줄은 없다 — 항목 이름을 누르면 [원
   await expect(page.getByTestId('line-cost-edit')).toHaveCount(0);
   // 이름을 누르면 [원가 수정]
   await line(a).getByTestId('line-open').click();
+  // 고른 줄은 다른 줄과 구분 — 테두리·그림자로 띄운 카드 (2026-10-26 "선택되서 편집 가능한 상태를 다른 엘리먼트와 차별화")
+  const block = (id: string) => page.locator(`[data-testid="quote-line-block"][data-key="${id}:body"]`);
+  await expect(block(a)).toHaveAttribute('data-selected', 'true');
+  await expect(block(b)).toHaveAttribute('data-selected', 'false');
+  const look = (id: string) => block(id).evaluate((el) => { const c = getComputedStyle(el); return { shadow: c.boxShadow, outline: c.outlineStyle, opacity: c.opacity }; });
+  expect((await look(a)).shadow).not.toBe('none');
+  expect((await look(a)).outline).not.toBe('none');
+  expect((await look(b)).shadow).toBe('none');
   await line(a).getByTestId('line-cost-edit').click();
+  await expect(block(a)).toContainText('이후 모든 견적에 적용됩니다'); // 수정 칸도 같은 카드 안
+  await expect.poll(async () => Number((await look(b)).opacity)).toBeLessThan(1); // 고치는 동안 다른 줄은 흐리게
   await expect(edit(a)).toContainText('1.8㎡');
   await expect(edit(a)).toContainText('이후 모든 견적에 적용됩니다');
   // 이 줄만(임시) — 원래 가격이 따로 보인다
