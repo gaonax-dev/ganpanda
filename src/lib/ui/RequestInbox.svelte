@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { paymentsShown } from '../auth';
   import BackLink from './BackLink.svelte';
   // 받은 견적 요청 페이지 (/requests, 2026-10-22 사용자: "견적요청표시가 메인에 있는데 헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"):
   // 헤더의 "견적 요청 N" 을 누르면 여기로. 목록은 이름·사인물 정보만, 누르면 요청 보드(복제), 단추는 [견적 넣기] 하나
@@ -59,11 +60,11 @@
             <div class="rbody">
               <span class="rhead"><b>{r.store || `${r.region}${r.floor ? ` ${r.floor}` : ''} 요청`}</b> {#if r.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if r.bizStatus === 'active'}<span class="biz" data-testid="request-biz">✓ 번호 확인</span>{/if}{#if r.b2b}<span class="tag b2b" data-testid="request-b2b">B2B</span>{/if}{#if r.general}<span class="tag" data-testid="request-general">일반 주문</span>{/if}{#if r.status === 'cancelled'}<span class="tag off" data-testid="request-cancelled">취소됨</span>{/if} <span class="muted">{r.region} · {date(r.createdAt)}{r.status === 'approved' ? ' · 승인됨' : ''}</span></span>
               <!-- 층·크레딧 (2026-10-24): 제안을 보내면 크레딧이 쓰이고 사진·가게 정보·연락처가 열린다 -->
-              <p class="muted">{#if r.floor}<span class="tag" data-testid="request-floor">{r.floor}</span> {/if}{#if !r.responded && r.fee}<span data-testid="request-fee">제안 크레딧 {r.fee.toLocaleString('ko-KR')}원</span>{/if}{#if r.locked} · 가게 정보·연락처는 제안 뒤{/if}</p>
+              <p class="muted">{#if r.floor}<span class="tag" data-testid="request-floor">{r.floor}</span> {/if}{#if !r.responded && r.fee && paymentsShown()}<span data-testid="request-fee">제안 크레딧 {r.fee.toLocaleString('ko-KR')}원</span>{/if}{#if r.locked} · 가게 정보·연락처는 제안 뒤{/if}</p>
               <p class="muted" data-testid="request-signs">✎ 사인물 {r.signs?.length ?? 0}개 · 치수 {sized.length}개{#if sized.length} — {sized.slice(0, 3).map((s) => `${s.name} ${s.widthMm!.toLocaleString()}×${s.heightMm!.toLocaleString()}`).join(', ')}{sized.length > 3 ? ' …' : ''}{/if}</p>
               <!-- 가게 사장 요구사항 (2026-10-22 "요청보기는 제거하고 카드 하단에 소비자 요구사항표시") -->
               {#if r.text}<p class="need" data-testid="request-need">“{r.text}”</p>{/if}
-              {#if r.responded && r.phone}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{:else if r.responded && r.reserved}<p class="muted" data-testid="request-reserved">제안을 보냈습니다 — 고객이 열면 크레딧{r.fee ? ` ${r.fee.toLocaleString('ko-KR')}원` : ''}이 결제되고 연락처가 열립니다</p>{/if}
+              {#if r.responded && r.phone}<p data-testid="request-phone">📞 {r.phone}{r.email ? ` · ${r.email}` : ''} <span class="muted">— 견적을 보냈습니다</span></p>{:else if r.responded && r.reserved}<p class="muted" data-testid="request-reserved">제안을 보냈습니다 — 고객이 열면 연락처가 열립니다</p>{/if}
             </div>
             <div class="ract">
               <!-- 단추는 [실측 보기] 하나 — 고칠 수 없는 요청 보드를 열고, 거기서 [내 프로젝트로 가져오기]로 복제 (2026-10-22 "내 견적보기 -> 실측보기(강조색 파란색) 수정안됨 프로젝트 창에서 내프로젝트로 가져오기로 복제하기") -->

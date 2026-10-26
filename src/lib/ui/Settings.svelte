@@ -13,6 +13,7 @@
   import { describeBusinessError, removeBusiness, updateBusinessAddress, verifyBusiness } from '../business';
   import { KOREA_REGIONS, regionLabel, sidoOf } from '../core/regions';
   import BillingSection from './BillingSection.svelte';
+  import { paymentsShown } from '../auth';
   /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
   function exportGlossary() {
     const blob = new Blob([glossaryCsv(app.prices, app.specRules)], { type: 'text/csv;charset=utf-8' });
@@ -85,7 +86,7 @@
       catch { teamLinkNote = '아래 링크를 복사해 카카오톡으로 보내세요. 한 사람만, 7일 동안 쓸 수 있습니다.'; }
     } catch (e) {
       const limit = (() => { try { const j = JSON.parse(e instanceof Error ? e.message : ''); return j?.error === 'member_limit' ? j.limit as number : null; } catch { return null; } })();
-      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다(가입 대기 포함). 더 필요하면 요금제를 올려 주세요.` : '초대 링크를 만들지 못했습니다. 잠시 뒤 다시 해 주세요.';
+      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다(가입 대기 포함).${paymentsShown() ? ' 더 필요하면 요금제를 올려 주세요.' : ''}` : '초대 링크를 만들지 못했습니다. 잠시 뒤 다시 해 주세요.';
     }
   }
   async function loadTeam() { try { const t = await listTeam(); members = t.members; invites = t.invites; } catch { members = []; invites = []; } }
@@ -98,7 +99,7 @@
     catch (e) {
       // 요금제 멤버 한도 (2026-10-21): 403 member_limit
       const limit = (() => { try { const j = JSON.parse(e instanceof Error ? e.message : ''); return j?.error === 'member_limit' ? j.limit as number : null; } catch { return null; } })();
-      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다. 더 필요하면 요금제를 올려 주세요.` : e instanceof AuthError && e.status === 400 ? '이메일 주소를 확인해 주세요.' : '보내지 못했습니다. 잠시 뒤 다시 해 주세요.';
+      memberError = limit !== null ? `지금 요금제는 멤버를 ${limit}명까지 둘 수 있습니다.${paymentsShown() ? ' 더 필요하면 요금제를 올려 주세요.' : ''}` : e instanceof AuthError && e.status === 400 ? '이메일 주소를 확인해 주세요.' : '보내지 못했습니다. 잠시 뒤 다시 해 주세요.';
     }
   }
 
@@ -199,7 +200,7 @@
           </section>
         {:else}
         <!-- 구독 (2026-10-23 토스 자동결제) — 사업자 확인이 먼저 -->
-        <BillingSection />
+        {#if paymentsShown()}<BillingSection />{/if}
         <!-- 사업자 확인 (2026-10-21): 소유자 계정만. 번호·대표자명·개업일 → 국세청 → 제안 페이지 배지, 체험·요금은 사업자당 1번 -->
         <section data-testid="business-section">
           <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>

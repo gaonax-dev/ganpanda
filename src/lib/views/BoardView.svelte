@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { paymentsShown } from '../auth';
   import { askConfirm } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
   import MultiSize from '../ui/MultiSize.svelte';
@@ -145,7 +146,7 @@
         assetId = await putAsset(await prepareUpload(f)); // 긴 변 3200px 로 줄여 올린다 (2026-10-17 느린 기기·모바일 누락)
       } catch (e) {
         if (e instanceof StorageLimitError) {
-          app.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 "${f.name}"(${formatBytes(e.sizeBytes)})을 올릴 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}. 더 많은 용량이 필요하면 요금제를 올려 주세요.`;
+          app.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 "${f.name}"(${formatBytes(e.sizeBytes)})을 올릴 수 없습니다. 사용 중 ${formatBytes(e.usedBytes)}.${paymentsShown() ? ' 더 많은 용량이 필요하면 요금제를 올려 주세요.' : ''}`;
           continue;
         }
         throw e;

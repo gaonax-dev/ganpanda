@@ -3,7 +3,7 @@
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
   import { createInvite, retryCredit } from '../projects';
-  import { AuthError } from '../auth';
+  import { AuthError, paymentsShown } from '../auth';
   import { proposalProblems, type ProposalInfo } from '../core/proposal';
   import { SERVER_URL } from '../sync';
   import { won } from '../core/quote';
@@ -21,8 +21,9 @@
   const date = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   function proposalLimitMessage(body: string): string {
-    try { const j = JSON.parse(body) as { used: number; limit: number }; return `무료 요금제는 제안 링크가 한 달 ${j.limit}건까지입니다 (이번 달 ${j.used}건). 다음 달에 다시 만들거나 베이직 요금제로 올리면 무제한입니다.`; }
-    catch { return '무료 요금제의 이번 달 제안 링크 한도에 도달했습니다. 베이직 요금제로 올리면 무제한입니다.'; }
+    // 앱 안에서는 업그레이드 안내 없이 (2026-10-26 결제는 웹으로만)
+    try { const j = JSON.parse(body) as { used: number; limit: number }; return paymentsShown() ? `무료 요금제는 제안 링크가 한 달 ${j.limit}건까지입니다 (이번 달 ${j.used}건). 다음 달에 다시 만들거나 베이직 요금제로 올리면 무제한입니다.` : `이번 달 제안 링크 한도(${j.limit}건)에 도달했습니다 (이번 달 ${j.used}건). 다음 달에 다시 만들 수 있습니다.`; }
+    catch { return paymentsShown() ? '무료 요금제의 이번 달 제안 링크 한도에 도달했습니다. 베이직 요금제로 올리면 무제한입니다.' : '이번 달 제안 링크 한도에 도달했습니다.'; }
   }
   /** 요청 크레딧: 첫 제안 = 예약, 고객이 제안을 열 때 등록 카드로 결제 → 가게 정보·연락처가 열린다 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고", 전엔 제안 때 결제) */
   const credit = $derived(app.access.status === 'ok' && app.access.credit && !app.access.credit.paid ? app.access.credit : null);
@@ -37,6 +38,8 @@
   function creditError(body: string): string | null {
     try {
       const j = JSON.parse(body) as { error?: string; fee?: number; used?: number; limit?: number; message?: string };
+      // 앱 안: 결제 수단·금액 안내 없이 (2026-10-26 결제는 웹으로만)
+      if (!paymentsShown() && (j.error === 'card_required' || j.error === 'credit_limit' || j.error === 'charge_failed')) return '이 계정은 지금 이 요청에 제안을 보낼 수 없습니다.';
       if (j.error === 'card_required') { needCard = true; return `결제 카드가 없습니다. 설정 → 계정 · 구독에서 카드를 등록하면 제안을 보낼 수 있습니다 — 크레딧 ${won(j.fee ?? 0)}은 고객이 제안을 열 때 결제됩니다.`; }
       if (j.error === 'credit_limit') return `이번 달 크레딧 한도(${won(j.limit ?? 0)})를 넘습니다 — 이번 달 결제 ${won(j.used ?? 0)}${(j as { reserved?: number }).reserved ? ` · 예약 ${won((j as { reserved?: number }).reserved!)}` : ''}. 다음 달 1일에 다시 열립니다.`;
       if (j.error === 'charge_failed') { needCard = true; return `카드 결제가 되지 않았습니다${j.message ? ` (${j.message})` : ''}. 카드를 바꾸거나 잠시 뒤 다시 해 주세요.`; }
@@ -102,7 +105,7 @@
         </section>
       {/if}
 
-      {#if credit}
+      {#if credit && paymentsShown()}
         {#if credit.error}
           <p class="credit err" data-testid="proposal-credit-failed">고객이 제안을 열었지만 <b>크레딧 {won(credit.fee)}</b> 카드 결제가 되지 않았습니다 ({credit.error}). 카드를 확인하고 다시 결제하면 <b>가게 정보·연락처</b>가 열립니다. <button class="btn small primary" data-testid="proposal-credit-retry" disabled={!!busy} onclick={retry}>다시 결제</button></p>
         {:else if credit.reserved}
@@ -118,7 +121,7 @@
           <button class="btn primary" data-testid="proposal-build" disabled={!!problems.length} onclick={build}>{app.latestIssue && app.issueChanged ? `변경 견적 발행 (#${app.latestIssue.no + 1})` : proposal ? '새 링크 발급' : '링크 발급'}</button>
         {/if}
         {#if error}<p class="warn" data-testid="proposal-error">{error}</p>{/if}
-        {#if needCard}<button class="btn small" data-testid="proposal-card" onclick={() => { close(); app.settingsOpen = true; }}>카드 등록하러 가기</button>{/if}
+        {#if needCard && paymentsShown()}<button class="btn small" data-testid="proposal-card" onclick={() => { close(); app.settingsOpen = true; }}>카드 등록하러 가기</button>{/if}
         {#if link}
           <div class="url">
             <input data-testid="proposal-link" readonly value={link} onfocus={(e) => e.currentTarget.select()} />

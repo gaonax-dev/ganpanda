@@ -44,6 +44,11 @@ export const socialStartUrl = (p: SocialProvider, next: string, team?: string, a
 export const inNativeApp = () => typeof window !== 'undefined' && ((window as unknown as { __GANPANDA_APP__?: boolean }).__GANPANDA_APP__ === true || document.documentElement?.dataset.ganpandaApp === '1');
 /** 앱 안에서는 새 창(= 시스템 브라우저)으로 */
 export const socialTarget = () => (inNativeApp() ? '_blank' : undefined);
+/**
+ * 결제·요금 화면을 보일까 (2026-10-26 "결제는 오직 웹으로만" — 앱스토어 3.1.1): 앱(Tauri) 안에서는 구독·카드 등록·크레딧 금액·요금제 링크·업그레이드 유도를 보이지 않는다.
+ * 앱 여부로만 정한다 — 서버 설정으로 켜지 않는다(심사 때와 출시 뒤가 같아야). tests/e2e/appNoPayments.spec.ts
+ */
+export const paymentsShown = () => !inNativeApp();
 
 /** 메일 링크 요청. reset = 비밀번호 재설정 링크 */
 export const requestLink = (email: string, reset = false, next?: string) =>

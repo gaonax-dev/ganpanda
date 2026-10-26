@@ -8,7 +8,7 @@
   $effect(() => { if (app.room && app.access.status === 'ok' && !app.proposalMode) saveRoomView(app.room, { tab: app.tab }); });
   // 원가 배수 = 전체 설정 (2026-10-26): 프로젝트 단가표를 전체 배수에 맞춰 둔다
   $effect(() => { void app.synced; void app.settings.prices; if (app.access.status === 'ok') void app.access.costMarkup; app.syncGlobalCost(); });
-  import { PLAN_LABEL, fetchProviders, socialStartUrl, socialTarget, type SocialProvider } from './lib/auth';
+  import { PLAN_LABEL, fetchProviders, paymentsShown, socialStartUrl, socialTarget, type SocialProvider } from './lib/auth';
   // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
   let providers = $state<SocialProvider[]>([]);
   $effect(() => { if (app.consumer) fetchProviders().then((p) => (providers = p)); });
@@ -159,7 +159,7 @@
       {#if app.access.outsource}<span class="b2b" data-testid="outsource-badge" title="다른 업체에 맡기는 외주 프로젝트">B2B 외주</span>{/if}
       {#if app.outsourceProject}{#if app.settings.estimateRequest}<EstimateLock />{:else}<button class="btn small primary" data-testid="outsource-request" disabled={!app.photos.length} title={app.photos.length ? '이 보드 그대로 다른 간판집에 외주 견적 요청' : '사진을 먼저 올려 주세요'} onclick={() => (app.estimateOpen = true)}>외주 요청</button>{/if}{/if}
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
-      {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title="버전 기록 — 이전 상태로 되돌리기 (유료)" onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
+      {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title={paymentsShown() ? '버전 기록 — 이전 상태로 되돌리기 (유료)' : '버전 기록 — 이전 상태로 되돌리기'} onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
       {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
       {/if}
@@ -249,7 +249,7 @@
               <button class="btn small" data-testid="open-password" onclick={() => { accountOpen = false; app.passwordOpen = 'change'; }}>{app.account.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>
               <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
               <!-- 약관·개인정보 (2026-10-24 로그인 후 홈 푸터 대신) — 사업자 정보는 각 페이지 아래에 -->
-              <nav class="legal" data-testid="account-legal"><a href="/pricing" target="_blank" rel="noopener">요금제</a><a href="/terms" target="_blank" rel="noopener">이용약관</a><a href="/refund" target="_blank" rel="noopener">환불 정책</a><a href="/privacy" target="_blank" rel="noopener"><b>개인정보처리방침</b></a></nav>
+              <nav class="legal" data-testid="account-legal">{#if paymentsShown()}<a href="/pricing" target="_blank" rel="noopener">요금제</a>{/if}<a href="/terms" target="_blank" rel="noopener">이용약관</a><a href="/refund" target="_blank" rel="noopener">환불 정책</a><a href="/privacy" target="_blank" rel="noopener"><b>개인정보처리방침</b></a></nav>
             </div>
           {/if}
         </span>
