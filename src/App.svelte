@@ -6,6 +6,8 @@
   import { app } from './lib/state.svelte';
   // 작업 탭을 이 기기에 기억 — 다시 열면 그 탭 (2026-10-25 "헤더 텝의 상태를 돌아왔을때 복원") · 복원은 state.svelte.ts 생성자
   $effect(() => { if (app.room && app.access.status === 'ok' && !app.proposalMode) saveRoomView(app.room, { tab: app.tab }); });
+  // 원가 배수 = 전체 설정 (2026-10-26): 프로젝트 단가표를 전체 배수에 맞춰 둔다
+  $effect(() => { void app.synced; void app.settings.prices; if (app.access.status === 'ok') void app.access.costMarkup; app.syncGlobalCost(); });
   import { PLAN_LABEL, fetchProviders, socialStartUrl, socialTarget, type SocialProvider } from './lib/auth';
   // 소비자 입구 로그인 (2026-10-21 "입구 카카오"): /estimate 는 로그인해야 보드가 열린다 — 카카오 기본
   let providers = $state<SocialProvider[]>([]);

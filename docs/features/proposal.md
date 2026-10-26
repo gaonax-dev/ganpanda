@@ -19,7 +19,7 @@
 - `canonicalContent(signs, sizeOf, quote)`: 사인물(원본만)의 id·이름·제품·시트·옵션·문구·치수(입력 또는 추정, 정수)·모서리·디자인(소스/페이지/영역)·금액과 견적 합계·부가세 방식을 id 순으로 정렬한 JSON. 위치·사진 같은 규격 외 필드는 무관.
 - `contentHash` = FNV-1a 32비트 hex(동기, 변경 감지용). `app.contentHash` 가 실시간으로 바뀝니다.
 - `approvalState(approvals, hash)`: 승인 없음 `none` / 최신 승인의 해시 = 현재 `approved` / 다름 `changed`(재승인 필요). 승인 기록은 지우지 않고 쌓입니다(버전) — 승인 당시 스냅샷(`snapshotOf`: 품목·사양·치수·디자인·금액·합계)이 그대로 남습니다.
-- 고객 페이지는 `changed` 면 "승인한 뒤 내용이 바뀌었습니다. 다시 확인하고 승인해 주세요"와 버튼, 제작자 상단 바는 "⚠ 변경됨 · 재승인 필요".
+- ~~고객 페이지는 `changed` 면 "승인한 뒤 내용이 바뀌었습니다. 다시 확인하고 승인해 주세요"와 버튼, 제작자 상단 바는 "⚠ 변경됨 · 재승인 필요".~~ **대체됨 (2026-10-26)**: 고객 페이지는 발행본만 보이고, 사장이 고친 내용은 다시 발행해야 "변경 견적"으로 간다(계약 견적과 비교해 동의·거절) → [quote-issue.md](quote-issue.md). 제작자 상단 바의 "⚠ 변경됨"은 그대로.
 
 ## 데이터
 - `settings.proposal: ProposalInfo`, `settings.approvals: Approval[]` → [../architecture/data-model.md](../architecture/data-model.md)

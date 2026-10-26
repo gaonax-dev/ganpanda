@@ -44,6 +44,7 @@
   - [sign-templates.md](features/sign-templates.md) — 완성품 퀵: 간판 → 완성품 사진 → 바꿀 칸(색 → 글자) 하나씩, 멈추면 거기까지 완성 (구현됨, 2026-10-23)
   - [confirm.md](features/confirm.md) — 컨펌: 표시 없는 사진보드(사인물·디자인이 사진 위에)·진행 동의 → 제작·완료 사진첩·참고 이미지(고객 AI 이미지) (설계, 2026-10-22)
   - [proposal.md](features/proposal.md) — 제안 링크(실사·치수·금액·질문)와 승인·재승인 (6차)
+  - [quote-issue.md](features/quote-issue.md) — 견적 발행 박제 · 계약 견적 대비 변경 견적(동의·거절) · 고객 안전장치 · 원가 배수 전체 적용 (2026-10-26)
   - [requests.md](features/requests.md) — 요청판(9차): 고객 견적 요청 → 지역 간판사 → 제안 링크, 홍보자 코드
   - [communication.md](features/communication.md) — 톡(방별 대화·사인물 링크), 오브젝트별 대화·코멘트, 말풍선(숫자)
   - [accounts.md](features/accounts.md) — 이메일 매직링크 로그인, 계정 메뉴

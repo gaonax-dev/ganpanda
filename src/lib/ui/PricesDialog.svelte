@@ -5,9 +5,10 @@
   계정 메뉴에서 열면 — 프로젝트 밖(홈 등)이면 내 기본 단가(계정)를 고치고 [저장], 프로젝트 안이면 지금처럼 이 프로젝트 단가 -->
 <script lang="ts">
   import { nudgeClose } from './dialogGuard';
+  import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { CATALOG, CATEGORY_LABEL, SHEETS, UNIT_LABEL } from '../core/catalog';
-  import { ROUNDING_OPTIONS, mergePrices, type PriceTable } from '../core/pricing';
+  import { ROUNDING_OPTIONS, mergePrices, type Markup, type PriceTable } from '../core/pricing';
   import { describeImportError, readPriceTable, type ImportResult } from '../priceImport';
   import { savePrices } from '../auth';
   import { applyMarkup, isDirect, linkedPrice } from '../core/markup';
@@ -92,18 +93,35 @@
   }
   /** 배수(사용자가 정함): 비우면 전체 배수를 따른다. 바꾸면 연결된 항목을 다시 계산 */
   const ratio = (v: string): number | null => { const n = Number(v); return v.trim() !== '' && isFinite(n) && n > 0 && n <= 10 ? n : null; };
-  function setAll(v: string) { const n = ratio(v); if (n !== null) put(applyMarkup(p, { ...(p.markup ?? {}), all: n })); }
-  function setGroup(g: string, v: string) {
-    const n = ratio(v);
-    const groups = { ...(p.markup?.groups ?? {}) };
+  /**
+   * 원가 배수 = 전체 적용 (2026-10-26 "원가는 전체 변경이다. 항상 대화창으로 확인"): 바꿀 때마다 확인 창 → 내 계정 단가표에 저장되어
+   * 아직 발행하지 않은 모든 견적과 새 견적에 바로 적용, 발행한 견적은 그대로. 취소하면 입력을 되돌린다
+   */
+  async function changeMarkup(next: Markup, what: string, revert: () => void) {
+    if (!app.canEditCost) { revert(); return; }
+    const ok = await askConfirm(`${what}\n\n전체 적용 — 내 모든 견적(아직 발행하지 않은 것)과 새 견적에 바로 적용됩니다.\n이미 발행한 견적은 발행한 그대로입니다.`);
+    if (!ok) { revert(); return; }
+    try { await app.setGlobalMarkup(next); if (accountMode) draft = applyMarkup(draft, next); }
+    catch (e) { revert(); imError = describeImportError(e); }
+  }
+  const markupNow = () => p.markup ?? { all: 1 };
+  function setAll(v: string, el: HTMLInputElement) {
+    const n = ratio(v), before = markupNow().all ?? 1;
+    if (n === null || n === before) { el.value = String(before); return; }
+    void changeMarkup({ ...markupNow(), all: n }, `원가 배수(전체)를 ×${before} → ×${n}(으)로 바꿉니다.`, () => (el.value = String(before)));
+  }
+  function setGroup(g: string, v: string, el: HTMLInputElement) {
+    const n = ratio(v), before = markupNow().groups?.[g];
+    if (n === (before ?? null)) return;
+    const groups = { ...(markupNow().groups ?? {}) };
     if (n === null) delete groups[g]; else groups[g] = n;
-    put(applyMarkup(p, { ...(p.markup ?? { all: 1 }), groups }));
+    void changeMarkup({ ...markupNow(), groups }, `"${g}" 원가 배수를 ${before ? `×${before}` : '전체 배수'} → ${n === null ? '전체 배수' : `×${n}`}(으)로 바꿉니다.`, () => (el.value = before ? String(before) : ''));
   }
   /** 직접 출력 분류: 연결 목록에서 빠지고, 이미 연결된 항목은 풀린다(단가는 남음) */
-  function setDirect(g: string, on: boolean) {
-    const direct = (p.markup?.direct ?? []).filter((x) => x !== g);
+  function setDirect(g: string, on: boolean, el: HTMLInputElement) {
+    const direct = (markupNow().direct ?? []).filter((x) => x !== g);
     if (on) direct.push(g);
-    put(applyMarkup(p, { ...(p.markup ?? { all: 1 }), direct }));
+    void changeMarkup({ ...markupNow(), direct }, `"${g}"을(를) ${on ? '직접 출력으로(공급 연결 풀림)' : '공급 단가 연결 가능으로'} 바꿉니다.`, () => (el.checked = !on));
   }
   const directOf = (g: string) => !!p.markup?.direct?.includes(g);
   let query = $state('');
@@ -226,8 +244,9 @@
       {:else}
       <section data-testid="supplier-lists">
         <h3>공급 단가표 <span class="sub">자재 원가 · [견적 단가] 탭의 항목 선택에서 공급 품목(원가 × 배수)이나 공급사 계산법(구간·기본가 × 배수)을 고르면 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
+        <p class="global" data-testid="cost-global">원가 배수는 <b>전체 적용</b>입니다 — 바꾸면 확인 후 내 모든 견적(발행 전)과 새 견적에 바로 적용되고, 발행한 견적은 그대로입니다.{#if !app.canEditCost} 회사 대표 계정에서만 바꿀 수 있습니다.{/if}</p>
         <div class="markup" data-testid="markup">
-          <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} onchange={(e) => setAll(e.currentTarget.value)} /></label>
+          <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} disabled={!app.canEditCost} onchange={(e) => setAll(e.currentTarget.value, e.currentTarget)} /></label>
           <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수(공급업체를 펼쳐 분류마다)를 비우면 전체 배수. 직접 출력 분류는 연결하지 않고 직접 입력합니다</small>
         </div>
         {#each SUPPLIER_LISTS as l (l.supplier.id)}
@@ -242,8 +261,8 @@
                 {#if rows.length}
                 <div class="gh">
                   <h4>{g}</h4>
-                  <label class="d"><input type="checkbox" data-testid="direct-{g}" checked={directOf(g)} onchange={(e) => setDirect(g, e.currentTarget.checked)} /> 직접 출력</label>
-                  {#if !directOf(g)}<label class="d">×<input data-testid="markup-{g}" type="number" min="0.1" max="10" step="0.05" placeholder={String(p.markup?.all ?? 1)} value={p.markup?.groups?.[g] ?? ''} onchange={(e) => setGroup(g, e.currentTarget.value)} /></label>{/if}
+                  <label class="d"><input type="checkbox" data-testid="direct-{g}" checked={directOf(g)} disabled={!app.canEditCost} onchange={(e) => setDirect(g, e.currentTarget.checked, e.currentTarget)} /> 직접 출력</label>
+                  {#if !directOf(g)}<label class="d">×<input data-testid="markup-{g}" type="number" min="0.1" max="10" step="0.05" placeholder={String(p.markup?.all ?? 1)} value={p.markup?.groups?.[g] ?? ''} disabled={!app.canEditCost} onchange={(e) => setGroup(g, e.currentTarget.value, e.currentTarget)} /></label>{/if}
                 </div>
                 <table><tbody>
                   {#each rows as it (it.id)}
@@ -298,6 +317,7 @@
   .tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; cursor: pointer; }
   .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .global { font-size: 12px; margin: 6px 0; padding: 6px 9px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.5); }
   .scope { font-size: 12px; font-weight: 600; color: var(--accent); margin-left: 6px; }
   section { margin-top: 12px; }
   h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; font-weight: 600; }

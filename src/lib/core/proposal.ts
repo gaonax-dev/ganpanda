@@ -37,6 +37,8 @@ export interface Approval {
   proposalId?: string;
   /** 진행 동의에서 뺀 사인물 (2026-10-22) */
   excluded?: string[];
+  /** 'rejected' = 변경 견적 거절 — 계약 견적대로 진행 (2026-10-26). 없으면 동의 */
+  decision?: 'rejected';
 }
 
 type SizeOf = (o: SignObject) => { w: number; h: number; estimated: boolean } | null;
@@ -89,8 +91,9 @@ export type ApprovalState =
 
 /** 최신 승인과 현재 내용 해시를 비교 */
 export function approvalState(approvals: Approval[] | undefined, currentHash: string): ApprovalState {
-  if (!approvals?.length) return { status: 'none' };
-  const latest = [...approvals].sort((a, b) => b.at - a.at)[0];
+  const agreed = (approvals ?? []).filter((a) => a.decision !== 'rejected'); // 거절 기록은 동의가 아니다 (2026-10-26)
+  if (!agreed.length) return { status: 'none' };
+  const latest = [...agreed].sort((a, b) => b.at - a.at)[0];
   return latest.hash === currentHash ? { status: 'approved', approval: latest } : { status: 'changed', approval: latest };
 }
 

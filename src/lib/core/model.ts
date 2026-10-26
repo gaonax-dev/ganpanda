@@ -198,6 +198,8 @@ export interface ProjectSettings {
   proposal?: import('./proposal').ProposalInfo;
   /** 승인 기록 (서버가 추가, 최신이 뒤) */
   approvals?: import('./proposal').Approval[];
+  /** 발행 견적 (2026-10-26 박제): 제안 링크를 발급할 때마다 그 순간의 사양·견적 줄·합계 사본. 최신이 뒤 → core/quoteChange.ts */
+  issues?: import('./quoteChange').IssuedQuote[];
   /** 견적 줄 금액: manual = 직접 입력(새 프로젝트), 없으면 auto(기존 프로젝트) — 2026-10-16 */
   quoteMode?: 'manual' | 'auto';
   /** 줄 키 → 수동 금액 또는 'auto'(자동 전환) */

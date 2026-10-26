@@ -28,6 +28,19 @@
   import { imageDataUrl } from '../core/imageData';
   import { itemAssetId } from '../render/itemImages';
   import { fitRect, type Viewport } from '../core/viewport';
+  import QuoteChange from '../ui/QuoteChange.svelte';
+  import { askConfirm } from '../ui/ask.svelte';
+  /** 단가표의 원래 단가 (이 줄만 바꾼 임시 가격 옆에) */
+  const baseUnit = (id: string): number | undefined => app.prices.products[id] ?? app.prices.sheets[id];
+  /** 원가 배수(전체) — 확인 창 뒤 전체 적용, 취소하면 되돌림 */
+  async function changeAll(el: HTMLInputElement) {
+    const before = app.globalMarkup?.all ?? 1, n = Number(el.value);
+    if (!el.value.trim() || !Number.isFinite(n) || n <= 0 || n > 10 || n === before) { el.value = String(before); return; }
+    const ok = await askConfirm(`원가 배수(전체)를 ×${before} → ×${n}(으)로 바꿉니다.\n\n전체 적용 — 내 모든 견적(아직 발행하지 않은 것)과 새 견적에 바로 적용됩니다.\n이미 발행한 견적은 발행한 그대로입니다.`);
+    if (!ok) { el.value = String(before); return; }
+    try { await app.setGlobalMarkup({ ...(app.globalMarkup ?? { all: 1 }), all: n }); } catch { el.value = String(before); }
+  }
+  let issueDiff = $state(false);
 
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
   let canvas: InfiniteCanvas;
@@ -346,6 +359,25 @@
         <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
       </span>
     </header>
+    <!-- 발행 견적 (2026-10-26 박제): 고객에게는 마지막 발행본만 보인다. 발행 뒤 고치면 "발행 뒤 바뀜" — 다시 발행해야 고객에게 변경 견적으로 간다 -->
+    {#if app.latestIssue && app.canEdit && !app.consumer && !app.noPrices}
+      <div class="issue" class:changed={app.issueChanged} data-testid="issue-banner" data-changed={app.issueChanged}>
+        <span>발행 #{app.latestIssue.no} · {won(app.latestIssue.snapshot.total)}{#if app.customerQuote.contract} · 계약 #{app.customerQuote.contract.no}{/if}</span>
+        {#if app.issueChanged}
+          <b>발행 뒤 바뀜 — 고객에게는 발행 #{app.latestIssue.no}이 보입니다</b>
+          <button class="link" data-testid="issue-diff-toggle" onclick={() => (issueDiff = !issueDiff)}>{issueDiff ? '접기' : '바뀐 내용'}</button>
+          <button class="btn small primary" data-testid="issue-reissue" onclick={() => (app.proposalOpen = true)}>변경 견적 발행</button>
+        {:else}<span class="ok">발행 그대로</span>{/if}
+        {#if app.costOutdated}
+          <!-- 발행 뒤 전체 원가 배수가 바뀜: 이 견적은 발행 당시 원가 그대로 (2026-10-26) -->
+          <span class="cost-old" data-testid="issue-cost-outdated">원가 배수가 바뀌었습니다 — 이 견적은 발행 당시 원가 그대로입니다</span>
+          <button class="link" data-testid="issue-recalc" onclick={async () => { if (await askConfirm('이 견적을 현재 원가 배수로 다시 계산합니다.\n\n금액이 바뀌면 "발행 뒤 바뀜"이 되고, 변경 견적으로 다시 발행해야 고객에게 보입니다.')) app.recalcWithCurrentCost(); }}>현재 원가로 다시 계산</button>
+        {/if}
+      </div>
+      {#if app.issueChanged && issueDiff && app.draftDiff}
+        <div class="issue-diff"><QuoteChange diff={app.draftDiff.diff} risks={app.draftDiff.risks} baseLabel={app.customerQuote.contract ? `계약 #${app.draftDiff.base.no}` : `발행 #${app.draftDiff.base.no}`} nextLabel="지금" /></div>
+      {/if}
+    {/if}
     <div class="lines">
       {#if app.canEdit && quote.lines.some((l) => l.manual)}
         <button class="link" data-testid="quote-auto-all" onclick={() => app.autoAllLines()}>전체 자동 금액으로</button>
@@ -372,9 +404,11 @@
             <input class="unit" data-testid="line-unit" type="number" min="0" step="100" value={l.unitPrice ?? ''} title="단가 — 바꾸면 이 줄만" onchange={(e) => setUnit(l.key, e.currentTarget.value)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
             <span>원/{l.unit}</span>
             {#if l.unitOverride}
+              <!-- 임시 가격(이 줄만)은 원래 가격을 따로 (2026-10-26 "임시 가격이 필요한 경우 원 가격은 따로 표시") -->
               <span class="only">이 줄만</span>
-              <button class="link" data-testid="line-unit-apply" title="이 견적의 같은 품목 줄 모두 이 단가로" onclick={() => app.applyLineUnit(l.key, 'project')}>이 견적 전체</button>
-              <button class="link" data-testid="line-unit-account" title="이 견적 전체 + 내 기본 단가표(새 프로젝트)에도" onclick={async () => { await app.applyLineUnit(l.key, 'account'); unitSaved = l.priceId ?? ''; setTimeout(() => (unitSaved = ''), 2500); }}>내 단가표까지</button>
+              {#if l.priceId && baseUnit(l.priceId) !== undefined}<span class="orig" data-testid="line-unit-original">원래 {won(baseUnit(l.priceId)!)}</span>{/if}
+              <button class="link" data-testid="line-unit-apply" title="이 견적의 같은 품목 줄 모두 이 단가로" onclick={async () => { if (await askConfirm(`${l.label} 단가 ${won(l.unitPrice ?? 0)} — 이 견적 전체 적용\n\n이 견적의 같은 품목 줄이 모두 이 단가로 바뀝니다 (원래 ${won(baseUnit(l.priceId ?? '') ?? 0)}).`)) app.applyLineUnit(l.key, 'project'); }}>이 견적 전체</button>
+              <button class="link" data-testid="line-unit-account" title="이 견적 전체 + 내 기본 단가표(새 프로젝트)에도" onclick={async () => { if (!(await askConfirm(`${l.label} 단가 ${won(l.unitPrice ?? 0)} — 전체 적용\n\n이 견적 전체와 내 기본 단가표에 저장되어 새 견적부터 이 단가로 나옵니다. 이미 발행한 견적은 그대로입니다.`))) return; await app.applyLineUnit(l.key, 'account'); unitSaved = l.priceId ?? ''; setTimeout(() => (unitSaved = ''), 2500); }}>내 단가표까지</button>
               <button class="link" data-testid="line-unit-reset" title="단가표 단가로 되돌리기" onclick={() => app.setLineUnit(l.key, null)}>되돌리기</button>
             {/if}
             {#if unitSaved && unitSaved === l.priceId}<span class="ok" data-testid="line-unit-saved">내 단가표에 저장했습니다</span>{/if}
@@ -442,6 +476,10 @@
           {#if app.seesCost}<span>원가 {won(quote.margin.cost)} · 이익 {won(quote.margin.profit)}</span>{/if}
           <span>이익율 <b data-testid="quote-margin-rate">{pct(quote.margin.rate)}</b>{#if quote.margin.profit < 0} <b class="lossb" data-testid="quote-loss">손해</b>{/if}</span>
           {#if quote.margin.uncosted}<small>원가 없는 줄 {quote.margin.uncosted}건 제외 (직접 입력 단가)</small>{/if}
+          <!-- 원가 배수 바로 고치기 (2026-10-26 "견적의 원가 배수도 바로바로 수정 가능 … 원가는 전체 변경이다. 항상 대화창으로 확인") -->
+          {#if app.seesCost}
+            <label class="mk" title="공급 원가 × 배수 = 연결된 항목의 단가 — 전체 적용">원가 배수 ×<input data-testid="quote-markup" type="number" min="0.1" max="10" step="0.05" value={app.globalMarkup?.all ?? 1} disabled={!app.canEditCost} onchange={(e) => changeAll(e.currentTarget)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /><small>전체 적용</small></label>
+          {/if}
         </div>
       {/if}
       <button class="btn small" onclick={copyQuote}>견적 텍스트 복사</button>
@@ -532,4 +570,13 @@
     .quote header { justify-content: flex-start; }
     .quote header h2 { flex: 1; }
   }
+  .issue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 12px; padding: 7px 10px; border-radius: 10px; font-size: 12px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid var(--line); }
+  .issue.changed { border-color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+  .issue .ok { color: #86efac; font-weight: 700; }
+  .issue-diff { margin: 0 12px 8px; }
+  .orig { font-size: 11px; color: var(--muted); }
+  .mk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+  .mk input { width: 64px; }
+  .mk small { color: #f59e0b; font-weight: 700; }
+  .cost-old { color: #f59e0b; }
 </style>

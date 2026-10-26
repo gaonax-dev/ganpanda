@@ -105,3 +105,44 @@ describe('진행 동의 → 제작 (2026-10-22 "여기에 진행동의를 누르
     o.close();
   });
 });
+
+// 2026-10-26 발행 견적 박제: 고객의 동의·거절은 문서에 박제된 발행본으로 기록 — 고객 쪽에서 금액을 바꿔 보내도 소용없다
+describe('발행본에 대한 동의·거절', () => {
+  it('proposalId 가 발행본이면 그 발행본의 해시·사본으로 기록, 거절은 decision rejected 와 "계약 견적대로" 메시지 · 프로젝트 상태는 그대로', async () => {
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const o = await TestClient.connect(project.id, undefined, { session: owner });
+    const issued = { id: 'iss1', no: 1, at: 1, by: '사장', hash: 'issued-hash', lines: [], snapshot: { ...approval('x').snapshot, total: 990000 } };
+    o.doc.getMap('settings').set('issues', [issued, { ...issued, id: 'iss2', no: 2, hash: 'issued-2', snapshot: { ...issued.snapshot, total: 1_200_000 } }]);
+    await new Promise((res) => setTimeout(res, 300)); // 사장의 문서 변경이 서버에 닿을 때까지
+    // 고객이 금액을 바꿔 보내도 발행본 값으로
+    const forged = { ...approval('forged'), proposalId: 'iss1' };
+    forged.snapshot.total = 1;
+    const r = await json(`/api/rooms/${project.id}/approvals?invite=${inv.token}`, forged);
+    expect(r.status).toBe(201);
+    const a = (await r.json<{ approval: { hash: string; snapshot: { total: number } } }>()).approval;
+    expect(a).toMatchObject({ hash: 'issued-hash', snapshot: { total: 990000 } });
+    // 변경 견적(#2) 거절
+    const rj = await json(`/api/rooms/${project.id}/approvals?invite=${inv.token}`, { ...approval('y'), proposalId: 'iss2', decision: 'rejected' });
+    expect(rj.status).toBe(201);
+    expect((await rj.json<{ approval: { decision?: string; hash: string } }>()).approval).toMatchObject({ decision: 'rejected', hash: 'issued-2' });
+    await until(() => (o.doc.getArray('messages').toArray() as { text: string }[]).some((m) => m.text.includes('거절')));
+    const msgs = (o.doc.getArray('messages').toArray() as { text: string }[]).map((m) => m.text);
+    expect(msgs.some((t) => t.includes('견적 #1에 진행에 동의'))).toBe(true);
+    expect(msgs.some((t) => t.includes('변경 견적 #2을 거절했습니다 — 계약 견적대로 진행'))).toBe(true);
+    o.close();
+  });
+});
+
+
+// 2026-10-26 "원가는 전체 변경이다": 프로젝트 접근 정보에 소유자 계정의 원가 배수 — 소유자·편집에게만
+describe('원가 배수 = 계정 전체 설정', () => {
+  it('소유자가 계정 단가표의 배수를 바꾸면 그 프로젝트 접근 정보에 바로, 보기(고객)에게는 없다', async () => {
+    const markup = { all: 1.4, groups: { 솔벤: 1.2 }, direct: ['UV'] };
+    expect((await json('/api/me/prices', { prices: { version: 1, markup } }, owner, 'PUT')).status).toBeLessThan(300);
+    const a = await (await get(`/api/projects/${project.id}/access`, owner)).json<{ costMarkup?: unknown }>();
+    expect(a.costMarkup).toEqual(markup);
+    const inv = await createInvite(owner, project.id, 'viewer');
+    const v = await (await api(`/api/projects/${project.id}/access?invite=${inv.token}`)).json<{ costMarkup?: unknown }>();
+    expect(v.costMarkup).toBeUndefined();
+  });
+});

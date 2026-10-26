@@ -23,7 +23,7 @@ interface SocketAttachment { sid: string; role: Role; owner: string; renewedAt: 
 export interface Attachment { assetId: string; name: string; type: string; size: number }
 export interface Message { id: string; objectId: string; author: string; text: string; kind: 'chat' | 'comment' | 'approval' | 'voice'; ts: number; attachments?: Attachment[]; refs?: { kind: 'object' | 'photo' | 'pin'; id: string; label: string }[]; /** 보낸 사람 아이디 (계정 id 또는 손님 g:…, 2026-10-22) */ authorId?: string }
 /** 제안 승인 (앱의 core/proposal.ts Approval 과 같은 구조). snapshot 은 앱이 만든 JSON 그대로 */
-export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string; /** 진행 동의에서 뺀 사인물 (2026-10-22) */ excluded?: string[] }
+export interface Approval { id: string; at: number; by: string; hash: string; snapshot: unknown; proposalId?: string; /** 진행 동의에서 뺀 사인물 (2026-10-22) */ excluded?: string[]; /** 'rejected' = 변경 견적 거절 (2026-10-26) */ decision?: 'rejected' }
 type AwRow = { client_id: number; sock: string; clock: number; state: string; updated_at?: number };
 /** y-protocols 와 같은 기준: 클라이언트는 15초마다 갱신하므로 30초 넘게 조용한 상태는 죽은 것 (닫힘 신호 없이 사라진 휴대폰 탭 등) */
 const AWARENESS_TTL = 30_000;
@@ -258,11 +258,16 @@ export class Room extends DurableObject<Env> {
    * 제안 승인 기록 (RPC, viewer 도 가능). settings.approvals(JSON 배열)에 추가하고 대화에 승인 메시지를 남긴다 (objectId 'project').
    * 같은 트랜잭션으로 넣어 한 번에 전파된다
    */
-  async addApproval(by: string, hash: string, snapshot: unknown, proposalId?: string, excluded: string[] = []): Promise<Approval> {
+  async addApproval(by: string, hash: string, snapshot: unknown, proposalId?: string, excluded: string[] = [], decision?: 'rejected'): Promise<Approval> {
     const settings = this.doc.getMap<unknown>('settings');
-    const a: Approval = { id: crypto.randomUUID(), at: Date.now(), by, hash, snapshot, ...(proposalId ? { proposalId } : {}), ...(excluded.length ? { excluded } : {}) };
+    // 발행본에 대한 동의·거절이면 고객이 보낸 사본 대신 문서에 박제된 발행본을 기록한다 (2026-10-26 — 금액을 바꿔 보낼 수 없게)
+    const issue = proposalId ? ((settings.get('issues') as { id: string; no: number; hash: string; snapshot: unknown }[] | undefined) ?? []).find((i) => i.id === proposalId) : undefined;
+    if (issue) { hash = issue.hash; snapshot = issue.snapshot; }
+    const a: Approval = { id: crypto.randomUUID(), at: Date.now(), by, hash, snapshot, ...(proposalId ? { proposalId } : {}), ...(excluded.length ? { excluded } : {}), ...(decision ? { decision } : {}) };
     const total = (snapshot as { total?: number } | null)?.total;
-    const text = `${by} 님이 진행에 동의했습니다 — 제작을 시작합니다${excluded.length ? ` (${excluded.length}개 제외)` : ''}${typeof total === 'number' ? ` · 합계 ${Math.round(total).toLocaleString('ko-KR')}원` : ''}`;
+    const text = decision === 'rejected'
+      ? `${by} 님이 변경 견적${issue ? ` #${issue.no}` : ''}을 거절했습니다 — 계약 견적대로 진행합니다`
+      : `${by} 님이 ${issue ? `견적 #${issue.no}에 ` : ''}진행에 동의했습니다 — 제작을 시작합니다${excluded.length ? ` (${excluded.length}개 제외)` : ''}${typeof total === 'number' ? ` · 합계 ${Math.round(total).toLocaleString('ko-KR')}원` : ''}`;
     this.doc.transact(() => {
       const prev = (settings.get('approvals') as Approval[] | undefined) ?? [];
       settings.set('approvals', [...prev, a]);

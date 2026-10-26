@@ -59,7 +59,7 @@ export const removeTeamMember = (accountId: string) => call<void>(`/api/me/team/
 
 /** 방 접근 권한 (세션과 초대 토큰 중 있는 것으로) */
 export const checkAccess = (room: string, invite: string | null) =>
-  call<{ role: Role; project: { id: string; name: string }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 → 제안 페이지 배지 (2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string; /** 외주 프로젝트 (2026-10-22) */ outsource?: boolean; /** 다른 간판집 확정 */ lost?: boolean; /** 요청 크레딧 (2026-10-24) */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
+  call<{ role: Role; /** 원가 배수 — 소유자 계정 전체 설정 (2026-10-26 "원가는 전체 변경이다"). 소유자·팀에게만, null = 아직 없음 */ costMarkup?: import('./core/pricing').Markup | null; project: { id: string; name: string }; billing?: boolean; /** 소유자가 무료 요금제: 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 → 제안 페이지 배지 (2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (소유자에게만) — 앱이 요청 사진을 가져온다 */ requestId?: string; /** 외주 프로젝트 (2026-10-22) */ outsource?: boolean; /** 다른 간판집 확정 */ lost?: boolean; /** 요청 크레딧 (2026-10-24) */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }>(`/api/projects/${room}/access${invite ? `?invite=${invite}` : ''}`);
 
 /** 버전 기록 (2026-10-21 백업 3단계, 유료 — 무료는 402 plan_required): auto = 매시간 자동(그날 마지막), manual = 직접 저장, before = 되돌리기 직전 */
 export interface VersionInfo { key: string; kind: 'auto' | 'manual' | 'before'; at: number; label?: string; by?: string }
@@ -114,7 +114,7 @@ export const deleteMessage = (room: string, invite: string | null, body: { id: s
   call<{ ok: true }>(`/api/rooms/${room}/messages${invite ? `?invite=${invite}` : ''}`, { method: 'DELETE', body: JSON.stringify(body) });
 
 /** 제안 승인: 누구나(viewer 포함) 서버를 통해 문서에 기록 */
-export const postApproval = (room: string, invite: string | null, body: { by: string; hash: string; snapshot: unknown; proposalId?: string; excluded?: string[] }) =>
+export const postApproval = (room: string, invite: string | null, body: { by: string; hash: string; snapshot: unknown; proposalId?: string; excluded?: string[]; decision?: 'rejected' }) =>
   call<{ approval: { id: string } }>(`/api/rooms/${room}/approvals${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 /** viewer 의 핀: 서버가 문서에 기록 */
