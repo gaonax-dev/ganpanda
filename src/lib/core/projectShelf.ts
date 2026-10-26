@@ -30,3 +30,25 @@ export function splitShelf<T extends Shelvable>(projects: T[], now = Date.now())
   const shelved = [...byYear.entries()].sort((a, b) => b[0] - a[0]).map(([year, ps]) => ({ year, projects: ps.sort((a, b) => statusDate(b) - statusDate(a)) }));
   return { current, shelved, shelvedCount: projects.length - current.length };
 }
+
+// ---------- 홈 폴더 (2026-10-27 사용자: "리스트 아래에 외주, 정지, 완료 순으로 메인 구성해주고 정지 완료 처리하면 이동하게 해줘") ----------
+// 진행 목록(대기·진행중) 아래에 외주(진행 중인 외주만) · 정지 · 완료 폴더. 정지·완료로 바꾸면 그 폴더로 옮겨 간다(외주였어도).
+// 정지·완료 폴더 안: 최근 6개월은 최근 순으로 바로, 그보다 지난 것은 연도별로 다시 접는다 (2026-10-21 "지난 프로젝트" 연도별 접기를 폴더 안으로)
+export interface StatusFolder<T> { recent: T[]; years: { year: number; projects: T[] }[]; count: number }
+export interface HomeFolders<T> { main: T[]; outsource: T[]; paused: StatusFolder<T>; done: StatusFolder<T> }
+
+function folderOf<T extends Shelvable>(ps: T[], now: number): StatusFolder<T> {
+  const s = splitShelf(ps, now);
+  return { recent: [...s.current].sort((a, b) => statusDate(b) - statusDate(a)), years: s.shelved, count: ps.length };
+}
+
+export function homeFolders<T extends Shelvable & { outsource?: boolean }>(projects: T[], now = Date.now()): HomeFolders<T> {
+  const main: T[] = [], outsource: T[] = [], paused: T[] = [], done: T[] = [];
+  for (const p of projects) {
+    if (p.status === 'paused') paused.push(p);
+    else if (p.status === 'done') done.push(p);
+    else if (p.outsource) outsource.push(p);
+    else main.push(p);
+  }
+  return { main, outsource, paused: folderOf(paused, now), done: folderOf(done, now) };
+}

@@ -10,7 +10,7 @@
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
   import SiteFooter from './SiteFooter.svelte';
-  import { splitShelf } from '../core/projectShelf';
+  import { homeFolders } from '../core/projectShelf';
   import HomeTalks from './HomeTalks.svelte';
   import { listMyRequests, type MyRequest } from '../requests';
   import { SERVER_URL } from '../sync';
@@ -112,17 +112,16 @@
     e.preventDefault(); e.stopPropagation();
     openDetails(p);
   }
-  const ungrouped = $derived((projects ?? []).filter((p) => !p.groupId && !p.outsource));
   /** 외주 폴더 (2026-10-22): 다른 업체에 맡길 프로젝트 — 열면 핫핑크 + [외주 요청] */
-  const outsourced = $derived((projects ?? []).filter((p) => p.outsource && !p.groupId));
   async function setOutsource(p: ProjectInfo, on: boolean) {
     await updateProject(p.id, { outsource: on });
     await reload();
     details = null;
     if (on) app.showFlash('외주 폴더로 옮겼습니다 — 열어서 [외주 요청]을 누르세요');
   }
-  // 지난 프로젝트 접기 (2026-10-21 "정지, 완료 해당 일자가 6개월이 지난 프로젝트는 다시 연도별 폴딩"): 정지·완료 6개월 지남 → 접힘, 안에서 연도별
-  const shelf = $derived(splitShelf(ungrouped));
+  // 홈 폴더 (2026-10-27 "리스트 아래에 외주, 정지, 완료 순으로 … 정지 완료 처리하면 이동 … 개수는 당구공"): 진행 목록 아래 외주(진행 중) · 정지 · 완료.
+  // 정지·완료 폴더 안에서 6개월 지난 것은 연도별로 다시 접는다 (2026-10-21 "지난 프로젝트"를 대체)
+  const folders = $derived(homeFolders((projects ?? []).filter((p) => !p.groupId)));
 
   // ---------- 선택 모드 ----------
   function toggleSelectMode() { selectMode = !selectMode; selected = new Set(); naming = false; }
@@ -207,6 +206,8 @@
   const date = (ts: number) => new Date(ts).toLocaleDateString('ko-KR');
 </script>
 
+{#snippet ball(n: number, kind: string)}<span class="ball {kind}" data-testid="folder-count" title="{n}개"><b class:small={n >= 100}>{n}</b></span>{/snippet}
+
 {#snippet card(p: ProjectInfo)}
   {@const m = measureLabel(p, STATUS_LABEL[p.status])}
   {@const d = projectDday(p)}
@@ -281,7 +282,7 @@
       </form>
       {#if selectMode}<p class="hint">카드를 눌러 고르세요. 아래 탭에서 그룹으로 묶거나 삭제합니다.</p>{/if}
 
-      <div class="grid">
+      <div class="grid" data-testid="main-grid">
         <!-- 그룹: 카드 두 장이 겹친 모양. 누르면 펼침/접힘 -->
         {#each groups as g (g.id)}
           {@const v = views[g.id]}
@@ -348,26 +349,29 @@
           </div>
         {/each}
 
-        <!-- 프로젝트 카드 (그룹 밖) — 정지·완료 6개월 지난 것은 아래 "지난 프로젝트" 에 -->
-        {#each shelf.current as p (p.id)}{@render card(p)}{/each}
+        <!-- 프로젝트 카드 (그룹 밖, 대기·진행중) — 외주·정지·완료는 아래 폴더에 -->
+        {#each folders.main as p (p.id)}{@render card(p)}{/each}
       </div>
-      {#if outsourced.length}
-        <details class="shelf outsource" data-testid="outsource-folder" open>
-          <summary>외주 <small>다른 업체에 맡길 프로젝트 · B2B · {outsourced.length}개</small></summary>
-          <div class="grid">{#each outsourced as p (p.id)}{@render card(p)}{/each}</div>
+      {#if folders.outsource.length}
+        <details class="shelf outsource" data-testid="folder-outsource" open>
+          <summary>외주 {@render ball(folders.outsource.length, 'outsource')}<small>다른 업체에 맡길 프로젝트 · B2B</small></summary>
+          <div class="grid">{#each folders.outsource as p (p.id)}{@render card(p)}{/each}</div>
         </details>
       {/if}
-      {#if shelf.shelvedCount}
-        <details class="shelf" data-testid="shelf">
-          <summary>지난 프로젝트 <small>정지·완료 6개월 지남 · {shelf.shelvedCount}개</small></summary>
-          {#each shelf.shelved as y (y.year)}
-            <details class="year" data-testid="shelf-year" data-year={y.year}>
-              <summary>{y.year}년 <small>{y.projects.length}개</small></summary>
-              <div class="grid">{#each y.projects as p (p.id)}{@render card(p)}{/each}</div>
-            </details>
-          {/each}
-        </details>
-      {/if}
+      {#each [['paused', '정지', folders.paused], ['done', '완료', folders.done]] as const as [kind, label, f] (kind)}
+        {#if f.count}
+          <details class="shelf {kind}" data-testid="folder-{kind}">
+            <summary>{label} {@render ball(f.count, kind)}</summary>
+            {#if f.recent.length}<div class="grid">{#each f.recent as p (p.id)}{@render card(p)}{/each}</div>{/if}
+            {#each f.years as y (y.year)}
+              <details class="year" data-testid="shelf-year" data-year={y.year}>
+                <summary>{y.year}년 <small>{y.projects.length}개</small></summary>
+                <div class="grid">{#each y.projects as p (p.id)}{@render card(p)}{/each}</div>
+              </details>
+            {/each}
+          </details>
+        {/if}
+      {/each}
       {#if projects === null}<p class="hint">불러오는 중…</p>
       {:else if !projects.length}<p class="hint">아직 프로젝트가 없습니다. 매장 이름으로 첫 프로젝트를 만들어 보세요.</p>{/if}
     </section>
@@ -539,8 +543,17 @@
   /* 지난 프로젝트 접기 */
   .shelf { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 10px; }
   .shelf summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); list-style: none; display: flex; align-items: center; gap: 8px; }
-  .shelf summary::before { content: '▸'; font-size: 12px; }
-  .shelf[open] > summary::before, .year[open] > summary::before { content: '▾'; }
+  .shelf summary::before, .year summary::before { content: '❯'; font-size: 12px; transition: transform 0.15s; }
+  .shelf[open] > summary::before, .year[open] > summary::before { transform: rotate(90deg); }
+  /* 개수 당구공 (2026-10-27) — 색 공 + 가운데 흰 원에 숫자 */
+  .ball { --ball: #9ca3af; flex: none; width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center;
+    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 34%), var(--ball);
+    box-shadow: inset -3px -4px 6px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.45); }
+  .ball b { min-width: 16px; height: 16px; padding: 0 2px; border-radius: 999px; background: #fbfbf8; color: #111; font-size: 10px; font-weight: 800; line-height: 16px; text-align: center; }
+  .ball b.small { font-size: 8px; }
+  .ball.outsource { --ball: #ff3d9a; }
+  .ball.paused { --ball: #f59e0b; }
+  .ball.done { --ball: #22c55e; }
   .shelf summary small { font-weight: 400; font-size: 12px; }
   .year { margin: 8px 0 0 14px; }
   .year summary { font-size: 13px; }

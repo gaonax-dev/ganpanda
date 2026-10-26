@@ -35,3 +35,30 @@ describe('나누기', () => {
     expect(s.shelved.map((y) => [y.year, y.projects.map((p) => p.id)])).toEqual([[2025, ['d', 'b']], [2024, ['c']]]);
   });
 });
+
+// 2026-10-27 사용자: "리스트 아래에 외주, 정지, 완료 순으로 메인 구성해주고 정지 완료 처리하면 이동하게 해줘 그리고 개수는 당구공으로 표시"
+import { homeFolders } from '../../src/lib/core/projectShelf';
+describe('홈 폴더: 진행 목록 아래 외주 · 정지 · 완료', () => {
+  it('정지·완료는 바로 그 폴더로(외주였어도), 외주 폴더는 진행 중인 외주만, 폴더 안은 최근 순 + 6개월 지난 것은 연도별', () => {
+    const ps = [
+      { id: 'run', status: 'ongoing' as const, createdAt: at('2026-10-01') },
+      { id: 'wait', status: 'waiting' as const, createdAt: at('2026-10-02') },
+      { id: 'out', status: 'ongoing' as const, outsource: true, createdAt: at('2026-10-03') },
+      { id: 'outDone', status: 'done' as const, outsource: true, statusAt: at('2026-10-10'), createdAt: 0 },
+      { id: 'p1', status: 'paused' as const, statusAt: at('2026-10-05'), createdAt: 0 },
+      { id: 'p2', status: 'paused' as const, statusAt: at('2026-10-15'), createdAt: 0 },
+      { id: 'pOld', status: 'paused' as const, statusAt: at('2025-01-01'), createdAt: 0 },
+      { id: 'd1', status: 'done' as const, statusAt: at('2026-09-01'), createdAt: 0 },
+      { id: 'dOld', status: 'done' as const, statusAt: at('2024-03-01'), createdAt: 0 },
+    ];
+    const f = homeFolders(ps, NOW);
+    expect(f.main.map((p) => p.id)).toEqual(['run', 'wait']);
+    expect(f.outsource.map((p) => p.id)).toEqual(['out']);
+    expect(f.paused.count).toBe(3);
+    expect(f.paused.recent.map((p) => p.id)).toEqual(['p2', 'p1']);
+    expect(f.paused.years.map((y) => [y.year, y.projects.map((p) => p.id)])).toEqual([[2025, ['pOld']]]);
+    expect(f.done.count).toBe(3);
+    expect(f.done.recent.map((p) => p.id)).toEqual(['outDone', 'd1']);
+    expect(f.done.years.map((y) => y.year)).toEqual([2024]);
+  });
+});
