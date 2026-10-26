@@ -24,10 +24,6 @@
   import { won } from '../core/quote';
 
   // 약관 개정 공지 (2026-10-27): 시행 전까지, 닫으면 이 기기에서 안 보임
-  const TERMS_NEXT = '2026-12-01';
-  let termsClosed = $state((() => { try { return localStorage.getItem(`ganpanda.termsNotice.${TERMS_NEXT}`) === '1'; } catch { return false; } })());
-  const termsNotice = $derived(!!app.account && !termsClosed && Date.now() < Date.parse(`${TERMS_NEXT}T00:00:00+09:00`));
-  function closeTermsNotice() { termsClosed = true; try { localStorage.setItem(`ganpanda.termsNotice.${TERMS_NEXT}`, '1'); } catch { /* 저장 못 해도 됨 */ } }
   let projects = $state<ProjectInfo[] | null>(null);
   let groups = $state<GroupInfo[]>([]);
   let views = $state<Record<string, GroupView>>({});
@@ -233,10 +229,6 @@
   {#if !app.authReady}
     <p class="hint">확인 중…</p>
   {:else if app.account}
-    <!-- 약관 개정 공지 (2026-10-27): 시행일(2026-12-01) 전까지 홈 맨 위 — 다른 화면을 가리지 않게 본문 안에. 닫으면 이 기기에서는 다시 안 보임 -->
-    {#if termsNotice}
-      <div class="terms-note" data-testid="terms-amend-banner">이용약관이 <b>2026년 12월 1일</b>부터 바뀝니다 (가입 거절·탈퇴·이용 제한·손해배상·기록 보존). <a href="/terms-2026-12-01" target="_blank" rel="noopener">개정 약관 보기</a><button class="icon" data-testid="terms-amend-close" title="닫기" onclick={closeTermsNotice}>✕</button></div>
-    {/if}
     {#if app.account?.operator && health && !health.ok}
       <p class="ops-warn" data-testid="ops-health-warning">⚠ 운영 점검: {health.mail?.detail ?? '서버 헬스 이상'} — 로그인 메일·요청 알림이 안 갈 수 있습니다.</p>
     {/if}
@@ -618,7 +610,4 @@
   .consumer-home .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .consumer-home a.btn { text-decoration: none; }
   .lost { font-size: 11px; color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 0 6px; margin-right: 4px; white-space: nowrap; }
-  .terms-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 12px; border-radius: 10px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.5); font-size: 13px; }
-  .terms-note a { color: var(--text); text-decoration: underline; }
-  .terms-note .icon { margin-left: auto; }
 </style>

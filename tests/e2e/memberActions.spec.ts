@@ -54,22 +54,18 @@ test('운영자가 7일 정지 → 회원은 정지 화면(사유)에서 이의 
   await opPage.close();
 });
 
-test('약관 개정 공지: 로그인한 회원에게 배너(개정 약관 링크), 닫으면 다시 안 보임 · 약관 페이지에도 안내', async ({ page, request }) => {
+// 2026-10-27 사용자: "현재 모두 테스터만 있다 약관 바로적용해주고 안내 안보이게" — 개정 약관 즉시 시행, 공지 배너·안내 없음
+test('개정 약관 바로 적용: 홈 배너·약관 안내 없음, /terms 가 개정 약관(2026-10-27 시행), 예전 개정 주소는 /terms 로', async ({ page, request }) => {
   const s = await apiLogin(request);
   await page.goto('/');
   await page.evaluate((x) => { localStorage.clear(); localStorage.setItem('ganpanda.session', x); }, s);
   await page.reload();
-  const banner = page.getByTestId('terms-amend-banner');
-  await expect(banner).toContainText('2026년 12월 1일');
-  await expect(banner.getByRole('link')).toHaveAttribute('href', '/terms-2026-12-01');
-  await page.getByTestId('terms-amend-close').click();
-  await expect(banner).toHaveCount(0);
-  await page.reload();
   await expect(page.getByTestId('account-menu')).toBeVisible();
-  await expect(banner).toHaveCount(0);
+  await expect(page.getByTestId('terms-amend-banner')).toHaveCount(0);
   await page.goto('/terms.html'); // 운영은 /terms (정적 에셋), 개발 서버는 .html
-  await expect(page.getByTestId('terms-amend-notice')).toContainText('개정 약관 보기');
-  await page.goto('/terms-2026-12-01.html');
+  await expect(page.getByTestId('terms-amend-notice')).toHaveCount(0);
   await expect(page.locator('body')).toContainText('제5조의2 (이용 제한과 계약 해지)');
-  await expect(page.locator('body')).toContainText('2026년 12월 1일부터 시행');
+  await expect(page.locator('body')).toContainText('2026년 10월 27일부터 시행');
+  await page.goto('/terms-2026-12-01.html');
+  await expect(page).toHaveURL(/\/terms(\.html)?$/);
 });
