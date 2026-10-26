@@ -4,7 +4,7 @@ export { Account } from './account';
 import { handlePriceImport } from './priceImport';
 import { handleOperator } from './bypass';
 import { handleMyPeople, handleMyTalks, syncTalkIndex } from './talk';
-import { handleAppeal, handleBlocks, handleContentReports, handleMemberActions, handleReports } from './moderation';
+import { handleAccountList, handleAppeal, handleBlocks, handleContentReports, handleMemberActions, handleReports } from './moderation';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
@@ -301,6 +301,7 @@ export default {
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
     if (pathname.startsWith('/api/operator/content-reports')) return withCors(await handleContentReports(req, env, pathname)); // 신고 처리 (2026-10-26)
+    if (pathname === '/api/operator/accounts' && req.method === 'GET') return withCors(await handleAccountList(req, env, url)); // 관리자: 가입 계정 목록 (2026-10-27)
     if (pathname.startsWith('/api/operator/members') || pathname.startsWith('/api/operator/appeals')) return withCors(await handleMemberActions(req, env, pathname, url)); // 계정 조치·이의 신청 처리 (2026-10-27)
     if (pathname.startsWith('/api/operator/')) return withCors(await handleOperator(req, env, pathname)); // 간판다 밖 거래 신고 처리 (2026-10-24)
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));

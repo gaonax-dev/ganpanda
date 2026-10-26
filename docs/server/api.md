@@ -127,5 +127,6 @@
 ## 계정 조치 · 이의 신청 (2026-10-27, 약관 개정안 제5조의2)
 - 정지된 계정(`accounts.banned` 또는 `suspended_until > 지금`)의 로그인 요청은 라우터가 403 `{error: 'suspended', until, banned, reason}` — 예외: `/api/me`, `/api/me/appeals`, `/api/auth/*`.
 - `POST /api/me/appeals` {text} — 이의 신청(처리 대기 중이면 409), 운영자 메일.
+- 관리자 가입 계정 목록 (2026-10-27): `GET /api/operator/accounts?q=&kind=shop|consumer|none&limit=50&offset=` (운영자만, 최근 가입 순) → `{accounts:[{id,email,name,kind,plan,createdAt,emailVerified,termsVersion,projects(요청 제외),lastSeenAt(마지막 세션 생성),status:active|suspended|banned,requestsBlocked,business:{name,status}|null,operator}], summary:{total,today(한국 자정부터),week,shops,consumers,verified,suspended}, next}`.
 - 운영자: `GET /api/operator/members?q=`(이메일·이름·아이디, 비우면 정지된 회원, 조치 이력 포함) · `POST /api/operator/members/:id/action` {action: warn|suspend|ban|lift, days?, reason}(회원 이메일) · `GET /api/operator/appeals` · `POST /api/operator/appeals/:id` {decision: accept|reject, reply}(accept = 해제).
 - 가입: 계정 생성 때 `terms_version`·`terms_at`. 영구 정지 뒤 탈퇴한 이메일(해시, 1년)은 가입 403 `banned`.

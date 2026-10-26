@@ -81,6 +81,6 @@
 
 ## 가입 동의 · 이용 정지 · 탈퇴 익명화 (2026-10-27)
 - 가입 화면에 동의 안내(`ui/TermsNotice.svelte`), 계정을 만들 때 `terms_version`·`terms_at`(`server/src/auth.ts TERMS_VERSION`).
-- 이용 정지: `accounts.suspended_until`(기간)·`banned`(영구)·`suspend_reason`. 서버 라우터가 정지된 계정의 로그인 요청을 403 `suspended` 로(상태 확인 `/api/me`·탈퇴·이의 신청 `/api/me/appeals`·인증 `/api/auth/*` 만). `/api/me` 의 `account.suspension` → 앱은 `SuspendedPage`. 운영자 조치·이의 신청은 [communication.md](communication.md) "신고 · 차단"과 `/ops`.
+- 이용 정지: `accounts.suspended_until`(기간)·`banned`(영구)·`suspend_reason`. 서버 라우터가 정지된 계정의 로그인 요청을 403 `suspended` 로(상태 확인 `/api/me`·탈퇴·이의 신청 `/api/me/appeals`·인증 `/api/auth/*` 만). `/api/me` 의 `account.suspension` → 앱은 `SuspendedPage`. 운영자 조치·이의 신청은 [communication.md](communication.md) "신고 · 차단"과 `/ops`. 가입 계정 목록은 관리자 페이지 `/ops` 의 [회원] 탭 (2026-10-27).
 - 탈퇴: 남의 프로젝트(`project_seen`·톡방)에 남긴 메시지를 "탈퇴한 회원"으로(`Room.anonymizeAuthor`). 영구 정지 상태로 탈퇴하면 이메일 해시를 1년 `banned_emails` — 다시 가입하면 403 `banned`.
 - 근거: [../product/terms-amendment-2026-11.md](../product/terms-amendment-2026-11.md).

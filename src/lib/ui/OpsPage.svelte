@@ -1,14 +1,32 @@
-<!-- 운영자 신고 처리 (2026-10-26 사용자: "운영자 신고 처리 화면 만들어줘") — /ops, 운영자 계정만.
+<!-- 관리자 페이지 (2026-10-27 "관리자가 페이지가 없다. 우선 가입 계정을 보고 싶어" — 맨 앞 [회원] 탭: 가입 계정 목록·요약)
+  운영자 신고 처리 (2026-10-26 사용자: "운영자 신고 처리 화면 만들어줘") — /ops, 운영자 계정만.
   [대화·사용자 신고]: 신고 카드(이유·메시지 글(서버가 남긴 증거)·자세한 내용·신고자·경과 시간 — 20시간이 넘은 처리 대기는 빨강, 앱스토어 1.2 는 24시간 안 처리)
     → [메시지 숨김](문서에서 삭제) · [기각]. [간판다 밖 거래 신고](2026-10-24 bypass): 열람한 간판집마다 [위약금 부과] · [기각], 요청 받기 [정지 풀기] -->
 <script lang="ts">
   import BackLink from './BackLink.svelte';
   import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
+  import { listAccounts, type AdminAccount, type AdminSummary } from '../projects';
   import { actOnMember, decideAppeal, listAppeals, listBypassReports, listContentReports, resolveBypassReport, resolveContentReport, searchMembers, unblockRequests, type Appeal, type BypassReport, type ContentReport, type MemberAction, type MemberRecord } from '../projects';
   import { askPrompt } from './ask.svelte';
 
-  let tab = $state<'content' | 'bypass' | 'members'>('content');
+  let tab = $state<'accounts' | 'content' | 'bypass' | 'members'>('accounts');
+  // ---- 가입 계정 목록 (2026-10-27) ----
+  let accounts = $state<AdminAccount[]>([]);
+  let summary = $state<AdminSummary | null>(null);
+  let accQ = $state('');
+  let accKind = $state('');
+  let accNext = $state<number | null>(null);
+  async function loadAccounts(more = false) {
+    error = '';
+    try {
+      const r = await listAccounts(accQ.trim(), accKind, more ? accNext ?? 0 : 0);
+      accounts = more ? [...accounts, ...r.accounts] : r.accounts;
+      summary = r.summary; accNext = r.next;
+    } catch (e) { if ((e as { status?: number }).status === 403) forbidden = true; else error = '회원 목록을 불러오지 못했습니다.'; }
+  }
+  const KIND: Record<string, string> = { shop: '간판집', consumer: '가게 사장' };
+  const day = (ts: number | null) => (ts ? new Date(ts).toLocaleDateString('ko-KR', { year: '2-digit', month: 'numeric', day: 'numeric' }) : '-');
   // ---- 회원 조치 · 이의 신청 (2026-10-27 약관 개정안 제5조의2) ----
   let q = $state('');
   let members = $state<MemberRecord[]>([]);
@@ -50,7 +68,7 @@
     } catch (e) { if ((e as { status?: number }).status === 403) forbidden = true; else error = '신고 목록을 불러오지 못했습니다.'; }
     loaded = true;
   }
-  $effect(() => { if (app.account?.operator) void load(); else if (app.authReady) { forbidden = true; loaded = true; } });
+  $effect(() => { if (app.account?.operator) { void load(); void loadAccounts(); } else if (app.authReady) { forbidden = true; loaded = true; } });
 
   const won = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}원`;
   const when = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -84,18 +102,19 @@
 <div class="page" data-testid="ops-page">
   <header>
     <BackLink label="홈" />
-    <h1>신고 처리 <small>운영자</small></h1>
+    <h1>관리자 <small>운영자</small></h1>
     {#if !forbidden}
       <div class="tabs" role="tablist">
+        <button role="tab" class:on={tab === 'accounts'} data-testid="ops-tab-accounts" onclick={() => (tab = 'accounts')}>회원 {#if summary}<small>{summary.total}</small>{/if}</button>
         <button role="tab" class:on={tab === 'content'} data-testid="ops-tab-content" onclick={() => (tab = 'content')}>대화·사용자 신고 {#if content.some((r) => r.status === 'open')}<b class="n">{content.filter((r) => r.status === 'open').length}</b>{/if}</button>
         <button role="tab" class:on={tab === 'members'} data-testid="ops-tab-members" onclick={() => (tab = 'members')}>회원 조치 {#if appeals.some((a) => a.status === 'open')}<b class="n">{appeals.filter((a) => a.status === 'open').length}</b>{/if}</button>
         <button role="tab" class:on={tab === 'bypass'} data-testid="ops-tab-bypass" onclick={() => (tab = 'bypass')}>간판다 밖 거래 신고 {#if bypass.some((r) => r.status === 'open')}<b class="n">{bypass.filter((r) => r.status === 'open').length}</b>{/if}</button>
       </div>
-      <div class="filters">
+      {#if tab !== 'accounts'}<div class="filters">
         <button class:on={filter === 'open'} data-testid="ops-filter-open" onclick={() => (filter = 'open')}>처리 대기</button>
         <button class:on={filter === 'all'} data-testid="ops-filter-all" onclick={() => (filter = 'all')}>전체</button>
         <button class="link" onclick={load}>새로고침</button>
-      </div>
+      </div>{/if}
     {/if}
   </header>
 
@@ -105,7 +124,44 @@
     <p class="hint">불러오는 중…</p>
   {:else}
     {#if error}<p class="err">{error}</p>{/if}
-    {#if tab === 'content'}
+    {#if tab === 'accounts'}
+      {#if summary}
+        <div class="stats" data-testid="ops-summary">
+          <span><b>{summary.total}</b>전체</span><span><b>{summary.today}</b>오늘 가입</span><span><b>{summary.week}</b>7일</span>
+          <span><b>{summary.shops}</b>간판집</span><span><b>{summary.consumers}</b>가게 사장</span><span><b>{summary.verified}</b>사업자 확인</span>
+          <span class:warn={summary.suspended > 0}><b>{summary.suspended}</b>정지</span>
+        </div>
+      {/if}
+      <form class="search" onsubmit={(e) => { e.preventDefault(); void loadAccounts(); }}>
+        <input data-testid="ops-accounts-q" bind:value={accQ} placeholder="이메일 · 이름 · 아이디" />
+        <select data-testid="ops-accounts-kind" bind:value={accKind} onchange={() => loadAccounts()}>
+          <option value="">전체</option><option value="shop">간판집</option><option value="consumer">가게 사장</option><option value="none">종류 미정</option>
+        </select>
+        <button class="btn small" type="submit">찾기</button>
+      </form>
+      <div class="table-wrap">
+        <table class="acc" data-testid="ops-accounts">
+          <thead><tr><th>회원</th><th>종류</th><th>사업자</th><th class="r">프로젝트</th><th>가입</th><th>마지막 접속</th><th>상태</th><th></th></tr></thead>
+          <tbody>
+            {#each accounts as a (a.id)}
+              <tr data-testid="ops-account" data-status={a.status}>
+                <td><b>{a.name || '이름 없음'}</b>{#if a.operator} <span class="tag">운영자</span>{/if}<small>{a.email}{a.emailVerified ? '' : ' · 메일 미인증'}</small></td>
+                <td>{a.kind ? KIND[a.kind] : '미정'}<small>{a.plan === 'free' ? '무료' : a.plan}</small></td>
+                <td>{#if a.business}{a.business.name || '상호 없음'}<small class:bad={a.business.status !== 'active'}>{a.business.status === 'active' ? '계속' : a.business.status === 'suspended' ? '휴업' : a.business.status === 'closed' ? '폐업' : a.business.status}</small>{:else}<span class="muted">-</span>{/if}</td>
+                <td class="r">{a.projects}</td>
+                <td>{day(a.createdAt)}<small>{a.termsVersion ? `약관 ${a.termsVersion}` : '약관 기록 없음'}</small></td>
+                <td>{day(a.lastSeenAt)}</td>
+                <td><span class="st" class:open={a.status !== 'active'}>{a.status === 'active' ? '이용 중' : a.status === 'suspended' ? '기간 정지' : '영구 정지'}</span>{#if a.requestsBlocked}<small>요청 받기 정지</small>{/if}</td>
+                <td>{#if !a.operator}<button class="btn small" data-testid="ops-account-act" onclick={() => openMember(a.id)}>조치</button>{/if}</td>
+              </tr>
+            {:else}
+              <tr><td colspan="8" class="hint">회원이 없습니다.</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      {#if accNext !== null}<button class="btn small" data-testid="ops-accounts-more" onclick={() => loadAccounts(true)}>더 보기</button>{/if}
+    {:else if tab === 'content'}
       <p class="hint">앱스토어 기준: 신고는 24시간 안에 처리합니다. 숨김 = 그 메시지를 프로젝트에서 지웁니다.</p>
       {#each shownContent as r (r.id)}
         <article class="card" class:late={r.status === 'open' && ageH(r.createdAt) > 20} data-testid="ops-report" data-status={r.status}>
@@ -192,7 +248,7 @@
 </div>
 
 <style>
-  .page { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   header { display: flex; flex-direction: column; gap: 8px; }
   h1 { margin: 0; font-size: 20px; }
   h1 small { font-size: 12px; color: var(--accent); margin-left: 6px; }
@@ -220,6 +276,21 @@
   .viewers small { display: block; color: var(--muted); font-size: 11px; }
   .hint { color: var(--muted); font-size: 13px; margin: 0; }
   .sub { margin: 8px 0 0; font-size: 15px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px; }
+  .stats span { display: flex; flex-direction: column; align-items: center; min-width: 76px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); font-size: 12px; color: var(--muted); }
+  .stats b { font-size: 18px; color: var(--text); }
+  .stats .warn b { color: #f87171; }
+  .search select { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 0 8px; font: inherit; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table.acc { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  .acc th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .acc td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .acc td small { display: block; color: var(--muted); font-size: 11px; }
+  .acc td small.bad { color: #f87171; }
+  .acc .r { text-align: right; }
+  .acc tr[data-status='suspended'], .acc tr[data-status='banned'] { background: rgba(239, 68, 68, 0.06); }
+  .tag { font-size: 10px; padding: 0 6px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  .muted { color: var(--muted); }
   .search { display: flex; gap: 6px; }
   .search input { flex: 1; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px 10px; font: inherit; }
   .hist { margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
