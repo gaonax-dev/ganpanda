@@ -104,6 +104,19 @@ function freeSpot(placed: Rect[], x: number, y: number, w: number, h: number, ga
   }
   return best ?? { x: Math.max(...placed.map((q) => q.x + q.w)) + gap, y };
 }
+/** 겹칠 때 사진 속 간격을 넓히는 최대 배율 (2026-10-26 현장 5곳 비교: 1.5 가 구성·크기 둘 다 가장 가까웠다 — 2 이상은 카드 사이가 사진보다 너무 벌어짐) */
+export const SPREAD_MAX = 1.5;
+
+/**
+ * 사진마다 실제 벽 축척 mm / 보드 px (2026-10-26): 그 사진의 치수 있는 사인물(실제 mm ÷ 사진 속 폭) 중앙값, 없으면 전체 중앙값, 아무것도 없으면 fallback.
+ * 사진마다 거리가 달라 한 축척으로 옮기면 가까이 찍은 사진의 카드가 사진보다 멀리 흩어졌다(현장 "폴딩시트" 네 장)
+ */
+export function photoScales(samples: { photo: number; r: number }[], n: number, fallback: number): { all: number; each: number[] } {
+  const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+  const all = samples.length ? med(samples.map((x) => x.r)) : fallback;
+  return { all, each: Array.from({ length: n }, (_, i) => { const a = samples.filter((x) => x.photo === i).map((x) => x.r); return a.length ? med(a) : all; }) };
+}
+
 /**
  * 카드 정렬 = **사진과 같은 비율** (2026-10-22): photos 는 평면 mm(보드 px × 실제 벽 축척 — 호출자가 치수 있는 사인물로 구한다), 카드 가운데 = 그 사진 속 사인물 가운데.
  * 카드는 실제 mm 크기라 사진 속 넓이와 다르므로 겹치면 큰 카드부터 자리를 잡고, 겹친 카드는 오른쪽·왼쪽·아래·위 중 덜 움직이는 쪽으로 간격(gap)을 두고 비킨다(이름 줄 labelMm 도 겹침으로).
@@ -117,7 +130,18 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
   const groups = new Map<number, (Rect & { id: string })[]>();
   for (const p of used) {
     const ph = photos[p], sx = ph.w / ph.imgW, sy = ph.h / ph.imgH;
-    const want = cards.filter((c) => c.photo === p).map((c) => ({ c, x: ph.x - left0 + ((c.box.x0 + c.box.x1) / 2) * sx - c.w / 2, y: ph.y + ((c.box.y0 + c.box.y1) / 2) * sy - c.h / 2 }));
+    const mine = cards.filter((c) => c.photo === p);
+    const cx = (c: (typeof mine)[number]) => ((c.box.x0 + c.box.x1) / 2) * sx, cy = (c: (typeof mine)[number]) => ((c.box.y0 + c.box.y1) / 2) * sy;
+    // 넓히기 (2026-10-26): 실제 크기 카드가 사진 속 간격보다 커서 겹치면, 사진 속 가운데 간격을 같은 배율로 넓혀 구성을 그대로 둔다(최대 SPREAD_MAX).
+    // 그 배율로도 못 푸는 쌍(안에 든 것·거의 같은 자리)은 배율에 넣지 않고 아래 빈 곳 찾기에 맡긴다
+    let f = 1;
+    for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) {
+      const a = mine[i], b = mine[j], dx = Math.abs(cx(a) - cx(b)), dy = Math.abs(cy(a) - cy(b));
+      const need = Math.min(dx > 0 ? ((a.w + b.w) / 2 + gap) / dx : Infinity, dy > 0 ? ((a.h + b.h) / 2 + labelMm + gap) / dy : Infinity);
+      if (need <= SPREAD_MAX) f = Math.max(f, need);
+    }
+    const mx = mine.length ? mine.reduce((t, c) => t + cx(c), 0) / mine.length : 0, my = mine.length ? mine.reduce((t, c) => t + cy(c), 0) / mine.length : 0;
+    const want = mine.map((c) => ({ c, x: ph.x - left0 + mx + (cx(c) - mx) * f - c.w / 2, y: ph.y + my + (cy(c) - my) * f - c.h / 2 }));
     const placed: (Rect & { id: string })[] = [];
     for (const t of [...want].sort((a, b) => b.c.w * b.c.h - a.c.w * a.c.h || a.x - b.x)) {
       const r = { id: t.c.id, ...freeSpot(placed, t.x, t.y, t.c.w, t.c.h + labelMm, gap), w: t.c.w, h: t.c.h + labelMm };
