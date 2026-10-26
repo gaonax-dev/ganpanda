@@ -3,7 +3,7 @@ export { Room } from './room';
 export { Account } from './account';
 import { handlePriceImport } from './priceImport';
 import { handleOperator } from './bypass';
-import { handleMyTalks, syncTalkIndex } from './talk';
+import { handleMyPeople, handleMyTalks, syncTalkIndex } from './talk';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
@@ -283,6 +283,7 @@ export default {
     const ti = pathname.match(/^\/api\/team-invite\/([A-Za-z0-9_-]{16,})$/);
     if (ti && req.method === 'GET') return withCors(await handleTeamInvite(env, ti[1])); // 멤버 초대 링크 정보 (공개, 2026-10-24)
     if (pathname.startsWith('/api/me/talks')) return withCors(await handleMyTalks(req, env, pathname)); // 메인 화면 톡 (2026-10-22)
+    if (pathname === '/api/me/people' && req.method === 'GET') return withCors(await handleMyPeople(req, env)); // 메인 톡 [사용자] 탭 (2026-10-26)
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));

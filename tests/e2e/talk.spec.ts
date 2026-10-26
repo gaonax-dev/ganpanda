@@ -197,6 +197,45 @@ test('톡 단추는 넓게: 데스크톱 160px 이상, 휴대폰 70px 이상', a
   expect((await page.getByTestId('talk-open').boundingBox())!.width).toBeGreaterThanOrEqual(158);
   await page.setViewportSize({ width: 390, height: 800 });
   await expect.poll(async () => (await page.getByTestId('talk-open').boundingBox())!.width).toBeGreaterThanOrEqual(68);
-  const top = (await page.getByTestId('go-projects').boundingBox())!.y;
-  expect(Math.abs((await page.getByTestId('talk-open').boundingBox())!.y - top)).toBeLessThan(12); // 위 줄 그대로
+  // 위 줄 그대로 — 휴대폰 배치(짧은 이름표)로 바뀌는 데 한 박자 걸려 기다린다
+  await expect.poll(async () => Math.abs((await page.getByTestId('talk-open').boundingBox())!.y - (await page.getByTestId('go-projects').boundingBox())!.y)).toBeLessThan(12);
+});
+
+// 2026-10-26 사용자: "톡 하단에 사용자, 톡으로 탭바, 사용자에 맴버, 요청, 고객 배지, 톡방에는 프로젝트 배지와 고객 배지(고객이 대화방에 있는곳)"
+test('메인 톡 창: 하단 탭 [사용자 | 톡] — 톡방에 프로젝트·고객 배지, 사용자에 고객 배지, 사람을 누르면 그 사람이 있는 방만', async ({ page, request, browser }) => {
+  const { session, projectId } = await openOwnedProject(page, request, '카페 간판');
+  const cusSession = await apiLogin(request);
+  const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'), '고객', cusSession);
+  await page.getByTestId('talk-open').click();
+  await page.getByTestId('talk-new').click();
+  await page.getByTestId('talk-new-name').fill('고객 상담');
+  await page.locator('[data-testid="talk-member"][value="고객"]').check();
+  await page.getByTestId('talk-create').click();
+  await page.getByTestId('chat-input').fill('시안 보내드려요');
+  await page.getByTestId('chat-send').click();
+  await expect(page.getByTestId('chat-bubble')).toHaveCount(1);
+  await guest.ctx.close();
+
+  await expect(async () => {
+    await page.goto('/');
+    await page.getByTestId('talk-open').click();
+    await expect(page.getByTestId('home-talk').filter({ hasText: '고객 상담' })).toHaveCount(1, { timeout: 1500 });
+  }).toPass({ timeout: 10_000 });
+  const tabs = page.getByTestId('home-talks-tabs');
+  await expect(tabs.getByRole('button')).toHaveText([/사용자/, /톡/]);
+  await expect(page.getByTestId('home-tab-talks')).toHaveClass(/on/);
+  const room = page.getByTestId('home-talk').filter({ hasText: '고객 상담' });
+  await expect(room.getByTestId('home-talk-project')).toHaveText('카페 간판');
+  await expect(room.getByTestId('home-talk-customer')).toHaveText('고객');
+  // 사용자 탭: 고객 배지
+  await page.getByTestId('home-tab-people').click();
+  const person = page.getByTestId('home-person').filter({ has: page.getByTestId('home-person-badge').filter({ hasText: '고객' }) }).first(); // 이름은 계정 이름(닉네임 아님)
+  await expect(person.getByTestId('home-person-badge')).toHaveText(['고객']);
+  // 사람을 누르면 톡 탭, 그 사람이 있는 방만
+  await person.click();
+  await expect(page.getByTestId('home-tab-talks')).toHaveClass(/on/);
+  await expect(page.getByTestId('home-talk-filter')).toBeVisible();
+  await expect(page.getByTestId('home-talk')).toHaveCount(1);
+  await page.getByTestId('home-talk-filter-clear').click();
+  await expect(page.getByTestId('home-talk-filter')).toHaveCount(0);
 });
