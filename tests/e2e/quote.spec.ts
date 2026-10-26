@@ -126,10 +126,12 @@ test('공급 단가표(한울): 내 단가 항목을 연결하면 단가를 가�
   await makeSign(page);
   await page.getByTestId('view-list').click();
   await page.getByTestId('open-prices').click();
-  // 공급 단가표(읽기 전용)를 펼쳐 볼 수 있다
+  // 공급 단가표(읽기 전용)는 [자재 원가] 탭에서 펼쳐 본다 (2026-10-26 탭 나눔)
+  await page.getByTestId('prices-tab-cost').click();
   await page.getByTestId('supplier-toggle-hanwool').click();
   await expect(page.getByTestId('supplier-list-hanwool')).toContainText('2026-03-27');
   await expect(page.getByTestId('supplier-item').filter({ hasText: '백색시트' }).first()).toContainText('7,500원/회배');
+  await page.getByTestId('prices-tab-sale').click();
   // 알루미늄 복합판 ㎡ 단가 ← 한울 솔벤 백색시트(예시 연결. UV 실사는 직접 출력이라 연결 목록에 없다)
   await expect(page.getByTestId('price-link-board-acp').locator('option[value="hanwool:hanwool.uv.백색시트"]')).toHaveCount(0);
   await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.solvent.백색시트');
@@ -153,26 +155,35 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-link-sh-print').selectOption('hanwool:hanwool.solvent.백색시트');
   await expect(page.getByTestId('price-sh-print')).toHaveValue('7500');
+  const cost = () => page.getByTestId('prices-tab-cost').click(), sale = () => page.getByTestId('prices-tab-sale').click(); // 배수·공급 단가표는 [자재 원가] 탭 (2026-10-26)
+  await cost();
   await page.getByTestId('markup-all').fill('2');
   await page.getByTestId('markup-all').press('Enter');
+  await sale();
   await expect(page.getByTestId('price-sh-print')).toHaveValue('15000');
+  await cost();
   await page.getByTestId('supplier-toggle-hanwool').click(); // 분류 배수·직접 출력은 공급업체를 펼쳐서
   await page.getByTestId('markup-솔벤').fill('1.3');
   await page.getByTestId('markup-솔벤').press('Enter');
+  await sale();
   await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
   await expect(page.getByTestId('price-sh-cut')).toHaveValue('35000'); // 연결 안 한 항목은 그대로
+  await cost();
   // 직접 출력 (2026-10-16 "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수"): 샘플 기본은 UV·플렉스 직접 출력, 배수 칸 없음
   await expect(page.getByTestId('direct-UV')).toBeChecked();
   await expect(page.getByTestId('markup-UV')).toHaveCount(0);
   // 솔벤을 직접 출력으로 바꾸면 연결이 풀리고 단가는 남는다
   await page.getByTestId('direct-솔벤').check();
+  await sale();
   await expect(page.getByTestId('price-tag-sh-print')).toHaveCount(0);
   await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
+  await cost();
   // 알리다(2026-10-16 "간판제작사에 제공하는 단가"): 펼쳐 찾기, 꼬리표로 연결
   await page.getByTestId('supplier-toggle-alida').click();
   await page.getByTestId('supplier-search').fill('광확산PC 80cm');
   await expect(page.getByTestId('supplier-item').first()).toContainText('42,000원/자');
   await expect(page.getByTestId('direct-UV 후렉스 출력')).toHaveCount(0); // 찾기에 안 맞는 분류는 숨김
+  await sale();
   // 후렉스 간판 ㎡ ← 알리다 조명용 프레임 간판(UV 주야 양면 출력 포함, 35,500원/헤베), 배수 ×2 → 71,000
   await page.getByTestId('price-link-board-flex').selectOption('alida:alida.frame.light.UV 주야모드 양면출력');
   await expect(page.getByTestId('price-board-flex')).toHaveValue('71000');
@@ -273,4 +284,31 @@ test('견적 줄 금액: 새 프로젝트는 직접 입력, [자동]으로 계�
   await expect(v.getByTestId('view-list')).toHaveCount(0); // 고객은 사진 보드만
   await expect(v.getByTestId('quote-margin')).toHaveCount(0);
   await v.ctx.close();
+});
+
+// 2026-10-26 사용자: "사용자 클릭메뉴에 단가설정 생성하고 두개의 탭을 구성해줘 견적단가, 자재 원가"
+test('계정 메뉴 [단가 설정]: 홈에서도 내 기본 단가를 [견적 단가 | 자재 원가] 탭으로 고치고 저장한다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await page.goto('/');
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('account-prices').click();
+  const dlg = page.getByTestId('prices-dialog');
+  await expect(dlg).toBeVisible();
+  await expect(dlg.getByTestId('prices-tabs').getByRole('button')).toHaveText(['견적 단가', '자재 원가']);
+  await expect(page.getByTestId('prices-tab-sale')).toHaveClass(/on/);
+  await expect(page.getByTestId('price-board-acp')).toBeVisible();
+  await expect(page.getByTestId('supplier-lists')).toHaveCount(0); // 견적 단가 탭에는 공급 단가표가 없다
+  await page.getByTestId('prices-tab-cost').click();
+  await expect(page.getByTestId('supplier-lists')).toBeVisible();
+  await expect(page.getByTestId('markup-all')).toBeVisible();
+  await expect(page.getByTestId('price-board-acp')).toHaveCount(0);
+  await page.getByTestId('prices-tab-sale').click();
+  await page.getByTestId('price-board-acp').fill('88000');
+  await page.getByTestId('save-default-prices').click();
+  await expect(page.getByTestId('prices-saved')).toBeVisible();
+  await page.getByTestId('close-prices').click();
+  await page.reload();
+  await page.getByTestId('account-menu').click();
+  await page.getByTestId('account-prices').click();
+  await expect(page.getByTestId('price-board-acp')).toHaveValue('88000'); // 계정에 저장됨
 });
