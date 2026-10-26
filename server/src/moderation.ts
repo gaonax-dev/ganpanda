@@ -182,3 +182,33 @@ export async function handleAppeal(req: Request, env: Env): Promise<Response> {
   }
   return json({ ok: true, id }, 201);
 }
+
+/**
+ * 관리자: 가입 계정 목록 (2026-10-27 "관리자가 페이지가 없다. 우선 가입 계정을 보고 싶어") — GET /api/operator/accounts?q=&kind=shop|consumer|none&limit=&offset=
+ * 최근 가입 순, 계정마다 종류·요금제·사업자(상호·상태)·내 프로젝트 수·마지막 접속(세션 시작)·상태·약관 동의 버전, 요약(전체·오늘·7일·간판집·가게 사장·사업자 확인·정지)
+ */
+export async function handleAccountList(req: Request, env: Env, url: URL): Promise<Response> {
+  const me = await authenticate(req, env);
+  if (!me) return text('unauthorized', 401);
+  if (!isOperator(env, me.email)) return text('forbidden', 403);
+  const q = str(url.searchParams.get('q'), 80), kind = str(url.searchParams.get('kind'), 10);
+  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit')) || 50)), offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+  const now = Date.now();
+  const kst = new Date(now + 9 * 3_600_000); const todayStart = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3_600_000;
+  const kindSql = kind === 'shop' || kind === 'consumer' ? 'AND a.kind = ?' : kind === 'none' ? 'AND a.kind IS NULL' : '';
+  const binds: unknown[] = [q, `%${q}%`, ...(kind === 'shop' || kind === 'consumer' ? [kind] : []), limit, offset];
+  const rows = (await env.DB.prepare(`SELECT a.id, a.email, a.name, a.kind, a.plan, a.created_at, a.email_verified, a.terms_version, a.suspended_until, a.banned, a.requests_blocked,
+      b.name AS biz, b.status AS biz_status,
+      (SELECT COUNT(*) FROM projects p WHERE p.owner_id = a.id AND (p.kind IS NULL OR p.kind NOT IN ('request'))) AS projects,
+      (SELECT MAX(s.created_at) FROM sessions s WHERE s.account_id = a.id) AS last_seen
+    FROM accounts a LEFT JOIN businesses b ON b.account_id = a.id
+    WHERE (?1 = '' OR a.id = ?1 OR a.email LIKE ?2 OR a.name LIKE ?2) ${kindSql}
+    ORDER BY a.created_at DESC LIMIT ? OFFSET ?`).bind(...binds).all<{ id: string; email: string; name: string; kind: string | null; plan: string; created_at: number; email_verified: number; terms_version: string | null; suspended_until: number | null; banned: number; requests_blocked: number | null; biz: string | null; biz_status: string | null; projects: number; last_seen: number | null }>()).results;
+  const sum = await env.DB.prepare(`SELECT COUNT(*) AS total, SUM(created_at >= ?) AS today, SUM(created_at >= ?) AS week, SUM(kind = 'shop') AS shops, SUM(kind = 'consumer') AS consumers,
+      SUM(banned = 1 OR suspended_until > ?) AS suspended, (SELECT COUNT(*) FROM businesses) AS verified FROM accounts`).bind(todayStart, now - 7 * 86_400_000, now).first<Record<string, number | null>>();
+  return json({
+    accounts: rows.map((a) => ({ id: a.id, email: a.email, name: a.name, kind: a.kind, plan: a.plan, createdAt: a.created_at, emailVerified: !!a.email_verified, termsVersion: a.terms_version, projects: a.projects, lastSeenAt: a.last_seen, status: a.banned ? 'banned' : a.suspended_until && a.suspended_until > now ? 'suspended' : 'active', requestsBlocked: !!a.requests_blocked, business: a.biz !== null ? { name: a.biz, status: a.biz_status ?? '' } : null, operator: isOperator(env, a.email) })),
+    summary: { total: sum?.total ?? 0, today: sum?.today ?? 0, week: sum?.week ?? 0, shops: sum?.shops ?? 0, consumers: sum?.consumers ?? 0, verified: sum?.verified ?? 0, suspended: sum?.suspended ?? 0 },
+    next: rows.length === limit ? offset + limit : null,
+  });
+}

@@ -91,3 +91,33 @@ describe('영구 정지 뒤 탈퇴 — 1년 동안 재가입 거절', () => {
     expect(await again.json()).toMatchObject({ error: 'banned' });
   });
 });
+
+// 2026-10-27 사용자: "관리자가 페이지가 없다. 우선 가입 계정을 보고 싶어"
+describe('관리자: 가입 계정 목록', () => {
+  it('최근 가입 순 계정(종류·요금제·사업자·프로젝트 수·마지막 접속·상태·약관 동의) + 요약 수, 종류 거르기·이어 보기, 운영자만', async () => {
+    const op = await login('op@example.com');
+    const email = mail('lst');
+    expect((await json('/api/auth/signup', { email, password: 'secret-1234', name: '목록사장', business: bizInput() })).status).toBe(202);
+    const s = await login(email);
+    await createProject(s, '목록 매장');
+    const r = await (await get('/api/operator/accounts?limit=200', op)).json<{ accounts: { email: string; name: string; kind: string | null; plan: string; business: { name: string; status: string } | null; projects: number; lastSeenAt: number | null; createdAt: number; status: string; termsVersion: string | null }[]; summary: { total: number; today: number; week: number; shops: number; consumers: number; verified: number; suspended: number }; next: number | null }>();
+    const me = r.accounts.find((a) => a.email === email)!;
+    expect(me).toMatchObject({ name: '목록사장', plan: 'free', projects: 1, status: 'active', termsVersion: expect.any(String), business: { name: '테스트 상회', status: 'active' } });
+    expect(me.lastSeenAt).toBeGreaterThan(0);
+    expect(r.summary.total).toBeGreaterThanOrEqual(r.accounts.length > 0 ? 1 : 0);
+    expect(r.summary.today).toBeGreaterThanOrEqual(1);
+    // 최근 가입 순
+    const times = r.accounts.map((a) => a.createdAt);
+    expect([...times].sort((a, b) => b - a)).toEqual(times);
+    // 이어 보기
+    const p1 = await (await get('/api/operator/accounts?limit=2', op)).json<{ accounts: { email: string }[]; next: number | null }>();
+    expect(p1.accounts).toHaveLength(2);
+    expect(p1.next).toBe(2);
+    const p2 = await (await get('/api/operator/accounts?limit=2&offset=2', op)).json<{ accounts: { email: string }[] }>();
+    expect(p2.accounts[0].email).not.toBe(p1.accounts[0].email);
+    // 검색
+    const q = await (await get(`/api/operator/accounts?q=${encodeURIComponent(email)}`, op)).json<{ accounts: { email: string }[] }>();
+    expect(q.accounts.map((a) => a.email)).toEqual([email]);
+    expect((await get('/api/operator/accounts', s)).status).toBe(403);
+  });
+});

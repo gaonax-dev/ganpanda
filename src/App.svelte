@@ -255,7 +255,7 @@
               <button class="btn small" data-testid="open-settings" onclick={() => { accountOpen = false; app.settingsOpen = true; }}>⚙ 설정</button>
               <!-- 단가 설정 (2026-10-26 "사용자 클릭메뉴에 단가설정 생성하고 두개의 탭을 구성해줘 견적단가, 자재 원가"): 프로젝트 안이면 그 프로젝트 단가, 밖이면 내 기본 단가 -->
               <!-- 운영자: 신고 처리 (2026-10-26 "운영자 신고 처리 화면 만들어줘") — 처리 대기 수 -->
-              {#if app.account.operator}<a class="btn small" class:hot={app.opsOpen > 0} data-testid="account-ops" href="/ops">신고 처리{#if app.opsOpen} <b>{app.opsOpen}</b>{/if}</a>{/if}
+              {#if app.account.operator}<a class="btn small" class:hot={app.opsOpen > 0} data-testid="account-ops" href="/ops" title="관리자 — 회원 · 신고 처리">관리자{#if app.opsOpen} <b title="처리 대기 신고">신고 {app.opsOpen}</b>{/if}</a>{/if}
               <!-- 문의·신고 연락처 (2026-10-26 앱스토어 1.2) -->
               <a class="btn small" data-testid="account-support" href="mailto:{COMPANY.email}?subject=%5B%EA%B0%84%ED%8C%90%EB%8B%A4%5D%20%EB%AC%B8%EC%9D%98%C2%B7%EC%8B%A0%EA%B3%A0">문의·신고 {COMPANY.email}</a>
               {#if !app.consumerAccount}<button class="btn small" data-testid="account-prices" onclick={() => { accountOpen = false; app.pricesOpen = true; }}>₩ 단가 설정</button>{/if}

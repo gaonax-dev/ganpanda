@@ -154,3 +154,9 @@ export interface Appeal { id: string; accountId: string; email: string; name: st
 export const listAppeals = () => call<{ appeals: Appeal[] }>('/api/operator/appeals').then((r) => r.appeals);
 export const decideAppeal = (id: string, decision: 'accept' | 'reject', reply: string) => call<{ ok: true }>(`/api/operator/appeals/${id}`, { method: 'POST', body: JSON.stringify({ decision, reply }) });
 
+// ---- 관리자: 가입 계정 목록 (2026-10-27 "관리자가 페이지가 없다. 우선 가입 계정을 보고 싶어") ----
+export interface AdminAccount { id: string; email: string; name: string; kind: 'shop' | 'consumer' | null; plan: string; createdAt: number; emailVerified: boolean; termsVersion: string | null; projects: number; lastSeenAt: number | null; status: 'active' | 'suspended' | 'banned'; requestsBlocked: boolean; business: { name: string; status: string } | null; operator: boolean }
+export interface AdminSummary { total: number; today: number; week: number; shops: number; consumers: number; verified: number; suspended: number }
+export const listAccounts = (q: string, kind: string, offset = 0) =>
+  call<{ accounts: AdminAccount[]; summary: AdminSummary; next: number | null }>(`/api/operator/accounts?q=${encodeURIComponent(q)}&kind=${encodeURIComponent(kind)}&offset=${offset}&limit=50`);
+

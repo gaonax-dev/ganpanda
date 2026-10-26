@@ -30,9 +30,10 @@ test('운영자: 계정 메뉴 [신고 처리 n] → /ops — 신고 카드(이�
   await opPage.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, op);
   await opPage.reload();
   await opPage.getByTestId('account-menu').click();
-  await expect(opPage.getByTestId('account-ops')).toContainText('신고 처리');
+  await expect(opPage.getByTestId('account-ops')).toContainText('관리자'); // 2026-10-27 관리자 페이지
   await opPage.getByTestId('account-ops').click();
   await expect(opPage).toHaveURL(/\/ops/);
+  await opPage.getByTestId('ops-tab-content').click(); // 맨 앞은 [회원] 탭 (2026-10-27)
   const card = opPage.getByTestId('ops-report').filter({ hasText: `e2e 광고 신고 ${tag}` });
   await expect(card).toHaveAttribute('data-status', 'open');
   await expect(card).toContainText('스팸·광고');
@@ -53,4 +54,34 @@ test('운영자: 계정 메뉴 [신고 처리 n] → /ops — 신고 카드(이�
   await opPage.getByTestId('ops-filter-open').click();
   await expect(opPage.getByTestId('ops-report').filter({ hasText: `e2e 광고 신고 ${tag}` })).toHaveCount(0);
   await opPage.close();
+});
+
+// 2026-10-27 "관리자가 페이지가 없다. 우선 가입 계정을 보고 싶어"
+test('관리자 페이지: 맨 앞 [회원] 탭에 가입 요약과 계정 목록(검색·조치), 운영자 아니면 못 봄', async ({ browser, request }) => {
+  const email = `e2e-acc-${Math.random().toString(36).slice(2, 8)}@example.com`;
+  const user = await apiLogin(request, email);
+  const op = await apiLogin(request, 'op@example.com');
+  const opPage = await browser.newPage();
+  await opPage.goto('/');
+  await opPage.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, op);
+  await opPage.goto('/ops');
+  await expect(opPage.getByRole('heading', { name: /관리자/ })).toBeVisible();
+  await expect(opPage.getByTestId('ops-tab-accounts')).toHaveClass(/on/);
+  await expect(opPage.getByTestId('ops-summary')).toContainText('오늘 가입');
+  await opPage.getByTestId('ops-accounts-q').fill(email);
+  await opPage.getByTestId('ops-accounts-q').press('Enter');
+  const rows = opPage.getByTestId('ops-account');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText(email);
+  await expect(rows.first()).toContainText('이용 중');
+  await rows.first().getByTestId('ops-account-act').click();
+  await expect(opPage.getByTestId('ops-member').filter({ hasText: email })).toBeVisible();
+  await opPage.close();
+
+  const other = await browser.newPage();
+  await other.goto('/');
+  await other.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, user);
+  await other.goto('/ops');
+  await expect(other.getByTestId('ops-accounts')).toHaveCount(0);
+  await other.close();
 });
