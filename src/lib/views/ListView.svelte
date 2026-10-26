@@ -30,6 +30,22 @@
   import { fitRect, type Viewport } from '../core/viewport';
   import QuoteChange from '../ui/QuoteChange.svelte';
   import { askConfirm } from '../ui/ask.svelte';
+  /** 원가 수정 (2026-10-26): 펼친 줄(이름을 누름)과 수정 중인 줄 */
+  let openLine = $state<string | null>(null);
+  let editLine = $state<string | null>(null);
+  let editValue = $state('');
+  const editNum = () => { const n = Number(editValue); return editValue !== '' && editValue !== null && Number.isFinite(n) && n >= 0 ? Math.round(n) : null; };
+  /** [적용] = 이후 모든 견적 (내 단가표 + 이 견적의 같은 품목) — 늘 확인 창 */
+  async function applyCost(l: { key: string; label: string }) {
+    const v = editNum();
+    if (v === null) return;
+    if (!(await askConfirm(`${l.label} 단가 ${won(v)}\n\n이후 모든 견적에 적용됩니다 — 내 단가표에 저장되고 이 견적의 같은 품목도 이 단가로 바뀝니다.\n이미 발행한 견적은 그대로입니다.`))) return;
+    app.setLineUnit(l.key, v);
+    await app.applyLineUnit(l.key, 'account');
+    editLine = null;
+  }
+  /** [이 줄만] = 임시 가격 — 원래 가격은 줄에 따로 */
+  function onlyThis(l: { key: string }) { const v = editNum(); if (v === null) return; app.setLineUnit(l.key, v); editLine = null; }
   /** 단가표의 원래 단가 (이 줄만 바꾼 임시 가격 옆에) */
   const baseUnit = (id: string): number | undefined => app.prices.products[id] ?? app.prices.sheets[id];
   let issueDiff = $state(false);
@@ -48,10 +64,7 @@
   const pending = $derived(app.signs.filter((o) => !app.sizeOf(o)));
   const placed = $derived(app.flatPlaced);
   // 견적은 상태에서 (단가표·설치비·추가 항목 반영, 추정 치수 포함)
-  /** 단가 바로 입력 (2026-10-24) */
-  let unitSaved = $state('');
   const fmtQty = (n: number) => String(Number(n.toFixed(2)));
-  function setUnit(key: string, v: string) { const n = Number(v); if (v.trim() === '') app.setLineUnit(key, null); else if (Number.isFinite(n) && n >= 0) app.setLineUnit(key, Math.round(n)); }
   const quote = $derived(app.quote);
   const extras = $derived(app.settings.extras ?? []);
   const setExtra = (id: string, patch: Partial<ExtraItem>) => app.setExtras(extras.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -376,11 +389,14 @@
       {/if}
       {#each quote.lines as l, i (i)}
         <div class="line" class:zero={!l.amount} class:loss={app.seesMargin && l.loss} data-testid="quote-line" data-key={l.key}>
-          <button class="info" data-testid="line-open" disabled={!app.seesMargin} onclick={() => (openObj = openObj === l.objectId ? null : l.objectId)}><span>{l.label}</span><small>{app.noPrices ? itemDetail(l.detail) : l.detail}</small>
+          <!-- 이름을 누르면 [원가 수정] (2026-10-26 "아이템라벨을 클리기하면 원가수정 버튼나오게") · 원가를 보는 사람에게는 구성품 표도 -->
+          <button class="info" data-testid="line-open" disabled={!app.seesMargin && !app.canEdit} onclick={() => { openObj = openObj === l.objectId ? null : l.objectId; openLine = openLine === l.key ? null : l.key; if (editLine && editLine !== l.key) editLine = null; }}><span>{l.label}</span><small>{app.noPrices ? itemDetail(l.detail) : l.detail}</small>
+            {#if l.unitOverride && l.priceId && baseUnit(l.priceId) !== undefined}<small class="orig" data-testid="line-unit-original">이 줄만 · 원래 {won(baseUnit(l.priceId)!)}</small>{/if}
             {#if app.seesMargin && l.cost !== undefined && !l.needsInput}
               <small class="mg" data-testid="line-margin">{app.seesCost ? `원가 ${won(l.cost)} · ` : ''}이익율 {pct(l.amount ? (l.amount - l.cost) / l.amount : null)}{#if l.loss} <b class="lossb" data-testid="line-loss">손해</b>{/if}</small>
             {/if}
           </button>
+          {#if app.canEdit && !app.noPrices && openLine === l.key && editLine !== l.key && l.qty !== undefined}<button class="btn small costbtn" data-testid="line-cost-edit" onclick={() => { editLine = l.key; editValue = String(l.unitPrice ?? ''); }}>원가 수정</button>{/if}
           {#if app.noPrices}<span class="muted"></span>
           {:else if app.canEdit}
             <span class="amtcell">
@@ -389,21 +405,19 @@
             </span>
           {:else}<b>{won(l.amount)}</b>{/if}
         </div>
-        <!-- 단가 바로 입력 (2026-10-24 "단가을 사장이 바로 입력 … 해당 내역을 전체에 적용") — 수량 × [단가] : 이 줄만 → [이 견적 전체] · [내 단가표까지] -->
-        {#if app.canEdit && !app.noPrices && l.qty !== undefined}
-          <div class="unitrow" data-testid="line-unit-row" data-key={l.key}>
-            <span>{fmtQty(l.qty)}{l.unit} ×</span>
-            <input class="unit" data-testid="line-unit" type="number" min="0" step="100" value={l.unitPrice ?? ''} title="단가 — 바꾸면 이 줄만" onchange={(e) => setUnit(l.key, e.currentTarget.value)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
-            <span>원/{l.unit}</span>
-            {#if l.unitOverride}
-              <!-- 임시 가격(이 줄만)은 원래 가격을 따로 (2026-10-26 "임시 가격이 필요한 경우 원 가격은 따로 표시") -->
-              <span class="only">이 줄만</span>
-              {#if l.priceId && baseUnit(l.priceId) !== undefined}<span class="orig" data-testid="line-unit-original">원래 {won(baseUnit(l.priceId)!)}</span>{/if}
-              <button class="link" data-testid="line-unit-apply" title="이 견적의 같은 품목 줄 모두 이 단가로" onclick={async () => { if (await askConfirm(`${l.label} 단가 ${won(l.unitPrice ?? 0)} — 이 견적 전체 적용\n\n이 견적의 같은 품목 줄이 모두 이 단가로 바뀝니다 (원래 ${won(baseUnit(l.priceId ?? '') ?? 0)}).`)) app.applyLineUnit(l.key, 'project'); }}>이 견적 전체</button>
-              <button class="link" data-testid="line-unit-account" title="이 견적 전체 + 내 기본 단가표(새 프로젝트)에도" onclick={async () => { if (!(await askConfirm(`${l.label} 단가 ${won(l.unitPrice ?? 0)} — 전체 적용\n\n이 견적 전체와 내 기본 단가표에 저장되어 새 견적부터 이 단가로 나옵니다. 이미 발행한 견적은 그대로입니다.`))) return; await app.applyLineUnit(l.key, 'account'); unitSaved = l.priceId ?? ''; setTimeout(() => (unitSaved = ''), 2500); }}>내 단가표까지</button>
-              <button class="link" data-testid="line-unit-reset" title="단가표 단가로 되돌리기" onclick={() => app.setLineUnit(l.key, null)}>되돌리기</button>
-            {/if}
-            {#if unitSaved && unitSaved === l.priceId}<span class="ok" data-testid="line-unit-saved">내 단가표에 저장했습니다</span>{/if}
+        <!-- 원가 수정 (2026-10-26 "견적 아이템 아래의 내용은 현재 길이를 제거한다 … 수정후 적용(이후 모든 견적에 적용됩니다.)"): 줄 아래 단가 줄을 늘 보이던 것(2026-10-24)을 빼고,
+             [원가 수정]을 눌렀을 때만 수량 × [단가] · [적용](내 단가표 + 이 견적, 확인 창) · [이 줄만](임시, 원래 가격 표시) -->
+        {#if app.canEdit && !app.noPrices && editLine === l.key && l.qty !== undefined}
+          <div class="costedit" data-testid="line-cost-editor" data-key={l.key}>
+            <div class="row">
+              <span>{fmtQty(l.qty)}{l.unit} ×</span>
+              <input class="unit" data-testid="line-unit" type="number" min="0" step="100" bind:value={editValue} onkeydown={(e) => { if (e.key === 'Enter') void applyCost(l); if (e.key === 'Escape') editLine = null; }} />
+              <span>원/{l.unit}</span>
+              <button class="btn small primary" data-testid="line-unit-apply" onclick={() => applyCost(l)}>적용</button>
+              <button class="link" data-testid="line-unit-only" title="이 줄만 임시 가격 — 원래 가격은 따로 보입니다" onclick={() => onlyThis(l)}>이 줄만</button>
+              <button class="link" data-testid="line-cost-cancel" onclick={() => (editLine = null)}>취소</button>
+            </div>
+            <small>적용하면 <b>이후 모든 견적에 적용됩니다</b> (내 단가표 · 이 견적). 이미 발행한 견적은 그대로입니다.{#if l.priceId && baseUnit(l.priceId) !== undefined}{' '}지금 단가표 {won(baseUnit(l.priceId)!)}{/if}</small>
           </div>
         {/if}
         {#if app.seesMargin && openObj === l.objectId && quote.lines.findIndex((x) => x.objectId === l.objectId) === i}
@@ -530,10 +544,6 @@
   .line .info { all: unset; display: flex; flex-direction: column; flex: 1; min-width: 0; cursor: pointer; }
   .line .info:disabled { cursor: default; }
   .amtcell { display: flex; align-items: center; gap: 4px; }
-  .unitrow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 2px 0 7px; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); margin-top: -1px; }
-  .unitrow .unit { width: 84px; padding: 3px 5px; font-size: 12px; text-align: right; }
-  .unitrow .only { color: var(--accent); font-weight: 700; }
-  .unitrow .ok { color: var(--ok, #22c55e); }
   .autob { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .mg { color: var(--muted); }
   .line.loss { background: rgba(229, 72, 77, 0.08); }
@@ -564,4 +574,10 @@
   .issue-diff { margin: 0 12px 8px; }
   .orig { font-size: 11px; color: var(--muted); }
   .cost-old { color: #f59e0b; }
+  .costbtn { align-self: center; margin-right: 6px; white-space: nowrap; }
+  .costedit { margin: 2px 0 8px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+  .costedit .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .costedit .unit { width: 110px; }
+  .costedit small { color: var(--muted); }
+  .costedit small b { color: #f59e0b; }
 </style>
