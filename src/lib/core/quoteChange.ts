@@ -18,13 +18,17 @@ export interface IssuedQuote {
   lines: IssuedLine[];
   /** 발행 순간의 내용 해시 — 지금 내용과 같으면 "발행 그대로" */
   hash: string;
+  /** 사인물 외곽선 위치 (2026-10-26 사진 위 변경 표시) — 옛 발행본에는 없음 */
+  geo?: Record<string, IssuedGeo>;
 }
+/** 발행 순간 사진 위 사인물 자리 (사진 원본 px) */
+export interface IssuedGeo { photoId: string; quad: [number, number][]; shape?: string; polygon?: [number, number][] }
 
 const LINE_KEYS = ['key', 'objectId', 'label', 'detail', 'amount', 'qty', 'unit', 'unitPrice', 'cost', 'priceId'] as const;
 /** 박제본 만들기: 필요한 값만 깊은 복사 (원본·단가표를 나중에 고쳐도 그대로) */
 export function issueOf(q: IssuedQuote): IssuedQuote {
   const lines = q.lines.map((l) => Object.fromEntries(LINE_KEYS.filter((k) => l[k] !== undefined).map((k) => [k, l[k]])) as unknown as IssuedLine);
-  return { id: q.id, no: q.no, at: q.at, by: q.by, ...(q.note ? { note: q.note } : {}), snapshot: JSON.parse(JSON.stringify(q.snapshot)) as Snapshot, lines, hash: q.hash };
+  return { id: q.id, no: q.no, at: q.at, by: q.by, ...(q.note ? { note: q.note } : {}), snapshot: JSON.parse(JSON.stringify(q.snapshot)) as Snapshot, lines, hash: q.hash, ...(q.geo ? { geo: JSON.parse(JSON.stringify(q.geo)) as Record<string, IssuedGeo> } : {}) };
 }
 
 export type ItemField = 'size' | 'type' | 'category' | 'sheets' | 'options' | 'text' | 'design' | 'amount';
@@ -112,3 +116,17 @@ export function customerView(issues: IssuedQuote[], approvals: Approval[]): { sh
   if (rejectedLatest) return { shown: contract, contract, pending: null, rejected: latest };
   return { shown: latest, contract, pending: latest.no > contract.no ? latest : null, rejected: null };
 }
+
+/**
+ * 금액 흐름 (2026-10-26 ③): 계약 합계 → (+ 추가된 사인물) (− 빠진 사인물) (± 바뀐 사인물) (± 그 밖: 설치·운반비·추가 항목·부가세) → 변경 합계.
+ * 사인물 금액은 부가세 전, 그 밖은 합계 차이에서 나머지 — 넷의 합 = 합계 차이
+ */
+export function moneyFlow(d: QuoteDiff): { before: number; after: number; added: number; removed: number; changed: number; other: number } {
+  const sum = (k: ItemChange['kind']) => d.items.filter((c) => c.kind === k).reduce((a, c) => a + c.amountDelta, 0);
+  const added = sum('added'), removed = sum('removed'), changed = sum('changed');
+  return { before: d.totalBefore, after: d.totalAfter, added, removed, changed, other: d.totalDelta - added - removed - changed };
+}
+
+/** 하나씩 확인해야 동의할 수 있나 (2026-10-26 ⑤): 손해 가능(위험)이 있거나 복잡한 변경 */
+export const needsItemConfirm = (risks: Risk[]) => risks.some((r) => r.level === 'danger' || r.code === 'complex');
+
