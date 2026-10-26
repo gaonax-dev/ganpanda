@@ -224,6 +224,13 @@
           {#if bizError}<p class="hint err" data-testid="biz-error">{bizError}</p>{/if}
         </section>
         {/if}
+        <!-- 차단한 사용자 (2026-10-26 신고·차단 — 앱스토어 1.2) -->
+        <section data-testid="blocked-section">
+          <h3>차단한 사용자 <small class="hint">차단한 사람의 메시지는 내 화면에서 보이지 않습니다. 대화의 ⋮ 에서 차단합니다.</small></h3>
+          {#each app.blocks as b (b.id)}
+            <p class="row" data-testid="blocked-user"><span>{b.name || '이름 없음'}</span><button class="btn small" data-testid="unblock" onclick={() => app.unblock(b.id)}>차단 해제</button></p>
+          {:else}<p class="hint">차단한 사용자가 없습니다.</p>{/each}
+        </section>
         <!-- 계정 삭제 (2026-10-22 "계정삭제도 필요하다") — "삭제" 를 적어야 -->
         <section data-testid="delete-section">
           <h3>계정 삭제 <small class="hint">내 프로젝트·사진·사업자 정보·로그인 정보를 지웁니다. 보낸 요청은 닫히고 연락처가 지워집니다. 되돌릴 수 없습니다.</small></h3>

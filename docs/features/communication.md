@@ -85,3 +85,12 @@
 - **서버**(`Room`): 접속자 상태에 `updated_at` 을 두고, 30초 넘게 갱신 없는 상태(클라이언트는 15초마다 갱신)는 새로 들어온 사람에게 보내지 않고 정리.
 - 테스트: `tests/e2e/realtime.spec.ts`(숨김·떠남), `server/test/sync.test.ts`(30초 조용한 상태).
 
+## 신고 · 차단 · 욕설 거르기 · 연락처 (2026-10-26)
+사용자: "신고·차단 기능 진행해줘" — 앱스토어 가이드라인 1.2(사용자 생성 콘텐츠): 부적절한 콘텐츠 거르기, 신고 수단, 사용자 차단, 연락처 공개가 필수. 2026-10-24 "신고 단추 필요없다"는 **간판다 밖 거래 신고**(가게 사장 → 간판집, `bypass.ts`)에 대한 결정으로 그대로 — 이것은 대화·사용자 신고.
+- **신고**: 말풍선·톡의 **남의 메시지 옆 ⋮**(`chat-more`) → 하단 시트(`message-actions`) [신고하기] → 이유(`report-reasons`: 스팸·광고 · 욕설·괴롭힘·혐오 · 음란물 · 사기·개인정보 침해 · 기타) → 자세한 내용(선택) → "신고했습니다. 24시간 안에 확인하고 조치합니다". `POST /api/reports` — 로그인했거나 그 프로젝트에 들어올 수 있는 사람(초대 링크 손님 포함). 서버가 **그 메시지 글을 증거로**(`excerpt`) 남기고 운영자에게 메일. 표 `content_reports`(0045).
+- **운영자 처리**: `GET /api/operator/content-reports`, `POST /api/operator/content-reports/:id {action: hide|dismiss}` — hide = 그 메시지를 문서에서 지운다. 운영자 화면은 아직 없음(메일 + API).
+- **차단**: ⋮ → [이 사용자 차단](확인 창) → 그 사람(계정 id 또는 손님 g:…)의 메시지가 **내 화면에서 사라진다**(말풍선·톡·홈 톡, 홈 [사용자] 목록에서도 빠짐). 로그인하면 서버(`/api/me/blocks`, 표 `blocks`), 아니면 이 기기(localStorage). **설정 → 차단한 사용자**에서 해제. 아이디 없는 옛 메시지는 신고만.
+- **욕설 거르기**(`core/profanity.ts maskProfanity`): 말풍선·톡·홈 톡을 보낼 때 자주 쓰는 욕설을 같은 길이의 * 로(시발점 같은 낱말은 예외). 빠진 것은 신고·차단으로.
+- **연락처**: 계정 메뉴 **[문의·신고 support@ganpanda.co.kr]**(`account-support`, mailto). 로그인 전 첫 화면 아래에는 사업자 정보 푸터.
+- 하단 시트(`ui/ActionSheet.svelte`)는 항목 동작을 먼저 실행하고 닫는다 — 닫으면서 부른 쪽의 대상 값이 비면 동작이 그 값을 잃었다.
+- 테스트: `tests/unit/profanity.test.ts`, `server/test/moderation.test.ts`, `tests/e2e/reportBlock.spec.ts`.

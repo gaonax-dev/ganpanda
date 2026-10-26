@@ -7,6 +7,8 @@
   import { formatBytes } from '../core/format';
   import { putAsset, StorageLimitError } from '../assets';
   import AttachmentView from './AttachmentView.svelte';
+  import ActionSheet from './ActionSheet.svelte';
+  import { REPORT_REASON_LABEL, type ReportReason } from '../projects';
   import { recording } from '../recording.svelte';
   import { recordingLabel } from '../core/attachments';
 
@@ -40,7 +42,22 @@
   const messages = $derived.by(() => (app.version, app.project.messagesOf(objectId)));
   /** 지우기 (2026-10-18 "말풍선 안의 이전 녹음을 지울 수가 없다") — 확인 뒤 */
   async function del(m: Message) { if (await askConfirm(m.attachments?.length ? '이 메시지와 첨부를 지울까요?' : '이 메시지를 지울까요?')) void app.deleteMessage(m); }
-  const shown = $derived(messages.filter((m) => m.kind === kind));
+  // 차단한 사람의 메시지는 내 화면에서 뺀다 (2026-10-26 신고·차단)
+  const shown = $derived(messages.filter((m) => m.kind === kind && !app.isBlocked(m)));
+  /** ⋮ 를 누른 남의 메시지 → [신고하기]·[이 사용자 차단] 시트, 신고 이유 시트 */
+  let actionFor = $state<Message | null>(null);
+  let reportFor = $state<Message | null>(null);
+  async function sendReport(m: Message, reason: ReportReason) {
+    const detail = await askPrompt(`신고 — ${REPORT_REASON_LABEL[reason]}\n\n자세한 내용 (선택)`, '');
+    if (detail === null) return;
+    try { await app.report({ messageId: m.id, ...(m.authorId ? { targetId: m.authorId } : {}), targetName: m.author, reason, detail }); app.showFlash('신고했습니다. 24시간 안에 확인하고 조치합니다.'); }
+    catch { app.notice = '신고를 보내지 못했습니다. 잠시 뒤 다시 해 주세요.'; }
+  }
+  async function blockAuthor(m: Message) {
+    if (!m.authorId) return;
+    if (!(await askConfirm(`${m.author} 님을 차단할까요?\n\n이 사람의 메시지가 내 화면에서 보이지 않습니다. 설정 → 차단한 사용자에서 풀 수 있습니다.`))) return;
+    try { await app.block(m.authorId, m.author); } catch { app.notice = '차단하지 못했습니다. 잠시 뒤 다시 해 주세요.'; }
+  }
   const counts = $derived({ chat: messages.filter((m) => m.kind === 'chat').length, comment: messages.filter((m) => m.kind === 'comment').length });
 
   $effect(() => {
@@ -72,7 +89,7 @@
 </div>{/if}
 <div class="list" class:comments={kind === 'comment'} bind:this={list}>
   {#each shown as m, i (m.id)}
-    {@const mine = m.author === app.nickname}
+    {@const mine = app.isMine(m)}
     {@const head = i === 0 || shown[i - 1].author !== m.author}
     {#if kind === 'chat'}
       <div class="row" class:mine>
@@ -85,6 +102,7 @@
           </div>
           <span class="t">{time(m.ts)}</span>
           {#if app.canDeleteMessage(m)}<button class="del" data-testid="chat-delete" title="지우기" onclick={() => del(m)}>✕</button>{/if}
+          {#if !mine}<button class="more" data-testid="chat-more" title="신고 · 차단" aria-label="신고 · 차단" onclick={() => (actionFor = m)}>⋮</button>{/if}
         </div>
       </div>
     {:else}
@@ -126,6 +144,18 @@
   <button type="submit" data-testid="chat-send" disabled={(!text.trim() && !pending.length && !(talk && app.talkRefs.length)) || uploading > 0}>전송</button>
 </form>
 
+{#if actionFor}
+  {@const m = actionFor}
+  <ActionSheet testid="message-actions" title={`${m.author} · ${(m.text ?? '').slice(0, 30)}`} onclose={() => (actionFor = null)} items={[
+    { id: 'report', label: '신고하기', sub: '스팸·욕설·음란물·사기 — 24시간 안에 확인합니다', icon: 'flag', onclick: () => (reportFor = m) },
+    ...(m.authorId ? [{ id: 'block', label: '이 사용자 차단', sub: '이 사람의 메시지를 내 화면에서 숨깁니다', icon: 'block' as const, danger: true, onclick: () => void blockAuthor(m) }] : []),
+  ]} />
+{/if}
+{#if reportFor}
+  {@const m = reportFor}
+  <ActionSheet testid="report-reasons" title="신고 이유" onclose={() => (reportFor = null)} items={(Object.keys(REPORT_REASON_LABEL) as ReportReason[]).map((r) => ({ id: r, label: REPORT_REASON_LABEL[r], icon: 'flag' as const, onclick: () => void sendReport(m, r) }))} />
+{/if}
+
 <style>
   .tabs { display: flex; border-bottom: 1px solid var(--line); }
   .tabs button { flex: 1; background: none; border: 0; color: var(--muted); padding: 9px; font: inherit; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; }
@@ -143,6 +173,8 @@
   .ref { background: rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.18); color: #1d4ed8; border-radius: 10px; padding: 2px 8px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
   .del { background: none; border: 0; color: var(--muted); font-size: 11px; cursor: pointer; padding: 2px 4px; opacity: 0.55; align-self: center; }
   .del:hover { opacity: 1; color: var(--danger, #ff6b6b); }
+  .more { background: none; border: 0; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; opacity: 0.6; align-self: center; }
+  .more:hover { opacity: 1; color: var(--text); }
   .t { font-size: 10px; color: var(--chat-who); white-space: nowrap; }
   .note { background: var(--input); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 9px; font-size: 12px; }
   .note p { margin: 3px 0 0; white-space: pre-wrap; }

@@ -11,6 +11,7 @@
   import { homeTalks } from './homeTalkList.svelte';
   import { readTalk, sendTalkFromHome, type Person, type PersonBadge, type TalkSummary } from '../projects';
   import { refLabel } from '../core/talk';
+  import { maskProfanity } from '../core/profanity';
   import type { Message, TalkRef } from '../core/model';
 
   let open = $state<TalkSummary | null>(null);
@@ -30,7 +31,7 @@
   async function send() {
     if (!open || !text.trim() || sending) return;
     sending = true;
-    try { await sendTalkFromHome(open.projectId, open.roomId, text.trim()); text = ''; await show(open); void homeTalks.load(); } finally { sending = false; }
+    try { await sendTalkFromHome(open.projectId, open.roomId, maskProfanity(text.trim())); text = ''; await show(open); void homeTalks.load(); } finally { sending = false; }
   }
   const goto = (t: TalkSummary, r?: TalkRef) => (location.href = `/?room=${encodeURIComponent(t.projectId)}&talk=${encodeURIComponent(t.roomId)}${r ? `&focus=${r.kind}:${encodeURIComponent(r.id)}` : ''}`);
   const time = (ts: number) => new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -49,7 +50,7 @@
     <div class="wrap" class:split={!!open}>
       {#if homeTalks.tab === 'people'}
       <ul data-testid="home-people">
-        {#each homeTalks.people as p (p.id)}
+        {#each homeTalks.people.filter((x) => !app.blocks.some((b) => b.id === x.id)) as p (p.id)}
           <li><button class="person" data-testid="home-person" onclick={() => pick(p)}>
             <b>{p.name}</b>
             <span class="badges">{#each p.badges as b (b)}<i class="badge {b}" data-testid="home-person-badge">{BADGE[b]}</i>{/each}</span>
@@ -81,7 +82,7 @@
             <button class="go" data-testid="home-talk-open-project" onclick={() => goto(open!)}>프로젝트에서 열기 →</button>
           </header>
           <div class="list">
-            {#each messages as m (m.id)}
+            {#each messages.filter((x) => !app.isBlocked(x)) as m (m.id)}
               <div class="msg" class:mine={m.authorId ? m.authorId === app.myId : m.author === app.nickname}>
                 <span class="who">{m.author} · {time(m.ts)}</span>
                 {#if m.text}<p data-testid="home-talk-text">{m.text}</p>{/if}
