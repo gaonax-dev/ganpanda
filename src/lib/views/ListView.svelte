@@ -388,6 +388,8 @@
         <button class="link" data-testid="quote-auto-all" onclick={() => app.autoAllLines()}>전체 자동 금액으로</button>
       {/if}
       {#each quote.lines as l, i (i)}
+        <!-- 고른 줄 = 테두리·그림자로 띄운 카드 (2026-10-26 "선택되서 편집 가능한 상태를 다른 엘리먼트와 차별화(아웃라인으로 감싸거나 그림자로 살짝 띄우기)"): 줄 · 원가 수정 칸 · 구성품 표를 한 덩어리로, 원가를 고치는 동안 다른 줄은 흐리게 -->
+        <div class="lineblock" class:sel={openLine === l.key} class:faded={!!editLine && editLine !== l.key} data-testid="quote-line-block" data-key={l.key} data-selected={openLine === l.key}>
         <div class="line" class:zero={!l.amount} class:loss={app.seesMargin && l.loss} data-testid="quote-line" data-key={l.key}>
           <!-- 이름을 누르면 [원가 수정] (2026-10-26 "아이템라벨을 클리기하면 원가수정 버튼나오게") · 원가를 보는 사람에게는 구성품 표도 -->
           <button class="info" data-testid="line-open" disabled={!app.seesMargin && !app.canEdit} onclick={() => { openObj = openObj === l.objectId ? null : l.objectId; openLine = openLine === l.key ? null : l.key; if (editLine && editLine !== l.key) editLine = null; }}><span>{l.label}</span><small>{app.noPrices ? itemDetail(l.detail) : l.detail}</small>
@@ -435,6 +437,7 @@
             </tbody>
           </table>
         {/if}
+        </div>
       {:else}
         <p class="hint">종류·시트를 지정한 사인물이 없습니다.</p>
       {/each}
@@ -580,4 +583,9 @@
   .costedit .unit { width: 110px; }
   .costedit small { color: var(--muted); }
   .costedit small b { color: #f59e0b; }
+  .lineblock { border-radius: 10px; transition: box-shadow 0.15s, background 0.15s, opacity 0.15s, margin 0.15s; }
+  .lineblock.sel { outline: 2px solid var(--accent); outline-offset: -1px; background: var(--panel); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); margin: 6px -6px; padding: 0 8px 2px; position: relative; z-index: 1; }
+  .lineblock.sel > .line { border-bottom-color: transparent; }
+  .lineblock.sel .costedit { border: 0; border-top: 1px dashed var(--line); border-radius: 0; padding: 8px 0 6px; margin: 0; }
+  .lineblock.faded { opacity: 0.45; }
 </style>
