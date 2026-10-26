@@ -19,7 +19,7 @@ test('만들기에서 [외주] 를 체크하면 처음부터 외주 프로젝트
   await expect(page.getByTestId('outsource-request')).toBeVisible();
   expect(await accent(page)).toBe('#ff3d9a');
   await page.goto('/');
-  await expect(page.getByTestId('outsource-folder')).toContainText('바로 외주');
+  await expect(page.getByTestId('folder-outsource')).toContainText('바로 외주');
 });
 
 const accent = (p: import('@playwright/test').Page) => p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
@@ -35,7 +35,7 @@ test('⋯ → [다른 업체에 외주 요청] → 외주 폴더 → 열면 핫�
   const card = page.locator(`[data-testid="project-item"][data-id="${projectId}"]`);
   await card.getByTestId('project-menu').click();
   await page.getByTestId('details-outsource').click();
-  const folder = page.getByTestId('outsource-folder');
+  const folder = page.getByTestId('folder-outsource');
   await expect(folder.locator(`[data-testid="project-item"][data-id="${projectId}"]`)).toBeVisible();
   // 외주 프로젝트를 열면 핫핑크 + B2B 외주 + [외주 요청]
   await folder.locator(`[data-testid="project-item"][data-id="${projectId}"]`).click();
@@ -92,7 +92,7 @@ test('고객(제안 링크)에게는 외주 표시·핫핑크가 없다 (2026-10
   await page.goto('/');
   await page.locator(`[data-testid="project-item"][data-id="${projectId}"]`).getByTestId('project-menu').click();
   await page.getByTestId('details-outsource').click();
-  await expect(page.getByTestId('outsource-folder')).toContainText('고객에겐 비밀');
+  await expect(page.getByTestId('folder-outsource')).toContainText('고객에겐 비밀');
   await page.goto(`/?room=${projectId}`);
   await expect(page.getByTestId('outsource-badge')).toBeVisible();
   const url = await apiCreateInvite(request, session, projectId, 'viewer');
