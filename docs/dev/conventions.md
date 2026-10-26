@@ -10,6 +10,10 @@
 - 단가·한도·허용 오차 같은 숫자는 이름 있는 상수로 둡니다.
 - 외부 CDN과 원격 폰트를 쓰지 않습니다 (Tauri 오프라인 동작).
 
+## Svelte 효과에서 서버 다시 부르기 (2026-10-27)
+- `$effect` 안에서 `app.refreshMe()` 처럼 상태를 **새 객체로 바꾸는** 함수를 부르면서 그 객체(`app.account`, `app.business`)를 읽으면 끝없이 다시 부른다. 실제로 설정 창이 열려 있는 동안 모든 API 를 초당 수십 번 불렀다(운영, Toss 결제경로 캡처 중 발견).
+- 따라갈 값은 아이디·상태 같은 **원시 값**으로 `$derived` 해 두고, 부르는 쪽은 `untrack(() => …)` 로 감싼다 (`ui/Settings.svelte`, `ui/BillingSection.svelte`). 회귀 테스트: `tests/e2e/settingsTabs.spec.ts` "한 번만 불러온다".
+
 ## 휴대폰 입력칸 (2026-10-21)
 - 사용자: "모바일에서 입력기 등 사용으로 화면이 줌인된 후 입력을 마치면 다시 원래 줌으로 돌아오게". iOS 사파리는 글자 **16px 미만** 입력칸에 포커스하면 페이지를 확대하고 끝나도 두지 않는다. `style.css` 가 터치 기기(`hover: none, pointer: coarse`)에서 모든 입력칸을 16px `!important` 로 두어 **확대 자체를 막고**, 그래도 확대돼 있으면(날짜 입력기·사용자 핀치) `src/lib/pageZoom.ts` 가 입력칸 `focusout`(다음 포커스가 입력칸이 아닐 때)에 viewport meta 에 `maximum-scale=1` 을 300ms 넣었다 빼서 1배로 되돌린다(판단·문자열은 `core/pageZoom.ts`, `tests/unit/pageZoom.test.ts`). 새 입력칸에 13px 같은 글자 크기를 주어도 휴대폰에선 16px 이 된다 — 좁은 칸은 폭으로 조절한다.
 
