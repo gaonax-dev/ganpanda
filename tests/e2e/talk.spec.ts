@@ -190,3 +190,13 @@ test('톡 링크로 화면을 맞춘 뒤에는 사진이 바뀌어도(이름 바
   expect(Math.abs(after.y - before.y)).toBeLessThan(2);
   expect(Math.abs(after.x - before.x)).toBeLessThan(2);
 });
+
+// 2026-10-26 "톡 버튼 현재 가로 크기에서 3배로" — 데스크톱 약 53px → 160px, 휴대폰 약 23px → 70px (상단 바는 한 줄 그대로)
+test('톡 단추는 넓게: 데스크톱 160px 이상, 휴대폰 70px 이상', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  expect((await page.getByTestId('talk-open').boundingBox())!.width).toBeGreaterThanOrEqual(158);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect.poll(async () => (await page.getByTestId('talk-open').boundingBox())!.width).toBeGreaterThanOrEqual(68);
+  const top = (await page.getByTestId('go-projects').boundingBox())!.y;
+  expect(Math.abs((await page.getByTestId('talk-open').boundingBox())!.y - top)).toBeLessThan(12); // 위 줄 그대로
+});

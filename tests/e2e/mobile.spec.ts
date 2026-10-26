@@ -527,10 +527,10 @@ test('휴대폰 상단 바: 위 줄은 한 줄(로고·프로젝트·단추·견
   const { session } = await openOwnedProject(page, request);
   await request.put(`${SERVER}/api/me/request-settings`, { data: { receive: true, regions: ['경기 광주시'] }, headers: { authorization: `Bearer ${session}` } });
   await page.reload();
-  await expect(page.getByTestId('request-inbox-link')).toBeVisible();
+  await expect(page.getByTestId('request-inbox-link')).toHaveCount(0); // 프로젝트 안에서는 요청 링크 없음 (2026-10-25 "프로젝트 뷰에서 요청 제거해주고 톡을 키워줘")
   const y = async (id: string) => (await page.getByTestId(id).boundingBox())!.y;
   const top = await y('go-projects');
-  for (const id of ['project-title', 'proposal-button', 'request-inbox-link', 'account-menu']) expect(Math.abs((await y(id)) - top)).toBeLessThan(12);
+  for (const id of ['project-title', 'proposal-button', 'talk-open', 'account-menu']) expect(Math.abs((await y(id)) - top)).toBeLessThan(12);
   expect(await y('work-tabs')).toBeGreaterThan(top + 20); // 탭은 아래 줄
   expect((await page.getByTestId('top-nav').boundingBox())!.height).toBeLessThan(90);
   await page.goto('/');
