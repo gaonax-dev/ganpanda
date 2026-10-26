@@ -3,6 +3,7 @@
   가입 · 비밀번호 찾기(재설정 메일) · 이메일 링크 로그인 · 카카오/구글/애플은 그대로
 -->
 <script lang="ts">
+  import TermsNotice from './TermsNotice.svelte';
   import { nudgeClose } from './dialogGuard';
   import PasswordField from './PasswordField.svelte';
   import { app } from '../state.svelte';
@@ -167,6 +168,7 @@
           {mode === 'login' ? '로그인' : mode === 'signup' ? '가입하기' : mode === 'forgot' ? '재설정 링크 받기' : '로그인 링크 받기'}
         </button>
       </form>
+      {#if mode === 'login' || mode === 'signup'}<TermsNotice />{/if}
       <div class="links">
         {#if mode !== 'login'}<button class="link" data-testid="login-mode-login" onclick={() => go('login')}>로그인</button>{/if}
         {#if mode !== 'signup'}<button class="link" data-testid="login-mode-signup" onclick={() => go('signup')}>회원가입</button>{/if}

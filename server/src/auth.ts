@@ -15,7 +15,7 @@ const LOGIN_TTL = 15 * 60 * 1000;
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
 const NAME_MAX = 40;
 
-export interface Account { id: string; email: string; name: string; plan: string; created_at: number; /** 'shop' | 'consumer' | null (2026-10-22) */ kind?: string | null; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string; /** 간판다 밖 거래로 요청 받기 정지 (2026-10-24) */ requests_blocked?: number }
+export interface Account { id: string; email: string; name: string; plan: string; created_at: number; /** 'shop' | 'consumer' | null (2026-10-22) */ kind?: string | null; prices?: string | null; /** 색 라이브러리 JSON (2026-10-17) */ colors?: string | null; /** 세트 라이브러리 JSON (2026-10-19) */ sets?: string | null; password_hash?: string | null; email_verified?: number; /** 요청판 (2026-10-17) */ receive_requests?: number; regions?: string; /** 간판다 밖 거래로 요청 받기 정지 (2026-10-24) */ requests_blocked?: number; terms_version?: string | null; terms_at?: number | null; suspended_until?: number | null; banned?: number; suspend_reason?: string | null }
 
 const LOCK_WINDOW = 15 * 60 * 1000;
 const VERIFY_TTL = 24 * 60 * 60 * 1000;
@@ -34,7 +34,20 @@ export async function authenticate(req: Request, env: Env): Promise<(Account & {
   return row ? { ...row, sessionHash } : null;
 }
 
-const publicAccount = (a: Account) => ({ id: a.id, email: a.email, name: a.name, plan: a.plan, hasPassword: !!a.password_hash, kind: a.kind ?? null });
+/** 가입할 때 동의한 이용약관·개인정보처리방침 버전 (2026-10-27 — 가입 화면에 "가입하면 동의" 안내, 계정에 버전·시각 기록) */
+export const TERMS_VERSION = '2026-10-25';
+/** 영구 정지된 채 탈퇴한 이메일 — 1년 동안 다시 가입 못 함 (2026-10-27 약관 개정안 제3조의2) */
+export async function bannedEmail(env: Env, email: string): Promise<boolean> {
+  const r = await env.DB.prepare('SELECT until FROM banned_emails WHERE email_hash = ?').bind(await sha256hex(email.toLowerCase())).first<{ until: number }>();
+  return !!r && r.until > Date.now();
+}
+/** 이용 정지 상태 (2026-10-27 약관 제5조의2): 영구 정지(banned) 또는 기간 정지(suspended_until > 지금) */
+export function suspensionOf(a: Account, now = Date.now()): { until: number | null; banned: boolean; reason: string } | null {
+  if (a.banned) return { until: null, banned: true, reason: a.suspend_reason ?? '' };
+  if (a.suspended_until && a.suspended_until > now) return { until: a.suspended_until, banned: false, reason: a.suspend_reason ?? '' };
+  return null;
+}
+const publicAccount = (a: Account) => { const sp = suspensionOf(a); return { id: a.id, email: a.email, name: a.name, plan: a.plan, hasPassword: !!a.password_hash, kind: a.kind ?? null, ...(sp ? { suspension: sp } : {}) }; };
 /** /api/me 용: 운영자 여부 (홈 운영 배너, 2026-10-22) */
 
 /** 새 세션 (reset = 비밀번호 재설정 링크로 들어온 세션: 15분 동안 현재 비밀번호 없이 새 비밀번호 설정 가능) */
@@ -66,6 +79,7 @@ async function signup(req: Request, env: Env): Promise<Response> {
   const exists = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
   if (typeof body?.teamInvite === 'string') return inviteSignup(env, email, body.password!, name, body.teamInvite, exists);
   if (exists?.email_verified) return text('already registered', 409);
+  if (await bannedEmail(env, email)) return json({ error: 'banned' }, 403); // 영구 정지 뒤 탈퇴 1년 (2026-10-27)
   // 이메일 가입은 간판집·가게 사장 모두 사업자 확인 (2026-10-24) — 확인된 사업자끼리만 만나도록. 카카오 가입은 그대로
   if (!body?.business || typeof body.business !== 'object') return json({ error: 'business_required' }, 400);
   const biz = await checkBusiness(env, body.business, exists?.id ?? null);
@@ -77,8 +91,8 @@ async function signup(req: Request, env: Env): Promise<Response> {
     await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ? WHERE id = ?').bind(hash, name || exists.name, exists.id).run();
   } else {
     id = crypto.randomUUID();
-    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)')
-      .bind(id, email, name, 'free', Date.now(), hash).run();
+    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)')
+      .bind(id, email, name, 'free', Date.now(), hash, TERMS_VERSION, Date.now()).run();
   }
   await saveBusiness(env, id!, biz);
   return sendLink(env, email, 'verify', nextPath(body?.next));
@@ -97,7 +111,7 @@ async function inviteSignup(env: Env, email: string, password: string, name: str
     await env.DB.prepare('UPDATE team_invites SET email = ? WHERE token_hash = ?').bind(email, inv.token_hash).run();
     const h = await hashPassword(password);
     if (exists) await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ? WHERE id = ?').bind(h, name || exists.name, exists.id).run();
-    else await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 0)').bind(crypto.randomUUID(), email, name, 'free', Date.now(), h).run();
+    else await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)').bind(crypto.randomUUID(), email, name, 'free', Date.now(), h, TERMS_VERSION, Date.now()).run();
     return sendLink(env, email, 'verify', null, { verify: true });
   }
   if (inv.email !== email) return json({ error: 'email_mismatch' }, 403);
@@ -106,7 +120,7 @@ async function inviteSignup(env: Env, email: string, password: string, name: str
   if (exists) await env.DB.prepare('UPDATE accounts SET password_hash = ?, name = ?, email_verified = 1 WHERE id = ?').bind(hash, name || exists.name, exists.id).run();
   else {
     id = crypto.randomUUID();
-    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified) VALUES (?, ?, ?, ?, ?, ?, 1)').bind(id, email, name, 'free', Date.now(), hash).run();
+    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)').bind(id, email, name, 'free', Date.now(), hash, TERMS_VERSION, Date.now()).run();
   }
   const account = (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first<Account>())!;
   return json({ session: await newSession(env, id!), account: publicAccount(account) });

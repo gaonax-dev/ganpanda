@@ -144,3 +144,13 @@ export const listBypassReports = () => call<{ reports: BypassReport[] }>('/api/o
 export const resolveBypassReport = (id: string, action: 'penalize' | 'dismiss', accountId?: string) => call<{ ok: true }>(`/api/operator/reports/${id}`, { method: 'POST', body: JSON.stringify({ action, ...(accountId ? { accountId } : {}) }) });
 export const unblockRequests = (accountId: string) => call<{ ok: true }>(`/api/operator/accounts/${encodeURIComponent(accountId)}/unblock`, { method: 'POST', body: '{}' });
 
+// ---- 이용 정지 · 이의 신청 · 운영자 계정 조치 (2026-10-27 약관 개정안 제5조의2) ----
+export const postAppeal = (text: string) => call<{ ok: true; id: string }>('/api/me/appeals', { method: 'POST', body: JSON.stringify({ text }) });
+export type MemberAction = 'warn' | 'suspend' | 'ban' | 'lift';
+export interface MemberRecord { id: string; email: string; name: string; createdAt: number; status: 'active' | 'suspended' | 'banned'; until: number | null; reason: string; requestsBlocked: boolean; actions: { action: MemberAction; reason: string; until: number | null; by: string; at: number }[] }
+export const searchMembers = (q: string) => call<{ members: MemberRecord[] }>(`/api/operator/members?q=${encodeURIComponent(q)}`).then((r) => r.members);
+export const actOnMember = (id: string, action: MemberAction, reason: string, days?: number) => call<{ ok: true }>(`/api/operator/members/${encodeURIComponent(id)}/action`, { method: 'POST', body: JSON.stringify({ action, reason, ...(days ? { days } : {}) }) });
+export interface Appeal { id: string; accountId: string; email: string; name: string; text: string; status: 'open' | 'accepted' | 'rejected'; reply: string; createdAt: number; resolvedAt?: number }
+export const listAppeals = () => call<{ appeals: Appeal[] }>('/api/operator/appeals').then((r) => r.appeals);
+export const decideAppeal = (id: string, decision: 'accept' | 'reject', reply: string) => call<{ ok: true }>(`/api/operator/appeals/${id}`, { method: 'POST', body: JSON.stringify({ decision, reply }) });
+

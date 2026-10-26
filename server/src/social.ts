@@ -1,7 +1,7 @@
 // 소셜 로그인 (1-2d): 카카오·구글·애플. 서버가 OAuth 전 과정을 처리하고 세션을 앱(/login#session=)으로 넘긴다.
 import { acceptInviteToken, acceptTeamInvites } from './team';
 import { json, randomToken, sha256hex, text } from './http';
-import { normalizeEmail, type Account, markEmailVerified } from './auth';
+import { normalizeEmail, type Account, markEmailVerified, TERMS_VERSION, bannedEmail } from './auth';
 import { appleClientSecret, verifyJwtRS256 } from './oauth/jwt';
 
 export type Provider = 'kakao' | 'google' | 'apple';
@@ -87,8 +87,9 @@ async function accountFor(env: Env, id: Identity): Promise<Account> {
   let account = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
   if (account && id.email) account = await markEmailVerified(env, account); // 공급자가 확인한 이메일
   if (!account) {
+    if (await bannedEmail(env, email)) throw new Error('banned'); // 영구 정지 뒤 탈퇴 1년 (2026-10-27)
     account = { id: crypto.randomUUID(), email, name: id.name ?? '', plan: 'free', created_at: now };
-    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, email_verified) VALUES (?, ?, ?, ?, ?, ?)').bind(account.id, account.email, account.name, account.plan, account.created_at, id.email ? 1 : 0).run();
+    await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, email_verified, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(account.id, account.email, account.name, account.plan, account.created_at, id.email ? 1 : 0, TERMS_VERSION, now).run(); // 카카오 단추 아래 "시작하면 동의" 안내 (2026-10-27)
   } else if (!account.name && id.name) {
     await env.DB.prepare('UPDATE accounts SET name = ? WHERE id = ?').bind(id.name, account.id).run();
     account = { ...account, name: id.name };
@@ -127,7 +128,9 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
 
   const identity = await exchange(env, p, code, redirect, { user: params.get('user') ?? '' });
   if (!identity) return text('provider error', 502);
-  const account = await accountFor(env, identity);
+  let account: Account;
+  try { account = await accountFor(env, identity); }
+  catch (e) { if (e instanceof Error && e.message === 'banned') return text('이 계정은 이용이 정지되어 다시 가입할 수 없습니다. 문의: support@ganpanda.co.kr', 403); throw e; }
   const session = randomToken();
   await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
     .bind(await sha256hex(session), account.id, Date.now(), Date.now() + SESSION_TTL).run();

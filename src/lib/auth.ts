@@ -1,7 +1,7 @@
 // 계정 API 클라이언트 (1-2a): 이메일 매직링크 → 세션 Bearer 토큰 (localStorage 'ganpanda.session')
 import { SERVER_URL } from './sync';
 
-export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean; /** 계정 종류 (2026-10-22): 간판집 · 가게 사장 · 아직 안 정함 */ kind?: 'shop' | 'consumer' | null; /** 운영자 (OPERATOR_EMAILS, 2026-10-22) — 홈에 운영 배너 */ operator?: boolean }
+export interface Account { id: string; email: string; name: string; plan: string; hasPassword?: boolean; /** 계정 종류 (2026-10-22): 간판집 · 가게 사장 · 아직 안 정함 */ kind?: 'shop' | 'consumer' | null; /** 운영자 (OPERATOR_EMAILS, 2026-10-22) — 홈에 운영 배너 */ operator?: boolean; /** 이용 정지 (2026-10-27 약관 제5조의2) — until null = 영구 */ suspension?: { until: number | null; banned: boolean; reason: string } }
 /** 요금제 이름 (옛 starter 는 베이직) */
 export const PLAN_LABEL: Record<string, string> = { free: '무료', basic: '베이직', starter: '베이직', pro: '프로' };
 /** members = 팀 멤버 수(소유자 제외, 2026-10-21 — 전엔 동시 작업 인원), proposals = 이번 달 제안 링크 수 (proposalsPerMonth null = 무제한) */
@@ -135,6 +135,7 @@ export function describeAuthError(e: unknown, kind: 'link' | 'login' | 'signup' 
   }
   if (kind === 'signup') {
     if (s === 409) return '이미 가입된 이메일입니다. 로그인하거나 [비밀번호 찾기]로 비밀번호를 정하세요.';
+    if (s === 403 && e instanceof AuthError && e.message.includes('banned')) return '이용이 정지되었던 이메일이라 가입할 수 없습니다. 문의: support@ganpanda.co.kr'; // 약관 개정안 제3조의2 (2026-10-27)
     if (s === 400) return `이메일 주소와 비밀번호(${PASSWORD_MIN}자 이상)를 확인해 주세요.`;
   }
   if (kind === 'password') {
