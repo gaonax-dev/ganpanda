@@ -108,16 +108,6 @@ function freeSpot(placed: Rect[], x: number, y: number, w: number, h: number, ga
 export const SPREAD_MAX = 1.5;
 
 /**
- * 사진마다 실제 벽 축척 mm / 보드 px (2026-10-26): 그 사진의 치수 있는 사인물(실제 mm ÷ 사진 속 폭) 중앙값, 없으면 전체 중앙값, 아무것도 없으면 fallback.
- * 사진마다 거리가 달라 한 축척으로 옮기면 가까이 찍은 사진의 카드가 사진보다 멀리 흩어졌다(현장 "폴딩시트" 네 장)
- */
-export function photoScales(samples: { photo: number; r: number }[], n: number, fallback: number): { all: number; each: number[] } {
-  const med = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
-  const all = samples.length ? med(samples.map((x) => x.r)) : fallback;
-  return { all, each: Array.from({ length: n }, (_, i) => { const a = samples.filter((x) => x.photo === i).map((x) => x.r); return a.length ? med(a) : all; }) };
-}
-
-/**
  * 카드 정렬 = **사진과 같은 비율** (2026-10-22): photos 는 평면 mm(보드 px × 실제 벽 축척 — 호출자가 치수 있는 사인물로 구한다), 카드 가운데 = 그 사진 속 사인물 가운데.
  * 카드는 실제 mm 크기라 사진 속 넓이와 다르므로 겹치면 큰 카드부터 자리를 잡고, 겹친 카드는 오른쪽·왼쪽·아래·위 중 덜 움직이는 쪽으로 간격(gap)을 두고 비킨다(이름 줄 labelMm 도 겹침으로).
  * 사진 묶음은 사진 자리 그대로(행·열) — 묶음끼리 겹치면 오른쪽·아래로. 결과: x 는 가장 왼쪽 사진 기준, 맨 위 = 0 → ✥(카드 묶음 왼쪽 위)가 기본 자리(호출자가 flatOffset 도 0 으로).
@@ -158,7 +148,8 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const g = groups.get(p)!;
     if (pg[p].r !== row) { row = pg[p].r; rowTop = prevBottom === -Infinity ? -Infinity : prevBottom + gap * 2; right = -Infinity; }
     const b = bounds(g);
-    const dx = Math.max(0, right === -Infinity ? 0 : right + gap * 2 - b.x0), dy = Math.max(0, rowTop === -Infinity ? 0 : rowTop - b.y0);
+    // 위는 사진 줄마다 맞춘다 (2026-10-26 "사진과 사진소속 [카드]들의 간격 너무 크다" — 전엔 사진 아래쪽 사인물의 카드가 사진 속 높이만큼 내려가 시작했다)
+    const dx = Math.max(0, right === -Infinity ? 0 : right + gap * 2 - b.x0), dy = (rowTop === -Infinity ? 0 : rowTop) - b.y0;
     for (const q of g) { q.x += dx; q.y += dy; }
     right = b.x1 + dx; prevBottom = Math.max(prevBottom, b.y1 + dy);
   }
