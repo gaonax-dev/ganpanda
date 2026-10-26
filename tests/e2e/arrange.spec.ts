@@ -104,8 +104,9 @@ test('✥ 를 누르면 카드 배열(전체 외곽선·재정렬·간격), [재
   expect((await listOf(page))['문']).toEqual([20000, 20000]);
   await page.getByTestId('flat-rearrange').click();
   expect((await listOf(page))['문']).toEqual(before);
-  // 완료 → 외곽선·단추 사라짐
-  await page.getByTestId('flat-arrange-done').click();
+  // 빈 곳을 탭하면 끝 → 외곽선·단추 사라짐 ([완료] 단추는 2026-10-26 뺌)
+  const cv = (await page.getByTestId('board-canvas').boundingBox())!;
+  await page.mouse.click(cv.x + 20, cv.y + 20);
   await expect(page.getByTestId('flat-outline')).toHaveCount(0);
   await expect(page.getByTestId('flat-rearrange')).toHaveCount(0);
 });

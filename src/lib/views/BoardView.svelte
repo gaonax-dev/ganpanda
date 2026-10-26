@@ -7,6 +7,7 @@
   import { untrack } from 'svelte';
   import { nextPhotoName } from '../core/photoName';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
+  import FlatBar from '../ui/FlatBar.svelte';
   import TouchHelp from '../ui/TouchHelp.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
@@ -615,6 +616,7 @@
           <small>또는 사진을 여기로 끌어다 놓으세요</small>
         </div>
       {/if}
+  {#if app.flatArrange && app.canEdit && app.flatCards.length && !(app.multi.length && !app.compact)}<FlatBar />{/if}
         {#if app.multi.length && app.canEdit && !app.compact}
     <!-- 다중 선택 작업 막대 (2026-10-17 사용자: "다중선택 시 작동 버튼 나오게 삭제, 복사, 마지막 선택 구성으로 맞추기") -->
     <div class="multibar" data-testid="multi-bar">

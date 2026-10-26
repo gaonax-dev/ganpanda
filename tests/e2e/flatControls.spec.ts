@@ -37,13 +37,22 @@ test('정면도 카드 묶음: ✥ 와 크기 손잡이 모두 누르면 배열 
   await expect(bar).toHaveCount(0);
 });
 
-test('글·단추는 상단 헤더 막대에 (재정렬·간격·고정·축척·완료), 카드 묶음 아래 도구 줄은 없다 — [고정]을 켜면 카드를 끌어도 움직이지 않는다', async ({ page, request }) => {
+// 2026-10-26 "대지 제어툴바 하단으로 이동시켜줘" — 2026-10-23 상단 헤더 막대는 대체됨
+// 같은 날 "재정렬, 간격, 비율,고정 만 보이게 그리고 간격과 비율의 +-는 버튼으로 디자인 변경해줘" — [완료]는 없음(빈 곳을 탭하면 끝)
+test('대지 도구 막대(재정렬 · 간격 −/+ · 비율 −/+ · 고정)는 하단 도구 막대 위에, 상단 작업 탭은 그대로 — [고정]을 켜면 카드를 끌어도 움직이지 않는다', async ({ page, request }) => {
   await setup(page, request);
   await expect(page.getByTestId('flat-label')).toHaveCount(0);
   await tap(page, 'flat-move');
   const bar = page.getByTestId('flat-bar');
-  for (const id of ['flat-rearrange', 'flat-gap-up', 'flat-lock', 'flat-scale-up', 'flat-arrange-done']) await expect(bar.getByTestId(id)).toBeVisible();
-  await expect(page.getByTestId('work-tabs')).toBeHidden(); // 막대가 작업 탭 자리에
+  for (const id of ['flat-rearrange', 'flat-gap-down', 'flat-gap-up', 'flat-scale-down', 'flat-scale-up', 'flat-lock']) await expect(bar.getByTestId(id)).toBeVisible();
+  await expect(bar.getByTestId('flat-arrange-done')).toHaveCount(0);
+  await expect(bar).toContainText('간격');
+  await expect(bar).toContainText('비율');
+  for (const id of ['flat-gap-up', 'flat-scale-up']) { const r = (await bar.getByTestId(id).boundingBox())!; expect(r.width).toBeGreaterThanOrEqual(30); expect(r.height).toBeGreaterThanOrEqual(30); } // −/+ 는 누르기 좋은 단추
+  await expect(page.getByTestId('work-tabs')).toBeVisible(); // 상단은 그대로
+  const vb = page.viewportSize()!, bb = (await bar.boundingBox())!, tb = (await page.locator('div.tools[role="toolbar"]').boundingBox())!;
+  expect(bb.y).toBeGreaterThan(vb.height * 0.6); // 화면 아래쪽
+  expect(bb.y + bb.height).toBeLessThanOrEqual(tb.y + 1); // 하단 도구 막대 바로 위 (겹치지 않음)
   await bar.getByTestId('flat-lock').click();
   await expect(bar.getByTestId('flat-lock')).toHaveClass(/on/);
   expect(await page.evaluate(() => (window as unknown as G).__ganpanda.settings.flatLocked)).toBe(true);
@@ -51,7 +60,8 @@ test('글·단추는 상단 헤더 막대에 (재정렬·간격·고정·축척�
   const b = (await card.boundingBox())!;
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 80, b.y + b.height / 2 + 40, { steps: 4 }); await page.mouse.up();
   expect(await page.evaluate(() => { const o = (window as unknown as G).__ganpanda.objects[0]; return [o.listX, o.listY]; })).toEqual([0, 0]);
-  await bar.getByTestId('flat-arrange-done').click();
+  const c = (await page.getByTestId('board-canvas').boundingBox())!;
+  await page.mouse.click(c.x + 30, c.y + 30); // 빈 곳을 탭하면 끝
   await expect(bar).toHaveCount(0);
   await expect(page.getByTestId('work-tabs')).toBeVisible();
 });
@@ -64,6 +74,7 @@ test.describe('휴대폰', () => {
     await expect(page.getByTestId('mobile-edit')).toBeVisible(); // 사인물 도구
     await page.getByTestId('flat-move').tap();
     await expect(page.getByTestId('flat-bar')).toBeVisible(); // 대지 도구
+    for (const id of ['flat-rearrange', 'flat-gap-up', 'flat-scale-up', 'flat-lock']) expect((await page.getByTestId(id).boundingBox())!.x + (await page.getByTestId(id).boundingBox())!.width).toBeLessThanOrEqual(390); // 한 화면에 다 (2026-10-26)
     await expect(page.getByTestId('mobile-edit')).toHaveCount(0);
     expect(await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string | null } }).__ganpanda.selectedId)).toBeNull();
   });

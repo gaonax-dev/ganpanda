@@ -158,7 +158,6 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   await expect.poll(async () => (await card.boundingBox())!.x - cb.x).toBeGreaterThan(40);
   expect(await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: { objects: { id: string; listX?: number; listY?: number }[] } }).__ganpanda.objects.find((x) => x.id === id)!; return [o.listX, o.listY]; }, ids.master)).toEqual(posBefore);
   // 리스트 뷰의 카드가 그 자리에 (world mm = listX/listY) — 축척·이동은 보드 그리기만 바꾸고 mm 배치는 그대로
-  await page.getByTestId('flat-arrange-done').click(); // 배열 막대가 작업 탭 자리를 쓰므로 먼저 닫는다 (2026-10-23)
   await page.getByTestId('view-list').click();
   const listPos = await page.evaluate(() => { const el = document.querySelector('[data-testid="list-card"]') as HTMLElement; return [parseFloat(el.style.left), parseFloat(el.style.top)]; });
   expect(listPos).toEqual(pos);
