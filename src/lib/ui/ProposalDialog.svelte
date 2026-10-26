@@ -7,6 +7,7 @@
   import { proposalProblems, type ProposalInfo } from '../core/proposal';
   import { SERVER_URL } from '../sync';
   import { won } from '../core/quote';
+  import QuoteChange from './QuoteChange.svelte';
 
   let busy = $state('');
   let error = $state('');
@@ -52,6 +53,8 @@
       app.updateSettings({ proposal: info });
       const inv = await createInvite(app.room, 'viewer', 'proposal');
       link = `${SERVER_URL}/p/${app.room}/${inv.token}`;
+      // 발행 = 박제 (2026-10-26): 고객에게는 이 발행본만 보인다 — 이후 단가·원가·배수가 바뀌어도 그대로
+      app.issueQuote(info.id, note.trim() || undefined);
       copied = false;
       if (app.access.status === 'ok' && app.access.credit) app.creditReserved(); // 예약 — 고객이 열면 결제되고 가게 정보·연락처가 열린다
     } catch (e) {
@@ -85,6 +88,16 @@
         <section>
           <h3>내용</h3>
           <p class="sum" data-testid="proposal-summary">사인물 {app.signs.length}개 · 사진 {app.photos.filter((p) => app.signs.some((o) => o.photoId === p.id)).length}장 · 합계 {won(app.quote.total)}{app.quote.vatIncluded ? ' (부가세 포함)' : ' (부가세 포함)'}</p>
+          {#if app.latestIssue}
+            <p class="issued" data-testid="proposal-issued">발행 #{app.latestIssue.no} · {date(app.latestIssue.at)} · 합계 {won(app.latestIssue.snapshot.total)}{#if !app.issueChanged} — <b>지금 내용 그대로</b>{:else} — <b>발행 뒤 바뀜</b>, 다시 발행하면 고객에게 변경 견적 #{app.latestIssue.no + 1}으로 갑니다{/if}</p>
+          {/if}
+          {#if app.issueChanged && app.draftDiff}
+            <!-- 고객에게 이렇게 보입니다 (2026-10-26 고객 안전장치): 계약 견적(없으면 마지막 발행본)과 비교 -->
+            <div class="preview" data-testid="proposal-change-preview">
+              <h3>고객에게 이렇게 보입니다</h3>
+              <QuoteChange diff={app.draftDiff.diff} risks={app.draftDiff.risks} baseLabel={app.customerQuote.contract ? `계약 #${app.draftDiff.base.no}` : `발행 #${app.draftDiff.base.no}`} nextLabel="이번 발행" />
+            </div>
+          {/if}
           <label>고객에게 한마디 (선택)<textarea data-testid="proposal-note" rows="2" bind:value={note} placeholder="예: 야간 모습도 꼭 확인해 보세요. 궁금한 점은 사인물마다 질문 남겨 주세요."></textarea></label>
         </section>
       {/if}
@@ -102,7 +115,7 @@
         {#if busy}
           <p class="busy" data-testid="proposal-busy">{busy}</p>
         {:else}
-          <button class="btn primary" data-testid="proposal-build" disabled={!!problems.length} onclick={build}>{proposal ? '새 링크 발급' : '링크 발급'}</button>
+          <button class="btn primary" data-testid="proposal-build" disabled={!!problems.length} onclick={build}>{app.latestIssue && app.issueChanged ? `변경 견적 발행 (#${app.latestIssue.no + 1})` : proposal ? '새 링크 발급' : '링크 발급'}</button>
         {/if}
         {#if error}<p class="warn" data-testid="proposal-error">{error}</p>{/if}
         {#if needCard}<button class="btn small" data-testid="proposal-card" onclick={() => { close(); app.settingsOpen = true; }}>카드 등록하러 가기</button>{/if}
@@ -144,4 +157,7 @@
   label { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
   label > textarea { flex: 1; min-width: 0; white-space: normal; }
   textarea { width: 100%; box-sizing: border-box; }
+  .issued { font-size: 13px; color: var(--muted); margin: 4px 0; }
+  .preview { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 6px 0; }
+  .preview h3 { margin: 0 0 6px; font-size: 13px; }
 </style>

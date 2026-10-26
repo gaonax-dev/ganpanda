@@ -19,6 +19,16 @@ test('줄의 단가 칸에 넣으면 그 줄만 수량 × 단가, [이 견적 �
   await unit(a).getByTestId('line-unit').press('Enter');
   await expect(line(a).getByTestId('line-amount')).toHaveValue('90000');
   await expect(line(b).getByTestId('line-amount')).toHaveValue(''); // 새 프로젝트는 수동 — B 는 아직 입력 전
+  await expect(unit(a).getByTestId('line-unit-original')).toHaveText(/원래 [\d,]+원/); // 임시 가격 옆에 원래 가격 (2026-10-26)
+  // 전체에 적용하는 단추는 늘 확인 창 — 무엇에 적용되는지 (2026-10-26 "항상 확인이 필요한건 전체 적용된다는 표시")
+  const msgs: string[] = [];
+  let answer = false;
+  page.on('dialog', (d) => { msgs.push(d.message()); void (answer ? d.accept() : d.dismiss()); });
+  await unit(a).getByTestId('line-unit-apply').click();
+  await expect.poll(() => msgs.length).toBe(1);
+  expect(msgs[0]).toContain('이 견적 전체 적용');
+  await expect(line(b).getByTestId('line-amount')).toHaveValue(''); // 취소하면 그대로
+  answer = true;
   // 이 견적 전체: 같은 품목(갈바) 줄 모두 50,000원/㎡
   await unit(a).getByTestId('line-unit-apply').click();
   await expect(line(b).getByTestId('line-amount')).toHaveValue('50000'); // 1.0㎡ × 50,000
@@ -29,6 +39,8 @@ test('줄의 단가 칸에 넣으면 그 줄만 수량 × 단가, [이 견적 �
   await unit(b).getByTestId('line-unit').press('Enter');
   await unit(b).getByTestId('line-unit-account').click();
   await expect(unit(b).getByTestId('line-unit-saved')).toBeVisible();
+  expect(msgs.at(-1)).toContain('전체 적용');
+  expect(msgs.at(-1)).toContain('발행한 견적은 그대로');
   const mine = await (await request.get(`${SERVER}/api/me/prices`, { headers: { authorization: `Bearer ${session}` } })).json();
   expect(mine.prices.products['board-galva']).toBe(60000);
   await expect(line(a).getByTestId('line-amount')).toHaveValue('108000'); // 1.8㎡ × 60,000 — 이 견적에도

@@ -11,7 +11,8 @@ import { layoutList } from './core/layout';
 import { arrangeLikePhotos, homeOf } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
-import { mergePrices, type PriceTable } from './core/pricing';
+import { mergePrices, type Markup, type PriceTable } from './core/pricing';
+import { applyMarkup } from './core/markup';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
@@ -32,6 +33,7 @@ import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
+import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -61,7 +63,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
-  | { status: 'ok'; role: Role; projectName: string; /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }
+  | { status: 'ok'; role: Role; projectName: string; /** 원가 배수 — 소유자 계정 전체 설정 (2026-10-26 "원가는 전체 변경이다"). 소유자·팀에게만, null = 아직 없음 */ costMarkup?: import('./core/pricing').Markup | null;  /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }
   | { status: 'denied'; code: 401 | 403 | 404 | 0 };
 
 class AppState {
@@ -442,7 +444,51 @@ class AppState {
   converting = $state(false);
   settings = $derived.by<ProjectSettings>(() => (this.version, this.project.settings()));
   /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
-  prices = $derived<PriceTable>(mergePrices(this.settings.prices ?? this.accountPrices));
+  /**
+   * 견적 단가표: 프로젝트 단가표에 원가 배수는 소유자 계정의 전체 설정을 덮어 쓴다 (2026-10-26 "원가는 전체 변경이다") — 연결된 항목은 공급 원가 × 이 배수.
+   * 발행본은 박제라 영향 없음. 고객(보기)에게는 전체 배수가 없어 프로젝트 단가표 그대로(고객은 발행본을 본다)
+   */
+  prices = $derived.by<PriceTable>(() => {
+    const base = mergePrices(this.settings.prices ?? this.accountPrices);
+    // 발행한 견적은 다시 열어도 발행 당시 원가 그대로 ("그간 원가 견적 금액이 변경되어도 이전에 발행 상태로") — 전체 배수는 발행 전 견적에만
+    const m = this.access.status === 'ok' && !this.settings.issues?.length ? this.access.costMarkup : undefined;
+    return m ? applyMarkup(base, m) : base;
+  });
+  /** 원가 배수를 바꿀 수 있나: 프로젝트 밖(내 계정) 또는 소유자 — 팀 멤버는 대표 계정 설정을 바꾸지 않는다 */
+  get canEditCost(): boolean { return !!this.account && (!this.room || this.role === 'owner'); }
+  /** 지금 원가 배수 (전체) */
+  get globalMarkup(): Markup | undefined { return (this.access.status === 'ok' && this.access.costMarkup) || mergePrices(this.accountPrices).markup; }
+  /**
+   * 원가 배수 바꾸기 — 전체 적용 (2026-10-26 "원가는 전체 변경이다. 항상 대화창으로 확인"): 확인은 부르는 쪽이(askConfirm) 한다.
+   * 내 계정 단가표의 배수만 바꿔 저장 → 이 프로젝트와 아직 발행하지 않은 모든 견적에 바로, 발행본은 그대로
+   */
+  async setGlobalMarkup(markup: Markup) {
+    if (!this.canEditCost) return;
+    const mine = mergePrices(this.accountPrices);
+    const saved: PriceTable = applyMarkup(mine, markup);
+    await savePrices(saved);
+    this.accountPrices = saved;
+    if (this.access.status === 'ok') this.access = { ...this.access, costMarkup: markup };
+    this.syncGlobalCost();
+  }
+  /**
+   * 이 프로젝트 단가표의 배수를 전체 설정과 같게 저장 — 연결이 풀린 항목(직접 출력 등)이 옛 단가로 돌아가지 않게.
+   * 편집 권한·문서 동기화 뒤에만 (App.svelte $effect). 발행본은 박제라 그대로
+   */
+  /** 발행한 견적인데 전체 원가 배수가 그 뒤 바뀜 — 사장이 [현재 원가로 다시 계산]하면 변경 견적이 된다 */
+  get costOutdated(): boolean {
+    return !!this.settings.issues?.length && this.access.status === 'ok' && !!this.access.costMarkup && JSON.stringify(mergePrices(this.settings.prices ?? null).markup ?? null) !== JSON.stringify(this.access.costMarkup);
+  }
+  /** 발행한 견적을 현재 전체 원가로 다시 계산 (확인은 부르는 쪽) — 바뀐 금액은 다시 발행해야 고객에게 */
+  recalcWithCurrentCost() {
+    if (!this.canEdit || this.access.status !== 'ok' || !this.access.costMarkup) return;
+    this.updateSettings({ prices: applyMarkup(mergePrices(this.settings.prices ?? this.accountPrices), this.access.costMarkup) });
+  }
+  syncGlobalCost() {
+    if (!this.canEdit || !this.synced || this.access.status !== 'ok' || !this.access.costMarkup || !this.settings.prices || this.settings.issues?.length) return;
+    if (JSON.stringify(this.settings.prices.markup ?? null) === JSON.stringify(this.access.costMarkup)) return;
+    this.updateSettings({ prices: applyMarkup(mergePrices(this.settings.prices), this.access.costMarkup) });
+  }
   quote = $derived(quoteProject(
     // 치수가 없어도 개(1식) 단위 종류(사인미러·전광판·지주·에어간판)는 견적에 넣는다 (2026-10-15 한울 조합형)
     this.signs.flatMap((o) => { const sz = this.sizeOf(o); return sz ? [{ ...o, widthMm: sz.w, heightMm: sz.h }] : productById(signParts(o).bodyId)?.unit === 'ea' ? [o] : []; }),
@@ -457,6 +503,33 @@ class AppState {
   contentHash = $derived(contentHash(this.signs, (o) => this.sizeOf(o), this.quote));
   /** 최신 승인과 현재 내용의 관계 */
   approval = $derived(approvalState(this.settings.approvals, this.contentHash));
+  /** 발행 견적 (2026-10-26 박제) — 최신이 뒤 */
+  issues = $derived<IssuedQuote[]>(this.settings.issues ?? []);
+  latestIssue = $derived<IssuedQuote | null>(this.issues.at(-1) ?? null);
+  /** 지금 내용을 발행본 모양으로 (비교용, 아직 발행 안 함) */
+  draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash }));
+  /** 발행 뒤 사장이 고쳐 지금 내용이 마지막 발행본과 다름 — 고객에게는 안 보인다, 다시 발행해야 */
+  issueChanged = $derived(!!this.latestIssue && this.latestIssue.hash !== this.contentHash);
+  /** 고객이 보는 견적: 발행본·계약 견적·변경 견적 대기·거절 */
+  customerQuote = $derived(customerView(this.issues, this.settings.approvals ?? []));
+  /** 사장 화면: 지금 내용 vs 기준(계약 견적, 없으면 마지막 발행본) — 차이와 고객 안전장치 */
+  draftDiff = $derived.by(() => {
+    const base = this.customerQuote.contract ?? this.latestIssue;
+    if (!base) return null;
+    const diff = diffIssued(base, this.draftIssue);
+    return { base, diff, risks: customerRisks(diff) };
+  });
+  /**
+   * 견적 발행 (2026-10-26 "견적을 발행하고 다시 호출할땐 그간 원가 견적 금액이 변경되어도 이전에 발행 상태로"): 제안 링크를 발급할 때.
+   * 지금 사양·견적 줄·합계를 값 그대로 박제한다 — 이후 단가표·원가·배수가 바뀌어도 이 발행본은 그대로. 같은 내용이면 새로 만들지 않는다
+   */
+  issueQuote(id: string, note?: string): IssuedQuote | null {
+    if (!this.canEdit) return null;
+    if (this.latestIssue && this.latestIssue.hash === this.contentHash) return this.latestIssue;
+    const q = issueOf({ ...this.draftIssue, id, at: Date.now(), by: this.nickname, ...(note ? { note } : {}) });
+    this.updateSettings({ issues: [...this.issues, q].slice(-50) });
+    return q;
+  }
   /** 사인물·번호 대화의 안 읽은 수 (톡은 따로 → talkUnreadInfo) */
   unreadTotal = $derived(Object.entries(this.unread).reduce((a, [k, n]) => (roomIdOf(k) === null ? a + n : a), 0));
   /** 톡: 보이는 방의 안 읽은 수 (상단 [톡] 단추) */
@@ -941,11 +1014,21 @@ class AppState {
     for (const o of this.signs) { const sz = this.sizeOf(o); out[o.id] = signHash(o, sz ? { w: sz.w, h: sz.h } : null, this.quote.lines.filter((l) => l.objectId === o.id).reduce((a, l) => a + l.amount, 0)); }
     return out;
   }
+  /** 진행 동의: 발행본이 있으면 고객이 보고 있는 그 발행본에 (서버가 문서의 발행본으로 기록 — 2026-10-26), 없으면 지금 내용 */
   async approve(by: string, excluded: string[] = []) {
     if (!this.room) throw new Error('방이 없습니다');
     this.setNickname(by);
+    const shown = this.customerQuote.shown;
+    if (shown) { await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: shown.hash, snapshot: shown.snapshot, proposalId: shown.id, ...(excluded.length ? { excluded } : {}) }); return; }
     const snapshot = { ...snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), signHashes: this.signHashes };
     await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: this.contentHash, snapshot, proposalId: this.settings.proposal?.id, ...(excluded.length ? { excluded } : {}) });
+  }
+  /** 변경 견적 거절 → 계약 견적대로 진행 (2026-10-26 "고객이 거절하면 계약 견적으로 진행") */
+  async rejectChange(by: string) {
+    const p = this.customerQuote.pending;
+    if (!this.room || !p) return;
+    this.setNickname(by);
+    await postApproval(this.room, this.role === 'owner' ? null : this.invite, { by, hash: p.hash, snapshot: p.snapshot, proposalId: p.id, decision: 'rejected' });
   }
 
   updateSettings(patch: Partial<ProjectSettings>) {
@@ -1001,7 +1084,7 @@ class AppState {
     if (SERVER_URL) {
       try {
         const a = await checkAccess(room, this.invite);
-        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.credit ? { credit: a.credit } : {}) };
+        this.access = { status: 'ok', role: a.role, projectName: a.project.name, billing: !!a.billing && !this.consumer, branding: !!a.branding, ...(a.business ? { business: a.business } : {}), ...(a.requestId ? { requestId: a.requestId } : {}), ...(a.outsource ? { outsource: true } : {}), ...(a.lost ? { lost: true } : {}), ...(a.credit ? { credit: a.credit } : {}), ...(a.costMarkup !== undefined ? { costMarkup: a.costMarkup } : {}) };
         // 사진 보드만 보는 고객(보기 초대)은 탭이 없으니 디자인(2D)으로 — 실측 화면에서 시작하면 디자인이 안 보인다 (2026-10-22 작업 탭)
         if (a.role === 'viewer' && !this.requestView) this.stage = '2d';
         const session = loadSession();

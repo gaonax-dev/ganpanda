@@ -78,17 +78,45 @@ test('제안 보내기: [링크 발급](실사 이미지 안 만듦, 2026-10-24)
   await expect(page.getByTestId('approval-status')).toContainText('홍길동');
   await expect(page.getByTestId('toast').filter({ hasText: '진행에 동의' })).toHaveCount(1); // 2026-10-22 진행 동의 → 제작
 
-  // 제작자가 치수를 바꾸면 → 변경됨 (양쪽)
+  // 제작자가 치수를 바꾸면 → 사장 화면은 변경됨 · "발행 뒤 바뀜", 고객에게는 아직 동의한 발행본 그대로 (2026-10-26 발행 견적 박제)
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), (await page.evaluate(() => (window as unknown as { __ganpanda: { signs: { id: string }[] } }).__ganpanda.signs[0].id)));
   await openObjectSettings(page);
   await page.getByTestId('height-mm').fill('1200');
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('approval-status')).toHaveAttribute('data-status', 'changed');
-  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'changed');
-  await expect(pg.getByTestId('proposal-approve')).toContainText('다시 확인');
-  // 승인 기록은 남아 있다
-  const approvals = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { approvals: { by: string; snapshot: { items: { size: { h: number } }[] } }[] } } }).__ganpanda.settings.approvals);
-  expect(approvals).toHaveLength(1);
+  await page.getByTestId('view-list').click();
+  await expect(page.getByTestId('issue-banner')).toHaveAttribute('data-changed', 'true');
+  await page.getByTestId('issue-diff-toggle').click();
+  await expect(page.getByTestId('quote-change-item')).toContainText('1000');
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'approved');
+  await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,000'); // 고객에게는 발행본
+  const contractTotal = await pg.getByTestId('proposal-total').textContent();
+
+  // 변경 견적 발행 → 고객: 계약 견적과 비교해 동의·거절
+  await page.getByTestId('issue-reissue').click();
+  const dlg2 = page.getByTestId('proposal-dialog');
+  await expect(dlg2.getByTestId('proposal-change-preview')).toBeVisible(); // 고객에게 이렇게 보입니다
+  await expect(dlg2.getByTestId('proposal-build')).toHaveText('변경 견적 발행 (#2)');
+  await dlg2.getByTestId('proposal-build').click();
+  await expect(dlg2.getByTestId('proposal-link')).toHaveValue(/\/p\//);
+  await dlg2.getByTestId('close-proposal').click();
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'pending-change');
+  await expect(pg.getByTestId('proposal-change')).toContainText('변경 견적 #2');
+  await expect(pg.getByTestId('quote-change-item')).toContainText('1000');
+  await expect(pg.getByTestId('quote-change-item')).toContainText('1200');
+  await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,200');
+  // 거절 → 계약 견적대로
+  await pg.getByTestId('proposal-change-reject').click();
+  await pg.getByTestId('proposal-approver').fill('홍길동');
+  await pg.getByTestId('proposal-change-confirm').click();
+  await expect(pg.getByTestId('proposal-rejected')).toContainText('계약 견적 #1');
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'approved');
+  await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,000');
+  await expect(pg.getByTestId('proposal-total')).toHaveText(contractTotal!);
+  await expect(page.getByTestId('toast').filter({ hasText: '거절' })).toHaveCount(1);
+  // 기록: 동의 1 + 거절 1, 동의한 사본은 처음 치수
+  const approvals = await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { approvals: { by: string; decision?: string; snapshot: { items: { size: { h: number } }[] } }[] } } }).__ganpanda.settings.approvals);
+  expect(approvals.map((a) => a.decision ?? 'agreed')).toEqual(['agreed', 'rejected']);
   expect(approvals[0].snapshot.items[0].size.h).toBe(1000);
   await guest.ctx.close();
   void session;
@@ -126,4 +154,47 @@ test('무료 요금제: 이번 달 제안 링크 3건을 넘으면 안내 (2026-
   await dlg.getByTestId('proposal-build').click();
   await expect(dlg.getByTestId('proposal-error')).toContainText('한 달 3건', { timeout: 30_000 });
   await expect(dlg.getByTestId('proposal-link')).toHaveCount(0);
+});
+
+// 2026-10-26 고객 안전장치: "새로운 제안과 변경이 고객에게 손해가 나거나 … 시스탬적으로 잡아내서 고객에게 안전장치"
+test('사양은 그대로인데 금액만 올린 변경 견적은 고객에게 위험으로 표시, 동의하면 새 계약 · 발행본은 단가가 바뀌어도 그대로', async ({ page, request, browser }) => {
+  await setup(page, request);
+  const issue = async () => {
+    await page.getByTestId('proposal-button').click();
+    const d = page.getByTestId('proposal-dialog');
+    await d.getByTestId('proposal-build').click();
+    await expect(d.getByTestId('proposal-link')).toHaveValue(/\/p\//);
+    const link = await d.getByTestId('proposal-link').inputValue();
+    await d.getByTestId('close-proposal').click();
+    return link;
+  };
+  const link = await issue();
+  const [, room, token] = link.match(/\/p\/([^/]+)\/([^/]+)$/)!;
+  const guest = await openInvited(browser, `http://localhost:5199/?room=${room}&invite=${token}&proposal=1`, '김사장');
+  const pg = guest.getByTestId('proposal-page');
+  const first = await pg.getByTestId('proposal-total').textContent();
+  await pg.getByTestId('proposal-approve-button').click();
+  await pg.getByTestId('proposal-approver').fill('김사장');
+  await pg.getByTestId('proposal-approve-confirm').click();
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'approved');
+
+  // 사장이 단가만 올린다 (사양 그대로) → 고객에게는 아직 계약 금액
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { quote: { lines: { key: string; unitPrice?: number }[] }; setLineUnit(k: string, v: number): void } }).__ganpanda; const l = a.quote.lines.find((x) => x.unitPrice !== undefined)!; a.setLineUnit(l.key, l.unitPrice! * 2); });
+  await expect(pg.getByTestId('proposal-total')).toHaveText(first!);
+  await issue();
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'pending-change');
+  await expect(pg.getByTestId('quote-risk').and(pg.locator('[data-code="price-up-same-spec"]'))).toHaveAttribute('data-level', 'danger');
+  await expect(pg.getByTestId('quote-change-risks')).toContainText('사양은 그대로인데 금액이');
+  // 동의 → 새 계약 (#2)
+  await pg.getByTestId('proposal-change-accept').click();
+  await pg.getByTestId('proposal-approver').fill('김사장');
+  await pg.getByTestId('proposal-change-confirm').click();
+  await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'approved');
+  await expect(pg.getByTestId('proposal-issue-no')).toContainText('견적 #2');
+  const agreed = await pg.getByTestId('proposal-total').textContent();
+  expect(agreed).not.toBe(first);
+  // 발행 뒤 내 단가표를 바꿔도 고객이 보는 발행본은 그대로 (박제)
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { quote: { lines: { key: string; unitPrice?: number }[] }; setLineUnit(k: string, v: number): void } }).__ganpanda; const l = a.quote.lines.find((x) => x.unitPrice !== undefined)!; a.setLineUnit(l.key, 1000); });
+  await expect(pg.getByTestId('proposal-total')).toHaveText(agreed!);
+  await guest.ctx.close();
 });

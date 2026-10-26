@@ -156,11 +156,16 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await page.getByTestId('price-link-sh-print').selectOption('hanwool:hanwool.solvent.백색시트');
   await expect(page.getByTestId('price-sh-print')).toHaveValue('7500');
   const cost = () => page.getByTestId('prices-tab-cost').click(), sale = () => page.getByTestId('prices-tab-sale').click(); // 배수·공급 단가표는 [자재 원가] 탭 (2026-10-26)
+  // 원가 배수는 전체 적용 — 바꿀 때마다 확인 창 (2026-10-26 "원가는 전체 변경이다. 항상 대화창으로 확인")
+  const asked: string[] = [];
+  page.on('dialog', (d) => { asked.push(d.message()); void d.accept(); });
   await cost();
   await page.getByTestId('markup-all').fill('2');
   await page.getByTestId('markup-all').press('Enter');
   await sale();
   await expect(page.getByTestId('price-sh-print')).toHaveValue('15000');
+  expect(asked[0]).toContain('×1 → ×2');
+  expect(asked[0]).toContain('전체 적용');
   await cost();
   await page.getByTestId('supplier-toggle-hanwool').click(); // 분류 배수·직접 출력은 공급업체를 펼쳐서
   await page.getByTestId('markup-솔벤').fill('1.3');

@@ -122,7 +122,10 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       if (q) await recordView(env, q.id, r.account.id);
       unpaid = !q || !(await photosOpen(env, r.account, q.id));
     }
-    return json({ role: r.role, project: { id: r.project.id, name: unpaid ? '견적 요청서' : r.project.name /* 요청서 이름에 가게 이름 (2026-10-24 가림) */ }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}), ...(credit ? { credit } : {}) });
+    // 원가 배수는 계정 전체 설정 (2026-10-26 "원가는 전체 변경이다"): 소유자 계정의 배수 — 소유자·팀(편집)에게만, 고객에게는 없다
+    let costMarkup: unknown = undefined;
+    if (r.role !== 'viewer') { const o = await env.DB.prepare('SELECT prices FROM accounts WHERE id = ?').bind(r.project.owner_id).first<{ prices: string | null }>(); try { costMarkup = o?.prices ? (JSON.parse(o.prices) as { markup?: unknown }).markup ?? null : null; } catch { costMarkup = null; } }
+    return json({ role: r.role, ...(costMarkup !== undefined ? { costMarkup } : {}), project: { id: r.project.id, name: unpaid ? '견적 요청서' : r.project.name /* 요청서 이름에 가게 이름 (2026-10-24 가림) */ }, ...(r.project.outsource && r.role !== 'viewer' ? { outsource: true } : {}), /* 외주 표시는 소유자·팀만 — 고객(보기·제안 링크)에게는 없다 (2026-10-24) */ ...(r.project.lost_at ? { lost: true } : {}), billing, branding: plan.branding, ...(biz ? { business: { name: biz.name, status: biz.status } } : {}), ...(r.role === 'owner' && r.project.request_id ? { requestId: r.project.request_id } : {}), ...(credit ? { credit } : {}) });
   }
 
   const me = await authenticate(req, env);
