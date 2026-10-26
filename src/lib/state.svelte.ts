@@ -124,6 +124,10 @@ class AppState {
   /** 금액을 안 보이는 화면: 실측 보기 (가게 사장 보드에는 단가표가 없다) */
   get noPrices(): boolean { return !!this.requestView; }
   readonly inbox = typeof location !== 'undefined' && location.pathname === '/requests';
+  /** 운영자 신고 처리 페이지 (2026-10-26) */
+  readonly ops = typeof location !== 'undefined' && location.pathname === '/ops';
+  /** 처리 대기 신고 수 (운영자 계정 메뉴) */
+  opsOpen = $state(0);
   /** 헤더의 "견적 요청 N": 답 안 한 열린 요청 수, 보일지 */
   requestCount = $state(0);
   requestInboxShown = $state(false);
