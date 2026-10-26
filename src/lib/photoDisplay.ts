@@ -1,6 +1,7 @@
 // 보드·리스트 표시용 사진: 긴 변을 줄인 사본(blob URL)과 평면도 카드 얼굴(작은 그림). 원본은 렌더링·원근 창에서만 쓴다.
 // 휴대폰에서 12MP 사진 여러 장 + 카드마다 원본을 matrix3d 로 겹치던 것이 메모리를 넘겨 탭이 죽던 문제 (2026-10-15)
 import { assetUrl } from './assets';
+import { getDerived, putDerived } from './derivedImages';
 import { displaySize, warpPixels } from './core/warpPixels';
 import { rectToQuad } from './core/perspective';
 import type { Pt } from './core/homography';
@@ -10,11 +11,11 @@ const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width
 export const displayMax = () => (isPhone() ? 1600 : 2400);
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-const toBlobUrl = (c: HTMLCanvasElement) => new Promise<string>((res, rej) => c.toBlob((b) => (b ? res(URL.createObjectURL(b)) : rej(new Error('toBlob'))), 'image/jpeg', 0.85));
+const toJpeg = (c: HTMLCanvasElement) => new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('toBlob'))), 'image/jpeg', 0.85));
 
 /** 줄인 크기로 디코딩 (2026-10-18 아이폰 크롬 "이 페이지를 열 수 없음" = 웹 프로세스 크래시 대응): 원본 크기를 알면 createImageBitmap 의 resize 옵션으로 작은 비트맵만 만든다 — 12MP 사진 한 장 통째 디코딩이 48MB.
  * 'original' = 이미 작음, null = 지원 안 함(옛 경로로) */
-async function decodeSmall(url: string, size: { w: number; h: number }, max: number): Promise<string | 'original' | null> {
+async function decodeSmall(url: string, size: { w: number; h: number }, max: number): Promise<Blob | 'original' | null> {
   if (typeof createImageBitmap !== 'function') return null;
   const s = displaySize(size.w, size.h, max);
   if (s.w >= size.w) return 'original';
@@ -26,7 +27,7 @@ async function decodeSmall(url: string, size: { w: number; h: number }, max: num
     c.width = s.w; c.height = s.h;
     c.getContext('2d')!.drawImage(bmp, 0, 0);
     bmp.close();
-    const out = await toBlobUrl(c);
+    const out = await toJpeg(c);
     c.width = c.height = 0;
     return out;
   } catch { return null; }
@@ -41,28 +42,38 @@ let displayQueue: Promise<unknown> = Promise.resolve();
 export function displayUrl(assetId: string, size?: { w: number; h: number }): Promise<string | undefined> {
   const cached = displayCache.get(assetId);
   if (cached) return cached;
-  const job = displayQueue.then(async () => {
-    const url = await assetUrl(assetId);
-    if (!url) return undefined;
-    try {
-      const small = size ? await decodeSmall(url, size, displayMax()) : null; // 크기를 알면 줄인 크기로만 디코딩
-      if (small === 'original') return url;
-      if (small) return small;
-      const img = await loadImage(url);
-      const s = displaySize(img.naturalWidth, img.naturalHeight, displayMax());
-      if (s.w === img.naturalWidth) return url;
-      const c = document.createElement('canvas');
-      c.width = s.w; c.height = s.h;
-      c.getContext('2d')!.drawImage(img, 0, 0, s.w, s.h);
-      const out = await toBlobUrl(c);
-      c.width = c.height = 0;
-      return out;
-    } catch { return url; } // 줄이기 실패 → 원본 그대로
-  });
-  displayQueue = job.catch(() => undefined);
-  const p = job.catch(() => undefined).then((u) => { if (!u) displayCache.delete(assetId); return u; });
+  const key = `d|${assetId}|${displayMax()}`;
+  const p = (async () => {
+    // 기기에 만들어 둔 사본이 있으면 대기열·디코딩 없이 바로 (2026-10-27)
+    const hit = await getDerived(key);
+    if (hit) return 'original' in hit ? await assetUrl(assetId) : URL.createObjectURL(hit.blob);
+    const job = displayQueue.then(() => makeDisplay(assetId, key, size));
+    displayQueue = job.catch(() => undefined);
+    return job;
+  })().catch(() => undefined).then((u) => { if (!u) displayCache.delete(assetId); return u; });
   displayCache.set(assetId, p);
   return p;
+}
+
+/** 원본 → 줄인 사본 (만들면 기기에 저장, 줄일 필요 없으면 그것도 기억) */
+async function makeDisplay(assetId: string, key: string, size?: { w: number; h: number }): Promise<string | undefined> {
+  const url = await assetUrl(assetId);
+  if (!url) return undefined;
+  try {
+    const small = size ? await decodeSmall(url, size, displayMax()) : null; // 크기를 알면 줄인 크기로만 디코딩
+    if (small === 'original') { void putDerived(key, { original: true }); return url; }
+    if (small) { void putDerived(key, { blob: small }); return URL.createObjectURL(small); }
+    const img = await loadImage(url);
+    const s = displaySize(img.naturalWidth, img.naturalHeight, displayMax());
+    if (s.w === img.naturalWidth) { void putDerived(key, { original: true }); return url; }
+    const c = document.createElement('canvas');
+    c.width = s.w; c.height = s.h;
+    c.getContext('2d')!.drawImage(img, 0, 0, s.w, s.h);
+    const out = await toJpeg(c);
+    c.width = c.height = 0;
+    void putDerived(key, { blob: out });
+    return URL.createObjectURL(out);
+  } catch { return url; } // 줄이기 실패 → 원본 그대로 (기억하지 않는다)
 }
 
 /** 줄인 사진의 픽셀 (카드 얼굴을 만들 때만, 최근 1장만 들고 있음) */
@@ -97,19 +108,30 @@ export function faceUrl(assetId: string, photoW: number, quad: Pt[], w: number, 
   const key = `${assetId}|${photoW}|${quad.map((p) => p.map((v) => Math.round(v)).join(',')).join(';')}|${ow}x${oh}`;
   let p = faceCache.get(key);
   if (!p) {
-    p = (faceQueue = faceQueue.then(async () => {
-      const src = await pixelsOf(assetId);
-      if (!src) return undefined;
-      const k = src.width / photoW;
-      let H: number[];
-      try { H = rectToQuad(ow, oh, quad.map(([x, y]) => [x * k, y * k] as Pt)); } catch { return undefined; }
-      const c = document.createElement('canvas');
-      c.width = ow; c.height = oh;
-      c.getContext('2d')!.putImageData(new ImageData(warpPixels(src, H, ow, oh) as Uint8ClampedArray<ArrayBuffer>, ow, oh), 0, 0);
-      return await toBlobUrl(c);
-    }).catch(() => undefined)) as Promise<string | undefined>;
+    const dkey = `f|${key}`;
+    p = (async () => {
+      const hit = await getDerived(dkey); // 기기에 만들어 둔 카드 얼굴 (2026-10-27)
+      if (hit && 'blob' in hit) return URL.createObjectURL(hit.blob);
+      const job = faceQueue.then(() => makeFace(assetId, photoW, quad, ow, oh, dkey));
+      faceQueue = job.catch(() => undefined);
+      return job;
+    })().catch(() => undefined);
     faceCache.set(key, p);
     p.then((u) => { if (!u) faceCache.delete(key); });
   }
   return p;
+}
+
+async function makeFace(assetId: string, photoW: number, quad: Pt[], ow: number, oh: number, dkey: string): Promise<string | undefined> {
+  const src = await pixelsOf(assetId);
+  if (!src) return undefined;
+  const k = src.width / photoW;
+  let H: number[];
+  try { H = rectToQuad(ow, oh, quad.map(([x, y]) => [x * k, y * k] as Pt)); } catch { return undefined; }
+  const c = document.createElement('canvas');
+  c.width = ow; c.height = oh;
+  c.getContext('2d')!.putImageData(new ImageData(warpPixels(src, H, ow, oh) as Uint8ClampedArray<ArrayBuffer>, ow, oh), 0, 0);
+  const blob = await toJpeg(c);
+  void putDerived(dkey, { blob });
+  return URL.createObjectURL(blob);
 }
