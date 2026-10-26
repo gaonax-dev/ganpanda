@@ -23,6 +23,7 @@ test('사진이 있던 프로젝트: 서버 동기화가 안 된 동안은 빈 �
 test('사진이 없던 새 프로젝트: 동기화가 오래 안 되면 빈 화면(사진 추가)을 보여 준다', async ({ page, request }) => {
   const { projectId } = await openOwnedProject(page, request, '빈 매장');
   await page.evaluate(() => indexedDB.databases().then((dbs) => dbs.forEach((d) => d.name && indexedDB.deleteDatabase(d.name))));
+  await page.evaluate((id) => localStorage.removeItem(`ganpanda.access.${id}`), projectId); // 처음 여는 기기 (연 적 있으면 바로 빈 화면 — 2026-10-27 localOpen.spec)
   await page.routeWebSocket(/\/rooms\//, () => {});
   await page.goto(`/?room=${projectId}`);
   await expect(page.getByTestId('board-loading')).toBeVisible();

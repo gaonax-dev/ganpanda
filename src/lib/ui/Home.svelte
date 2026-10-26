@@ -5,6 +5,8 @@
   그룹을 클릭하면 전체 정보·비용 계산서. 멤버 관리는 설정에서."
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { loadCachedHome, saveCachedHome } from '../localOpen';
   import { askConfirm } from './ask.svelte';
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
@@ -54,10 +56,18 @@
       const next: Record<string, GroupView> = {};
       await Promise.all(groups.map(async (g) => { next[g.id] = await getGroup(g.id); }));
       views = next;
+      if (app.account) saveCachedHome(app.account.id, { projects, groups, views }); // 다음에 열 때 바로 (2026-10-27)
     } catch { projects ??= []; }
   }
+  // 계정이 바뀔 때만(아이디) — 기억한 계정 → 서버 계정으로 바뀌어도 다시 부르지 않는다
+  const accountId = $derived(app.account?.id ?? null);
   $effect(() => {
-    if (app.account) reload();
+    if (accountId) untrack(() => {
+      // 기기에 기억한 목록을 먼저 보여 주고 서버 목록으로 바꾼다 (2026-10-27 "로컬에 자료를 가지고 있으면")
+      const c = loadCachedHome<{ projects: ProjectInfo[]; groups: GroupInfo[]; views: Record<string, GroupView> }>(accountId);
+      if (c && projects === null) { projects = c.projects; groups = c.groups; views = c.views; }
+      void reload();
+    });
     else { projects = null; groups = []; views = {}; }
   });
 

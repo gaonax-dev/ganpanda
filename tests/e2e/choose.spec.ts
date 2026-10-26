@@ -37,6 +37,9 @@ test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈
   const card = shop.locator(`[data-testid="project-item"][data-id="${loser.project}"]`);
   await expect(card.getByTestId('project-lost')).toHaveText('다른 업체 선택');
   await expect(card).toHaveAttribute('data-status', 'paused');
+  // 정지는 홈 아래 [정지] 폴더로 옮겨 간다 (2026-10-27 홈 폴더)
+  await expect(shop.getByTestId('folder-paused').getByTestId('folder-count')).toHaveText('1');
+  await shop.getByTestId('folder-paused').locator('summary').first().click();
   await card.click();
   await expect(shop.getByTestId('project-lost-banner')).toContainText('정지');
   await ctx.close();
