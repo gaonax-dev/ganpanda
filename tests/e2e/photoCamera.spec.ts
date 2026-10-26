@@ -17,11 +17,11 @@ test.describe('휴대폰', () => {
     expect(await page.getByTestId('photo-input').evaluate((e: HTMLInputElement) => e.multiple && !e.hasAttribute('capture'))).toBe(true);
     await cam.setInputFiles({ name: '찍은.png', mimeType: 'image/png', buffer: await makePhoto(page) });
     await expect(page.getByTestId('photo-zone').first()).toBeVisible();
-    // 사진이 있으면 도구 막대 [사진] → 두 가지 고르기
+    // 사진이 있으면 도구 막대 [사진] → 하단 시트 (2026-10-26 — 사진 보관함 · 사진 찍기 · 파일 선택)
     await page.getByTestId('tool-photo').tap();
-    const menu = page.getByTestId('photo-menu');
-    await expect(menu.getByTestId('photo-menu-camera')).toBeVisible();
-    await expect(menu.getByTestId('photo-menu-album')).toBeVisible();
+    const menu = page.getByTestId('photo-add-sheet');
+    await expect(menu.getByTestId('sheet-item-camera')).toBeVisible();
+    await expect(menu.getByTestId('sheet-item-library')).toBeVisible();
   });
 });
 
