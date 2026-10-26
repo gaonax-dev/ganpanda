@@ -8,7 +8,7 @@ import { Project } from './core/project';
 import { measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeLikePhotos, homeOf, photoScales } from './core/arrange';
+import { arrangeLikePhotos, homeOf } from './core/arrange';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type PriceTable } from './core/pricing';
@@ -1272,23 +1272,18 @@ class AppState {
   /**
    * 카드 재정렬 — 사진과 같은 비율 (2026-10-22 사용자: "재정렬 예전에 똑똑하게 잘된거 같은데 자동정렬은 피봇 기본 위치에 놓는다. 그리고 사진과 같은 비율로 사진과 비슷하게 정렬해준다").
    * 2026-10-26 사용자: "재정렬 이전 커밋중에 가장 잘 되는 걸로 손봐줘 … 사진의 구성과 크기와 배열이 비슷할 수록 좋아" → 초대 링크가 있는 현장 5곳에서 지난 재정렬 11가지를 비교해
-   * 10-23 "사진과 같은 비율 + 가장 가까운 빈 곳"(arrangeLikePhotos)을 되살리고, ① 사진마다 실제 벽 축척(photoScales) ② 겹치면 사진 속 간격을 같은 배율로 넓힘(최대 1.5배)을 더했다.
+   * 10-23 "사진과 같은 비율 + 가장 가까운 빈 곳"(arrangeLikePhotos)을 되살리고, 겹치면 사진 속 간격을 같은 배율로 넓힘(최대 1.5배)을 더했다.
    * 10-23~24 축 격자·줄 묶기(arrangeByAxisGrid)는 대체됨 — 격자로 반듯하게 펴면 사진 속 구성(선반 대각선·매장 앞 격자)이 한 줄로 뭉개졌다.
-   * 보드 px → mm: 사진 자리는 전체 축척, 사진 안은 그 사진의 축척. 카드 가운데 = 사진 속 사인물 가운데. 묶음 왼쪽 위는 기본 자리(flatOffset 0). 이름 줄(보드 약 100px)도 겹침에. 한 번의 ⌘Z
+   * 보드 px → mm = 1/축척 (화면에서 카드 가운데 = 사진 속 사인물 가운데, 카드 크기는 축척대로). 사진 묶음은 사진 줄마다 위를 맞춰 사진 바로 아래부터. 묶음 왼쪽 위는 기본 자리(flatOffset 0). 이름 줄(보드 약 100px)도 겹침에. 한 번의 ⌘Z
    */
   arrangeFlatCards(gap = this.flatGap) {
     if (!this.canEdit || !this.flatCards.length) return;
     const k = this.flatScale;
     const idx = new Map(this.photos.map((p, i) => [p.id, i]));
-    const samples = this.flatCards.flatMap(({ o, w, placeholder }) => {
-      const p = this.photos.find((x) => x.id === o.photoId);
-      if (placeholder || !p || o.quad.length !== 4 || !p.w) return [];
-      const [tl, tr, br, bl] = o.quad;
-      const px = ((Math.hypot(tr[0] - tl[0], tr[1] - tl[1]) + Math.hypot(br[0] - bl[0], br[1] - bl[1])) / 2) * (p.width / p.w);
-      return px > 0 ? [{ photo: idx.get(p.id)!, r: w / px }] : [];
-    });
-    const sc = photoScales(samples, this.photos.length, 1 / k); // mm / 보드 px
-    const photos = this.photos.map((p, i) => ({ x: p.x * sc.all, y: p.y * sc.all, w: p.width * sc.each[i], h: p.width * (p.h / p.w) * sc.each[i], imgW: p.w, imgH: p.h }));
+    // 보드 px → mm = 1 / 축척: 카드는 정해 둔 축척(크기) 그대로 그리고, 자리는 화면에서 사진 속 간격 그대로 (2026-10-26 "사진카드 크기 유지인데 단순 대지 크기만 유지 되었다" —
+    // 전엔 실제 벽 축척으로 자리를 잡아, 축척을 키우면 카드 사이·사진과 카드 사이가 같이 벌어졌다)
+    const s = 1 / k;
+    const photos = this.photos.map((p) => ({ x: p.x * s, y: p.y * s, w: p.width * s, h: p.width * (p.h / p.w) * s, imgW: p.w, imgH: p.h }));
     const cards = this.flatCards.map(({ o, w, h }) => {
       // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21)
       const inst = [o, ...this.objects.filter((x) => x.sameAs === o.id)].filter((x) => x.quad.length === 4 && idx.has(x.photoId));
@@ -1300,10 +1295,10 @@ class AppState {
     const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });
-    // ✥ 를 기본 자리로. 축척은 사용자가 정한 값을 지킨다 (2026-10-25 "기존에 설정한 비율 유지하고 재정렬") — 정한 적이 없을 때만 사진과 같은 비율로 저장
+    // ✥ 를 기본 자리로. 축척은 사용자가 정한 값을 지킨다 (2026-10-25 "기존에 설정한 비율 유지하고 재정렬") — 정한 적이 없으면 지금 보이는 처음값(사진과 비슷한 크기)을 저장해 그대로 둔다
     // (2026-10-22 스크린샷 "상태가 점점 심각해지고 있어": 저장된 축척 572% 로 카드가 흩어졌다 → 그땐 늘 되돌렸으나 대체됨)
     const keepScale = Number.isFinite(this.settings.flatScale);
-    this.updateSettings({ flatOffset: { x: 0, y: 0 }, ...(!keepScale && samples.length ? { flatScale: Math.round(clampFlatScale(1 / sc.all) * 10000) / 10000 } : {}) });
+    this.updateSettings({ flatOffset: { x: 0, y: 0 }, ...(!keepScale ? { flatScale: Math.round(clampFlatScale(k) * 10000) / 10000 } : {}) });
     this.editBoundary();
   }
   /** 카드 간격 바꾸고 그 간격으로 다시 정렬 */

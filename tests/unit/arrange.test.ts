@@ -1,7 +1,7 @@
 // 사진 보드 카드 정렬 — 그리드 (2026-10-20 사용자: "엑셀의 그리드로 설명하면 구조의 최대 블록을 생성하고 해당 그림의 위치를 다시 그리는데 차지하는 면적에 따라 병합한 위치에 사진을 둘수 있다.
 // 축들이 완성되면 축 덩어리를 나열하고 다시 사진 단위로 배치한다. 사진이 2열이면 정면도 카드 사진그룹도 2열로 배열한다." → "그리드 방식으로 진행해줘")
 import { describe, expect, it } from 'vitest';
-import { arrangeLikePhotos, axisLines, gridOf, homeOf, photoGrid, photoScales, SPREAD_MAX } from '../../src/lib/core/arrange';
+import { arrangeLikePhotos, axisLines, gridOf, homeOf, photoGrid, SPREAD_MAX } from '../../src/lib/core/arrange';
 
 describe('axisLines — 가까운 값을 하나의 축선으로', () => {
   it('허용 오차 안의 값은 평균 하나로, 순서대로', () => {
@@ -69,13 +69,13 @@ describe('arrangeLikePhotos — 사진과 같은 비율 (2026-10-22 "자동정�
     expect(out.get('big')).toEqual({ x: 0, y: 0 });
     expect(out.get('small')).toEqual({ x: 4100, y: 500 }); // 오른쪽으로 밀림: big 오른쪽 4000 + 간격 100. y 는 원래 자리(1000 − 맨 위 500)
   });
-  it('사진 묶음은 사진 자리 그대로 — 옆 사진은 그 사진 아래, 아랫줄 사진은 윗줄 아래로, 사진 없는 카드는 맨 아래 한 줄', () => {
+  it('사진 묶음은 사진 가로 자리 그대로 — 옆 사진은 그 사진 아래, 아랫줄 사진은 윗줄 카드 바로 아래로(위를 줄마다 맞춤, 2026-10-26 "간격 너무 크다"), 사진 없는 카드는 맨 아래 한 줄', () => {
     const photos = [ph, { ...ph, x: 11000 }, { ...ph, y: 11000 }];
-    const out = arrangeLikePhotos([c('a', 1000, 1000, 0, 450, 450, 550, 550), c('b', 1000, 1000, 1, 450, 450, 550, 550), c('d', 1000, 1000, 2, 450, 450, 550, 550), c('free', 500, 500, null, 0, 0, 0, 0)], photos, 100, 0);
+    const out = arrangeLikePhotos([c('a', 1000, 1000, 0, 450, 450, 550, 550), c('b', 1000, 1000, 1, 450, 850, 550, 950), c('d', 1000, 1000, 2, 450, 450, 550, 550), c('free', 500, 500, null, 0, 0, 0, 0)], photos, 100, 0);
     expect(out.get('a')).toEqual({ x: 4500, y: 0 });
-    expect(out.get('b')).toEqual({ x: 15500, y: 0 });
-    expect(out.get('d')).toEqual({ x: 4500, y: 11000 });
-    expect(out.get('free')).toEqual({ x: 0, y: 12000 + 200 });
+    expect(out.get('b')).toEqual({ x: 15500, y: 0 }); // 사진 아래쪽 사인물이어도 줄의 맨 위
+    expect(out.get('d')).toEqual({ x: 4500, y: 1000 + 200 });
+    expect(out.get('free')).toEqual({ x: 0, y: 2200 + 200 });
   });
   it('묶음끼리 겹치면 오른쪽으로 간격 두 배', () => {
     const photos = [ph, { ...ph, x: 9000 }]; // 사진이 붙어 있고 카드가 넓다 — b 는 원래 9100 에서 a 오른쪽 9500 + 간격 두 배로
@@ -101,12 +101,5 @@ describe('arrangeLikePhotos — 겹치면 구성 그대로 같은 배율로 넓�
   it('안에 든 것처럼 1.5배로도 못 푸는 쌍은 넓히는 배율에 넣지 않는다 — 나머지는 사진 그대로', () => {
     const out = arrangeLikePhotos([c('a', 1000, 500, 100, 100, 200, 150), c('in', 300, 200, 140, 110, 160, 140), c('far', 1000, 500, 600, 600, 700, 650)], [ph], 100, 0);
     expect(out.get('far')!.x - out.get('a')!.x).toBe(5000); // 넓히지 않음 (사진 속 5000mm 그대로)
-  });
-});
-
-describe('photoScales — 사진마다 실제 벽 축척(mm / 보드 px)', () => {
-  it('그 사진의 치수 있는 사인물 중앙값, 없으면 전체 중앙값, 아무것도 없으면 대신 값', () => {
-    expect(photoScales([{ photo: 0, r: 2 }, { photo: 0, r: 4 }, { photo: 0, r: 3 }, { photo: 1, r: 10 }], 3, 7)).toEqual({ all: 4, each: [3, 10, 4] }) // 짝수 개는 가운데 둘 중 큰 쪽 (기존 재정렬과 같게);
-    expect(photoScales([], 2, 7)).toEqual({ all: 7, each: [7, 7] });
   });
 });

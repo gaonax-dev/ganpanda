@@ -133,3 +133,38 @@ test('연결된 사인물(⇄)의 카드는 가장 정면에서 찍힌 사진 �
   expect(card.x).toBeGreaterThanOrEqual(zones[1][0] - 2); // 둘째(정면) 사진 아래
   expect(card.x).toBeLessThan(zones[1][1]);
 });
+
+// 2026-10-26 사용자: "재정렬에서 사진과 사진소속 [카드]들의 간격 너무 크다. 그리고 내가 원한건 사진카드 크기 유지인데 단순 대지 크기만 유지 되었다"
+// → 카드는 정해 둔 축척(크기) 그대로, 자리는 화면에서 사진 속 간격 그대로(겹치면 최대 1.5배) — 축척을 키워도 카드 사이·사진과 카드 사이가 같이 벌어지지 않는다
+test('축척을 키워 둔 채 재정렬: 카드 크기는 그대로, 카드 사이는 사진 속 간격, 카드 묶음은 사진 바로 아래에서 시작', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const L = await rectOnWall(page, 0, 3000, 1000, 1000);
+  const R = await rectOnWall(page, 7000, 3000, 1000, 1000);
+  await page.evaluate((q) => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    a.project.addObject({ photoId: a.photos[0].id, name: '왼', shape: 'rect', quad: q.L, sheetIds: [], widthMm: 1000, heightMm: 1000 });
+    a.project.addObject({ photoId: a.photos[0].id, name: '오', shape: 'rect', quad: q.R, sheetIds: [], widthMm: 1000, heightMm: 1000 });
+  }, { L, R });
+  await expect(page.getByTestId('board-card')).toHaveCount(2);
+  const k0 = await page.evaluate(() => (window as unknown as { __ganpanda: { flatScale: number } }).__ganpanda.flatScale);
+  await page.evaluate((k) => (window as unknown as { __ganpanda: { updateSettings(p: unknown): void } }).__ganpanda.updateSettings({ flatScale: k * 2 }), k0); // 카드를 두 배로 키워 둠
+  await page.evaluate(() => (window as unknown as { __ganpanda: { arrangeFlatCards(): void } }).__ganpanda.arrangeFlatCards());
+  await page.getByTestId('zoom-fit').click();
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: { settings: { flatScale?: number } } }).__ganpanda.settings.flatScale)).toBeCloseTo(k0 * 2, 6);
+  const m = await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { objects: { id: string; name: string }[] } }).__ganpanda;
+    const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+    const o = (n: string) => a.objects.find((x) => x.name === n)!.id;
+    const z = r('[data-testid="photo-zone"]');
+    const s = (n: string) => r(`[data-testid="photo-zone"] polygon[data-testid="sign-shape"][data-id="${o(n)}"]`);
+    const c = (n: string) => r(`[data-testid="board-card"][data-id="${o(n)}"]`);
+    return { photoBottom: z.bottom, photoH: z.height, signGap: s('오').x + s('오').width / 2 - (s('왼').x + s('왼').width / 2), cardGap: c('오').x + c('오').width / 2 - (c('왼').x + c('왼').width / 2), cardTop: Math.min(c('왼').y, c('오').y), signW: s('왼').width, cardW: c('왼').width };
+  });
+  expect(m.cardW).toBeGreaterThan(m.signW * 1.5); // 키운 크기 그대로 (사진 속보다 크다)
+  expect(m.cardGap / m.signGap).toBeGreaterThan(0.9); // 카드 사이 = 사진 속 간격 (겹치지 않으면 넓히지 않음)
+  expect(m.cardGap / m.signGap).toBeLessThan(1.55);
+  expect(m.cardTop - m.photoBottom).toBeLessThan(m.photoH * 0.35); // 사진 바로 아래 (사진 속 높이만큼 내려가지 않음)
+});
