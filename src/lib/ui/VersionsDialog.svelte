@@ -4,6 +4,7 @@
   무료는 요금제 안내, 베이직 7일·프로 30일(+직접 저장 계속) — 서버가 기간을 거른다. 되돌리면 함께 보는 모두에게 안내(설정 restored)
 -->
 <script lang="ts">
+  import { paymentsShown } from '../auth';
   import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { AuthError } from '../auth';
@@ -39,7 +40,7 @@
   <div class="dialog" role="dialog" aria-label="버전 기록" data-testid="versions-dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => { if (e.key === 'Escape') app.versionsOpen = false; }}>
     <header><b>버전 기록</b><button class="icon" data-testid="versions-close" title="닫기" onclick={() => (app.versionsOpen = false)}>✕</button></header>
     {#if upgrade}
-      <p class="hint" data-testid="versions-upgrade">이전 상태로 되돌리기는 유료 기능입니다. 베이직은 최근 7일, 프로는 최근 30일과 직접 저장한 버전을 계속 보관합니다.</p>
+      <p class="hint" data-testid="versions-upgrade">{paymentsShown() ? '이전 상태로 되돌리기는 유료 기능입니다. 베이직은 최근 7일, 프로는 최근 30일과 직접 저장한 버전을 계속 보관합니다.' : '이 계정에서는 이전 상태로 되돌리기를 쓸 수 없습니다.'}</p>
     {:else}
       <form class="save" onsubmit={(e) => { e.preventDefault(); void save(); }}>
         <input data-testid="versions-label" placeholder="버전 이름 (예: 시안 1, 고객 확인 전)" bind:value={label} maxlength="60" />

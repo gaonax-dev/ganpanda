@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { paymentsShown } from '../auth';
   // 간판집이 받은 요청을 열었을 때 (2026-10-22 사용자: "사업자는 페이지에서도 리스트는 이름 사인물 정보만 표시하고 클릭하면 복제된 페이지 바로보이게 해줘 그리고 견적넣기 버튼만 있으면 될거 같아"):
   // 요청 프로젝트(보드 복제, 읽기 전용 = 실측 보기) 위에 요청 정보 한 줄 + [내 프로젝트로 가져오기] — 누르면 요청 그대로 복제해 연다 (2026-10-22)
   import { app } from '../state.svelte';
@@ -21,7 +22,7 @@
       <b>{req.store || '견적 요청'}</b>{#if req.floor}<span class="tag" data-testid="request-floor">{req.floor}</span>{/if}{#if req.b2b}<span class="b2b" data-testid="request-b2b">B2B</span>{/if}
       {#if req.bizVerified}<span class="biz" data-testid="request-biz">✓ 사업자 확인</span>{:else if req.general}<span class="tag">일반 주문</span>{/if}
       {#if req.address}<span class="muted" data-testid="request-address">{req.address}</span>{:else}<span class="muted">{req.region}</span>{/if}
-      {#if req.locked}<span class="lock" data-testid="request-lock-note">🔒 제안을 보내면 가게 이름·주소·요청 내용·연락처가 열립니다{#if req.fee} · 크레딧 {req.fee.toLocaleString('ko-KR')}원{/if}</span>{/if}
+      {#if req.locked}<span class="lock" data-testid="request-lock-note">🔒 제안을 보내면 가게 이름·주소·요청 내용·연락처가 열립니다{#if req.fee && paymentsShown()} · 크레딧 {req.fee.toLocaleString('ko-KR')}원{/if}</span>{/if}
       {#if req.text}<span class="text" data-testid="request-text">“{req.text}”</span>{/if}
       {#if req.bizDoc}<span class="muted" data-testid="request-bizdoc">📄 사업자등록증 {#if req.responded}<a href={bizDocUrl(req.id)} target="_blank" rel="noopener">열기</a>{:else}— 견적을 넣으면 열립니다{/if}</span>{/if}
     </div>
