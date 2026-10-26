@@ -105,6 +105,14 @@ test('제안 보내기: [링크 발급](실사 이미지 안 만듦, 2026-10-24)
   await expect(pg.getByTestId('quote-change-item')).toContainText('1000');
   await expect(pg.getByTestId('quote-change-item')).toContainText('1200');
   await expect(pg.getByTestId('proposal-sign')).toContainText('9,000 × 1,200');
+  // ① 사진 위 변경 표시 · ③ 금액 흐름 (2026-10-26) — 손해 가능이 아니고 하나뿐이면 바로 동의할 수 있다(⑤ 확인 없음)
+  await expect(pg.getByTestId('change-mark').and(pg.locator('[data-change="changed"]'))).toHaveCount(1);
+  await expect(pg.getByTestId('change-legend')).toContainText('바뀜');
+  const steps = pg.getByTestId('quote-flow').getByTestId('quote-flow-step');
+  await expect(steps.first()).toHaveAttribute('data-key', 'before'); // 계약 → (바뀐 금액이 있으면 그 단계) → 변경
+  await expect(steps.last()).toHaveAttribute('data-key', 'after');
+  await expect(pg.getByTestId('quote-change-confirm')).toHaveCount(0);
+  await expect(pg.getByTestId('proposal-change-accept')).toBeEnabled();
   // 거절 → 계약 견적대로
   await pg.getByTestId('proposal-change-reject').click();
   await pg.getByTestId('proposal-approver').fill('홍길동');
@@ -185,6 +193,16 @@ test('사양은 그대로인데 금액만 올린 변경 견적은 고객에게 �
   await expect(pg.getByTestId('proposal-approve')).toHaveAttribute('data-status', 'pending-change');
   await expect(pg.getByTestId('quote-risk').and(pg.locator('[data-code="price-up-same-spec"]'))).toHaveAttribute('data-level', 'danger');
   await expect(pg.getByTestId('quote-change-risks')).toContainText('사양은 그대로인데 금액이');
+  // ① 사진 위 ⚠ — 누르면 이유
+  await pg.getByTestId('change-risk-marker').click();
+  await expect(pg.getByTestId('change-risk-note')).toContainText('사양은 그대로인데 금액이');
+  // ③ 금액 흐름: 계약 → 바뀜(+) → 변경
+  await expect(pg.getByTestId('quote-flow').locator('[data-key="changed"]')).toContainText('+');
+  // ⑤ 위험이 있으면 바뀐 사인물마다 확인해야 동의가 열린다
+  await expect(pg.getByTestId('proposal-change-accept')).toBeDisabled();
+  await expect(pg.getByTestId('proposal-change-accept')).toContainText('0/1 확인');
+  await pg.getByTestId('quote-change-confirm').check();
+  await expect(pg.getByTestId('proposal-change-accept')).toBeEnabled();
   // 동의 → 새 계약 (#2)
   await pg.getByTestId('proposal-change-accept').click();
   await pg.getByTestId('proposal-approver').fill('김사장');

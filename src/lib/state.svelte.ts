@@ -513,7 +513,9 @@ class AppState {
   issues = $derived<IssuedQuote[]>(this.settings.issues ?? []);
   latestIssue = $derived<IssuedQuote | null>(this.issues.at(-1) ?? null);
   /** 지금 내용을 발행본 모양으로 (비교용, 아직 발행 안 함) */
-  draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash }));
+  draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash,
+    // 사진 위 사인물 자리 (2026-10-26 사진 위 변경 표시) — 내용 해시에는 안 들어간다(자리만 옮겨도 변경 아님)
+    geo: Object.fromEntries(this.signs.filter((o) => o.photoId && o.quad.length === 4).map((o) => [o.id, { photoId: o.photoId!, quad: o.quad as [number, number][], ...(o.shape ? { shape: o.shape } : {}), ...(o.polygon?.length ? { polygon: o.polygon as [number, number][] } : {}) }])) }));
   /** 발행 뒤 사장이 고쳐 지금 내용이 마지막 발행본과 다름 — 고객에게는 안 보인다, 다시 발행해야 */
   issueChanged = $derived(!!this.latestIssue && this.latestIssue.hash !== this.contentHash);
   /** 고객이 보는 견적: 발행본·계약 견적·변경 견적 대기·거절 */
