@@ -32,14 +32,6 @@
   import { askConfirm } from '../ui/ask.svelte';
   /** 단가표의 원래 단가 (이 줄만 바꾼 임시 가격 옆에) */
   const baseUnit = (id: string): number | undefined => app.prices.products[id] ?? app.prices.sheets[id];
-  /** 원가 배수(전체) — 확인 창 뒤 전체 적용, 취소하면 되돌림 */
-  async function changeAll(el: HTMLInputElement) {
-    const before = app.globalMarkup?.all ?? 1, n = Number(el.value);
-    if (!el.value.trim() || !Number.isFinite(n) || n <= 0 || n > 10 || n === before) { el.value = String(before); return; }
-    const ok = await askConfirm(`원가 배수(전체)를 ×${before} → ×${n}(으)로 바꿉니다.\n\n전체 적용 — 내 모든 견적(아직 발행하지 않은 것)과 새 견적에 바로 적용됩니다.\n이미 발행한 견적은 발행한 그대로입니다.`);
-    if (!ok) { el.value = String(before); return; }
-    try { await app.setGlobalMarkup({ ...(app.globalMarkup ?? { all: 1 }), all: n }); } catch { el.value = String(before); }
-  }
   let issueDiff = $state(false);
 
   let viewport: Viewport = $state({ x: 60, y: 60, zoom: 0.08 });
@@ -476,10 +468,6 @@
           {#if app.seesCost}<span>원가 {won(quote.margin.cost)} · 이익 {won(quote.margin.profit)}</span>{/if}
           <span>이익율 <b data-testid="quote-margin-rate">{pct(quote.margin.rate)}</b>{#if quote.margin.profit < 0} <b class="lossb" data-testid="quote-loss">손해</b>{/if}</span>
           {#if quote.margin.uncosted}<small>원가 없는 줄 {quote.margin.uncosted}건 제외 (직접 입력 단가)</small>{/if}
-          <!-- 원가 배수 바로 고치기 (2026-10-26 "견적의 원가 배수도 바로바로 수정 가능 … 원가는 전체 변경이다. 항상 대화창으로 확인") -->
-          {#if app.seesCost}
-            <label class="mk" title="공급 원가 × 배수 = 연결된 항목의 단가 — 전체 적용">원가 배수 ×<input data-testid="quote-markup" type="number" min="0.1" max="10" step="0.05" value={app.globalMarkup?.all ?? 1} disabled={!app.canEditCost} onchange={(e) => changeAll(e.currentTarget)} onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} /><small>전체 적용</small></label>
-          {/if}
         </div>
       {/if}
       <button class="btn small" onclick={copyQuote}>견적 텍스트 복사</button>
@@ -575,8 +563,5 @@
   .issue .ok { color: #86efac; font-weight: 700; }
   .issue-diff { margin: 0 12px 8px; }
   .orig { font-size: 11px; color: var(--muted); }
-  .mk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
-  .mk input { width: 64px; }
-  .mk small { color: #f59e0b; font-weight: 700; }
   .cost-old { color: #f59e0b; }
 </style>
