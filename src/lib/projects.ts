@@ -134,3 +134,13 @@ export const listBlocks = () => call<{ blocks: BlockedUser[] }>('/api/me/blocks'
 export const addBlock = (id: string, name: string) => call<{ ok: true }>('/api/me/blocks', { method: 'POST', body: JSON.stringify({ id, name }) });
 export const removeBlock = (id: string) => call<{ ok: true }>(`/api/me/blocks/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
+// ---- 운영자 신고 처리 (2026-10-26 "운영자 신고 처리 화면 만들어줘") ----
+export interface ContentReport { id: string; projectId: string | null; messageId: string | null; targetId: string | null; targetName: string; reason: ReportReason; reasonLabel: string; detail: string; excerpt: string; reporterName: string; status: 'open' | 'resolved'; action?: 'hide' | 'dismiss'; createdAt: number; resolvedAt?: number }
+export const listContentReports = () => call<{ reports: ContentReport[] }>('/api/operator/content-reports').then((r) => r.reports);
+export const resolveContentReport = (id: string, action: 'hide' | 'dismiss') => call<{ ok: true }>(`/api/operator/content-reports/${id}`, { method: 'POST', body: JSON.stringify({ action }) });
+export interface BypassViewer { accountId: string; firstAt: number; email: string; name: string; business: string | null; bizNo: string | null; paid: boolean; blocked: boolean }
+export interface BypassReport { id: string; requestId: string; shop: string; text: string; status: string; createdAt: number; resolvedAt: number | null; penalizedAccount: string | null; amount: number | null; paid: boolean | null; request: { store: string; region: string; floor: string; fee: number } | null; penalty: number; viewers: BypassViewer[] }
+export const listBypassReports = () => call<{ reports: BypassReport[] }>('/api/operator/reports').then((r) => r.reports);
+export const resolveBypassReport = (id: string, action: 'penalize' | 'dismiss', accountId?: string) => call<{ ok: true }>(`/api/operator/reports/${id}`, { method: 'POST', body: JSON.stringify({ action, ...(accountId ? { accountId } : {}) }) });
+export const unblockRequests = (accountId: string) => call<{ ok: true }>(`/api/operator/accounts/${encodeURIComponent(accountId)}/unblock`, { method: 'POST', body: '{}' });
+

@@ -7,6 +7,8 @@
   import { app } from './lib/state.svelte';
   // 작업 탭을 이 기기에 기억 — 다시 열면 그 탭 (2026-10-25 "헤더 텝의 상태를 돌아왔을때 복원") · 복원은 state.svelte.ts 생성자
   $effect(() => { if (app.room && app.access.status === 'ok' && !app.proposalMode) saveRoomView(app.room, { tab: app.tab }); });
+  // 운영자: 처리 대기 신고 수 (계정 메뉴)
+  $effect(() => { if (app.account?.operator) listContentReports().then((rs) => (app.opsOpen = rs.filter((r) => r.status === 'open').length)).catch(() => {}); });
   // 차단 목록 (2026-10-26 신고·차단): 로그인 상태가 바뀌면 다시
   $effect(() => { void app.account?.id; void app.authReady; void app.loadBlocks(); });
   // 원가 배수 = 전체 설정 (2026-10-26): 프로젝트 단가표를 전체 배수에 맞춰 둔다
@@ -46,6 +48,8 @@
   import EstimateLock from './lib/ui/EstimateLock.svelte';
   import RequestBar from './lib/ui/RequestBar.svelte';
   import RequestInbox from './lib/ui/RequestInbox.svelte';
+  import OpsPage from './lib/ui/OpsPage.svelte';
+  import { listContentReports } from './lib/projects';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
 
@@ -248,6 +252,8 @@
               </label>
               <button class="btn small" data-testid="open-settings" onclick={() => { accountOpen = false; app.settingsOpen = true; }}>⚙ 설정</button>
               <!-- 단가 설정 (2026-10-26 "사용자 클릭메뉴에 단가설정 생성하고 두개의 탭을 구성해줘 견적단가, 자재 원가"): 프로젝트 안이면 그 프로젝트 단가, 밖이면 내 기본 단가 -->
+              <!-- 운영자: 신고 처리 (2026-10-26 "운영자 신고 처리 화면 만들어줘") — 처리 대기 수 -->
+              {#if app.account.operator}<a class="btn small" class:hot={app.opsOpen > 0} data-testid="account-ops" href="/ops">신고 처리{#if app.opsOpen} <b>{app.opsOpen}</b>{/if}</a>{/if}
               <!-- 문의·신고 연락처 (2026-10-26 앱스토어 1.2) -->
               <a class="btn small" data-testid="account-support" href="mailto:{COMPANY.email}?subject=%5B%EA%B0%84%ED%8C%90%EB%8B%A4%5D%20%EB%AC%B8%EC%9D%98%C2%B7%EC%8B%A0%EA%B3%A0">문의·신고 {COMPANY.email}</a>
               {#if !app.consumerAccount}<button class="btn small" data-testid="account-prices" onclick={() => { accountOpen = false; app.pricesOpen = true; }}>₩ 단가 설정</button>{/if}
@@ -310,6 +316,8 @@
       </section>
     {:else if app.inbox}
       <RequestInbox />
+    {:else if app.ops}
+      <OpsPage />
     {:else if !app.room}
       <Home />
     {:else if app.access.status === 'denied'}
