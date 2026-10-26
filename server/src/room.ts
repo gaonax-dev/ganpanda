@@ -311,6 +311,12 @@ export class Room extends DurableObject<Env> {
     return msg;
   }
 
+  /** 메시지 글 (신고 증거, 2026-10-26) */
+  async messageText(id: string): Promise<string | null> {
+    const m = this.doc.getArray<Message>('messages').toArray().find((x) => x.id === id);
+    return m ? `${m.author ? `${m.author}: ` : ''}${m.text ?? ''}` : null;
+  }
+
   /** 메시지 지우기 (RPC, 2026-10-18): byAuthor 가 있으면 그 작성자의 글만(viewer 는 자기 것만). 없으면 404, 남의 것이면 403 */
   async removeMessage(id: string, byAuthor?: string): Promise<200 | 403 | 404> {
     const arr = this.doc.getArray<Message>('messages');

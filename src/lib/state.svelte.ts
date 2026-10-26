@@ -34,6 +34,7 @@ import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
+import { maskProfanity } from './core/profanity';
 import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
@@ -44,6 +45,7 @@ import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
 import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, teamInviteInfo, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets, savePrices } from './auth';
+import { addBlock, listBlocks, postReport, removeBlock, type BlockedUser, type ReportReason } from './projects';
 import { checkAccess, postApproval, deleteMessage, deleteSpecRule, getSpecDefaults, getSpecRules, postMessage, putSpecRule, postPin, talkSync, type Role } from './projects';
 import { countByObject, markSeen, shouldNotify, unreadByObject, type SeenMap } from './core/unread';
 import { voiceCounts } from './core/voices';
@@ -1714,6 +1716,7 @@ class AppState {
   }
   removeTalkRef(r: TalkRef) { this.talkRefs = this.talkRefs.filter((x) => !(x.kind === r.kind && x.id === r.id)); }
   async sendTalk(text: string, attachments: Attachment[] = []) {
+    text = maskProfanity(text); // 욕설 거르기 (2026-10-26 앱스토어 1.2)
     const roomId = this.talkRoomId;
     const refs = this.talkRefs;
     if (!roomId || (!text.trim() && !refs.length && !attachments.length)) return;
@@ -1770,11 +1773,40 @@ class AppState {
 
   /** 대화·코멘트: viewer 는 서버 API 로, 그 외는 문서에 직접 */
   async sendMessage(objectId: string, text: string, kind: 'chat' | 'comment' | 'voice', attachments: Attachment[] = []) {
+    text = maskProfanity(text); // 욕설 거르기 (2026-10-26 앱스토어 1.2)
     if (this.role === 'viewer' && this.room) {
       await postMessage(this.room, this.invite, { objectId, author: this.nickname, authorId: this.myId, text, kind, attachments });
     } else {
       this.project.addMessage(objectId, this.nickname, text, kind, attachments, undefined, this.myId);
     }
+  }
+
+  // ---------- 신고·차단 (2026-10-26 "신고·차단 기능 진행해줘" — 앱스토어 1.2) ----------
+  /** 내가 차단한 사람 (계정 id 또는 손님 g:…) — 로그인하면 서버, 아니면 이 기기(localStorage) */
+  blocks = $state<BlockedUser[]>([]);
+  async loadBlocks() {
+    if (this.account) { try { this.blocks = await listBlocks(); } catch { /* 그대로 */ } return; }
+    try { this.blocks = JSON.parse(localStorage.getItem('ganpanda.blocks') ?? '[]') as BlockedUser[]; } catch { this.blocks = []; }
+  }
+  private saveLocalBlocks() { try { localStorage.setItem('ganpanda.blocks', JSON.stringify(this.blocks)); } catch { /* 저장 불가 */ } }
+  /** 차단한 사람의 메시지 — 내 화면에서 뺀다 */
+  isBlocked(m: { authorId?: string }): boolean { return !!m.authorId && this.blocks.some((b) => b.id === m.authorId); }
+  /** 내 메시지인가 (아이디가 있으면 아이디로) */
+  isMine(m: { authorId?: string; author: string }): boolean { return m.authorId ? m.authorId === this.myId : m.author === this.nickname; }
+  async block(id: string, name: string) {
+    if (!id || id === this.myId || this.blocks.some((b) => b.id === id)) return;
+    if (this.account) await addBlock(id, name);
+    this.blocks = [{ id, name }, ...this.blocks];
+    if (!this.account) this.saveLocalBlocks();
+  }
+  async unblock(id: string) {
+    if (this.account) await removeBlock(id);
+    this.blocks = this.blocks.filter((b) => b.id !== id);
+    if (!this.account) this.saveLocalBlocks();
+  }
+  /** 신고 — 프로젝트 메시지면 서버가 그 글을 증거로 남기고 운영자에게 메일 */
+  async report(r: { messageId?: string; targetId?: string; targetName?: string; reason: ReportReason; detail?: string }) {
+    await postReport({ ...(this.room && r.messageId ? { projectId: this.room } : {}), ...r, reporterName: this.nickname }, this.room && r.messageId ? this.invite : null);
   }
 
   /** 메시지(대화·코멘트·음성 메모) 지우기 (2026-10-18 사용자: "말풍선 안의 이전 녹음을 지울 수가 없다"): 편집 권한이면 아무 글이나 문서에서, viewer 는 자기 글만 서버로 */

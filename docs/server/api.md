@@ -118,3 +118,8 @@
 | POST | `/api/projects/:id/versions/restore` `{key}` | 되돌리기 (직전 상태를 before 로 남김, 대화 유지) | `{ok}` / 403 기간 밖 / 404 |
 | POST | `/api/projects/:id/versions/copy` `{key}` | 그 버전으로 새 프로젝트 (소유자) | 201 `{project}` |
 - 멤버 초대 (2026-10-24): `POST /api/me/team {email, canBilling?}` — 가입된 이메일 201 `{member}`, 아니면 202 `{invite, link?}` 가입 링크 메일(`/login?team=`, 7일) / 403 `member_limit`(대기 중 초대 포함). `GET /api/me/team` → `{members, invites}` · `POST /api/me/team/link {canBilling?}` → 201 `{link, invite}` 이메일 없는 링크 초대(카카오톡 공유, 2026-10-24) · `DELETE /api/me/team/invites/:email|:id` · 공개 `GET /api/team-invite/:token` → `{email, ownerName, expiresAt}` / 404 / 410 · `POST /api/auth/signup {email, password, name?, teamInvite}` → 200 `{session, account}`(사업자 확인·인증 메일 없음; 링크 초대면 202 `{verify: true}` 인증 메일) / 403 `email_mismatch` / 404 / 409 / 410. 대기 중 초대는 그 이메일 계정의 로그인(메일 링크·비밀번호·소셜)마다 받아들여진다.
+
+## 신고 · 차단 (2026-10-26)
+- `POST /api/reports` {projectId?, messageId?, targetId?, targetName?, reason: spam|abuse|sexual|fraud|other, detail?} — 프로젝트 메시지면 `?invite=` 손님도, 아니면 로그인. 메시지 글을 증거로 저장, 운영자 메일.
+- `GET/POST /api/me/blocks` {id, name} · `DELETE /api/me/blocks/:id` — 내 차단 목록(나 자신은 400).
+- 운영자: `GET /api/operator/content-reports` · `POST /api/operator/content-reports/:id` {action: hide|dismiss}(hide = 메시지 삭제).

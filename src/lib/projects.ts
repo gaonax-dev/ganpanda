@@ -122,3 +122,15 @@ export const postPin = (room: string, invite: string | null, body: { photoId: st
   call<{ pin: { id: string } }>(`/api/rooms/${room}/pins${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
 
 export const ROLE_LABEL: Record<Role, string> = { owner: '소유자', editor: '편집', viewer: '보기·대화' };
+
+// ---- 신고·차단 (2026-10-26 앱스토어 1.2) ----
+export type ReportReason = 'spam' | 'abuse' | 'sexual' | 'fraud' | 'other';
+export const REPORT_REASON_LABEL: Record<ReportReason, string> = { spam: '스팸·광고', abuse: '욕설·괴롭힘·혐오', sexual: '음란물', fraud: '사기·개인정보 침해', other: '기타' };
+/** 신고: 프로젝트 메시지면 초대 링크 손님도 (invite) */
+export const postReport = (body: { projectId?: string; messageId?: string; targetId?: string; targetName?: string; reason: ReportReason; detail?: string; reporterName?: string }, invite: string | null) =>
+  call<{ ok: true; id: string }>(`/api/reports${invite ? `?invite=${invite}` : ''}`, { method: 'POST', body: JSON.stringify(body) });
+export interface BlockedUser { id: string; name: string }
+export const listBlocks = () => call<{ blocks: BlockedUser[] }>('/api/me/blocks').then((r) => r.blocks);
+export const addBlock = (id: string, name: string) => call<{ ok: true }>('/api/me/blocks', { method: 'POST', body: JSON.stringify({ id, name }) });
+export const removeBlock = (id: string) => call<{ ok: true }>(`/api/me/blocks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+

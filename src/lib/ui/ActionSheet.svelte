@@ -4,6 +4,7 @@
   import Icon, { type IconName } from './Icon.svelte';
   export interface SheetItem { id: string; label: string; sub?: string; icon: IconName; danger?: boolean; /** 기존 시험 id 를 그대로 쓸 때 */ testid?: string; onclick: () => void }
   let { items, title = '', testid, onclose }: { items: SheetItem[]; title?: string; testid: string; onclose: () => void } = $props();
+  // 항목 동작을 먼저, 닫기는 뒤에 — 닫으면서 부른 쪽의 대상 값이 비면 동작이 그 값을 잃는다
   function portal(node: HTMLElement) { document.body.appendChild(node); return { destroy() { node.remove(); } }; }
 </script>
 
@@ -12,7 +13,7 @@
     {#if title}<div class="title">{title}</div>{/if}
     <div class="group">
       {#each items as it (it.id)}
-        <button class="item" class:danger={it.danger} data-testid={it.testid ?? `sheet-item-${it.id}`} onclick={() => { onclose(); it.onclick(); }}>
+        <button class="item" class:danger={it.danger} data-testid={it.testid ?? `sheet-item-${it.id}`} onclick={() => { it.onclick(); onclose(); }}>
           <span class="ic"><Icon name={it.icon} size={20} /></span>
           <span class="txt"><b>{it.label}</b>{#if it.sub}<small>{it.sub}</small>{/if}</span>
         </button>

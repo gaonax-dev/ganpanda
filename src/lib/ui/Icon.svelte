@@ -1,6 +1,6 @@
 <!-- 선 아이콘 (2026-10-26 "아이콘도 모던한걸로") — 24 격자 · 선 두께 1.8 · 둥근 끝. 이모지(📐 🎨 ⚙ 📷 🖼) 대신 -->
 <script lang="ts" module>
-  export type IconName = 'image' | 'camera' | 'folder' | 'pencil' | 'replace' | 'sliders' | 'trash' | 'text' | 'dashed' | 'gear' | 'ruler' | 'sparkle' | 'check';
+  export type IconName = 'image' | 'camera' | 'folder' | 'pencil' | 'replace' | 'sliders' | 'trash' | 'text' | 'dashed' | 'gear' | 'ruler' | 'sparkle' | 'check' | 'flag' | 'block';
 </script>
 <script lang="ts">
   let { name, size = 18 }: { name: IconName; size?: number } = $props();
@@ -20,6 +20,8 @@
   {:else if name === 'ruler'}<path d="M3 20 20 3v17z" /><path d="M8 20v-2M12 20v-3M16 20v-2M20 8h-2M20 12h-3M20 16h-2" />
   {:else if name === 'sparkle'}<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
   {:else if name === 'check'}<path d="m5 12.5 4.5 4.5L19 7.5" />
+  {:else if name === 'flag'}<path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" />
+  {:else if name === 'block'}<circle cx="12" cy="12" r="8.5" /><path d="m6 6 12 12" />
   {/if}
 </svg>
 

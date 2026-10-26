@@ -4,6 +4,7 @@ export { Account } from './account';
 import { handlePriceImport } from './priceImport';
 import { handleOperator } from './bypass';
 import { handleMyPeople, handleMyTalks, syncTalkIndex } from './talk';
+import { handleBlocks, handleContentReports, handleReports } from './moderation';
 import { handleRequests, markApproved } from './requests';
 import { planOf } from './plans';
 import { runBackup } from './backup';
@@ -286,10 +287,13 @@ export default {
     const ti = pathname.match(/^\/api\/team-invite\/([A-Za-z0-9_-]{16,})$/);
     if (ti && req.method === 'GET') return withCors(await handleTeamInvite(env, ti[1])); // 멤버 초대 링크 정보 (공개, 2026-10-24)
     if (pathname.startsWith('/api/me/talks')) return withCors(await handleMyTalks(req, env, pathname)); // 메인 화면 톡 (2026-10-22)
+    if (pathname === '/api/reports') return withCors(await handleReports(req, env, url)); // 신고 (2026-10-26 앱스토어 1.2)
+    if (pathname === '/api/me/blocks' || pathname.startsWith('/api/me/blocks/')) return withCors(await handleBlocks(req, env, pathname)); // 차단
     if (pathname === '/api/me/people' && req.method === 'GET') return withCors(await handleMyPeople(req, env)); // 메인 톡 [사용자] 탭 (2026-10-26)
     if (pathname.startsWith('/api/admin/')) return withCors(await handleAdmin(req, env, pathname)); // 운영자 복원 (2026-10-21)
     if (pathname.startsWith('/api/auth/') || pathname === '/api/me' || pathname === '/api/me/password' || pathname === '/api/me/plan' || pathname === '/api/me/presence' || pathname === '/api/me/logout-others') return withCors(await handleAuth(req, env, pathname));
     if (pathname.startsWith('/api/groups')) return withCors(await handleGroups(req, env, pathname));
+    if (pathname.startsWith('/api/operator/content-reports')) return withCors(await handleContentReports(req, env, pathname)); // 신고 처리 (2026-10-26)
     if (pathname.startsWith('/api/operator/')) return withCors(await handleOperator(req, env, pathname)); // 간판다 밖 거래 신고 처리 (2026-10-24)
     if (pathname.startsWith('/api/requests') || pathname === '/api/me/request-settings') return withCors(await handleRequests(req, env, pathname, url));
     if (/^\/api\/projects\/[^/]+\/versions/.test(pathname)) return withCors(await handleVersions(req, env, pathname, url)); // 사용자 버전 기록 (2026-10-21)
