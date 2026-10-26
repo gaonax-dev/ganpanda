@@ -35,7 +35,7 @@ export async function authenticate(req: Request, env: Env): Promise<(Account & {
 }
 
 /** 가입할 때 동의한 이용약관·개인정보처리방침 버전 (2026-10-27 — 가입 화면에 "가입하면 동의" 안내, 계정에 버전·시각 기록) */
-export const TERMS_VERSION = '2026-10-25';
+export const TERMS_VERSION = '2026-10-27'; // 개정 약관 즉시 시행 (2026-10-27 "현재 모두 테스터만 있다 약관 바로적용")
 /** 영구 정지된 채 탈퇴한 이메일 — 1년 동안 다시 가입 못 함 (2026-10-27 약관 개정안 제3조의2) */
 export async function bannedEmail(env: Env, email: string): Promise<boolean> {
   const r = await env.DB.prepare('SELECT until FROM banned_emails WHERE email_hash = ?').bind(await sha256hex(email.toLowerCase())).first<{ until: number }>();
