@@ -22,6 +22,8 @@
   import { depthMmOf, thicknessOf } from '../core/render';
   import { DEFAULT_TIP, UNIT_RECT } from '../core/bubbleShape';
   import BubbleShape from '../ui/BubbleShape.svelte';
+  import Icon from '../ui/Icon.svelte';
+  import ActionSheet, { type SheetItem } from '../ui/ActionSheet.svelte';
   import { app, type Tool } from '../state.svelte';
 
   let {
@@ -477,6 +479,19 @@
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
   let confirmsOpen = $state(false);
   let menuOpen = $state(false); // 사진 설정 메뉴 (2026-10-21)
+  /** 휴대폰 시트의 사진 설정 항목 — 데스크톱 목록과 같은 순서·같은 시험 id */
+  function menuItems(): SheetItem[] {
+    const out: SheetItem[] = [];
+    if (narrow && objects.length) {
+      out.push({ id: 'info', testid: 'photo-menu-info', icon: 'text', label: hideInfo ? '정보 보이기' : '정보 숨기기', sub: '사인물 이름·치수 글자', onclick: () => app.togglePhotoHide(photo.id, 'info') });
+      out.push({ id: 'lines', testid: 'photo-menu-lines', icon: 'dashed', label: hideLines ? '구별선 보이기' : '구별선 숨기기', sub: '사인물 외곽선 — 눌러서 고를 수는 있다', onclick: () => app.togglePhotoHide(photo.id, 'lines') });
+    }
+    out.push({ id: 'rename', testid: 'photo-rename', icon: 'pencil', label: '이름 변경', sub: '톡 링크·목록에 보이는 이름', onclick: async () => { const n = await askPrompt('사진 이름', photo.name); if (n !== null) app.renamePhoto(photo.id, n); } });
+    if (onreplace) out.push({ id: 'replace', testid: 'photo-replace', icon: 'replace', label: '사진 교체', sub: '같은 자리에서 다시 찍은 사진으로 — 영역·원근은 그대로', onclick: () => onreplace() });
+    if (onadjust) out.push({ id: 'adjust', testid: 'photo-adjust', icon: 'sliders', label: '이미지 조절', sub: '크롭(여백 더하기도)·밝기', onclick: () => onadjust() });
+    out.push({ id: 'delete', testid: 'photo-delete', icon: 'trash', label: '사진 삭제', sub: '사인물·말풍선도 함께', danger: true, onclick: () => ondelete() });
+    return out;
+  }
   let headerDrag: { x: number; y: number } | null = null;
   let headerMoved = false;
   function headerDown(e: PointerEvent) {
@@ -534,7 +549,7 @@
     {#if !narrow}<span class="count">사인물 {objects.length}</span>{/if}
     {#if oncamera && !tiny}
       <!-- 원근 자동 매칭 + 옵션(네모 두 개 겹친 아이콘 → 원근 맞추기 창) (2026-10-19 사용자: "원근 -> 원근자동매칭 옆에 옵션버튼(네모두개겹친 아이콘)으로") -->
-      {#if oncameraauto}<button class="x cam" class:set={cameraSet} data-testid="camera-auto" disabled={cameraBusy} title="크기를 넣은 사인물로 원근을 맞춥니다 — 외곽선 = 축 선, 왼쪽 아래 코너 = 원점, 가로 = 기준 길이 (고른 사인물 우선, 없으면 AI 가 사진의 직선으로). 고치려면 옆의 옵션" onpointerdown={(e) => e.stopPropagation()} onclick={oncameraauto}>{cameraBusy ? '📐 분석 중…' : narrow ? (cameraSet ? '📐✓' : '📐') : cameraSet ? '📐 원근 자동 매칭 ✓' : '📐 원근 자동 매칭'}</button>{/if}
+      {#if oncameraauto}<button class="x cam" class:set={cameraSet} data-testid="camera-auto" disabled={cameraBusy} title="크기를 넣은 사인물로 원근을 맞춥니다 — 외곽선 = 축 선, 왼쪽 아래 코너 = 원점, 가로 = 기준 길이 (고른 사인물 우선, 없으면 AI 가 사진의 직선으로). 고치려면 옆의 옵션" onpointerdown={(e) => e.stopPropagation()} onclick={oncameraauto}><Icon name="ruler" size={15} />{cameraBusy ? ' 분석 중…' : narrow ? '' : ' 원근 자동 매칭'}{#if cameraSet && !cameraBusy}<span class="ok"><Icon name="check" size={13} /></span>{/if}</button>{/if}
       <!-- 원근 완성도 (2026-10-19 "정확도를 경고하지 마라 … 완성도 표시만해줘"): 축 → 길이 → 확인, 세 칸 -->
       {#if level?.level}<span class="lvl" data-testid="camera-level" data-level={level.level} title={levelTitle} aria-label={levelTitle}>{#each [1, 2, 3] as k (k)}<i class:on={level.level >= k}></i>{/each}</span>{/if}
       <button class="x cam opt" class:set={cameraSet} data-testid="camera-open" data-status={cameraSet ? 'set' : 'none'} aria-label="원근 옵션" title={cameraSet ? '원근 옵션 — 이 사진의 원근이 맞춰져 있습니다. 눌러서 고치기' : '원근 옵션 — 벽의 직선과 실측 길이로 원근을 직접 맞추기'} onpointerdown={(e) => e.stopPropagation()} onclick={oncamera}><svg class="opt-ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="4.5" width="9" height="9" rx="1.5" /><rect x="5.5" y="1.5" width="9" height="9" rx="1.5" /></svg></button>
@@ -544,15 +559,18 @@
       <button class="x tog" class:set={!hideInfo} data-testid="photo-toggle-info" aria-pressed={!hideInfo} title={hideInfo ? '사인물 이름·치수 글자 보이기' : '사인물 이름·치수 글자 숨기기'} onpointerdown={(e) => e.stopPropagation()} onclick={() => app.togglePhotoHide(photo.id, 'info')}>정보</button>
       <button class="x tog" class:set={!hideLines} data-testid="photo-toggle-lines" aria-pressed={!hideLines} title={hideLines ? '사인물 구별선(외곽선) 보이기' : '사인물 구별선(외곽선) 숨기기 — 눌러서 고를 수는 있다'} onpointerdown={(e) => e.stopPropagation()} onclick={() => app.togglePhotoHide(photo.id, 'lines')}>구별선</button>
     {/if}
-    {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}>{narrow ? (threeD === 'ok' ? '🎨✓' : '🎨') : threeD === 'ok' ? '🎨 렌더링 ✓' : '🎨 렌더링'}</button>{/if}
+    {#if onrender && !tiny}<button class="x" class:set={threeD === 'ok'} data-testid="render-open" data-status={threeD} title={threeD === 'ok' ? '렌더링 (디자인을 입힌 최종 합성, 주간·야간, PNG 저장)' : '이 사진은 아직 3D 가 안 됩니다 — 원근 맞추기 또는 치수 입력'} onpointerdown={(e) => e.stopPropagation()} onclick={onrender}><Icon name="sparkle" size={15} />{narrow ? '' : ' 렌더링'}{#if threeD === 'ok'}<span class="ok"><Icon name="check" size={13} /></span>{/if}</button>{/if}
     {#if pins.some((p) => p.resolved) && !tiny}
       <!-- 완료한 말풍선 목록 (2026-10-18): 사인물을 가리키지 않는 것도 여기서 다시 연다 -->
       <button class="x" class:set={confirmsOpen} data-testid="photo-confirms" title="완료한 말풍선" onpointerdown={(e) => e.stopPropagation()} onclick={() => (confirmsOpen = !confirmsOpen)}>✓ 완료 {pins.filter((p) => p.resolved).length}</button>
     {/if}
     <!-- 사진 설정 (2026-10-21 "x 마크 대신 설정버튼으로 사진교체, 이미지 조절, 삭제") -->
-    {#if editable && !tiny}<button class="x" class:set={menuOpen} data-testid="photo-menu" title="사진 설정 — 이름 변경 · 교체 · 이미지 조절 · 삭제" aria-label="사진 설정" onpointerdown={(e) => e.stopPropagation()} onclick={() => (menuOpen = !menuOpen)}>⚙</button>{/if}
+    {#if editable && !tiny}<button class="x" class:set={menuOpen} data-testid="photo-menu" title="사진 설정 — 이름 변경 · 교체 · 이미지 조절 · 삭제" aria-label="사진 설정" onpointerdown={(e) => e.stopPropagation()} onclick={() => (menuOpen = !menuOpen)}><Icon name="gear" size={15} /></button>{/if}
   </div>
-  {#if menuOpen && editable}
+  <!-- 휴대폰: 사진 설정은 화면 아래 시트로 (2026-10-26 "이상한데에서 나온다" — 확대된 보드 안 목록이 화면 오른쪽 밖으로 나갔다) -->
+  {#if menuOpen && editable && app.compact}
+    <ActionSheet testid="photo-menu-list" title={photo.name} onclose={() => (menuOpen = false)} items={menuItems()} />
+  {:else if menuOpen && editable}
     <div class="confirms menu" data-testid="photo-menu-list" role="menu" tabindex="-1" style:transform="scale({1 / zoom})" onpointerdown={(e) => e.stopPropagation()}>
       <!-- 휴대폰 폭은 머리글이 좁아 [정보]·[구별선]을 여기에 (2026-10-24) -->
       {#if narrow && objects.length}
@@ -1050,4 +1068,6 @@
   .lvl[data-level='3'] i.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
   .cam.opt { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px; }
   .header svg.opt-ico { position: static; display: block; width: 14px; height: 14px; inset: auto; fill: none; stroke: currentColor; stroke-width: 1.4; pointer-events: none; } /* 사진 위 겹층용 svg 규칙(absolute)을 끊는다 */
+  .x .ok { display: inline-flex; margin-left: 2px; color: #4ade80; }
+  .x :global(.gicon) { vertical-align: -0.18em; }
 </style>

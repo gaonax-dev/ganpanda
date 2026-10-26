@@ -9,6 +9,8 @@
   import { nextPhotoName } from '../core/photoName';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import FlatBar from '../ui/FlatBar.svelte';
+  import ActionSheet from '../ui/ActionSheet.svelte';
+  import Icon from '../ui/Icon.svelte';
   import TouchHelp from '../ui/TouchHelp.svelte';
   import PhotoZone from './PhotoZone.svelte';
   import BoardCard from './BoardCard.svelte';
@@ -124,6 +126,13 @@
   let photoInput = $state<HTMLInputElement>();
   let cameraInput = $state<HTMLInputElement>();
   let photoMenu = $state(false);
+  let fileInput = $state<HTMLInputElement>();
+  /**
+   * 사진 추가 (2026-10-26 "사진을 클릭하면 나오는 리스트가 아이폰과 안드로이드가 다르다 … 이상한데에서 나온다"): 아이폰은 iOS 자체 목록(사진 보관함 · 사진 찍기 · 파일 선택)이
+   * 바로 뜨므로 우리 목록을 겹쳐 띄우지 않는다. 안드로이드 등 다른 터치 기기는 같은 항목·순서의 하단 시트(ActionSheet). 데스크톱은 파일 고르기 바로
+   */
+  const isIOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  function addPhotoTap() { if (!touchDevice || isIOS) photoInput?.click(); else photoMenu = true; }
   /** 사각 도구의 모양 고르기 자리 (화면 좌표 — 사각 단추 바로 위) */
   let rectBtn = $state<HTMLButtonElement>();
   let shapesAt = $state<{ x: number; y: number } | null>(null);
@@ -610,7 +619,7 @@
           <p>건물 사진을 올려 시작하세요</p>
           {#if touchDevice}
             <!-- 휴대폰: 카메라와 앨범을 따로 (2026-10-24 "어떤 안드로이드 기계의 경우엔 사진라이브러로 바로 이동해 사진을 찍을 수 없게") -->
-            <div class="pick2"><button class="btn primary" data-testid="photo-camera" onclick={() => cameraInput?.click()}>📷 사진 찍기</button><button class="btn" data-testid="photo-album" onclick={() => photoInput?.click()}>🖼 앨범에서</button></div>
+            <div class="pick2"><button class="btn primary" data-testid="photo-camera" onclick={() => cameraInput?.click()}><Icon name="camera" /> 사진 찍기</button><button class="btn" data-testid="photo-album" onclick={() => photoInput?.click()}><Icon name="image" /> 사진 보관함</button></div>
           {:else}
             <button class="btn primary" data-testid="photo-add" onclick={() => photoInput?.click()}>사진 추가</button>
           {/if}
@@ -633,6 +642,8 @@
 <input data-testid="photo-replace-input" type="file" accept="image/*" hidden bind:this={replaceInput} onchange={onReplaceFile} />
 <!-- 사진 올리기 입력 (2026-10-24): 앨범(여러 장) · 카메라(capture — 사진 선택기가 카메라를 안 보여 주는 안드로이드에서도 바로 촬영) -->
 <input data-testid="photo-input" type="file" accept="image/*" multiple hidden bind:this={photoInput} onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} />
+<!-- 파일 선택(안드로이드 하단 시트): 확장자로 받아야 사진 선택기가 아닌 파일 관리자가 열린다 -->
+<input data-testid="photo-file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" multiple hidden bind:this={fileInput} onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} />
 <input data-testid="photo-camera-input" type="file" accept="image/*" capture="environment" hidden bind:this={cameraInput} onchange={(e) => { const fs = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ''; addPhotos(fs); }} />
 <div class="tools" role="toolbar">
         {#if app.canEdit}
@@ -654,12 +665,13 @@
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
           <!-- 사각 아이콘 = 정사각, 다른 아이콘과 같은 선 두께 (2026-10-24) -->
           <button class="file" bind:this={rectBtn} data-testid="tool-rect" class:on={app.tool === 'rect' || app.tool === 'ellipse'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5" /></svg><span class="lbl"> 사각</span></button>
-          <button class="file" data-testid="tool-photo" title="사진 추가" onclick={() => (touchDevice ? (photoMenu = !photoMenu) : photoInput?.click())}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span></button>
+          <button class="file" data-testid="tool-photo" title="사진 추가" onclick={addPhotoTap}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span></button>
           {#if photoMenu}
-            <div class="photo-menu" data-testid="photo-menu">
-              <button data-testid="photo-menu-camera" onclick={() => { photoMenu = false; cameraInput?.click(); }}>📷 사진 찍기</button>
-              <button data-testid="photo-menu-album" onclick={() => { photoMenu = false; photoInput?.click(); }}>🖼 앨범에서</button>
-            </div>
+            <ActionSheet testid="photo-add-sheet" onclose={() => (photoMenu = false)} items={[
+              { id: 'library', label: '사진 보관함', icon: 'image', onclick: () => photoInput?.click() },
+              { id: 'camera', label: '사진 찍기', icon: 'camera', onclick: () => cameraInput?.click() },
+              { id: 'files', label: '파일 선택', icon: 'folder', onclick: () => fileInput?.click() },
+            ]} />
           {/if}
         {:else}
           <span class="readonly">보기·대화만 가능</span>
@@ -700,8 +712,6 @@
   @keyframes board-spin { to { transform: rotate(360deg); } }
   .empty p { font-size: 16px; color: var(--text); margin: 0; }
   .pick2 { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-  .photo-menu { position: absolute; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 6px; margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
-  .photo-menu button { white-space: nowrap; padding: 8px 12px; text-align: left; }
   .multibar {
     position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%); z-index: 6;
     display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px;
