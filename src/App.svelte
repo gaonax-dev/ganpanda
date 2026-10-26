@@ -109,7 +109,7 @@
     { id: '2d', tid: 'stage-2d', label: '2D', short: '2D' },
     { id: '3d', tid: 'stage-3d', label: '3D', short: '3D' },
     { id: 'design', tid: 'view-design', label: '디자인', short: '디자인' },
-    { id: 'list', tid: 'view-list', label: '사인물리스트', short: '리스트' },
+    { id: 'list', tid: 'view-list', label: '견적', short: '견적' }, // 2026-10-26 "헤더의 리스트를 견적으로 변경한다"
   ];
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);

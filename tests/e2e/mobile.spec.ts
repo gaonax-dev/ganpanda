@@ -41,7 +41,7 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await expect(page.getByTestId('view-board')).toHaveText(/^\s*실측\s*$/);
-  await expect(page.getByTestId('view-list')).toContainText('리스트');
+  await expect(page.getByTestId('view-list')).toContainText('견적'); // 2026-10-26 리스트 → 견적
   await expect(page.getByTestId('proposal-button')).toHaveText('제안');
   await expect(page.getByTestId('invite-button')).toHaveText('초대');
   // 도구 막대는 아이콘만 (라벨 숨김)

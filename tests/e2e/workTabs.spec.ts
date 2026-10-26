@@ -6,7 +6,7 @@ import { openOwnedProject, uploadPhoto } from './helpers';
 test('탭은 실측 · 2D · 3D · 디자인 · 사인물리스트 — 처음은 실측, 디자인은 사진보드 그대로 + 디자인 파일 올리기·연결, 컨펌 없음', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await expect(page.getByTestId('work-tabs').locator('button')).toHaveText(['실측', '2D', '3D', '디자인', '사인물리스트']);
+  await expect(page.getByTestId('work-tabs').locator('button')).toHaveText(['실측', '2D', '3D', '디자인', '견적']); // 2026-10-26 "헤더의 리스트를 견적으로 변경"
   await expect(page.getByTestId('view-confirm')).toHaveCount(0);
   await expect(page.getByTestId('view-board')).toHaveClass(/on/);
   await page.getByTestId('stage-2d').click();
