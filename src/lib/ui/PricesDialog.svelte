@@ -1,6 +1,8 @@
 <!-- 단가 설정 (편집 권한): 프로젝트 단가표 수정, 소유자는 계정 기본값으로 저장.
   2026-10-16: 공급 단가표(한울 등, 읽기 전용)를 아래에 보이고, 내 단가 항목을 공급 품목에 연결하면 그 단가를 가져오고 꼬리표가 붙는다. 직접 고치면 연결이 풀린다.
-  공급사 계산법(글자 크기 구간·폭 구간·헤베+기본가·면적 구간)을 고르면 견적이 그 계산법 × 배수로 나온다("공급사별 계산법을 사용할 수 있게해줘"). -->
+  공급사 계산법(글자 크기 구간·폭 구간·헤베+기본가·면적 구간)을 고르면 견적이 그 계산법 × 배수로 나온다("공급사별 계산법을 사용할 수 있게해줘").
+  2026-10-26 "사용자 클릭메뉴에 단가설정 생성하고 두개의 탭을 구성해줘 견적단가, 자재 원가": 탭 [견적 단가](가져오기·품목·시트·공통) | [자재 원가](배수·공급 단가표).
+  계정 메뉴에서 열면 — 프로젝트 밖(홈 등)이면 내 기본 단가(계정)를 고치고 [저장], 프로젝트 안이면 지금처럼 이 프로젝트 단가 -->
 <script lang="ts">
   import { nudgeClose } from './dialogGuard';
   import { app } from '../state.svelte';
@@ -40,25 +42,31 @@
     if (!imResult) return;
     const chosen = imResult.items.filter((i) => imPick[i.id] && Number.isFinite(imPrice[i.id]) && imPrice[i.id] >= 0);
     if (!chosen.length) return;
-    const put = (t: PriceTable): PriceTable => {
+    const putImport = (t: PriceTable): PriceTable => {
       const next: PriceTable = { ...t, products: { ...t.products }, sheets: { ...t.sheets }, ...(t.links ? { links: { ...t.links } } : {}) };
       for (const i of chosen) { const v = Math.round(imPrice[i.id]); if (isSheet(i.id)) next.sheets[i.id] = v; else next.products[i.id] = v; if (next.links) delete next.links[i.id]; }
       return next;
     };
-    app.setPrices(put(p));
-    if (imSaveAccount) { try { const mine = put(mergePrices(app.accountPrices)); await savePrices(mine); app.accountPrices = mine; } catch (e) { imError = describeImportError(e); return; } }
-    imDone = `${chosen.length}개 항목을 넣었습니다${imSaveAccount ? ' (이 견적 + 내 단가표)' : ' (이 견적)'}.`;
+    const into = putImport;
+    put(into(p));
+    if (imSaveAccount && !accountMode) { try { const mine = putImport(mergePrices(app.accountPrices)); await savePrices(mine); app.accountPrices = mine; } catch (e) { imError = describeImportError(e); return; } }
+    imDone = accountMode ? `${chosen.length}개 항목을 넣었습니다 — [저장]을 누르면 내 단가표에 남습니다.` : `${chosen.length}개 항목을 넣었습니다${imSaveAccount ? ' (이 견적 + 내 단가표)' : ' (이 견적)'}.`;
     imResult = null;
   }
   let saved = $state(false);
   let saving = $state(false);
-  const p = $derived(app.prices);
+  /** 프로젝트 밖(계정 메뉴에서 홈 등): 내 기본 단가(계정)를 고친다 — 저장 단추로 서버에 */
+  const accountMode = !app.room || app.access.status !== 'ok' || !app.canEdit;
+  let draft = $state<PriceTable>(mergePrices(app.accountPrices));
+  const p = $derived(accountMode ? draft : app.prices);
+  const put = (next: PriceTable) => { if (accountMode) draft = next; else app.setPrices(next); };
+  let tab = $state<'sale' | 'cost'>('sale');
 
   function set(patch: Partial<PriceTable>) {
     const next = { ...p, ...patch };
     if (!next.links) delete next.links; // 동기화 문서에 undefined 를 남기지 않는다
     if (!next.methods) delete next.methods;
-    app.setPrices(next);
+    put(next);
   }
   const num = (v: string, fallback: number) => { const n = Number(v); return v.trim() === '' || !isFinite(n) || n < 0 ? fallback : n; };
   const without = (m: Record<string, string> | undefined, id: string) => { const { [id]: _, ...rest } = m ?? {}; return Object.keys(rest).length ? rest : undefined; };
@@ -84,18 +92,18 @@
   }
   /** 배수(사용자가 정함): 비우면 전체 배수를 따른다. 바꾸면 연결된 항목을 다시 계산 */
   const ratio = (v: string): number | null => { const n = Number(v); return v.trim() !== '' && isFinite(n) && n > 0 && n <= 10 ? n : null; };
-  function setAll(v: string) { const n = ratio(v); if (n !== null) app.setPrices(applyMarkup(p, { ...(p.markup ?? {}), all: n })); }
+  function setAll(v: string) { const n = ratio(v); if (n !== null) put(applyMarkup(p, { ...(p.markup ?? {}), all: n })); }
   function setGroup(g: string, v: string) {
     const n = ratio(v);
     const groups = { ...(p.markup?.groups ?? {}) };
     if (n === null) delete groups[g]; else groups[g] = n;
-    app.setPrices(applyMarkup(p, { ...(p.markup ?? { all: 1 }), groups }));
+    put(applyMarkup(p, { ...(p.markup ?? { all: 1 }), groups }));
   }
   /** 직접 출력 분류: 연결 목록에서 빠지고, 이미 연결된 항목은 풀린다(단가는 남음) */
   function setDirect(g: string, on: boolean) {
     const direct = (p.markup?.direct ?? []).filter((x) => x !== g);
     if (on) direct.push(g);
-    app.setPrices(applyMarkup(p, { ...(p.markup ?? { all: 1 }), direct }));
+    put(applyMarkup(p, { ...(p.markup ?? { all: 1 }), direct }));
   }
   const directOf = (g: string) => !!p.markup?.direct?.includes(g);
   let query = $state('');
@@ -150,9 +158,14 @@
 {/snippet}
 
 <div class="backdrop" role="presentation" onpointerdown={nudgeClose}>
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="단가 설정">
-    <header><h2>단가 설정</h2><button class="icon" data-close data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="단가 설정" data-testid="prices-dialog">
+    <header><h2>단가 설정{#if accountMode} <small class="scope">내 기본 단가</small>{/if}</h2><button class="icon" data-close data-testid="close-prices" title="닫기" onclick={() => (app.pricesOpen = false)}>✕</button></header>
+    <nav class="tabs" data-testid="prices-tabs">
+      <button class:on={tab === 'sale'} data-testid="prices-tab-sale" onclick={() => (tab = 'sale')}>견적 단가</button>
+      <button class:on={tab === 'cost'} data-testid="prices-tab-cost" onclick={() => (tab = 'cost')}>자재 원가</button>
+    </nav>
     <div class="body">
+      {#if tab === 'sale'}
       <section class="import" data-testid="prices-import">
         <h3>쓰던 단가표 가져오기 <small>AI 가 읽어 아래 항목에 맞춥니다 — 엑셀(.xlsx)·CSV·사진·PDF·글</small></h3>
         <textarea data-testid="import-text" rows="3" bind:value={imText} placeholder="엑셀·카톡·메모에서 복사해 붙여 넣기 (예: 갈바 간판  회배 65,000)"></textarea>
@@ -178,8 +191,8 @@
               {/each}
             </tbody>
           </table>
-          <p class="imrow"><label class="check"><input type="checkbox" data-testid="import-save-account" bind:checked={imSaveAccount} /> 내 단가표에도 저장 (새 프로젝트)</label>
-            <button class="btn primary small" data-testid="import-apply" onclick={applyImport}>적용</button></p>
+          {#if !accountMode}<p class="imrow"><label class="check"><input type="checkbox" data-testid="import-save-account" bind:checked={imSaveAccount} /> 내 단가표에도 저장 (새 프로젝트)</label>
+            <button class="btn primary small" data-testid="import-apply" onclick={applyImport}>적용</button></p>{/if}
         {/if}
         {#if imResult?.unmatched.length}
           <details data-testid="import-unmatched" open={!imResult.items.length}><summary>못 찾은 줄 {imResult.unmatched.length}개 — 아래 표에 직접 넣어 주세요</summary>
@@ -200,8 +213,19 @@
           {@render row(sh.id, sh.name, 'm2', '원/㎡', 'sheets')}
         {/each}
       </section>
+      <section>
+        <h3>공통</h3>
+        <label class="row"><span>기본 설치·운반비</span><input data-testid="price-install" type="number" min="0" step="1000" value={p.install} oninput={(e) => set({ install: num(e.currentTarget.value, p.install) })} /><small>원/프로젝트</small></label>
+        <label class="row"><span>항목 최소 금액</span><input data-testid="price-minimum" type="number" min="0" step="1000" value={p.minimum} oninput={(e) => set({ minimum: num(e.currentTarget.value, p.minimum) })} /><small>원</small></label>
+        <label class="row"><span>금액 반올림 단위</span>
+          <select value={String(p.rounding)} onchange={(e) => set({ rounding: Number(e.currentTarget.value) as PriceTable['rounding'] })}>
+            {#each ROUNDING_OPTIONS as r (r)}<option value={String(r)}>{r.toLocaleString('ko-KR')}원</option>{/each}
+          </select><small></small></label>
+        <label class="check"><input data-testid="price-vat-included" type="checkbox" checked={p.vatIncluded} onchange={(e) => set({ vatIncluded: e.currentTarget.checked })} /> 단가가 부가세 포함가입니다 (합계 = 공급가, 부가세는 안내만)</label>
+      </section>
+      {:else}
       <section data-testid="supplier-lists">
-        <h3>공급 단가표 <span class="sub">참고용 · 위 항목의 선택에서 공급 품목(단가 × 배수)이나 공급사 계산법(구간·기본가 × 배수)을 고르면 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
+        <h3>공급 단가표 <span class="sub">자재 원가 · [견적 단가] 탭의 항목 선택에서 공급 품목(원가 × 배수)이나 공급사 계산법(구간·기본가 × 배수)을 고르면 꼬리표가 붙습니다 (회배 = 1㎡)</span></h3>
         <div class="markup" data-testid="markup">
           <label>전체 배수 ×<input data-testid="markup-all" type="number" min="0.1" max="10" step="0.05" value={p.markup?.all ?? 1} onchange={(e) => setAll(e.currentTarget.value)} /></label>
           <small>연결한 항목 = 공급 단가 × 배수 (100원 단위). 분류 배수(공급업체를 펼쳐 분류마다)를 비우면 전체 배수. 직접 출력 분류는 연결하지 않고 직접 입력합니다</small>
@@ -236,20 +260,17 @@
           </div>
         {/each}
       </section>
-      <section>
-        <h3>공통</h3>
-        <label class="row"><span>기본 설치·운반비</span><input data-testid="price-install" type="number" min="0" step="1000" value={p.install} oninput={(e) => set({ install: num(e.currentTarget.value, p.install) })} /><small>원/프로젝트</small></label>
-        <label class="row"><span>항목 최소 금액</span><input data-testid="price-minimum" type="number" min="0" step="1000" value={p.minimum} oninput={(e) => set({ minimum: num(e.currentTarget.value, p.minimum) })} /><small>원</small></label>
-        <label class="row"><span>금액 반올림 단위</span>
-          <select value={String(p.rounding)} onchange={(e) => set({ rounding: Number(e.currentTarget.value) as PriceTable['rounding'] })}>
-            {#each ROUNDING_OPTIONS as r (r)}<option value={String(r)}>{r.toLocaleString('ko-KR')}원</option>{/each}
-          </select><small></small></label>
-        <label class="check"><input data-testid="price-vat-included" type="checkbox" checked={p.vatIncluded} onchange={(e) => set({ vatIncluded: e.currentTarget.checked })} /> 단가가 부가세 포함가입니다 (합계 = 공급가, 부가세는 안내만)</label>
-      </section>
+      {/if}
     </div>
     <footer>
+      {#if accountMode}
+        <span class="hint">내 기본 단가 — 새 프로젝트에 적용됩니다. 이미 만든 프로젝트는 그 프로젝트의 단가 설정에서.</span>
+        <button class="btn primary" data-testid="save-default-prices" disabled={saving} onclick={saveDefault}>저장</button>
+        {#if saved}<span class="ok" data-testid="prices-saved">저장됨 ✓</span>{/if}
+      {:else}
       <span class="hint">이 프로젝트에 바로 적용됩니다. 고객도 같은 단가로 견적을 봅니다.</span>
-      {#if app.role === 'owner'}
+      {/if}
+      {#if !accountMode && app.role === 'owner'}
         <button class="btn" data-testid="save-default-prices" disabled={saving} onclick={saveDefault}>내 기본 단가로 저장</button>
         {#if saved}<span class="ok" data-testid="prices-saved">저장됨 ✓ 새 프로젝트에 적용</span>{/if}
       {/if}
@@ -270,10 +291,14 @@
   .hint.ok { color: var(--ok, #22c55e); }
   .hint.warn { color: #b45309; }
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
-  .dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .dialog { width: min(640px, calc(100vw - 32px)); height: min(820px, calc(100dvh - 64px)); max-height: calc(100dvh - 64px); /* 탭을 바꿔도 창 크기·자리 그대로 (2026-10-26) */ background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
   h2 { margin: 0; font-size: 16px; }
-  .body { overflow-y: auto; padding: 4px 16px 12px; }
+  .body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 12px; }
+  .tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); }
+  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; cursor: pointer; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .scope { font-size: 12px; font-weight: 600; color: var(--accent); margin-left: 6px; }
   section { margin-top: 12px; }
   h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
   .row { display: grid; grid-template-columns: 1fr 110px 56px 150px; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; color: var(--text); }

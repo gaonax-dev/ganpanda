@@ -242,6 +242,8 @@
                 <input data-testid="account-name" bind:value={nameDraft} onkeydown={(e) => { if (e.key === 'Enter') saveName(); }} onblur={saveName} />
               </label>
               <button class="btn small" data-testid="open-settings" onclick={() => { accountOpen = false; app.settingsOpen = true; }}>⚙ 설정</button>
+              <!-- 단가 설정 (2026-10-26 "사용자 클릭메뉴에 단가설정 생성하고 두개의 탭을 구성해줘 견적단가, 자재 원가"): 프로젝트 안이면 그 프로젝트 단가, 밖이면 내 기본 단가 -->
+              {#if !app.consumerAccount}<button class="btn small" data-testid="account-prices" onclick={() => { accountOpen = false; app.pricesOpen = true; }}>₩ 단가 설정</button>{/if}
               <button class="btn small" data-testid="open-password" onclick={() => { accountOpen = false; app.passwordOpen = 'change'; }}>{app.account.hasPassword ? '비밀번호 바꾸기' : '비밀번호 만들기'}</button>
               <button class="btn small" data-testid="logout" onclick={() => { accountOpen = false; app.logout(); }}>로그아웃</button>
               <!-- 약관·개인정보 (2026-10-24 로그인 후 홈 푸터 대신) — 사업자 정보는 각 페이지 아래에 -->
