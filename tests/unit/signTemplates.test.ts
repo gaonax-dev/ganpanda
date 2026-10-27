@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SignObject } from '../../src/lib/core/model';
-import { SIGN_TEMPLATES, templatesFor } from '../../src/lib/core/signTemplates';
+import { SIGN_TEMPLATES, templatesFor, subsFor } from '../../src/lib/core/signTemplates';
 import { categoryOf } from '../../src/lib/core/catalog';
 import { partsOf } from '../../src/lib/core/parts';
 import { surfaceOf } from '../../src/lib/core/components';
@@ -12,11 +12,17 @@ const blank = (o: Partial<SignObject> = {}): SignObject => ({ id: 'o', photoId: 
 const run = (o: SignObject, patch: Partial<SignObject>): SignObject => ({ ...o, ...patch });
 
 describe('완성품 퀵', () => {
-  it('간판 분류의 완성품 = 갈바 · 후렉스 · 후렉스+채널 · 갈바+채널 + 채널 15종, 스카시 = 아크릴', () => {
+  it('간판 분류의 완성품 = 갈바 · 후렉스 · 후렉스+채널 · 갈바+채널 · 돌출 + 채널 15종, 스카시 = 아크릴', () => {
     const ts = templatesFor('sign');
-    expect(ts.map((t) => t.label).slice(0, 4)).toEqual(['갈바 간판', '후렉스 간판', '후렉스 + 채널', '갈바 + 채널']);
-    expect(ts).toHaveLength(19);
-    expect(ts[4].img).toBe('/channel-types/01.webp');
+    expect(ts.map((t) => t.label).slice(0, 5)).toEqual(['갈바 간판', '후렉스 간판', '후렉스 + 채널', '갈바 + 채널', '돌출 간판']);
+    expect(ts).toHaveLength(20);
+    expect(ts[5].img).toBe('/channel-types/01.webp');
+    // 갈래 (2026-10-27): 프레임간판 = 조명·비조명·돌출, 채널간판 = 15종
+    expect(templatesFor('sign', 'channel')).toHaveLength(15);
+    expect(subsFor('sign', 'frame').map((f) => [f.label, templatesFor('sign', 'frame', f.id).map((t) => t.id)])).toEqual([
+      ['조명 프레임간판', ['flex', 'flex-channel']], ['비조명 프레임간판', ['galva', 'galva-channel']], ['돌출 프레임간판', ['protrude']],
+    ]);
+    expect(subsFor('sign', 'channel')).toEqual([]);
     expect(templatesFor('scashi').map((t) => t.label)).toEqual(['아크릴 스카시']);
     expect(templatesFor('banner')).toEqual([]);
     expect(new Set(SIGN_TEMPLATES.map((t) => t.id)).size).toBe(SIGN_TEMPLATES.length);

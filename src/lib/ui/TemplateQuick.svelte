@@ -9,14 +9,24 @@
   import { categoryOf } from '../core/catalog';
   import { partsOf } from '../core/parts';
   import { NAMED_COLORS } from '../core/materials';
-  import { familiesFor, templatesFor, type SignFamily, type SignTemplate } from '../core/signTemplates';
+  import { familiesFor, subsFor, templatesFor, type FrameSub, type SignFamily, type SignTemplate } from '../core/signTemplates';
 
   let { obj, ro, update, compact = false }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; compact?: boolean } = $props();
 
   // 간판은 먼저 프레임간판 / 채널간판, 그다음 그 갈래의 완성품 (2026-10-27 "간판 종류 선택에 프레임간판, 체널간판 으로 먼저 분류를 하고 세부 사항으로 간다")
   const families = $derived(familiesFor(categoryOf(obj)));
   let family = $state<SignFamily | null>(null);
-  const templates = $derived(templatesFor(categoryOf(obj), families.length ? family : null));
+  // 프레임간판은 다시 조명·비조명·돌출 (2026-10-27)
+  const subs = $derived(subsFor(categoryOf(obj), family));
+  let sub = $state<FrameSub | null>(null);
+  /** 지금 고를 카드: 갈래 → 세부 갈래 → 완성품 */
+  const choices = $derived(families.length && !family ? families : subs.length && !sub ? subs : null);
+  const templates = $derived(templatesFor(categoryOf(obj), families.length ? family : null, subs.length ? sub : null));
+  /** 한 단계 위로 */
+  const back = () => { if (sub) sub = null; else family = null; };
+  const backLabel = $derived(sub ? FRAME_LABEL(sub) : families.find((f) => f.id === family)?.label ?? '');
+  function FRAME_LABEL(id: FrameSub) { return subs.find((f) => f.id === id)?.label ?? ''; }
+  function choose(id: string) { if (families.length && !family) family = id as SignFamily; else sub = id as FrameSub; }
   const anyTemplates = $derived(templatesFor(categoryOf(obj)).length > 0);
   /** 고른 완성품 (칸 채우는 중) */
   let tpl = $state<SignTemplate | null>(null);
@@ -26,7 +36,7 @@
   const shown = $derived(open ?? (!tpl && !partsOf(obj).some((p) => p.items.length)));
   // 분류가 바뀌면 처음부터 (그 분류의 완성품)
   let lastCat: ReturnType<typeof categoryOf> | undefined;
-  $effect(() => { const c = categoryOf(obj); if (lastCat !== undefined && c !== lastCat) { tpl = null; step = 0; open = null; family = null; } lastCat = c; });
+  $effect(() => { const c = categoryOf(obj); if (lastCat !== undefined && c !== lastCat) { tpl = null; step = 0; open = null; family = null; sub = null; } lastCat = c; });
   const slots = $derived(tpl ? tpl.slots(obj) : []);
   const slot = $derived(slots[step]);
   const swatches = NAMED_COLORS.filter((c) => c.basic);
@@ -46,13 +56,13 @@
   <div class="tq" class:compact data-testid="tpl-quick">
     {#if shown}
       <div class="head">
-        {#if families.length && family}<button class="btn small" data-testid="tpl-family-back" title="프레임간판 · 채널간판 다시 고르기" onclick={() => (family = null)}>‹ {families.find((f) => f.id === family)?.label}</button>{/if}
-        <b>{families.length && !family ? '간판 종류' : '완성품 사진에서 고르기'}</b><button class="icon" data-testid="tpl-close" title="닫기" onclick={() => (open = false)}>✕</button>
+        {#if families.length && family}<button class="btn small" data-testid="tpl-family-back" title="한 단계 위로" onclick={back}>‹ {backLabel}</button>{/if}
+        <b>{choices ? '간판 종류' : '완성품 사진에서 고르기'}</b><button class="icon" data-testid="tpl-close" title="닫기" onclick={() => (open = false)}>✕</button>
       </div>
-      {#if families.length && !family}
-        <div class="families">
-          {#each families as f (f.id)}
-            <button class="family" data-testid="tpl-family" data-family={f.id} title={f.desc} onclick={() => (family = f.id)}>
+      {#if choices}
+        <div class="families" class:three={choices.length === 3}>
+          {#each choices as f (f.id)}
+            <button class="family" data-testid="tpl-family" data-family={f.id} title={f.desc} onclick={() => choose(f.id)}>
               <img src={f.img} alt="" loading="lazy" width="120" height="80" />
               <b>{f.label}</b><small>{f.desc}</small>
             </button>
@@ -95,7 +105,7 @@
         </div>
       </div>
     {:else}
-      <button class="btn small" data-testid="tpl-open" onclick={() => { open = true; family = null; }}>완성품 사진에서 고르기</button>
+      <button class="btn small" data-testid="tpl-open" onclick={() => { open = true; family = null; sub = null; }}>완성품 사진에서 고르기</button>
     {/if}
   </div>
 {/if}
@@ -112,6 +122,13 @@
   .pick img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 5px; }
   .pick span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .families { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .families.three { grid-template-columns: repeat(3, 1fr); }
+  .family b { word-break: keep-all; }
+  .three .family b { font-size: 13px; }
+  /* 휴대폰 세 갈래: 한 줄에 작은 카드 셋 (설명은 숨김 — 막대가 낮게) */
+  .compact .families.three .family { display: flex; flex-direction: column; gap: 3px; padding: 4px; }
+  .compact .families.three .family img { width: 100%; }
+  .compact .families.three .family small { display: none; }
   .family { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
   .family:hover { border-color: var(--accent); }
   .family img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 6px; }

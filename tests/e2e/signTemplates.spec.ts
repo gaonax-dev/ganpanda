@@ -16,9 +16,14 @@ test('간판 → 완성품 사진 → 칸을 하나씩(색 → 글자) → 완�
   await expect(panel.getByTestId('tpl-family').locator('b')).toHaveText(['프레임간판', '채널간판']);
   await expect(panel.getByTestId('tpl-pick')).toHaveCount(0);
   await panel.getByTestId('tpl-family').filter({ hasText: '프레임간판' }).click();
-  await expect(panel.getByTestId('tpl-pick')).toHaveCount(4); // 갈바·후렉스·후렉스+채널·갈바+채널
-  await expect(panel.getByTestId('tpl-pick').first().locator('img')).toHaveAttribute('src', '/sign-types/galva.svg');
-  await panel.getByTestId('tpl-family-back').click();
+  // 프레임간판은 다시 조명 · 비조명 · 돌출 (2026-10-27 한울상사 분류 참고 → "진행해줘")
+  await expect(panel.getByTestId('tpl-family').locator('b')).toHaveText(['조명 프레임간판', '비조명 프레임간판', '돌출 프레임간판']);
+  await panel.getByTestId('tpl-family').filter({ hasText: '조명 프레임간판' }).first().click();
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(2); // 후렉스 · 후렉스+채널
+  await expect(panel.getByTestId('tpl-pick').first().locator('img')).toHaveAttribute('src', '/sign-types/flex.svg');
+  await panel.getByTestId('tpl-family-back').click(); // 한 단계 위 = 조명·비조명·돌출
+  await expect(panel.getByTestId('tpl-family')).toHaveCount(3);
+  await panel.getByTestId('tpl-family-back').click(); // 프레임간판·채널간판
   await panel.getByTestId('tpl-family').filter({ hasText: '채널간판' }).click();
   await expect(panel.getByTestId('tpl-pick')).toHaveCount(15);
   await panel.getByTestId('tpl-pick').nth(6).click(); // 07 캡 전후광
@@ -95,6 +100,8 @@ test('갈바 간판: 배경색 → 글자색 → 글자, 스카시 분류는 아
   await pickCategory(page, 'sign');
   const panel = page.getByTestId('object-panel');
   await panel.getByTestId('tpl-family').filter({ hasText: '프레임간판' }).click();
+  await panel.getByTestId('tpl-family').filter({ hasText: '비조명 프레임간판' }).click();
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(2); // 갈바 · 갈바+채널
   await panel.getByTestId('tpl-pick').first().click();
   await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/3 배경색');
   await panel.locator('[data-testid="tpl-color"][title="노랑"]').click();
@@ -116,4 +123,20 @@ test('갈바 간판: 배경색 → 글자색 → 글자, 스카시 분류는 아
   await expect(panel.getByTestId('tpl-pick')).toHaveCount(1);
   await panel.getByTestId('tpl-pick').click();
   await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/3 아크릴색');
+});
+
+test('돌출 프레임간판: 돌출 간판 몸통 + 출력 글자, 배경색 → 글자색 → 글자', async ({ page, request }) => {
+  await openOwnedProject(page, request, '돌출 완성품');
+  await uploadPhoto(page);
+  await page.keyboard.press('t');
+  await dragOnPhoto(page, [400, 200], [600, 400]);
+  await pickCategory(page, 'sign');
+  const panel = page.getByTestId('object-panel');
+  await panel.getByTestId('tpl-family').filter({ hasText: '프레임간판' }).click();
+  await panel.getByTestId('tpl-family').filter({ hasText: '돌출 프레임간판' }).click();
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(1);
+  await expect(panel.getByTestId('tpl-pick').locator('img')).toHaveAttribute('src', '/sign-types/protrude.svg');
+  await panel.getByTestId('tpl-pick').click();
+  expect((await first(page)).productId).toBe('board-protrude');
+  await expect(panel.getByTestId('tpl-step-label')).toHaveText('1/3 배경색');
 });
