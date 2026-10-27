@@ -117,6 +117,10 @@
   .family img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 6px; }
   .family b { font-size: 14px; }
   .family small { color: var(--muted); font-size: 11px; line-height: 1.3; }
+  /* 휴대폰 빠른 막대: 낮게 — 작은 그림 옆에 이름 (막대가 사진을 덜 가리게) */
+  .compact .family { display: grid; grid-template-columns: 56px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 4px; }
+  .compact .family img { grid-row: 1 / 3; width: 56px; }
+  .compact .family small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .step { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 10px; }
   .colors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .sw { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0; }
