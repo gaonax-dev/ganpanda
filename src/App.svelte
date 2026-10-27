@@ -120,7 +120,7 @@
     { id: 'design', tid: 'view-design', label: '디자인', short: '디자인' },
     { id: 'list', tid: 'view-list', label: '견적', short: '견적' }, // 2026-10-26 "헤더의 리스트를 견적으로 변경한다"
   ];
-  const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중' } as const;
+  const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중', paused: '쉬는 중 · 손대면 다시 연결' } as const; // paused (2026-10-27 실시간 방 비용)
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
   // 가게 사장 화면 색 (2026-10-22): :root.consumer 가 --accent 를 청록으로
   $effect(() => { document.documentElement.classList.toggle('consumer', app.consumerTheme && !app.outsourceParam); });
@@ -439,6 +439,7 @@
   .sync { font-size: 12px; color: var(--muted); }
   .sync[data-status='online'] { color: var(--ok); }
   .sync[data-status='offline'] { color: var(--warn); }
+  .sync[data-status='paused'] { color: var(--muted); }
   .peers { display: flex; gap: 6px; }
   .peer { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--input); border: 1px solid var(--line); border-radius: 12px; padding: 2px 9px 2px 6px; }
   .peer i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
