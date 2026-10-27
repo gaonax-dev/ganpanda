@@ -50,6 +50,9 @@ export class Room extends DurableObject<Env> {
       this.dropDeadAwareness();
     });
     this.doc.on('update', (u: Uint8Array, origin: unknown) => this.onUpdate(u, origin));
+    // 연결 유지는 방을 깨우지 않는 자동 응답으로 (2026-10-27 "하루에 1000$는 감당하기 어렵지"): 클라이언트가 20초마다 'ping' → 'pong'.
+    // 전엔 혼자 있는 사람에게 서버가 아무것도 보내지 않아 y-websocket 이 30초마다 다시 연결했다(권한 확인 + 방 깨우기 + 동기화)
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
   async fetch(req: Request): Promise<Response> {
