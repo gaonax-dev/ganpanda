@@ -9,11 +9,15 @@
   import { categoryOf } from '../core/catalog';
   import { partsOf } from '../core/parts';
   import { NAMED_COLORS } from '../core/materials';
-  import { templatesFor, type SignTemplate } from '../core/signTemplates';
+  import { familiesFor, templatesFor, type SignFamily, type SignTemplate } from '../core/signTemplates';
 
   let { obj, ro, update, compact = false }: { obj: SignObject; ro: boolean; update: (patch: Partial<SignObject>) => void; compact?: boolean } = $props();
 
-  const templates = $derived(templatesFor(categoryOf(obj)));
+  // 간판은 먼저 프레임간판 / 채널간판, 그다음 그 갈래의 완성품 (2026-10-27 "간판 종류 선택에 프레임간판, 체널간판 으로 먼저 분류를 하고 세부 사항으로 간다")
+  const families = $derived(familiesFor(categoryOf(obj)));
+  let family = $state<SignFamily | null>(null);
+  const templates = $derived(templatesFor(categoryOf(obj), families.length ? family : null));
+  const anyTemplates = $derived(templatesFor(categoryOf(obj)).length > 0);
   /** 고른 완성품 (칸 채우는 중) */
   let tpl = $state<SignTemplate | null>(null);
   let step = $state(0);
@@ -22,7 +26,7 @@
   const shown = $derived(open ?? (!tpl && !partsOf(obj).some((p) => p.items.length)));
   // 분류가 바뀌면 처음부터 (그 분류의 완성품)
   let lastCat: ReturnType<typeof categoryOf> | undefined;
-  $effect(() => { const c = categoryOf(obj); if (lastCat !== undefined && c !== lastCat) { tpl = null; step = 0; open = null; } lastCat = c; });
+  $effect(() => { const c = categoryOf(obj); if (lastCat !== undefined && c !== lastCat) { tpl = null; step = 0; open = null; family = null; } lastCat = c; });
   const slots = $derived(tpl ? tpl.slots(obj) : []);
   const slot = $derived(slots[step]);
   const swatches = NAMED_COLORS.filter((c) => c.basic);
@@ -38,10 +42,23 @@
   function done() { tpl = null; step = 0; open = false; }
 </script>
 
-{#if templates.length && !ro}
+{#if anyTemplates && !ro}
   <div class="tq" class:compact data-testid="tpl-quick">
     {#if shown}
-      <div class="head"><b>완성품 사진에서 고르기</b><button class="icon" data-testid="tpl-close" title="닫기" onclick={() => (open = false)}>✕</button></div>
+      <div class="head">
+        {#if families.length && family}<button class="btn small" data-testid="tpl-family-back" title="프레임간판 · 채널간판 다시 고르기" onclick={() => (family = null)}>‹ {families.find((f) => f.id === family)?.label}</button>{/if}
+        <b>{families.length && !family ? '간판 종류' : '완성품 사진에서 고르기'}</b><button class="icon" data-testid="tpl-close" title="닫기" onclick={() => (open = false)}>✕</button>
+      </div>
+      {#if families.length && !family}
+        <div class="families">
+          {#each families as f (f.id)}
+            <button class="family" data-testid="tpl-family" data-family={f.id} title={f.desc} onclick={() => (family = f.id)}>
+              <img src={f.img} alt="" loading="lazy" width="120" height="80" />
+              <b>{f.label}</b><small>{f.desc}</small>
+            </button>
+          {/each}
+        </div>
+      {:else}
       <div class="grid">
         {#each templates as t (t.id)}
           <button class="pick" data-testid="tpl-pick" title={t.desc} onclick={() => pick(t)}>
@@ -50,6 +67,7 @@
           </button>
         {/each}
       </div>
+      {/if}
     {:else if tpl && slot}
       <div class="step" data-testid="tpl-step">
         <div class="head">
@@ -77,7 +95,7 @@
         </div>
       </div>
     {:else}
-      <button class="btn small" data-testid="tpl-open" onclick={() => (open = true)}>완성품 사진에서 고르기</button>
+      <button class="btn small" data-testid="tpl-open" onclick={() => { open = true; family = null; }}>완성품 사진에서 고르기</button>
     {/if}
   </div>
 {/if}
@@ -93,6 +111,12 @@
   .pick { display: flex; flex-direction: column; gap: 2px; padding: 3px; background: var(--input); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font: inherit; font-size: 11px; cursor: pointer; text-align: left; }
   .pick img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 5px; }
   .pick span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .families { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .family { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: var(--input); border: 1px solid var(--line); border-radius: 10px; color: var(--text); font: inherit; cursor: pointer; text-align: left; }
+  .family:hover { border-color: var(--accent); }
+  .family img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 6px; }
+  .family b { font-size: 14px; }
+  .family small { color: var(--muted); font-size: 11px; line-height: 1.3; }
   .step { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border: 1px solid var(--accent); border-radius: 10px; }
   .colors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .sw { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0; }

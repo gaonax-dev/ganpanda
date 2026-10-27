@@ -177,7 +177,8 @@
   h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width: 720px) {
     .backdrop { place-items: stretch; }
-    .dialog { width: 100vw; height: 100%; border-radius: 0; border: 0; }
+    .dialog { width: 100vw; height: 100%; border-radius: 0; border: 0; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); } /* 아이폰 노치·상태 표시줄 아래로 (2026-10-27 "원근세부창 아이폰에서 x마크 휴대폰상단 표시로 가서 잘 안잡힘") */
+    [data-testid='close-render'] { min-width: 40px; min-height: 40px; font-size: 18px; }
     header { flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
     h2 { flex-basis: 100%; font-size: 14px; }
     .count { display: none; }
