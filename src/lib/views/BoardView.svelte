@@ -316,9 +316,15 @@
     app.updateSettings({ flatScale: kNew, flatOffset: offsetKeepingPivot(baseOffset, cards, kOld, kNew) });
   };
   /** 왼쪽 위 손잡이: 평면 구역 전체 이동 (2026-10-17 사용자: "왼쪽 상단에도 버튼이 있으면 좋겠다. 이건 이동") → 설정 flatOffset */
+  // 대지 손잡이는 대지 바깥 모서리에 (2026-10-27 "대지 컨트롤러 대지 외곽으로 배치 스케일 컨트롤러도 터치시 대지 하일라이트"):
+  // 테두리 여백(보드 8px → 화면 8×줌) 바깥으로 화면 6px 더. 누르는 동안 대지 하이라이트
+  const handleGap = $derived(8 * viewport.zoom + 6);
+  let handlePressed = $state(false);
+  const pressUntilUp = () => { handlePressed = true; const off = () => { handlePressed = false; window.removeEventListener('pointerup', off); window.removeEventListener('pointercancel', off); }; window.addEventListener('pointerup', off); window.addEventListener('pointercancel', off); };
   function moveDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
+    pressUntilUp();
     const start = canvas.clientToWorld(e.clientX, e.clientY);
     const base = { ...app.flatOffset };
     const sx = e.clientX, sy = e.clientY;
@@ -337,11 +343,13 @@
   function handleDown(e: PointerEvent) {
     if (e.button !== 0 || !app.canEdit) return;
     e.stopPropagation();
+    pressUntilUp();
     const cards = flatCardsPlaced();
     const pivot = { x: bounds!.x, y: bounds!.y }, kBase = k, baseOffset = { ...app.flatOffset }; // 끄는 동안 피봇은 고정
+    const grabDx = canvas.clientToWorld(e.clientX, e.clientY).x - (bounds!.x + bounds!.w); // 손잡이가 모서리 바깥이라 잡은 자리와 모서리의 차이 (첫 움직임에 튀지 않게)
     const sx = e.clientX, sy = e.clientY;
     let moved = false;
-    const move = (ev: PointerEvent) => { if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return; moved = true; const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(pivot, cards, w.x), kBase, baseOffset, cards); };
+    const move = (ev: PointerEvent) => { if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return; moved = true; const w = canvas.clientToWorld(ev.clientX, ev.clientY); setScale(scaleFromHandle(pivot, cards, w.x - grabDx), kBase, baseOffset, cards); };
     // 끌지 않고 떼면 ✥ 처럼 카드 배열 모드 켜기/끄기 (2026-10-23 "선택과 해제를 두 컨트롤러 모두에게")
     const up = (ev: PointerEvent) => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); if (moved) app.editBoundary(); else if (ev.type === 'pointerup') app.toggleFlatArrange(); };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
@@ -571,12 +579,12 @@
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
       <!-- 글·단추(재정렬·간격·고정·축척·완료)는 상단 헤더 막대로 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동") — App.svelte flat-bar -->
-      {#if bounds && app.canEdit && app.flatArrange}
-        <div class="flat-outline" data-testid="flat-outline" style:left="{bounds.x}px" style:top="{bounds.y}px" style:width="{bounds.w}px" style:height="{bounds.h}px" style:border-width="{2 / viewport.zoom}px"></div>
+      {#if bounds && app.canEdit && (app.flatArrange || handlePressed)}
+        <div class="flat-outline" class:hot={handlePressed} data-hot={handlePressed} data-testid="flat-outline" style:left="{bounds.x}px" style:top="{bounds.y}px" style:width="{bounds.w}px" style:height="{bounds.h}px" style:border-width="{2 / viewport.zoom}px"></div>
       {/if}
       {#if bounds && app.canEdit}
-        <div class="flat-handle move" data-testid="flat-move" role="button" tabindex="-1" aria-label="평면 구역 이동" class:on={app.flatArrange} title="끌어서 평면 구역 전체 이동 · 누르면 카드 배열(재정렬·간격)" style:left="{bounds.x}px" style:top="{bounds.y}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={moveDown}>✥</div>
-        <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="translate(-50%, -50%) scale({1 / viewport.zoom})" onpointerdown={handleDown}></div>
+        <div class="flat-handle move" data-testid="flat-move" role="button" tabindex="-1" aria-label="평면 구역 이동" class:on={app.flatArrange} title="끌어서 평면 구역 전체 이동 · 누르면 카드 배열(재정렬·간격)" style:left="{bounds.x}px" style:top="{bounds.y}px" style:transform="scale({1 / viewport.zoom}) translate(calc(-100% - {handleGap}px), calc(-100% - {handleGap}px))" onpointerdown={moveDown}>✥</div>
+        <div class="flat-handle" data-testid="flat-handle" role="slider" tabindex="-1" aria-label="평면 구역 전체 크기" aria-valuenow={Math.round((k / 0.1) * 100)} title="끌어서 평면 구역 전체 크기" style:left="{bounds.x + bounds.w}px" style:top="{bounds.y + bounds.h}px" style:transform="scale({1 / viewport.zoom}) translate({handleGap}px, {handleGap}px)" onpointerdown={handleDown}></div>
       {/if}
     {/if}
     {#each app.flatCards as { o, w, h, placeholder } (o.id)}
@@ -699,8 +707,9 @@
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
   .flat-outline { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-sizing: content-box; margin: -8px 0 0 -8px; padding: 8px; z-index: 2; }
+  .flat-outline.hot { border-style: solid; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
   .flat-handle.move.on { outline: 2px solid #fff; }
-  .flat-handle { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid var(--accent-ink); cursor: nwse-resize; z-index: 3; }
+  .flat-handle { position: absolute; transform-origin: 0 0; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); border: 2px solid var(--accent-ink); cursor: nwse-resize; z-index: 3; }
   .flat-handle.move { width: 18px; height: 18px; cursor: move; display: grid; place-items: center; font-size: 12px; line-height: 1; color: var(--accent-ink); }
   .empty {
     position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px;

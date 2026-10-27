@@ -234,6 +234,7 @@
   }
   /* 휴대폰 세로 보기: [상세정보] 패널도 전체 화면 (2026-10-17) */
   @media (max-width: 720px) and (orientation: portrait) {
-    .panel { left: 0; right: 0; top: 0; bottom: 0; height: auto; max-height: none; border-radius: 0; border: 0; }
+    .panel { left: 0; right: 0; top: 0; bottom: 0; height: auto; max-height: none; border-radius: 0; border: 0; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); } /* 아이폰 노치·상태 표시줄 아래로 (2026-10-27 "원근세부창 아이폰에서 x마크 휴대폰상단 표시로 가서 잘 안잡힘") */
+    [data-testid='object-panel-close'] { min-width: 40px; min-height: 40px; font-size: 18px; }
   }
 </style>

@@ -10,6 +10,9 @@
 - 단가·한도·허용 오차 같은 숫자는 이름 있는 상수로 둡니다.
 - 외부 CDN과 원격 폰트를 쓰지 않습니다 (Tauri 오프라인 동작).
 
+## 휴대폰 전체 화면 창 = 안전 영역 (2026-10-27)
+- 앱은 `viewport-fit=cover` 라 화면 끝(노치·상태 표시줄 밑)까지 그린다. 휴대폰에서 전체 화면이 되는 창은 `box-sizing: border-box; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)` 를 넣고, 닫기 ✕ 는 40px 이상. 테스트는 CDP `Emulation.setSafeAreaInsetsOverride` 로 노치를 흉내 낸다(`tests/e2e/safeArea.spec.ts`).
+
 ## Svelte 효과에서 서버 다시 부르기 (2026-10-27)
 - `$effect` 안에서 `app.refreshMe()` 처럼 상태를 **새 객체로 바꾸는** 함수를 부르면서 그 객체(`app.account`, `app.business`)를 읽으면 끝없이 다시 부른다. 실제로 설정 창이 열려 있는 동안 모든 API 를 초당 수십 번 불렀다(운영, Toss 결제경로 캡처 중 발견).
 - 따라갈 값은 아이디·상태 같은 **원시 값**으로 `$derived` 해 두고, 부르는 쪽은 `untrack(() => …)` 로 감싼다 (`ui/Settings.svelte`, `ui/BillingSection.svelte`). 회귀 테스트: `tests/e2e/settingsTabs.spec.ts` "한 번만 불러온다".

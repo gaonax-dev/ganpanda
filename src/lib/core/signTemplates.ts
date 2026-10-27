@@ -20,9 +20,17 @@ export interface TemplateSlot {
   /** 이 칸만 바꾸는 패치 */
   write(o: SignObject, v: string): Partial<SignObject>;
 }
+/** 간판의 큰 갈래 (2026-10-27 사용자: "간판 종류 선택에 프레임간판, 체널간판 으로 먼저 분류를 하고 세부 사항으로 간다") */
+export type SignFamily = 'frame' | 'channel';
+export const SIGN_FAMILIES: { id: SignFamily; label: string; desc: string }[] = [
+  { id: 'frame', label: '프레임간판', desc: '갈바·후렉스 판 (위에 채널 글자도)' },
+  { id: 'channel', label: '채널간판', desc: '벽에 바로 붙이는 입체 글자' },
+];
 export interface SignTemplate {
   id: string;
   group: Group;
+  /** 간판의 큰 갈래 — 간판 분류만 */
+  family?: SignFamily;
   label: string;
   desc: string;
   img: string;
@@ -37,7 +45,7 @@ type Opts = Record<string, string | boolean>;
 interface PartDef { kind: SignPart['kind']; type?: string; preset?: PartPreset; options?: Opts; stack?: (p: SignPart) => MaterialLayer[]; /** 글자 높이 = 간판 높이 × 이 비율 */ text?: number }
 /** 색 칸: 몸통 옵션 도색(prefix) · 구성 요소 도색(prefix) · 구성 요소 미리보기 색(key) */
 type ColorDef = { label: string } & ({ body: string } | { part: number; paint: string } | { part: number; key: string });
-interface TemplateDef { id: string; group: Group; label: string; desc: string; img: string; productId: string; options?: Opts; parts: PartDef[]; colors: ColorDef[] }
+interface TemplateDef { id: string; group: Group; family?: SignFamily; label: string; desc: string; img: string; productId: string; options?: Opts; parts: PartDef[]; colors: ColorDef[] }
 
 const paintPatch = (prefix: string, v: string): Opts => ({ [`${prefix}System`]: '직접', [`${prefix}Code`]: v });
 /** n 번째 구성 요소 (완성품에 넣은 순서 — 같은 종류끼리 몇 번째인지로 찾는다) */
@@ -55,7 +63,7 @@ function editPart(o: SignObject, partId: string, fn: (p: SignPart) => void): Par
 
 function build(d: TemplateDef): SignTemplate {
   return {
-    id: d.id, group: d.group, label: d.label, desc: d.desc, img: d.img,
+    id: d.id, group: d.group, ...(d.family ? { family: d.family } : {}), label: d.label, desc: d.desc, img: d.img,
     apply(o) {
       const h = o.heightMm || 375;
       const parts = d.parts.map((pd) => {
@@ -94,20 +102,20 @@ const channelColors = (pr: PartPreset, part: number): ColorDef[] =>
 const FRONT = CHANNEL_PRESETS.find((p) => p.no === 12)!; // 전광 채널 (흰 앞면 · 컬러 옆면)
 
 const DEFS: TemplateDef[] = [
-  { id: 'galva', group: 'sign', label: '갈바 간판', desc: '도장 갈바 판 · 커팅 시트 글자', img: '/sign-types/galva.svg', productId: 'board-galva',
+  { id: 'galva', group: 'sign', family: 'frame', label: '갈바 간판', desc: '도장 갈바 판 · 커팅 시트 글자', img: '/sign-types/galva.svg', productId: 'board-galva',
     options: paintPatch('paint', '#f4f4f2'), parts: [{ kind: 'sheet', type: 'sh-cut', options: { previewColor: '#141414' }, text: 0.6 }],
     colors: [{ label: '배경색', body: 'paint' }, { label: '글자색', part: 0, key: 'previewColor' }] },
-  { id: 'flex', group: 'sign', label: '후렉스 간판', desc: '후렉스 출력 · 내부 조명', img: '/sign-types/flex.svg', productId: 'board-flex',
+  { id: 'flex', group: 'sign', family: 'frame', label: '후렉스 간판', desc: '후렉스 출력 · 내부 조명', img: '/sign-types/flex.svg', productId: 'board-flex',
     options: paintPatch('face', '#f4f4f2'), parts: [{ kind: 'sheet', type: 'sh-print', options: { included: true, previewColor: '#c0392b' }, text: 0.6 }],
     colors: [{ label: '배경색', body: 'face' }, { label: '글자색', part: 0, key: 'previewColor' }] },
-  { id: 'flex-channel', group: 'sign', label: '후렉스 + 채널', desc: '후렉스 바탕 위 전광 채널', img: '/sign-types/flex-channel.svg', productId: 'board-flex',
+  { id: 'flex-channel', group: 'sign', family: 'frame', label: '후렉스 + 채널', desc: '후렉스 바탕 위 전광 채널', img: '/sign-types/flex-channel.svg', productId: 'board-flex',
     options: paintPatch('face', '#1f2a44'), parts: [{ kind: 'channel', preset: FRONT, text: 0.6 }],
     colors: [{ label: '배경색', body: 'face' }, ...channelColors(FRONT, 0)] },
-  { id: 'galva-channel', group: 'sign', label: '갈바 + 채널', desc: '도장 갈바 판 위 전광 채널', img: '/sign-types/galva-channel.svg', productId: 'board-galva',
+  { id: 'galva-channel', group: 'sign', family: 'frame', label: '갈바 + 채널', desc: '도장 갈바 판 위 전광 채널', img: '/sign-types/galva-channel.svg', productId: 'board-galva',
     options: paintPatch('paint', '#3a3f44'), parts: [{ kind: 'channel', preset: FRONT, text: 0.6 }],
     colors: [{ label: '배경색', body: 'paint' }, ...channelColors(FRONT, 0)] },
   // 채널 15종 = 벽에 바로 (몸통 없음)
-  ...CHANNEL_PRESETS.map((pr): TemplateDef => ({ id: `ch-${String(pr.no).padStart(2, '0')}`, group: 'sign', label: pr.label, desc: pr.desc, img: pr.img, productId: 'body-none', parts: [{ kind: 'channel', preset: pr, text: 0.8 }], colors: channelColors(pr, 0) })),
+  ...CHANNEL_PRESETS.map((pr): TemplateDef => ({ id: `ch-${String(pr.no).padStart(2, '0')}`, group: 'sign', family: 'channel', label: pr.label, desc: pr.desc, img: pr.img, productId: 'body-none', parts: [{ kind: 'channel', preset: pr, text: 0.8 }], colors: channelColors(pr, 0) })),
   // 아크릴 스카시: 아크릴색 = 옆면 도색, 글자색 = 앞면 도색
   { id: 'sc-acrylic', group: 'scashi', label: '아크릴 스카시', desc: '아크릴 입체 글자 · 옆면 도색 · 앞면 색', img: '/sign-types/scashi-acrylic.svg', productId: 'ch-scashi',
     parts: [{ kind: 'scashi', type: 'ch-scashi', options: { ...paintPatch('acSide', '#f4f4f2'), ...paintPatch('paint', '#141414') }, stack: (p) => (p.stack ?? []).map((l, i) => (i === 0 ? { ...l, side: { kind: 'paint', ref: 'acSide' } } : l)), text: 0.8 }],
@@ -115,4 +123,7 @@ const DEFS: TemplateDef[] = [
 ];
 
 export const SIGN_TEMPLATES: SignTemplate[] = DEFS.map(build);
-export const templatesFor = (g: Group | null): SignTemplate[] => SIGN_TEMPLATES.filter((t) => t.group === g);
+export const templatesFor = (g: Group | null, family?: SignFamily | null): SignTemplate[] => SIGN_TEMPLATES.filter((t) => t.group === g && (!family || t.family === family));
+/** 이 분류에서 먼저 고를 갈래 (간판 = 프레임간판·채널간판, 그 밖은 없음) — 각 갈래의 대표 그림은 첫 완성품 */
+export const familiesFor = (g: Group | null): { id: SignFamily; label: string; desc: string; img: string }[] =>
+  SIGN_FAMILIES.map((f) => ({ ...f, img: templatesFor(g, f.id)[0]?.img ?? '' })).filter((f) => f.img);

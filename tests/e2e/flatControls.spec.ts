@@ -79,3 +79,27 @@ test.describe('휴대폰', () => {
     expect(await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string | null } }).__ganpanda.selectedId)).toBeNull();
   });
 });
+
+// 2026-10-27 사용자: "대지 컨트롤러 대지 외곽으로 배치 스케일 컨트롤러도 터치시 대지 하일라이트"
+test('대지 손잡이(✥·크기)는 대지(카드 묶음) 바깥 모서리에 — 카드를 가리지 않고, 누르는 동안 대지 하이라이트', async ({ page, request }) => {
+  await setup(page, request);
+  const card = (await page.getByTestId('board-card').boundingBox())!;
+  const mv = (await page.getByTestId('flat-move').boundingBox())!;
+  const sz = (await page.getByTestId('flat-handle').boundingBox())!;
+  // ✥ 는 왼쪽 위 바깥, 크기는 오른쪽 아래 바깥 — 카드와 겹치지 않는다
+  expect(mv.x + mv.width).toBeLessThanOrEqual(card.x);
+  expect(mv.y + mv.height).toBeLessThanOrEqual(card.y);
+  expect(sz.x).toBeGreaterThanOrEqual(card.x + card.width);
+  expect(sz.y).toBeGreaterThanOrEqual(card.y + card.height);
+  // 누르는 동안 대지 하이라이트 (배열 모드가 아니어도), 떼면 사라짐
+  await expect(page.getByTestId('flat-outline')).toHaveCount(0);
+  await page.mouse.move(sz.x + sz.width / 2, sz.y + sz.height / 2);
+  await page.mouse.down();
+  await expect(page.getByTestId('flat-outline')).toHaveAttribute('data-hot', 'true');
+  await page.mouse.up();
+  await expect(page.getByTestId('flat-outline')).not.toHaveAttribute('data-hot', 'true');
+  await page.mouse.move(mv.x + mv.width / 2, mv.y + mv.height / 2);
+  await page.mouse.down();
+  await expect(page.getByTestId('flat-outline')).toHaveAttribute('data-hot', 'true');
+  await page.mouse.up();
+});

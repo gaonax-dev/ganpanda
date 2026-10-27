@@ -62,7 +62,7 @@ test('카드가 먼저 잡히면 카드만 — 사진의 사인물과 섞지 않
   const cards = page.getByTestId('board-card');
   await expect(cards).toHaveCount(3);
   const bx = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((q) => [q.left, q.top, q.right, q.bottom]));
-  const R = Math.max(...bx.map((b) => b[2])) + 20, B = Math.max(...bx.map((b) => b[3])) + 20;
+  const R = Math.max(...bx.map((b) => b[2])) + 60, B = Math.max(...bx.map((b) => b[3])) + 60; // 대지 크기 손잡이(오른쪽 아래 바깥, 2026-10-27)를 피해 시작
   const top = await photoPt(page, 0, 0, 100); // 사진 위쪽까지 — 외곽선도 사각형 안에 들어온다
   await drag(page, [R, B], [Math.min(...bx.map((b) => b[0])) - 20, top[1]]);
   expect(await sel(page)).toEqual({ ids: [id.A, id.B, id.C].sort(), kind: 'card' });
