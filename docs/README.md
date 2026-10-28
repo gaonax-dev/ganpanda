@@ -28,6 +28,7 @@
   - [data-model.md](architecture/data-model.md) — Yjs 프로젝트 문서 스키마
   - [coordinates.md](architecture/coordinates.md) — 좌표계와 단위(px, mm, world)
   - [sync.md](architecture/sync.md) — 실시간 동기화·오프라인·에셋 저장 방식
+  - [rendering-lod.md](architecture/rendering-lod.md) — 2D·3D 그리기 LOD(구운 그림·저장된 3D 그림·가운데 사진 실시간)와 휴대폰 메모리 최적화: 층 구조, 한도 숫자, 사고 기록
   - [composition-layers.md](architecture/composition-layers.md) — 조합형 사인물의 레이어 구조: 컴포넌트 레지스트리(0단계 구현됨)·레이어 트리(1단계) (2026-10-18 결정)
 - features
   - [photo-board.md](features/photo-board.md) — 사진 보드, 영역 그리기
