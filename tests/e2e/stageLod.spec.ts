@@ -85,7 +85,7 @@ test.describe('휴대폰', () => {
       a.project.updateObject(a.objects[0].id, addPrintItem(a.objects[0], 'text').patch);
     });
     await page.getByTestId('stage-2d').tap();
-    const warp = page.locator('.warp').first();
+    const warp = page.locator('.warp, [data-testid="flat-overlay"]').first(); // 작게 보이면 납작한 그림 한 장 (줌아웃 LOD)
     await expect(warp).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => document.querySelector('.ic')!.classList.add('pinching'));
     await expect(warp).toBeVisible();
@@ -102,6 +102,10 @@ test('2D 원근 글자·그림 층은 구운 그림 한 장으로 — 내용을 
     a.project.updateObject(a.objects[0].id, addPrintItem(a.objects[0], 'text').patch);
   });
   await page.getByTestId('stage-2d').click();
+  // 크게 확대해야 사인물별 원근 층 (작으면 납작한 그림 한 장 — 아래 줌아웃 LOD)
+  const bb = (await page.getByTestId('board-canvas').boundingBox())!;
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  for (let i = 0; i < 4; i++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, -400); await page.keyboard.up('Control'); await page.waitForTimeout(200); }
   const baked = page.getByTestId('baked-parts');
   await expect(baked).toHaveCount(1, { timeout: 15_000 });
   await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay')).toHaveCount(0); // DOM 층 없음
@@ -123,3 +127,36 @@ test('2D 원근 글자·그림 층은 구운 그림 한 장으로 — 내용을 
   expect(gaps).toBe(0);
 });
 
+
+// 2026-10-29 사용자: "아이폰 앱과 크롬에서 둘다 2d에서 줌 아웃에 앱은 다시 열고 크롬은 죽었다" — 줌아웃하면 모든 사인물의 원근 층(3D 변환)이 한꺼번에 화면에 들어와
+// 층마다 메모리를 잡았다. 사진이 화면에서 작으면(그림 해상도로 충분하면) 사진마다 납작한 그림 한 장(3D 변환 없음), 크게 보이면 사인물별 원근 층
+test('줌아웃 LOD: 작게 보이는 사진은 원근 층 없이 납작한 그림 한 장, 확대하면 원근 층', async ({ page, request }) => {
+  await setup(page, request);
+  await page.evaluate(async () => {
+    const path = '/src/lib/core/parts.ts';
+    const { addPrintItem } = await import(/* @vite-ignore */ path);
+    const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
+    const { patch } = addPrintItem(a.objects[0], 'text');
+    for (const p of patch.parts ?? []) for (const it of p.items) if (it.kind === 'text') it.text = '간판다';
+    a.project.updateObject(a.objects[0].id, patch);
+  });
+  await page.getByTestId('stage-2d').click();
+  const zone = page.getByTestId('photo-zone');
+  const box = (await page.getByTestId('board-canvas').boundingBox())!;
+  const wheel = async (dy: number) => { await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.keyboard.down('Control'); await page.mouse.wheel(0, dy); await page.keyboard.up('Control'); await page.waitForTimeout(300); };
+  const threeD = () => zone.evaluate((z) => [...z.querySelectorAll('*')].filter((e) => /matrix3d/.test(getComputedStyle(e).transform)).length);
+  // 줌아웃: 납작한 그림, 3D 변환 층 0
+  for (let i = 0; i < 6; i++) await wheel(400);
+  const flat = zone.getByTestId('flat-overlay');
+  await expect(flat).toHaveCount(1, { timeout: 15_000 });
+  await expect(flat).toHaveAttribute('alt', /간판|글자|[가-힣]/);
+  expect(await threeD()).toBe(0);
+  expect(await flat.evaluate((e) => getComputedStyle(e).transform)).toBe('none');
+  expect(await flat.evaluate((e) => Math.max((e as HTMLImageElement).naturalWidth, (e as HTMLImageElement).naturalHeight))).toBeLessThanOrEqual(1024);
+  // 그린 자리에 무언가 있다 (투명 그림이 아니다)
+  expect(await flat.evaluate(async (e) => { const i = e as HTMLImageElement; await i.decode(); const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d')!; g.drawImage(i, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let k = 3; k < d.length; k += 4) if (d[k] > 0) n++; return n; })).toBeGreaterThan(100);
+  // 크게 확대: 사인물별 원근 층, 납작한 그림 없음
+  for (let i = 0; i < 12; i++) await wheel(-400);
+  await expect(zone.getByTestId('baked-parts')).toHaveCount(1, { timeout: 15_000 });
+  await expect(flat).toHaveCount(0);
+});

@@ -74,7 +74,7 @@ test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다'
   await setup(page, request);
   await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   // 사진 위 외곽선 안에도 같은 배치 (원본 단계, 2026-10-17)
-  await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay').locator('text')).toHaveText('간판');
+  await expect(page.getByTestId('photo-zone').locator('[data-testid="flat-overlay"], [data-testid="baked-parts"]').first()).toHaveAttribute('alt', /간판/); // 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29)
   const card = page.getByTestId('board-card').first();
   await expect(card.getByTestId('parts-overlay')).toBeVisible();
   await expect(card.getByTestId('parts-overlay').locator('text')).toHaveText('간판');

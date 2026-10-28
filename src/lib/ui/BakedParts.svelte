@@ -12,7 +12,11 @@
   import { fnv1a } from '../core/proposal';
   import PartsOverlay from './PartsOverlay.svelte';
 
-  let { o, mmW, mmH, w, h, transform }: { o: SignObject; mmW: number; mmH: number; w: number; h: number; transform: string } = $props();
+  let { o, mmW, mmH, w, h, transform, flat = false, onbaked }: {
+    o: SignObject; mmW: number; mmH: number; w: number; h: number; transform: string;
+    /** 줌아웃 LOD (2026-10-29): 굽기만 하고 그리지 않는다 — 사진이 납작한 그림 한 장으로 모아 그린다 */
+    flat?: boolean; onbaked?: (url: string | null | undefined) => void;
+  } = $props();
   const laid = $derived(layoutParts(o, mmW, mmH, w, h));
   let urls = $state<Record<string, string>>({});
   $effect(() => {
@@ -33,9 +37,10 @@
     const k = key;
     bakeParts(k, laid, w, h, (l) => urls[l.id]).then((u) => { if (u && k === key) baked = u; });
   });
+  $effect(() => onbaked?.(laid.length ? baked : null));
 </script>
 
-{#if laid.length}
+{#if laid.length && !flat}
   {#if baked}
     <img class="warp baked" data-testid="baked-parts" data-colors={colors} src={baked} alt={texts} draggable="false" style:width="{w}px" style:height="{h}px" style:transform={transform} />
   {:else}
