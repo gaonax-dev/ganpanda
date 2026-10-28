@@ -285,36 +285,35 @@
     stageTimer = window.setTimeout(() => { for (const id of stale) if (!stageQueue.includes(id)) stageQueue.push(id); pumpStage(); }, 300);
   });
   // ---------- 실시간 3D (2026-10-27 사용자: "3d 랜더링보다 실시간이 더 빠르지 않나?" → "확대할때 이상해 화면에서 가운데 있는 사진의 3d만 실시간") ----------
-  // 화면 가운데 사진 하나만 WebGL 로 바로 그린다 — 보이는 부분만 화면 해상도로(확대해도 또렷). 나머지 사진은 위 합성 그림 그대로.
-  // 장면은 내용이 바뀔 때만 다시 짓고, 화면을 움직이는 동안은 숨겨 합성 그림이 보이다가 멈추면(150ms) 그 자리를 다시 그린다
+  // 화면 가운데 사진 하나만 WebGL 로 바로 그린다 — 보이는 부분만(확대해도 또렷). 나머지 사진은 위 합성 그림(휴대폰은 사진) 그대로.
+  // 실시간 (2026-10-28 "3d가 실시간으로 랜더링 보이느게 어려운건가?" → "진행해봐"): 그림판은 보드 화면 크기로 고정이라 화면을 움직이는 동안에도
+  // 숨기지 않고 매번 바로 다시 그린다. 지어 둔 장면은 사진마다 기억해(휴대폰 2 · 그 외 4) 다시 가운데로 오면 바로, 데스크톱은 쉬는 동안 보이는 옆 사진을 미리 짓는다
   let boardSize = $state({ w: 0, h: 0 });
   $effect(() => { const upd = () => (boardSize = canvas?.size() ?? { w: 0, h: 0 }); upd(); window.addEventListener('resize', upd); return () => window.removeEventListener('resize', upd); });
+  const planeOf = (id: string) => wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id));
   const live = $derived.by((): LiveView | null => {
     if (app.stage !== '3d' || !boardSize.w) return null;
-    return liveView(app.photos, viewport, boardSize, (id) => !!app.stageRenders[id]?.url || !!wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id)));
+    return liveView(app.photos, viewport, boardSize, (id) => !!app.stageRenders[id]?.url || !!planeOf(id));
   });
   let liveHost: HTMLDivElement | null = $state(null);
   let liveStage: LiveStage | null = null;
   let liveBuilt = $state<{ id: string; key: string } | null>(null);
-  let liveSettled = $state(true);
-  /** 장면을 지은 횟수 (테스트·확인용) */
+  /** 장면을 새로 지은 횟수 (기억한 장면을 얹은 것은 세지 않는다 — 테스트·확인용) */
   let liveBuilds = $state(0);
   /** 3D 화면을 잃음(휴대폰 메모리) — 이 단계에서는 합성 그림만 */
   let liveLost = $state(false);
   let liveLight = $state(false);
   /** 실시간 장면의 사진·사인물 수 (확인용 — 다른 사진의 사인물이 섞이면 안 된다) */
   let liveScene = $state({ photo: '', signs: 0 });
-  let settleTimer = 0;
-  $effect(() => { void viewport.x; void viewport.y; void viewport.zoom; liveSettled = false; clearTimeout(settleTimer); settleTimer = window.setTimeout(() => (liveSettled = true), 150); });
   let liveToken = 0;
-  // 장면 짓기: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면
+  // 장면: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면 — 기억한 장면이면 바로 얹는다
   $effect(() => {
     if (app.stage !== '3d' || !live || !liveHost || liveLost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; liveLost = false; } return; }
     const id = live.id, key = app.stageKey(id);
     if (liveBuilt?.id === id && liveBuilt.key === key) return;
     const p = app.photos.find((x) => x.id === id);
     const objs = app.objects.filter((o) => o.photoId === id);
-    const plane = wallPlaneOf(objs, app.calibrations.get(id));
+    const plane = planeOf(id);
     if (!p || !plane) return;
     const token = ++liveToken, host = liveHost;
     untrack(() => void (async () => {
@@ -322,16 +321,28 @@
       stageFont ??= await loadFont(fontUrl);
       if (token !== liveToken) return;
       if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
-      let done = false;
-      try { done = await liveStage.build(p, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
+      let made: 'built' | 'cached' | false = false;
+      try { made = await liveStage.build(p, key, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
-      if (done && token === liveToken) { liveBuilt = { id, key }; liveBuilds++; }
+      if (made && token === liveToken) { liveBuilt = { id, key }; if (made === 'built') liveBuilds++; prefetchNeighbors(id); }
       liveScene = { photo: liveStage?.scenePhoto ?? '', signs: liveStage?.sceneSigns ?? 0 };
     })());
   });
-  // 보이는 부분·크기 맞추기 (멈췄을 때만)
-  $effect(() => { if (live && liveSettled && liveBuilt?.id === live.id) liveStage?.frame(live.crop, live.px.w, live.px.h); });
-  const liveShown = $derived(!!live && liveSettled && !liveLost && liveBuilt?.id === live.id);
+  /** 데스크톱: 화면에 보이는 다른 사진(가까운 2장) 장면을 미리 */
+  function prefetchNeighbors(centerId: string) {
+    if (!liveStage || liveLight || !stageFont) return;
+    const cx = boardSize.w / 2, cy = boardSize.h / 2;
+    const near = app.photos.filter((p) => p.id !== centerId && planeOf(p.id)).map((p) => {
+      const bh = p.width * (p.h / p.w);
+      const x0 = p.x * viewport.zoom + viewport.x, y0 = p.y * viewport.zoom + viewport.y, x1 = x0 + p.width * viewport.zoom, y1 = y0 + bh * viewport.zoom;
+      const seen = x1 > 0 && y1 > 0 && x0 < boardSize.w && y0 < boardSize.h;
+      return { p, seen, d: Math.hypot((x0 + x1) / 2 - cx, (y0 + y1) / 2 - cy) };
+    }).filter((x) => x.seen).sort((a, b) => a.d - b.d).slice(0, 2);
+    for (const { p } of near) liveStage.prefetch(p, app.stageKey(p.id), app.objects.filter((o) => o.photoId === p.id), planeOf(p.id)!, app.sources, stageFont, app.estSize);
+  }
+  // 보이는 부분 맞추기 — 화면을 움직이는 동안에도 매번 (그림판 크기는 그대로라 가볍다)
+  $effect(() => { if (live && liveBuilt?.id === live.id) liveStage?.frame(live.crop, boardSize.w, boardSize.h); });
+  const liveShown = $derived(!!live && !liveLost && liveBuilt?.id === live.id);
 
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   // 데스크톱 Shift (2026-10-22 "시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"):
