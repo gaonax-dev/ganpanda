@@ -18,7 +18,8 @@
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
-  import type { StageRenderer } from '../render/scene';
+  import type { LiveStage, StageRenderer } from '../render/scene';
+  import { liveView, type LiveView } from '../core/liveView';
   import { app } from '../state.svelte';
   import { defaultProductFor } from '../core/catalog';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
@@ -278,6 +279,48 @@
     clearTimeout(stageTimer);
     stageTimer = window.setTimeout(() => { for (const id of stale) if (!stageQueue.includes(id)) stageQueue.push(id); pumpStage(); }, 300);
   });
+  // ---------- 실시간 3D (2026-10-27 사용자: "3d 랜더링보다 실시간이 더 빠르지 않나?" → "확대할때 이상해 화면에서 가운데 있는 사진의 3d만 실시간") ----------
+  // 화면 가운데 사진 하나만 WebGL 로 바로 그린다 — 보이는 부분만 화면 해상도로(확대해도 또렷). 나머지 사진은 위 합성 그림 그대로.
+  // 장면은 내용이 바뀔 때만 다시 짓고, 화면을 움직이는 동안은 숨겨 합성 그림이 보이다가 멈추면(150ms) 그 자리를 다시 그린다
+  let boardSize = $state({ w: 0, h: 0 });
+  $effect(() => { const upd = () => (boardSize = canvas?.size() ?? { w: 0, h: 0 }); upd(); window.addEventListener('resize', upd); return () => window.removeEventListener('resize', upd); });
+  const live = $derived.by((): LiveView | null => {
+    if (app.stage !== '3d' || !boardSize.w) return null;
+    return liveView(app.photos, viewport, boardSize, (id) => !!app.stageRenders[id]?.url || !!wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id)));
+  });
+  let liveHost: HTMLDivElement | null = $state(null);
+  let liveStage: LiveStage | null = null;
+  let liveBuilt = $state<{ id: string; key: string } | null>(null);
+  let liveSettled = $state(true);
+  /** 장면을 지은 횟수 (테스트·확인용) */
+  let liveBuilds = $state(0);
+  let settleTimer = 0;
+  $effect(() => { void viewport.x; void viewport.y; void viewport.zoom; liveSettled = false; clearTimeout(settleTimer); settleTimer = window.setTimeout(() => (liveSettled = true), 150); });
+  let liveToken = 0;
+  // 장면 짓기: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면
+  $effect(() => {
+    if (app.stage !== '3d' || !live || !liveHost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; } return; }
+    const id = live.id, key = app.stageKey(id);
+    if (liveBuilt?.id === id && liveBuilt.key === key) return;
+    const p = app.photos.find((x) => x.id === id);
+    const objs = app.objects.filter((o) => o.photoId === id);
+    const plane = wallPlaneOf(objs, app.calibrations.get(id));
+    if (!p || !plane) return;
+    const token = ++liveToken, host = liveHost;
+    untrack(() => void (async () => {
+      const [{ loadFont }, { LiveStage }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
+      stageFont ??= await loadFont(fontUrl);
+      if (token !== liveToken) return;
+      liveStage ??= new LiveStage(host);
+      try { await liveStage.build(p, objs, plane, app.sources, stageFont, app.estSize); }
+      catch (e) { console.warn('실시간 3D 실패', e); return; }
+      if (token === liveToken) { liveBuilt = { id, key }; liveBuilds++; }
+    })());
+  });
+  // 보이는 부분·크기 맞추기 (멈췄을 때만)
+  $effect(() => { if (live && liveSettled && liveBuilt?.id === live.id) liveStage?.frame(live.crop, live.px.w, live.px.h); });
+  const liveShown = $derived(!!live && liveSettled && liveBuilt?.id === live.id);
+
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   // 데스크톱 Shift (2026-10-22 "시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"):
   // 선택 도구에서 Shift 를 누르는 동안만 켠다. 이미 단추로 켰으면 건드리지 않는다. 떼면 끄되 고른 것은 남긴다. 입력 칸 안에서는 무시
@@ -576,6 +619,14 @@
         onadjust={app.canEdit ? () => (app.adjustPhotoId = p.id) : undefined}
       />
     {/each}
+    {#if app.stage === '3d'}
+      {@const lp = live ? app.photos.find((x) => x.id === live.id) : null}
+      <!-- 실시간 3D (가운데 사진, 보이는 부분만 화면 해상도) — 편집 층(svg)보다 아래 -->
+      <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} bind:this={liveHost}
+        style:visibility={liveShown ? 'visible' : 'hidden'}
+        style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
+        style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>
+    {/if}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
       <!-- 글·단추(재정렬·간격·고정·축척·완료)는 상단 헤더 막대로 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동") — App.svelte flat-bar -->
@@ -706,6 +757,8 @@
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
+  .live3d { position: absolute; transform-origin: 0 0; pointer-events: none; z-index: 1; overflow: hidden; }
+  .live3d :global(canvas) { display: block; }
   .flat-outline { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-sizing: content-box; margin: -8px 0 0 -8px; padding: 8px; z-index: 2; }
   .flat-outline.hot { border-style: solid; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
   .flat-handle.move.on { outline: 2px solid #fff; }

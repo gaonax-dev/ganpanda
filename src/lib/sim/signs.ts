@@ -238,8 +238,10 @@ function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
 }
 
 /** images = 앞면 그림 객체(faceItems)의 그림, 객체 id → 이미지 */
-export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
-  return withAccessories(withTopLights(buildSignBody(spec, font, fontFamily, face, images), spec), spec);
+/** 앞면 그림(인쇄 글자·디자인)의 긴 변 픽셀. 기본 1024 — 실시간 3D 는 더 크게(확대해도 또렷, 2026-10-27) */
+export const FACE_TEX_LONG = 1024;
+export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG): BuiltSign {
+  return withAccessories(withTopLights(buildSignBody(spec, font, fontFamily, face, images, texLong), spec), spec);
 }
 
 /** 그룹 안 모든 메쉬의 형상을 옮긴다 — warpToQuad 가 정점만 보므로 위치를 그룹 변환이 아니라 정점에 굽는다 */
@@ -269,9 +271,9 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
   };
 }
 
-function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
+function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG): BuiltSign {
   if (spec.kind === 'channel') return buildChannel(spec, font);
-  const box = buildLightbox(spec, fontFamily, face, images);
+  const box = buildLightbox(spec, fontFamily, face, images, texLong);
   if (spec.letterItems) return withLetterItems(box, spec, font);
   const L = spec.letters;
   if (!L || !L.text.trim()) return box;
@@ -471,12 +473,12 @@ function reverseWinding(g: THREE.BufferGeometry) {
 /** 박스 앞면에 입힐 이미지 (디자인 소스의 잘라낸 영역) */
 export interface FaceImage { image: CanvasImageSource; sx: number; sy: number; sw: number; sh: number }
 
-export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>): BuiltSign {
+export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG): BuiltSign {
   const group = new THREE.Group();
   const w = spec.widthMm, h = spec.heightMm, d = spec.depthMm;
 
   const canvas = document.createElement('canvas');
-  const s = 1024 / Math.max(w, h);
+  const s = texLong / Math.max(w, h);
   canvas.width = Math.ceil(w * s);
   canvas.height = Math.ceil(h * s);
   const ctx = canvas.getContext('2d')!;
@@ -498,7 +500,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   // 조합형 앞면 객체 (그림, 시트의 글자, 도형): 정면도 자리에 평면으로 (2026-10-16 4단계). 앞면에서 올라선 것(z > 0.5mm: 채널 앞면 위 시트 — 2단계)은 텍스처가 아니라 그 높이의 얇은 판으로
   const raised = (spec.faceItems ?? []).filter((it) => (it.z ?? 0) > 0.5);
   for (const it of (spec.faceItems ?? []).filter((it) => !((it.z ?? 0) > 0.5))) drawFaceItem(ctx, it, (w / 2 + it.x - it.w / 2) * s, (h / 2 - it.y - it.h / 2) * s, it.w * s, it.h * s, images?.[it.id], fontFamily);
-  const planes = raised.map((it) => facePlane(it, d, images?.[it.id], fontFamily));
+  const planes = raised.map((it) => facePlane(it, d, images?.[it.id], fontFamily, texLong / 2));
   // 앞면 테: 프레임이 판을 둘러싸는 종류(후렉스·라이트패널·액자…)는 테를 프레임 색으로 그려 판과 구별 (2026-10-17 "3d에서 프레임과 판을 구별하나?")
   if (spec.frameMm && spec.frameMm > 0 && !spec.bodyless) {
     const fm = spec.frameMm * s;
@@ -588,9 +590,9 @@ function drawFaceItem(ctx: CanvasRenderingContext2D, it: FaceItem, left: number,
   ctx.restore();
 }
 /** 앞면에서 올라선 객체(2단계: 채널 앞면 위 시트의 글자·그림·도형) = 그 높이에 떠 있는 얇은 판. 자리는 정점에 굽는다(warpToQuad·recessBox 가 정점만 보므로) */
-function facePlane(it: FaceItem, boxDepth: number, img: CanvasImageSource | undefined, fontFamily: string): { mesh: THREE.Mesh; dispose(): void } {
+function facePlane(it: FaceItem, boxDepth: number, img: CanvasImageSource | undefined, fontFamily: string, texLong = 512): { mesh: THREE.Mesh; dispose(): void } {
   const canvas = document.createElement('canvas');
-  const s = 512 / Math.max(it.w, it.h, 1);
+  const s = texLong / Math.max(it.w, it.h, 1);
   canvas.width = Math.max(2, Math.ceil(it.w * s)); canvas.height = Math.max(2, Math.ceil(it.h * s));
   drawFaceItem(canvas.getContext('2d')!, it, 0, 0, canvas.width, canvas.height, img, fontFamily);
   const tex = new THREE.CanvasTexture(canvas);
