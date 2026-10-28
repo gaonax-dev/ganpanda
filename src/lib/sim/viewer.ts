@@ -17,9 +17,11 @@ const bgFragment = /* glsl */ `
 uniform sampler2D map;
 uniform float brightness;
 uniform vec3 tint;
+uniform vec4 crop; // 보이는 부분만 (x, y, w, h — 사진 비율, 위에서부터). 기본 (0,0,1,1)
 varying vec2 vUv;
 void main() {
-  vec3 c = texture2D(map, vUv).rgb;
+  vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
+  vec3 c = texture2D(map, uv).rgb;
   gl_FragColor = vec4(c * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
@@ -30,19 +32,29 @@ void main() {
  * (2026-10-14 운영 프로젝트 점검: 측면 사진의 사인물이 바닥 평면 기준 "카메라 뒤"로 잘려 안 보였음)
  */
 class SignsPass extends Pass {
-  constructor(private scene: THREE.Scene, private main: THREE.Camera, private signs: { camera: THREE.Camera; layer: number }[]) { super(); this.needsSwap = false; }
+  constructor(private scene: THREE.Scene, private main: THREE.Camera, private signs: { camera: THREE.Camera; layer: number }[], private crop: { m: THREE.Matrix4 | null }) { super(); this.needsSwap = false; }
   render(renderer: THREE.WebGLRenderer, _write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget) {
     renderer.setRenderTarget(this.renderToScreen ? null : read);
     const auto = renderer.autoClear;
     renderer.autoClear = false;
     this.main.layers.set(0);
-    renderer.render(this.scene, this.main);
+    this.draw(renderer, this.main);
     for (const s of this.signs) {
       renderer.clearDepth();
       s.camera.layers.set(s.layer);
-      renderer.render(this.scene, s.camera);
+      this.draw(renderer, s.camera);
     }
     renderer.autoClear = auto;
+  }
+  /** 보이는 부분만 그릴 때(실시간 3D, 2026-10-27): 투영 뒤에 화면 자르기(NDC 확대·이동)를 곱해 그리고 되돌린다 */
+  private draw(renderer: THREE.WebGLRenderer, cam: THREE.Camera) {
+    const m = this.crop.m;
+    if (!m) { renderer.render(this.scene, cam); return; }
+    const p = cam.projectionMatrix.clone(), pi = cam.projectionMatrixInverse.clone();
+    cam.projectionMatrix.premultiply(m);
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    renderer.render(this.scene, cam);
+    cam.projectionMatrix.copy(p); cam.projectionMatrixInverse.copy(pi);
   }
 }
 
@@ -64,6 +76,8 @@ export class Viewer {
   /** 사인물별 카메라 (레이어 1..) */
   private signCameras: { camera: THREE.Camera; layer: number }[] = [];
   private wall = { w: 1, h: 1 };
+  /** 보이는 부분만 그리기 (실시간 3D): 투영 뒤에 곱할 자르기 행렬 */
+  private crop: { m: THREE.Matrix4 | null } = { m: null };
   night = false;
   private dirty = true;
 
@@ -78,7 +92,7 @@ export class Viewer {
     host.appendChild(this.renderer.domElement);
 
     this.bgMat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) } },
+      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) } },
       vertexShader: bgVertex, fragmentShader: bgFragment, depthWrite: false, depthTest: false,
     });
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
@@ -104,7 +118,7 @@ export class Viewer {
 
     this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
     this.composer.addPass(new RenderPass(this.bgScene, this.bgCamera));
-    this.composer.addPass(new SignsPass(this.scene, this.camera, this.signCameras));
+    this.composer.addPass(new SignsPass(this.scene, this.camera, this.signCameras, this.crop));
     // 조명·그림자는 모든 레이어에
     this.sun.layers.enableAll(); this.hemi.layers.enableAll(); this.sun.shadow.camera.layers.enableAll();
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 1.0);
@@ -117,6 +131,20 @@ export class Viewer {
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  /**
+   * 사진의 한 부분(원본 픽셀 r, 사진 imgW×imgH)만 화면 가득 그린다 (2026-10-27 실시간 3D — 확대해도 화면 해상도로). null = 사진 전체.
+   * 클립 x' = sx·x + tx·w, y' = sy·y + ty·w (NDC 의 [r] 부분 → [-1,1])
+   */
+  setCrop(r: { x: number; y: number; w: number; h: number } | null, imgW: number, imgH: number) {
+    const u = this.bgMat.uniforms.crop.value as THREE.Vector4;
+    if (!r) { this.crop.m = null; u.set(0, 0, 1, 1); this.invalidate(); return; }
+    const sx = imgW / r.w, sy = imgH / r.h;
+    const tx = sx - 1 - (2 * r.x) / r.w, ty = 1 - sy + (2 * r.y) / r.h;
+    this.crop.m = new THREE.Matrix4().set(sx, 0, 0, tx, 0, sy, 0, ty, 0, 0, 1, 0, 0, 0, 0, 1);
+    u.set(r.x / imgW, r.y / imgH, r.w / imgW, r.h / imgH);
+    this.invalidate();
   }
 
   /** HDRI 환경맵 준비 (PNG 저장·합성은 이걸 기다려야 조명이 같다) */

@@ -24,7 +24,7 @@ async function faceOf(o: SignObject, sources: DesignSource[]): Promise<FaceImage
 /** 뷰어 하나에 사진·사인물을 올린다 (호출자가 뷰어를 재사용하거나 버린다). designs=false 면 디자인 이미지를 입히지 않아 가볍다 */
 /** estOf: 치수를 넣지 않은 사인물의 추정 치수 — 글자·시트 면 축척에만 (2026-10-22 "3d에서 … 비정상적으로 커지는거") */
 export type EstOf = (o: SignObject) => { w: number; h: number } | null;
-async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, opts: { designs: boolean; maxW: number; maxH: number; estOf?: EstOf }): Promise<BuiltSign[]> {
+async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, opts: { designs: boolean; maxW: number; maxH: number; estOf?: EstOf; /** 앞면 그림 긴 변 픽셀 (실시간 3D 는 크게) */ texLong?: number }): Promise<BuiltSign[]> {
   const built: BuiltSign[] = [];
   v.showGrid(false);
   v.clearSignCameras();
@@ -44,7 +44,7 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
     const face = opts.designs && spec.kind === 'lightbox' ? await faceOf(o, sources) : undefined;
     const images = opts.designs && spec.faceItems ? await loadItemImages(o, sources) : undefined;
     let b: BuiltSign;
-    try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images); }
+    try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images, opts.texLong); }
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
     if (spec.kind === 'lightbox' && !spec.bodyless) recessBox(b.group, spec.depthMm); // 외곽선 = 앞면: 바탕은 뒤로, 글자는 앞으로 (2026-10-17)
     const corners = quadOnWall(own, o) as [number, number][];
@@ -103,6 +103,35 @@ export class StageRenderer {
     this.host?.remove();
     this.viewer = null; this.host = null;
   }
+}
+
+/**
+ * 실시간 3D (2026-10-27 "화면에서 가운데 있는 사진의 3d만 실시간"): 화면 가운데 사진 하나를 WebGL 로 바로 그린다.
+ * 장면은 내용이 바뀔 때만 다시 짓고(build), 화면 이동·확대는 보이는 부분·크기만 바꿔 다시 그린다(frame) — PNG 만들기 없음
+ */
+/** 실시간 3D 의 앞면 그림 긴 변 (보통 1024 의 3배·2배) */
+export const LIVE_TEX_LONG = 3072, LIVE_TEX_LONG_PHONE = 2048;
+export class LiveStage {
+  readonly viewer: Viewer;
+  private built: BuiltSign[] = [];
+  private photo: Photo | null = null;
+  constructor(host: HTMLElement) { this.viewer = new Viewer(host); }
+  async build(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf) {
+    this.clear();
+    // 앞면 그림을 크게 — 확대해도 인쇄 글자가 또렷하게 (휴대폰은 메모리 때문에 덜)
+    const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
+    this.built = await buildScene(this.viewer, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf, texLong: phone ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG });
+    this.viewer.setNight(false); for (const b of this.built) b.setNight(false);
+    this.photo = photo;
+  }
+  /** 보이는 부분(원본 픽셀)을 화면 크기(CSS px)로 */
+  frame(crop: { x: number; y: number; w: number; h: number }, cssW: number, cssH: number) {
+    if (!this.photo) return;
+    this.viewer.resize(Math.max(1, cssW), Math.max(1, cssH));
+    this.viewer.setCrop(crop, this.photo.w, this.photo.h);
+  }
+  private clear() { for (const b of this.built) { b.group.removeFromParent(); b.dispose(); } this.built = []; }
+  dispose() { this.clear(); this.viewer.renderer.dispose(); this.viewer.renderer.domElement.remove(); this.photo = null; }
 }
 
 export async function dataUrlToBlob(url: string): Promise<Blob> {

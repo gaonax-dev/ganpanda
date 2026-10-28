@@ -85,3 +85,39 @@ test('[실측] 단추에 가로·세로를 아직 넣지 않은 사인물 수가
   await page.evaluate(({ n }) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(n, { widthMm: 500, heightMm: 500 }), ids);
   await expect(badge).toHaveCount(0);
 });
+
+// 2026-10-27 사용자: "3d 랜더링보다 실시간이 더 빠르지 않나?" → "확대할때 이상해 화면에서 가운데 있는 사진의 3d만 실시간"
+test('3D 단계: 화면 가운데 사진은 실시간 3D — 보이는 부분만 화면 해상도로, 확대해도 그림이 화면보다 커지지 않는다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByTestId('stage-3d').click();
+  const live = page.getByTestId('live-3d');
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
+  const photoId = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { id: string }[] } }).__ganpanda.photos[0].id);
+  await expect(live).toHaveAttribute('data-photo', photoId);
+  const canvasSize = () => live.locator('canvas').evaluate((c: HTMLCanvasElement) => ({ w: c.width, h: c.height, cw: c.clientWidth }));
+  const board = (await page.getByTestId('board-canvas').boundingBox())!;
+  const dpr = await page.evaluate(() => Math.min(devicePixelRatio, 2));
+  // 화면에 보이는 사진 크기와 같은 화면 픽셀
+  const img = (await page.getByTestId('photo-img').boundingBox())!;
+  const lb = (await live.boundingBox())!;
+  expect(Math.abs(lb.width - Math.min(img.width, board.width))).toBeLessThan(3);
+  // 크게 확대 → 보이는 조각만, 그림은 화면 크기를 넘지 않는다
+  await page.mouse.move(img.x + img.width / 2, img.y + img.height * 0.6);
+  for (let i = 0; i < 6; i++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, -400); await page.keyboard.up('Control'); }
+  await expect(live).toHaveAttribute('data-shown', 'true');
+  await page.waitForTimeout(300);
+  const c = await canvasSize();
+  expect(c.w).toBeLessThanOrEqual(Math.ceil(board.width * dpr) + 2);
+  expect(c.h).toBeLessThanOrEqual(Math.ceil(board.height * dpr) + 2);
+  const z = (await live.boundingBox())!;
+  expect(z.width).toBeLessThanOrEqual(board.width + 2);
+  // 내용을 바꾸면 그 사진의 실시간 장면을 바로 다시 짓는다 (그림 만들기 차례를 기다리지 않음)
+  const before = Number(await live.getAttribute('data-builds'));
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects[0].id, { text: '간판다 카페' }); });
+  await expect.poll(async () => Number(await live.getAttribute('data-builds')), { timeout: 5000 }).toBeGreaterThan(before);
+  await expect(live).toHaveAttribute('data-shown', 'true');
+  // 원본으로 돌아가면 사라진다
+  await page.getByTestId('stage-2d').click();
+  await expect(live).toHaveCount(0);
+});
+
