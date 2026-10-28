@@ -110,7 +110,7 @@ export class Viewer {
     this.envReady = loadEnvironment(this.renderer).then((tex) => { if (tex) { this.scene.environment = tex; this.invalidate(); } });
 
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(this.light ? 1024 : 2048, this.light ? 1024 : 2048); // 휴대폰은 그림자 버퍼 1/4
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 2;
     this.scene.add(this.sun, this.sun.target, this.hemi);

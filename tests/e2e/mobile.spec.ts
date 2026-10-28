@@ -606,7 +606,7 @@ test('휴대폰 3D: 고른 사인물의 터치 띠는 보이지 않고, 외곽�
     a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[200, 200], [1000, 200], [1000, 450], [200, 450]], sheetIds: [], widthMm: 4000, heightMm: 900, productId: 'board-flex' });
   });
   await page.getByTestId('stage-3d').click(); // 고르면 작업 탭 자리에 편집 막대가 나오므로 먼저
-  await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.getByTestId('stage-3d')).toHaveClass(/on/); // 휴대폰 3D 는 합성 그림 없이 실시간만 (2026-10-28)
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; selectObject(id: string): void } }).__ganpanda; a.selectObject(a.objects[0].id); });
   const band = page.getByTestId('sign-touch-outline');
   await expect(band).toHaveCount(1);

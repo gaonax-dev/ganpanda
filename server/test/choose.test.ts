@@ -11,8 +11,8 @@ async function shopWithProposal(id: string) {
   await json('/api/me/request-settings', { receive: true, regions: ['경기 광주시'] }, s, 'PUT');
   const { project } = await (await json(`/api/requests/${id}/respond`, {}, s)).json<{ project: { id: string } }>();
   await json(`/api/projects/${project.id}`, { status: 'ongoing' }, s, 'PATCH');
-  await json(`/api/projects/${project.id}/invites`, { role: 'viewer', kind: 'proposal' }, s);
-  return { s, project: project.id };
+  const inv = await (await json(`/api/projects/${project.id}/invites`, { role: 'viewer', kind: 'proposal' }, s)).json<{ token: string }>();
+  return { s, project: project.id, token: inv.token };
 }
 const projectOf = async (s: string, id: string) => (await (await get('/api/projects', s)).json<{ projects: { id: string; status: string; lost?: boolean }[] }>()).projects.find((p) => p.id === id)!;
 
@@ -35,10 +35,27 @@ describe('확정', () => {
     expect(await projectOf(b.s, b.project)).toMatchObject({ lost: true, status: 'paused' });
     expect(await projectOf(a.s, a.project)).toMatchObject({ lost: false, status: 'ongoing' });
     expect((await (await get(`/api/projects/${b.project}/access`, b.s)).json<{ lost?: boolean }>()).lost).toBe(true);
-    // 변심: 다른 간판집 제안을 승인하면(제안 페이지) 바뀐다 — 앞 간판집이 떨어지고 새 간판집은 다시 살아난다
+    // 2026-10-28 사용자: "이미 견적을 결정했다면 다른 업체의 견적을 보여주지 않는다. 다른 방향으로는 견적이 선택되면 다른 업체의 견적을 바꾸지 못한다.
+    // (이전에 견적을 바꿀수 있다고 내가 했어 취소)" — 변심(다른 곳으로 바꾸기)은 대체됨
+    // ① 고객에게는 고른 제안만
+    const after = await (await get(`/api/requests/${id}`, cust)).json<{ responses: { projectId: string }[] }>();
+    expect(after.responses.map((x) => x.projectId)).toEqual([a.project]);
+    // ② 다른 곳으로 바꿀 수 없다 — 확정·제안 승인 모두
+    const again = await json(`/api/requests/${id}/choose`, { projectId: b.project }, cust);
+    expect(again.status).toBe(409);
+    expect(await again.json()).toMatchObject({ error: 'already_chosen' });
     const { markApproved } = await import('../src/requests');
     await markApproved(env as unknown as Env, b.project);
-    expect(await projectOf(b.s, b.project)).toMatchObject({ lost: false });
-    expect(await projectOf(a.s, a.project)).toMatchObject({ lost: true, status: 'paused' });
+    expect(await projectOf(b.s, b.project)).toMatchObject({ lost: true });
+    expect(await projectOf(a.s, a.project)).toMatchObject({ lost: false });
+    // ③ 떨어진 간판집은 견적을 바꾸지 못한다 — 새 제안 링크 없음
+    const inv = await json(`/api/projects/${b.project}/invites`, { role: 'viewer', kind: 'proposal' }, b.s);
+    expect(inv.status).toBe(403);
+    expect(await inv.json()).toMatchObject({ error: 'lost' });
+    // ④ 떨어진 간판집의 예전 제안 링크로는 견적을 볼 수 없다 (410), 고른 간판집 링크는 그대로
+    expect((await get(`/api/projects/${b.project}/access?invite=${b.token}`, '')).status).toBe(410);
+    expect((await get(`/api/projects/${a.project}/access?invite=${a.token}`, '')).status).toBe(200);
+    // 떨어진 간판집 본인은 자기 프로젝트를 그대로 연다 (보관용)
+    expect((await get(`/api/projects/${b.project}/access`, b.s)).status).toBe(200);
   });
 });
