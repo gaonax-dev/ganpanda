@@ -20,6 +20,8 @@
   import type { Font } from 'opentype.js';
   import type { LiveStage, StageRenderer } from '../render/scene';
   import { liveView, type LiveView } from '../core/liveView';
+  import { needs3d } from '../core/stageFlat';
+  import { loadSnapshot, saveSnapshot } from '../render/stageCache';
   import { app } from '../state.svelte';
   import { defaultProductFor } from '../core/catalog';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
@@ -246,13 +248,16 @@
   let stageFont: Font | null = null;
   let stagePumping = false;
   const stageQueue: string[] = [];
+  /** 3D 로 바꿀 사인물이 없는 사진 (시트·현수막뿐) — 3D 단계에서도 2D 그림 그대로 (2026-10-29 "시트처럼 2d인 경우는 3d로 변환할 이유가 없다") */
+  const flatPhoto = (id: string) => !needs3d(app.objects.filter((o) => o.photoId === id));
+  /**
+   * 3D 단계 그림 (LOD 바탕, 2026-10-29 "사인물을 변경한 경우가 아니라면 기존의 저장된 이미지를 사용한다"): 내용 키가 바뀐 사진만, 차례로.
+   * 기기에 저장된 그림이 있으면 그것을 쓰고(만들지 않음), 없으면 데스크톱은 합성해서 저장. 휴대폰은 만들지 않고 — 가운데 사진의 실시간 화면에서 떠서 저장한다
+   */
   async function pumpStage() {
     if (stagePumping) return;
     stagePumping = true;
     try {
-      // three.js·폰트는 3D 단계를 처음 켤 때 내려받는다
-      const [{ loadFont }, { StageRenderer }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
-      stageFont ??= await loadFont(fontUrl);
       while (stageQueue.length && app.stage === '3d') {
         const id = stageQueue.shift()!;
         const p = app.photos.find((x) => x.id === id);
@@ -261,10 +266,20 @@
         if (app.stageRenders[id]?.key === key) continue;
         const objs = app.objects.filter((o) => o.photoId === id);
         const plane = wallPlaneOf(objs, app.calibrations.get(id));
-        if (!plane) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없는 사진은 원본 그대로
+        if (!plane || !needs3d(objs)) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없거나 납작한 것뿐 → 사진(2D) 그대로
+        const saved = await loadSnapshot(id, key);
+        if (saved) { app.stageRenders[id] = { key, url: saved }; continue; }
+        if (phoneStage) { app.stageRenders[id] = { key, url: '' }; continue; } // 휴대폰은 만들지 않는다 — 가운데 사진의 실시간 화면에서 떠서 채운다(snapshotLater)
+        // three.js·폰트는 3D 그림을 처음 만들 때 내려받는다
+        const [{ loadFont }, { StageRenderer, dataUrlToBlob }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
+        stageFont ??= await loadFont(fontUrl);
         stageRenderer ??= new StageRenderer();
         app.stageBusy++;
-        try { app.stageRenders[id] = { key, url: await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize) }; }
+        try {
+          const dataUrl = await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize);
+          app.stageMade++;
+          app.stageRenders[id] = { key, url: await saveSnapshot(id, key, await dataUrlToBlob(dataUrl)) };
+        }
         catch (e) { console.warn('3D 단계 합성 실패', e); app.stageRenders[id] = { key, url: '' }; }
         finally { app.stageBusy--; }
       }
@@ -277,7 +292,7 @@
    *  합성 그림용 3D 화면을 만들었다 버리기를 되풀이하고 실시간과 겹쳐 아이폰 사파리가 페이지를 다시 열었다). 가운데가 아닌 사진은 사진 그대로 */
   const phoneStage = typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
   $effect(() => {
-    if (app.stage !== '3d' || phoneStage) { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
+    if (app.stage !== '3d') { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
     // 의존: 사진·사인물·카메라 (키 계산이 전부 읽는다)
     const stale = app.photos.filter((p) => app.stageRenders[p.id]?.key !== app.stageKey(p.id)).map((p) => p.id);
     if (!stale.length) return;
@@ -293,7 +308,7 @@
   const planeOf = (id: string) => wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id));
   const live = $derived.by((): LiveView | null => {
     if (app.stage !== '3d' || !boardSize.w) return null;
-    return liveView(app.photos, viewport, boardSize, (id) => !!app.stageRenders[id]?.url || !!planeOf(id));
+    return liveView(app.photos, viewport, boardSize, (id) => !flatPhoto(id) && !!planeOf(id));
   });
   let liveHost: HTMLDivElement | null = $state(null);
   let liveStage: LiveStage | null = null;
@@ -324,15 +339,29 @@
       let made: 'built' | 'cached' | false = false;
       try { made = await liveStage.build(p, key, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
-      if (made && token === liveToken) { liveBuilt = { id, key }; if (made === 'built') liveBuilds++; prefetchNeighbors(id); }
+      if (made && token === liveToken) { liveBuilt = { id, key }; if (made === 'built') liveBuilds++; prefetchNeighbors(id); snapshotLater(id, key); }
       liveScene = { photo: liveStage?.scenePhoto ?? '', signs: liveStage?.sceneSigns ?? 0 };
     })());
   });
+  /** 저장된 그림이 없으면 실시간 화면에서 떠서 저장 (휴대폰 — 데스크톱은 합성 그림 줄이 만든다). 손을 뗀 뒤 잠시 쉬었을 때 */
+  let snapTimer = 0;
+  function snapshotLater(id: string, key: string) {
+    if (!phoneStage) return;
+    clearTimeout(snapTimer);
+    snapTimer = window.setTimeout(async () => {
+      if (!liveStage || liveBuilt?.id !== id || liveBuilt.key !== key || app.stageRenders[id]?.key === key && app.stageRenders[id]?.url) return;
+      if (await loadSnapshot(id, key)) { app.stageRenders[id] = { key, url: (await loadSnapshot(id, key))! }; return; }
+      const blob = await liveStage.snapshot(live && live.id === id ? live.crop : null);
+      if (!blob || liveBuilt?.id !== id || liveBuilt.key !== key) return;
+      app.stageMade++;
+      app.stageRenders[id] = { key, url: await saveSnapshot(id, key, blob) };
+    }, 700);
+  }
   /** 데스크톱: 화면에 보이는 다른 사진(가까운 2장) 장면을 미리 */
   function prefetchNeighbors(centerId: string) {
     if (!liveStage || liveLight || !stageFont) return;
     const cx = boardSize.w / 2, cy = boardSize.h / 2;
-    const near = app.photos.filter((p) => p.id !== centerId && planeOf(p.id)).map((p) => {
+    const near = app.photos.filter((p) => p.id !== centerId && !flatPhoto(p.id) && planeOf(p.id)).map((p) => {
       const bh = p.width * (p.h / p.w);
       const x0 = p.x * viewport.zoom + viewport.x, y0 = p.y * viewport.zoom + viewport.y, x1 = x0 + p.width * viewport.zoom, y1 = y0 + bh * viewport.zoom;
       const seen = x1 > 0 && y1 > 0 && x0 < boardSize.w && y0 < boardSize.h;
@@ -596,7 +625,7 @@
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
-        twoD={app.stage === '2d' && !app.safeMode}
+        twoD={(app.stage === '2d' || (app.stage === '3d' && flatPhoto(p.id))) && !app.safeMode}
         onduplicate={(id) => { app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
@@ -646,7 +675,7 @@
       {@const lp = live ? app.photos.find((x) => x.id === live.id) : null}
       <!-- 실시간 3D (가운데 사진, 보이는 부분만 화면 해상도) — 편집 층(svg)보다 아래 -->
       <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} data-light={liveLight} data-lost={liveLost} data-scene-photo={liveScene.photo} data-scene-signs={liveScene.signs} bind:this={liveHost}
-        style:visibility={liveShown ? 'visible' : 'hidden'}
+        style:visibility={live && liveBuilt?.id === live.id && !liveLost ? 'visible' : 'hidden'} style:opacity={liveShown ? 1 : 0}
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>
     {/if}
@@ -780,7 +809,8 @@
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }
   .board.dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
   .draft { position: absolute; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
-  .live3d { position: absolute; transform-origin: 0 0; pointer-events: none; z-index: 1; overflow: hidden; }
+  /* LOD (2026-10-29): 저장된 그림 위로 실시간 3D 가 부드럽게 — 같은 그림이라 바뀌는 순간이 보이지 않게 */
+  .live3d { position: absolute; transform-origin: 0 0; pointer-events: none; z-index: 1; overflow: hidden; transition: opacity 0.22s ease; }
   .live3d :global(canvas) { display: block; }
   .flat-outline { position: absolute; border: 2px dashed var(--accent); border-radius: 6px; pointer-events: none; box-sizing: content-box; margin: -8px 0 0 -8px; padding: 8px; z-index: 2; }
   .flat-outline.hot { border-style: solid; background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }

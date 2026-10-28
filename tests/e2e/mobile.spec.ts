@@ -497,20 +497,20 @@ test('말풍선 창에도 녹음: 사인물 말풍선에서 녹음하면 그 사
   await expect.poll(async () => (await msgs()).filter((m) => m.objectId === pinId && m.kind === 'chat' && m.attachments?.some((x) => x.type.startsWith('audio/'))).length, { timeout: 15_000 }).toBe(1);
 });
 
-test('두 손가락 조작 중에는 원근(3D)으로 겹친 그림을 잠시 숨겼다가 손을 떼면 다시 (2026-10-21 "모바일에서 핀치줌중에 페이지 열수 없음 크레시가 난다")', async ({ page, request }) => {
+test('두 손가락 조작 중에도 원근(3D)으로 겹친 그림은 숨기지 않고 지금 그림을 늘려 쓴다(will-change) — 손을 떼면 다시 또렷하게 (2026-10-21 크래시 대응의 숨김을 2026-10-29 "2d도 이동하거나 변경하면 사라졌다 다시 나타난다"로 바꿈)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   // 2D 무대의 원근 그림 층(.warp) 하나를 확인용으로 둔다
   await page.evaluate(() => { const w = document.createElement('div'); w.className = 'warp'; w.setAttribute('data-probe', '1'); w.style.cssText = 'position:absolute;width:10px;height:10px'; document.querySelector('[data-testid="board-canvas"] .world')!.appendChild(w); });
-  const shown = () => page.evaluate(() => getComputedStyle(document.querySelector('[data-probe="1"]')!).display);
-  expect(await shown()).not.toBe('none');
+  const st = () => page.evaluate(() => { const cs = getComputedStyle(document.querySelector('[data-probe="1"]')!); return { display: cs.display, will: cs.willChange }; });
+  expect((await st()).display).not.toBe('none');
   await touch(page, 'pointerdown', 1, 150, 650);
   await touch(page, 'pointerdown', 2, 250, 650);
-  expect(await shown()).toBe('none');
+  expect(await st()).toMatchObject({ display: 'block', will: 'transform' });
   await touch(page, 'pointermove', 1, 140, 650);
   await touch(page, 'pointerup', 1, 140, 650);
   await touch(page, 'pointerup', 2, 250, 650);
-  expect(await shown()).not.toBe('none');
+  expect((await st()).will).toBe('auto');
 });
 
 test('계정 메뉴가 휴대폰에서 가려지지 않는다 — 로그아웃 단추까지 눌리는 자리에 (2026-10-21 "사용자 누르면 나오는 정보가 모바일에서 가려진다")', async ({ page, request }) => {

@@ -247,6 +247,8 @@ class AppState {
   stageRenders = $state<Record<string, { key: string; url: string }>>({});
   /** 지금 합성 중인 사진 수 */
   stageBusy = $state(0);
+  /** 3D 그림을 새로 만든 횟수 (기기에 저장된 그림을 쓴 것은 세지 않는다 — 2026-10-29 확인용) */
+  stageMade = $state(0);
   /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
   stageKey(photoId: string): string {
     const p = this.photos.find((x) => x.id === photoId);
