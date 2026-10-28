@@ -297,5 +297,5 @@ test('UV 후렉스 출력: 몸통에 배경색(미리보기), [+ 글자]·[+ 그
   expect(labels.some((l) => l.includes('후렉스'))).toBe(true);
   expect(labels.some((l) => l.includes('출력'))).toBe(false);
   await page.getByTestId('close-object-settings').click();
-  await expect(page.getByTestId('photo-zone').getByText('바로바로정육점').first()).toBeVisible(); // 2D 사진 위 출력 글자
+  await expect(page.getByTestId('photo-zone').getByAltText('바로바로정육점').first()).toBeVisible(); // 2D 사진 위 출력 글자 (구운 그림, 2026-10-29)
 });

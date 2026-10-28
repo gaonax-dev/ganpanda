@@ -91,3 +91,35 @@ test.describe('휴대폰', () => {
     await expect(warp).toBeVisible();
   });
 });
+
+// 2026-10-29 사용자: "아이폰앱에서 2d에서 줌인 줌아웃을 하면 에러가 발생한다" — 원근 DOM 층이 확대 배율만큼 큰 그림으로 다시 그려졌다
+test('2D 원근 글자·그림 층은 구운 그림 한 장으로 — 내용을 바꾸는 동안에도 사라지지 않고 새 그림으로 바뀐다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.evaluate(async () => {
+    const path = '/src/lib/core/parts.ts';
+    const { addPrintItem } = await import(/* @vite-ignore */ path);
+    const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
+    a.project.updateObject(a.objects[0].id, addPrintItem(a.objects[0], 'text').patch);
+  });
+  await page.getByTestId('stage-2d').click();
+  const baked = page.getByTestId('baked-parts');
+  await expect(baked).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay')).toHaveCount(0); // DOM 층 없음
+  expect(await baked.evaluate((e) => getComputedStyle(e).transform)).toMatch(/matrix3d/);
+  expect(await baked.evaluate((e) => (e as HTMLImageElement).naturalWidth)).toBeLessThanOrEqual(1024);
+  const src0 = await baked.getAttribute('src');
+  // 글자를 바꾸면: 그 사이 내내 그림이 있고, 새로 구운 그림으로
+  let gaps = 0;
+  const watch = setInterval(() => void page.evaluate(() => document.querySelectorAll('[data-testid="baked-parts"], [data-testid="parts-overlay"]').length).then((n) => { if (!n) gaps++; }).catch(() => undefined), 20);
+  await page.evaluate(() => {
+    const a = (window as unknown as { __ganpanda: { objects: { id: string; parts?: { items: { kind: string; text?: string }[] }[] }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
+    const o = a.objects[0];
+    const parts = JSON.parse(JSON.stringify(o.parts));
+    for (const p of parts) for (const it of p.items) if (it.kind === 'text') it.text = '바뀐 글자';
+    a.project.updateObject(o.id, { parts });
+  });
+  await expect.poll(() => baked.getAttribute('src'), { timeout: 10_000 }).not.toBe(src0);
+  clearInterval(watch);
+  expect(gaps).toBe(0);
+});
+

@@ -247,6 +247,8 @@ class AppState {
   stageRenders = $state<Record<string, { key: string; url: string }>>({});
   /** 지금 합성 중인 사진 수 */
   stageBusy = $state(0);
+  /** 옮기려고 강조한 사진 — 제목을 누르면 켜지고, 그동안은 사진 어디를 잡아도 옮긴다. 빈 곳을 누르면 꺼진다 (2026-10-29) */
+  movingPhotoId = $state<string | null>(null);
   /** 3D 그림을 새로 만든 횟수 (기기에 저장된 그림을 쓴 것은 세지 않는다 — 2026-10-29 확인용) */
   stageMade = $state(0);
   /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
@@ -1654,7 +1656,7 @@ class AppState {
    * 취소되면 그대로. 전에는 누르는 순간 풀고 팬을 시작해 화면만 옮겨도 선택이 사라졌다
    */
   clearSelectionOnTap(e: PointerEvent, onTap?: () => void) {
-    this.whenTap(e, () => { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; onTap?.(); }); // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
+    this.whenTap(e, () => { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; this.movingPhotoId = null; onTap?.(); }); // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
   }
 
   /** 이 누르기가 탭(6px 안, 손가락 하나)으로 끝나면 fn — 끌기·핀치면 아무것도 안 한다 */

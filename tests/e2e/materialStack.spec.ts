@@ -217,8 +217,7 @@ test('재질 시트: 제작사·시트 코드는 구성내역에, 미리보기 �
   await expect(dlg.getByTestId('part-spec')).not.toContainText('#ff0000');
   await page.getByTestId('close-object-settings').click();
   await page.getByTestId('stage-2d').click();
-  const fills = () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
-  await expect.poll(fills).toContain('#ff0000');
+  await expect(page.getByTestId('photo-zone').getByTestId('baked-parts')).toHaveAttribute('data-colors', /#ff0000/); // 2D 는 구운 그림 (2026-10-29)
 });
 
 // 2026-10-22 사용자: "시트가 2d 3d에 적용이 안됐어" (푸르미도그 — 치수를 넣지 않은 시트 사인물·옛 시트)
@@ -257,7 +256,11 @@ test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트�
   await expect(page.getByTestId('frost')).toHaveCount(0); // 실측(원본)에는 없음
   await page.getByTestId('stage-2d').click();
   await expect(page.getByTestId('frost')).toHaveCount(1);
-  expect(await page.getByTestId('frost').evaluate((e) => getComputedStyle(e).filter)).toBe('blur(30px)'); // 흰색 없이 블러만 (2026-10-22 "30으로")
+  // 흐림은 미리 만든 흐린 그림으로 — CSS 블러 필터를 쓰지 않는다 (2026-10-29 아이폰 줌 오류: 필터 층이 확대 배율만큼 커졌다). 흐림 정도는 그대로 30px 상당
+  const frost = page.getByTestId('frost');
+  await expect(frost).toHaveAttribute('data-blurred', 'true');
+  expect(await frost.evaluate((e) => getComputedStyle(e).filter)).toBe('none');
+  expect(await frost.evaluate((e) => (e as HTMLImageElement).naturalWidth)).toBeLessThanOrEqual(400); // 작은 흐린 그림을 늘려 쓴다
   await page.getByTestId('stage-3d').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0); // 시트뿐인 사진은 3D 로 바꾸지 않고 2D 그대로 (2026-10-29 "시트처럼 2d인 경우는 3d로 변환할 이유가 없다")
   await expect(page.getByTestId('frost')).toHaveCount(1);

@@ -1,5 +1,6 @@
 // 간판 사양(SignSpec) → Three.js 메쉬. 모든 단위 mm, 벽면 = z 0 평면, +z = 벽 밖(카메라 쪽).
 import * as THREE from 'three';
+import { drawFaceItem } from '../render/faceDraw';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { insidePoints, spacedPoints } from './bulbs';
 import type { Font } from 'opentype.js';
@@ -560,35 +561,6 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
 }
 
 type FaceItem = NonNullable<SignSpec['faceItems']>[number];
-/** 앞면 객체 하나를 캔버스에 (텍스처·올라선 판 공용): 그림 / 글자(상자 폭 96% 에 맞춤) / 도형(사각·원·선, 채움·선 색) */
-function drawFaceItem(ctx: CanvasRenderingContext2D, it: FaceItem, left: number, top: number, w: number, h: number, img: CanvasImageSource | undefined, fontFamily: string) {
-  if (it.kind === 'image') { if (img) ctx.drawImage(img, left, top, w, h); return; }
-  if (it.kind === 'shape') {
-    const fill = it.fill ?? null, stroke = it.stroke ?? (it.fill ? null : it.color);
-    ctx.save();
-    if (it.opacity !== undefined) ctx.globalAlpha = Math.max(0, Math.min(1, it.opacity)); // 안개 시트 반투명
-    ctx.lineWidth = Math.max(1, Math.max(w, h) * 0.02);
-    if (it.shape === 'line') { ctx.strokeStyle = it.stroke ?? it.fill ?? it.color; ctx.lineWidth = Math.max(1, h * 0.5); ctx.beginPath(); ctx.moveTo(left, top + h / 2); ctx.lineTo(left + w, top + h / 2); ctx.stroke(); ctx.restore(); return; }
-    ctx.beginPath();
-    if (it.shape === 'ellipse') ctx.ellipse(left + w / 2, top + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2); else ctx.rect(left, top, w, h);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
-    ctx.restore();
-    return;
-  }
-  if (!it.text) return;
-  const size = h * 0.9;
-  ctx.save();
-  ctx.font = `800 ${size}px ${fontFamily}`;
-  const mw = ctx.measureText(it.text).width;
-  ctx.translate(left + w / 2, top + h / 2);
-  if (mw > 0) ctx.scale((w * 0.96) / mw, 1); // 2D 와 같이 상자 폭 96% 에 늘이고 줄임 (2026-10-18)
-  ctx.fillStyle = it.color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(it.text, 0, 0);
-  ctx.restore();
-}
 /** 앞면에서 올라선 객체(2단계: 채널 앞면 위 시트의 글자·그림·도형) = 그 높이에 떠 있는 얇은 판. 자리는 정점에 굽는다(warpToQuad·recessBox 가 정점만 보므로) */
 function facePlane(it: FaceItem, boxDepth: number, img: CanvasImageSource | undefined, fontFamily: string, texLong = 512): { mesh: THREE.Mesh; dispose(): void } {
   const canvas = document.createElement('canvas');

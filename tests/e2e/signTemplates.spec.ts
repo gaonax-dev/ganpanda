@@ -76,7 +76,7 @@ test.describe('휴대폰', () => {
       const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string }[]; addObject(o: unknown): string } } }).__ganpanda;
       app.project.addObject({ photoId: app.project.allPhotos()[0].id, name: '첫째', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [] });
     });
-    await page.getByTestId('photo-zone').locator('.name').tap();
+    await page.getByTestId('sign-shape').first().tap();
     await page.getByTestId('quick-kind').selectOption('sign');
     const bar = page.getByTestId('quick-bar');
     await expect(bar.getByTestId('tpl-family')).toHaveCount(2);
