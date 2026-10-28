@@ -170,7 +170,7 @@
       <span class="role" data-testid="role-badge" data-role={app.role}>{ROLE_LABEL[app.role!]}</span>
       {#if app.canEdit && !app.proposalMode && !app.compact}<button class="btn small" data-testid="versions-open" title={paymentsShown() ? '버전 기록 — 이전 상태로 되돌리기 (유료)' : '버전 기록 — 이전 상태로 되돌리기'} onclick={() => (app.versionsOpen = true)}>버전</button>{/if}
       {#if app.role === 'owner'}<button class="btn small" data-testid="invite-button" onclick={() => (app.inviteOpen = true)}>{app.compact ? '초대' : '초대 링크'}</button>{/if}
-      {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
+      {#if app.canEdit && !app.proposalMode}<button class="btn small primary" data-testid="proposal-button" disabled={app.lostQuote} title={app.lostQuote ? '가게 사장님이 다른 간판집으로 확정해 견적을 바꿀 수 없습니다' : undefined} onclick={() => (app.proposalOpen = true)}>{app.compact ? '제안' : '제안 보내기'}</button>{/if}
       {/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
@@ -275,7 +275,7 @@
   {#if app.requestView && app.room && app.access.status === 'ok'}<RequestBar />{/if}
   {#if app.access.status === 'ok' && app.access.lost && !app.proposalMode}
     <!-- 다른 간판집 확정 (2026-10-22): 변심할 수 있어 지우지 않고 정지 -->
-    <div class="banner lost" data-testid="project-lost-banner">가게 사장님이 <b>다른 간판집과 진행</b>하기로 했습니다. 마음을 바꿔 다시 연락할 수 있어 프로젝트는 지우지 않고 <b>정지</b>로 두었습니다.</div>
+    <div class="banner lost" data-testid="project-lost-banner">가게 사장님이 <b>다른 간판집과 진행</b>하기로 했습니다. 이 프로젝트는 기록으로 <b>정지</b>에 두었고, <b>견적을 바꿀 수 없습니다</b>(제안 보내기·견적 발행 막힘).</div>
   {:else if app.access.status === 'ok' && app.access.requestId && app.role === 'owner' && !app.settings.proposal && !app.proposalMode}
     <!-- 요청에서 가져온 프로젝트: 가게 사장님께 제안 (제안 링크 = 초대, 요청 페이지에 도착) -->
     <div class="banner next" data-testid="request-next">요청에서 가져온 프로젝트입니다. 견적을 정리한 뒤 <b>가게 사장님께 제안</b>을 보내면 요청 페이지에 바로 도착합니다. <button class="btn small primary" data-testid="request-propose" onclick={() => (app.proposalOpen = true)}>가게 사장님께 제안 보내기</button></div>

@@ -376,6 +376,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const b = await readJson<{ projectId?: string }>(req);
     const rr = typeof b?.projectId === 'string' ? await env.DB.prepare('SELECT account_id, project_id FROM request_responses WHERE request_id = ? AND project_id = ?').bind(r.id, b.projectId).first<{ account_id: string; project_id: string }>() : null;
     if (!rr) return json({ error: 'bad_project' }, 400);
+    // 다른 곳으로 바꾸기는 없다 (2026-10-28 "견적이 선택되면 … (이전에 견적을 바꿀수 있다고 내가 했어 취소)")
+    if (r.chosen_project && r.chosen_project !== rr.project_id) return json({ error: 'already_chosen' }, 409);
     await chooseShop(env, r.id, rr.project_id, rr.account_id);
     return json({ ok: true });
   }
@@ -405,6 +407,8 @@ export async function handleRequests(req: Request, env: Env, pathname: string, u
     const rows = await env.DB.prepare('SELECT rr.proposal_url, rr.created_at, rr.project_id, a.name, a.email FROM request_responses rr JOIN accounts a ON a.id = rr.account_id WHERE rr.request_id = ? ORDER BY rr.created_at')
       .bind(r.id).all<{ proposal_url: string; created_at: number; project_id: string; name: string; email: string }>();
     const shopName = (a: { name: string; email: string }) => a.name || a.email.split('@')[0];
+    // 확정했으면 고른 제안만 (2026-10-28 사용자: "이미 견적을 결정했다면 다른 업체의 견적을 보여주지 않는다")
+    if (r.chosen_project) rows.results = rows.results.filter((x) => x.project_id === r.chosen_project);
     const approved = r.approved_by ? await env.DB.prepare('SELECT name, email FROM accounts WHERE id = ?').bind(r.approved_by).first<{ name: string; email: string }>() : null;
     return json({ request: { ...pubRequest(r), ...(approved ? { approvedShop: shopName(approved), approvedAt: r.approved_at } : {}) }, responses: rows.results.map((x) => ({ shop: shopName(x), proposalPath: x.proposal_url, createdAt: x.created_at, projectId: x.project_id })) });
   }
@@ -426,10 +430,13 @@ export async function recordResponse(env: Env, project: { id: string; owner_id: 
 /**
  * 간판집 확정 (2026-10-22 "소비자가 간판집을 제안 리스트에서 확정을 선택하면 견적요청에서 사라지고 탈락한 업체의 복제된 프로젝트에 배지를 달아 다른 곳에서 진행하게 된것을 알린다.
  * 다만 변심으로 다시 시작할 수 있음으로 정지 처리 안내한다"): 요청은 승인됨(받은 목록에서 빠짐), 고른 프로젝트는 lost 해제,
- * 같은 요청의 다른 간판집 프로젝트는 lost_at + 정지(완료가 아니면) + 메일. 다시 다른 곳을 고르면(변심) 그대로 바뀐다
+ * 같은 요청의 다른 간판집 프로젝트는 lost_at + 정지(완료가 아니면) + 메일. ~~다시 다른 곳을 고르면(변심) 그대로 바뀐다~~ 대체됨 (2026-10-28): 한 번 고르면 끝
  */
 export async function chooseShop(env: Env, requestId: string, projectId: string, ownerId: string) {
   const now = Date.now();
+  // 한 번 고르면 끝 — 다른 간판집 제안을 승인해도 바뀌지 않는다 (2026-10-28, 2026-10-22 "변심으로 다시 시작"은 대체됨)
+  const cur = await env.DB.prepare('SELECT chosen_project FROM requests WHERE id = ?').bind(requestId).first<{ chosen_project: string | null }>();
+  if (cur?.chosen_project && cur.chosen_project !== projectId) return;
   const losers = (await env.DB.prepare('SELECT p.id, a.email FROM projects p JOIN accounts a ON a.id = p.owner_id WHERE p.request_id = ? AND p.id <> ? AND p.lost_at IS NULL').bind(requestId, projectId).all<{ id: string; email: string }>()).results;
   await env.DB.batch([
     env.DB.prepare("UPDATE requests SET status = 'approved', approved_at = ?, approved_by = ?, chosen_project = ? WHERE id = ?").bind(now, ownerId, projectId, requestId),
@@ -439,7 +446,7 @@ export async function chooseShop(env: Env, requestId: string, projectId: string,
   if (env.EMAIL) {
     const r = await getRequest(env, requestId);
     for (const l of losers) {
-      try { await env.EMAIL.send({ to: l.email, from: FROM, subject: `[간판다] ${r?.store ?? ''} — 다른 간판집으로 정해졌습니다`, text: `${r?.store ?? '가게'} 사장님이 다른 간판집과 진행하기로 했습니다. 마음을 바꿔 다시 연락할 수 있어 프로젝트는 지우지 않고 "정지"로 두었습니다.` }); } catch { /* 무시 */ }
+      try { await env.EMAIL.send({ to: l.email, from: FROM, subject: `[간판다] ${r?.store ?? ''} — 다른 간판집으로 정해졌습니다`, text: `${r?.store ?? '가게'} 사장님이 다른 간판집과 진행하기로 했습니다. 프로젝트는 기록으로 지우지 않고 "정지"로 두었고, 이 요청의 견적은 더 바꿀 수 없습니다.` }); } catch { /* 무시 */ }
     }
   }
 }
