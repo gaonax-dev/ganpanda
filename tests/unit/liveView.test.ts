@@ -39,3 +39,14 @@ describe('보이는 부분만 화면 해상도로', () => {
     expect(v.crop).toEqual({ x: 900, y: 675, w: 200, h: 150 }); // 원본 픽셀 = 보드 × 2
   });
 });
+
+// 2026-10-28 사용자: "3d 화면에서 줌 아웃하면 3d 랜더링 뜨고 화면을 새로고침한다. 개별 업데이트로 하고 화면 새로고침을 피할 수 있어?"
+describe('너무 작게 보이면 실시간 안 함', () => {
+  it('화면에 보이는 사진의 짧은 변이 LIVE_MIN_PX 보다 작으면 없음 (멀리서 보면 3D 차이가 안 보인다 — 장면을 짓지 않는다)', async () => {
+    const { LIVE_MIN_PX } = await import('../../src/lib/core/liveView');
+    // 줌 0.1: 사진 보드 1000×750 → 화면 100×75
+    expect(liveView([photos[0]], { x: 10, y: 10, zoom: 0.1 }, { w: 400, h: 800 })).toBeNull();
+    const z = (LIVE_MIN_PX + 10) / 750; // 짧은 변(높이)이 기준을 조금 넘게
+    expect(liveView([photos[0]], { x: 0, y: 0, zoom: z }, { w: 2000, h: 2000 })?.id).toBe('a');
+  });
+});
