@@ -6,7 +6,11 @@
   import { bakeDesign } from '../render/bake2d';
   import DesignFace from './DesignFace.svelte';
 
-  let { design, w, h, transform }: { design: DesignRef; w: number; h: number; transform: string } = $props();
+  let { design, w, h, transform, flat = false, onbaked }: {
+    design: DesignRef; w: number; h: number; transform: string;
+    /** 줌아웃 LOD (2026-10-29) — BakedParts 와 같음 */
+    flat?: boolean; onbaked?: (url: string | undefined) => void;
+  } = $props();
   const page = $derived(app.sources.find((s) => s.id === design.sourceId)?.pages[design.page]);
   let pageUrl = $state<string | undefined>(undefined);
   $effect(() => { void app.assetEpoch; if (page) displayUrl(page.assetId, { w: page.w, h: page.h }).then((u) => (pageUrl = u)); });
@@ -17,11 +21,12 @@
     const k = key;
     bakeDesign(k, pageUrl, design.crop, page.w, page.h, w, h).then((u) => { if (u && k === key) baked = u; });
   });
+  $effect(() => onbaked?.(baked));
 </script>
 
-{#if baked}
+{#if !flat && baked}
   <img class="warp baked" data-testid="baked-design" src={baked} alt="" draggable="false" style:width="{w}px" style:height="{h}px" style:transform={transform} />
-{:else}
+{:else if !flat}
   <div class="warp" style:transform={transform}><DesignFace {design} {w} {h} /></div>
 {/if}
 

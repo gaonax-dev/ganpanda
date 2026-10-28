@@ -13,6 +13,9 @@
   import BakedParts from '../ui/BakedParts.svelte';
   import { hasFrost, hasPartsToDraw } from '../core/sheetArea';
   import { blurredUrl } from '../render/blurImage';
+  import { flatEnough, flattenOverlay, type FlatLayer } from '../render/flatOverlay';
+  import { fnv1a } from '../core/proposal';
+  import { untrack } from 'svelte';
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
@@ -151,6 +154,40 @@
   /** 반짝이 자리 (고정 — 매번 같은 무늬) */
   const SPARKS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37 + 11) % 97, y: (i * 53 + 23) % 89, d: ((i * 7) % 10) / 10 * 1.4, s: 0.6 + ((i * 13) % 7) / 10 }));
   const worldH = $derived(photo.width * (photo.h / photo.w));
+
+  // ---------- 줌아웃 LOD (2026-10-29 사용자: "아이폰 앱과 크롬에서 둘다 2d에서 줌 아웃에 앱은 다시 열고 크롬은 죽었다") ----------
+  // 사인물마다 원근 층(matrix3d)이면 줌아웃 때 모든 층이 한꺼번에 화면에 들어와 층마다 메모리를 잡는다(핀볼: 층 31개).
+  // 사진이 화면에서 납작한 그림 해상도로 충분할 만큼 작으면 구운 그림들을 사진마다 한 장으로 모아 3D 변환 없이 그린다
+  const flatMode = $derived(flatEnough(photo.width * zoom, worldH * zoom, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
+  const scaled = (pts: Pt[]) => pts.map((p) => [p[0] * scale, p[1] * scale] as Pt);
+  const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, o.polygon ? scaled(o.polygon) : undefined, o.corner));
+  /** 입힌 디자인 층 — 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) */
+  const designLayers = $derived(objects.filter((o) => o.design).map((o) => {
+    const q = scaled(quadOf(o)), c = capBox(o.design!.crop.w, o.design!.crop.h);
+    return { id: 'd|' + o.id, o, q, w: c.w, h: c.h, clip: clipOf(o, q) };
+  }));
+  /** 구성 요소 층 — 치수가 없으면 추정 치수, 그것도 없으면 외곽선 크기(사진 px) (2026-10-22 "시트가 2d 3d에 적용이 안됐어") */
+  const partsLayers = $derived(objects.filter((o) => (o.parts?.some((p) => p.items.length) && o.widthMm && o.heightMm) || hasPartsToDraw(o)).map((o) => {
+    const q = scaled(quadOf(o)), mm = drawMm(o), pb = capBox(mm.w * 0.5, mm.h * 0.5);
+    return { id: 'p|' + o.id, o, q, mm, w: pb.w, h: pb.h, clip: clipOf(o, q) };
+  }));
+  const layerTransform = (w: number, h: number, q: Pt[]) => { try { return cssMatrix3d(rectToQuad(w, h, q)); } catch { return 'none'; } };
+  /** 구운 그림 주소 (null = 그릴 것 없음, 없음 = 아직) */
+  let bakedOf = $state<Record<string, string | null | undefined>>({});
+  const onbakedFor = (id: string) => (u: string | null | undefined) => { if (untrack(() => bakedOf[id]) !== u) bakedOf = { ...untrack(() => bakedOf), [id]: u }; };
+  let flatSrc = $state<string | undefined>(undefined);
+  /** 납작한 그림에 무엇이 그려졌는지 — 글자 (읽기 도구·테스트용) */
+  const flatAlt = $derived(partsLayers.flatMap((l) => (l.o.parts ?? []).flatMap((p) => p.items.map((it) => it.text ?? ''))).filter(Boolean).join(' ') || `${photo.name} 사인물`);
+  $effect(() => {
+    if (!flatMode || !twoD || overlay) return;
+    const all = [...designLayers, ...partsLayers].map((l) => ({ l, url: bakedOf[l.id] }));
+    if (all.some((a) => a.url === undefined)) return; // 다 구울 때까지 앞 그림 그대로
+    const layers: FlatLayer[] = all.filter((a) => a.url).map((a) => ({ url: a.url!, w: a.l.w, h: a.l.h, quad: a.l.q, clip: a.l.clip }));
+    if (!layers.length) { flatSrc = undefined; return; }
+    const W = photo.w * scale, H = photo.h * scale;
+    const key = fnv1a(JSON.stringify([W, H, layers]));
+    flattenOverlay(key, layers, W, H).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
+  });
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
@@ -652,23 +689,16 @@
         {@const ring = [...outer, outer[0], inner[0], ...inner.slice(1).reverse(), inner[0]]}
         <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {ring.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
       {/each}
-      {#each objects.filter((o) => o.design) as o (o.id)}
-        {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
-        {@const c = capBox(o.design!.crop.w, o.design!.crop.h)}<!-- 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) -->
-        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
-          <BakedDesign design={o.design!} w={c.w} h={c.h} transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()} />
+      {#if flatMode && flatSrc}<img class="flat-overlay" data-testid="flat-overlay" src={flatSrc} alt={flatAlt} draggable="false" />{/if}
+      {#each designLayers as l (l.id)}
+        <div class="design" style:clip-path={l.clip ? `polygon(${l.clip.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
+          <BakedDesign design={l.o.design!} w={l.w} h={l.h} transform={layerTransform(l.w, l.h, l.q)} flat={flatMode} onbaked={onbakedFor(l.id)} />
         </div>
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
-      {#each objects.filter((o) => (o.parts?.some((p) => p.items.length) && o.widthMm && o.heightMm) || hasPartsToDraw(o)) as o (o.id)}
-        {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
-        <!-- 치수가 없으면 추정 치수, 그것도 없으면 외곽선 크기(사진 px) — 면 시트가 빠지지 않게 (2026-10-22 "시트가 2d 3d에 적용이 안됐어") -->
-        {@const mm = drawMm(o)}
-        {@const pb = capBox(mm.w * 0.5, mm.h * 0.5)}<!-- 3D 층 크기 제한 (2026-10-21 휴대폰 크래시) -->
-        {@const pw = pb.w}
-        {@const ph = pb.h}
-        <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
-          <BakedParts {o} mmW={mm.w} mmH={mm.h} w={pw} h={ph} transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()} />
+      {#each partsLayers as l (l.id)}
+        <div class="design" style:clip-path={l.clip ? `polygon(${l.clip.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
+          <BakedParts o={l.o} mmW={l.mm.w} mmH={l.mm.h} w={l.w} h={l.h} transform={layerTransform(l.w, l.h, l.q)} flat={flatMode} onbaked={onbakedFor(l.id)} />
         </div>
       {/each}
     </div>
@@ -978,6 +1008,7 @@
   @keyframes photo-spin { to { transform: rotate(360deg); } }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .designs { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
+  .flat-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
   .pbox { position: relative; }
   .design { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
   .design.fill { pointer-events: none; }
