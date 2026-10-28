@@ -149,7 +149,7 @@ export class StageRenderer {
     try {
       built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
       v.setNight(false); for (const b of built) b.setNight(false);
-      return v.exportPng(Math.min(photo.w, 1280), Math.min(photo.w, 1280) * (photo.h / photo.w));
+      return v.exportPng(Math.min(photo.w, 1280), Math.min(photo.w, 1280) * (photo.h / photo.w), 'image/jpeg', 0.88); // 저장해 두므로 JPEG (2026-10-29)
     } finally {
       for (const b of built) { b.group.removeFromParent(); b.dispose(); }
     }
@@ -244,6 +244,27 @@ export class LiveStage {
     const el = this.viewer.renderer.domElement;
     el.style.width = '100%'; el.style.height = '100%';
     this.viewer.setCrop(crop, c.scene.photo.w, c.scene.photo.h);
+  }
+  /**
+   * 지금 얹힌 장면을 사진 전체 그림(JPEG)으로 뜬다 — 휴대폰의 저장된 3D 그림 (2026-10-29). 그림판 크기는 그대로(다시 만들지 않음),
+   * 사진 전체를 그려 사진 비율의 2D 캔버스로 옮긴다. 그다음 보던 자르기로 되돌린다
+   */
+  async snapshot(crop: { x: number; y: number; w: number; h: number } | null): Promise<Blob | null> {
+    const c = this.applied ? this.cache.get(this.applied) : null;
+    if (!c) return null;
+    const { w: pw, h: ph } = c.scene.photo;
+    const v = this.viewer, el = v.renderer.domElement;
+    v.setCrop({ x: 0, y: 0, w: pw, h: ph }, pw, ph);
+    v.renderNow();
+    const long = Math.min(1280, Math.max(el.width, el.height));
+    const k = long / Math.max(pw, ph);
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(pw * k)); out.height = Math.max(1, Math.round(ph * k));
+    out.getContext('2d')!.drawImage(el, 0, 0, el.width, el.height, 0, 0, out.width, out.height);
+    if (crop) v.setCrop(crop, pw, ph);
+    const blob = await new Promise<Blob | null>((ok) => out.toBlob(ok, 'image/jpeg', 0.85));
+    out.width = out.height = 0;
+    return blob;
   }
   dispose() { for (const id of [...this.cache.keys()]) this.drop(id); this.viewer.renderer.dispose(); this.viewer.renderer.domElement.remove(); }
 }

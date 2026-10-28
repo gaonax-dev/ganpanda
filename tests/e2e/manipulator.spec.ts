@@ -270,7 +270,7 @@ test('박스 방향을 바꾼 사인물도 3D 단계에서 그려진다', async 
   await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('x');
   await page.getByTestId('view-design').click();
   await page.getByTestId('stage-3d').click();
-  await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^data:image\/png/, { timeout: 30_000 });
+  await expect(page.getByTestId('photo-overlay')).toHaveAttribute('src', /^(blob:|data:image)/, { timeout: 30_000 }); // 저장된 그림(blob) — 2026-10-29
 });
 
 test('상자 가이드: 두께 있는 사인물은 고르면 입체 상자가 보인다(자홍 점선 제안 상자는 없음). 시트는 없음. 버튼은 아이콘', async ({ page, request }) => {

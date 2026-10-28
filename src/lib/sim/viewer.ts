@@ -157,6 +157,8 @@ export class Viewer {
   /** HDRI 환경맵 준비 (PNG 저장·합성은 이걸 기다려야 조명이 같다) */
   envReady: Promise<void> = Promise.resolve();
   invalidate() { this.dirty = true; }
+  /** 지금 바로 그린다 (그림 뜨기 직전 — 같은 작업 안에서 캔버스를 읽어야 한다) */
+  renderNow() { this.dirty = false; this.composer.render(); }
 
   private photoOwned = false;
   /** 사진 텍스처를 그대로 쓴다. owned = 뷰어가 가진다(다음에 바꿀 때 버린다) — 실시간 3D 는 장면 기억에서 가지므로 false */
@@ -368,8 +370,8 @@ export class Viewer {
     return rc;
   }
 
-  /** 원본 사진 해상도로 렌더링해 PNG 로 반환 */
-  exportPng(imgW: number, imgH: number): string {
+  /** 원본 사진 해상도로 렌더링해 PNG(또는 mime) 데이터 URL 로 반환 */
+  exportPng(imgW: number, imgH: number, mime = 'image/png', quality?: number): string {
     const el = this.renderer.domElement;
     const prev = { w: el.clientWidth, h: el.clientHeight, dpr: this.renderer.getPixelRatio() };
     const k = Math.min(1, 4096 / Math.max(imgW, imgH));
@@ -380,7 +382,7 @@ export class Viewer {
     this.composer.setPixelRatio(1);
     this.composer.setSize(Math.round(imgW * k), Math.round(imgH * k));
     this.composer.render();
-    const url = el.toDataURL('image/png');
+    const url = el.toDataURL(mime, quality);
     this.grid.visible = grid; this.selection.visible = sel;
     this.renderer.setPixelRatio(prev.dpr);
     this.size = { w: -1, h: -1 }; // 위에서 크기를 직접 바꿨다 — 되돌리기는 반드시

@@ -259,7 +259,7 @@ test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트�
   await expect(page.getByTestId('frost')).toHaveCount(1);
   expect(await page.getByTestId('frost').evaluate((e) => getComputedStyle(e).filter)).toBe('blur(30px)'); // 흰색 없이 블러만 (2026-10-22 "30으로")
   await page.getByTestId('stage-3d').click();
-  await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.getByTestId('photo-overlay')).toHaveCount(0); // 시트뿐인 사진은 3D 로 바꾸지 않고 2D 그대로 (2026-10-29 "시트처럼 2d인 경우는 3d로 변환할 이유가 없다")
   await expect(page.getByTestId('frost')).toHaveCount(1);
 });
 

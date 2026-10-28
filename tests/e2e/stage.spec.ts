@@ -42,7 +42,7 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   await expect(page.getByTestId('tool-select')).toBeEnabled();
   const overlay = page.getByTestId('photo-overlay');
   await expect(overlay).toHaveCount(1, { timeout: 30_000 });
-  await expect(overlay).toHaveAttribute('src', /^data:image\/png/);
+  await expect(overlay).toHaveAttribute('src', /^(blob:|data:image)/); // 기기에 저장된 3D 그림 (2026-10-29)
   const first = await overlay.getAttribute('src');
   // 영역은 보이지 않게(투명) 남아 눌러 고를 수 있다 — 라벨은 숨김
   expect(await page.getByTestId('sign-shape').evaluate((e) => getComputedStyle(e).stroke)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
@@ -125,7 +125,7 @@ test('3D 단계: 화면 가운데 사진은 실시간 3D — 보이는 부분만
 test.describe('휴대폰 3D 메모리', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   // 2026-10-28 "3d에서 사진이 새로 3d랜더링이 되려는 시점에 리프레시된다" — 휴대폰은 3D 화면(WebGL)을 하나만: 합성 그림을 따로 만들지 않고 가운데 사진만 실시간
-  test('휴대폰은 3D 화면 하나만 — 실시간(가볍게)만, 합성 그림은 만들지 않고, 3D 화면을 잃으면 사진 그대로', async ({ page, request }) => {
+  test('휴대폰은 3D 화면 하나만 — 실시간(가볍게)만, 합성 그림은 실시간 화면에서 떠서, 3D 화면을 잃으면 사진·저장된 그림 그대로', async ({ page, request }) => {
     await setup(page, request);
     let maxCanvases = 0;
     await page.exposeFunction('__countCanvas', (n: number) => { maxCanvases = Math.max(maxCanvases, n); });
@@ -140,7 +140,8 @@ test.describe('휴대폰 3D 메모리', () => {
     expect(c.w).toBeLessThanOrEqual(Math.ceil(bw * Math.min(dpr, 1.5)) + 1); // 그림판 = 보드 화면 크기 × 배율 1.5 까지
     await page.waitForTimeout(1500);
     expect(maxCanvases).toBe(1); // 실시간 하나뿐 — 합성 그림용 3D 화면을 만들었다 버리지 않는다
-    await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
+    await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 10_000 }); // 저장된 그림은 실시간 화면에서 떠서 (2026-10-29)
+    expect(maxCanvases).toBe(1);
     // 3D 화면을 잃으면 실시간을 접고 사진 그대로
     await live.locator('canvas').evaluate((el: HTMLCanvasElement) => (el.getContext('webgl2') as WebGL2RenderingContext).getExtension('WEBGL_lose_context')!.loseContext());
     await expect(live).toHaveAttribute('data-lost', 'true');

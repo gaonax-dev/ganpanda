@@ -228,7 +228,8 @@
     user-select: none;
   }
   /* 두 손가락 조작 중에는 원근(matrix3d)으로 겹친 그림을 잠시 숨긴다 — 3D 층은 확대 배율마다 큰 그림으로 다시 그려져 휴대폰 메모리가 넘쳤다 (2026-10-21 "핀치줌중에 페이지 열수 없음 크레시") */
-  .ic.pinching :global(.warp) { display: none; }
+  /* → 숨기지 않고 지금 그림을 그대로 늘려 쓴다(will-change — 사파리는 움직이는 동안 다시 그리지 않는다), 손을 떼면 또렷하게 다시 (2026-10-29 "2d도 이동하거나 변경하면 사라졌다 다시 나타난다") */
+  .ic.pinching :global(.warp) { will-change: transform; }
   /* 이동 중에는 사진·도형이 포인터를 가로채지 않게 */
   .ic.panning :global(*) { pointer-events: none; }
   .world {
