@@ -120,20 +120,37 @@ export class LiveStage {
   private photo: Photo | null = null;
   /** 휴대폰은 가볍게 (MSAA 없음, 화면 배율 1.5) */
   constructor(host: HTMLElement, light = isPhone()) { this.viewer = new Viewer(host, { light }); }
-  async build(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf) {
-    this.clear();
-    // 앞면 그림을 크게 — 확대해도 인쇄 글자가 또렷하게 (휴대폰은 메모리 때문에 덜)
-    this.built = await buildScene(this.viewer, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf, texLong: this.viewer.light ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG });
-    this.viewer.setNight(false); for (const b of this.built) b.setNight(false);
-    this.photo = photo;
+  private chain: Promise<unknown> = Promise.resolve();
+  /**
+   * 장면 짓기 — **한 번에 하나씩**, 지금 필요한 것만 (2026-10-28 핀볼: 화면을 옮기는 동안 가운데 사진이 바뀌면 앞 사진을 짓던 중에
+   * 다음 사진을 같은 화면에 짓기 시작해 사진이 바뀌고 사인물이 쌓였다 — 3개짜리 사진에 45개). isCurrent 가 거짓이면 짓지 않거나 지은 것을 버린다.
+   * 지었으면 true
+   */
+  build(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf: EstOf | undefined, isCurrent: () => boolean = () => true): Promise<boolean> {
+    const run = this.chain.then(async () => {
+      if (!isCurrent()) return false;
+      this.clear();
+      // 앞면 그림을 크게 — 확대해도 인쇄 글자가 또렷하게 (휴대폰은 메모리 때문에 덜)
+      const built = await buildScene(this.viewer, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf, texLong: this.viewer.light ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG });
+      if (!isCurrent()) { for (const b of built) { b.group.removeFromParent(); b.dispose(); } this.photo = null; return false; }
+      this.built = built;
+      this.viewer.setNight(false); for (const b of this.built) b.setNight(false);
+      this.photo = photo;
+      return true;
+    });
+    this.chain = run.catch(() => false);
+    return run;
   }
+  /** 지금 장면의 사진 id 와 사인물 수 (확인용) */
+  get scenePhoto() { return this.photo?.id ?? ''; }
+  get sceneSigns() { return this.viewer.signsRoot.children.length; }
   /** 보이는 부분(원본 픽셀)을 화면 크기(CSS px)로 */
   frame(crop: { x: number; y: number; w: number; h: number }, cssW: number, cssH: number) {
     if (!this.photo) return;
     this.viewer.resize(Math.max(1, cssW), Math.max(1, cssH));
     this.viewer.setCrop(crop, this.photo.w, this.photo.h);
   }
-  private clear() { for (const b of this.built) { b.group.removeFromParent(); b.dispose(); } this.built = []; }
+  private clear() { for (const b of this.built) { b.group.removeFromParent(); b.dispose(); } this.built = []; this.viewer.signsRoot.clear(); }
   dispose() { this.clear(); this.viewer.renderer.dispose(); this.viewer.renderer.domElement.remove(); this.photo = null; }
 }
 
