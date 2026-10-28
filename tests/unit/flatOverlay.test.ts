@@ -17,3 +17,14 @@ describe('줌아웃 LOD — 납작한 그림', () => {
     expect(affine([[0, 0], [1, 1], [2, 2]], d as never)).toBeNull(); // 한 줄 위의 세 점
   });
 });
+
+describe('휴대폰 2D 는 늘 납작한 그림 (2026-10-29 아이폰 줌인·줌아웃 반복 다운)', async () => {
+  const { flatMaxFor, FLAT_MAX_HI } = await import('../../src/lib/render/flatOverlay');
+  it('작게 보이면 1024, 휴대폰에서 크게 보이면 2048, 데스크톱에서 크게 보이면 사인물별 원근 층(null)', () => {
+    expect(flatMaxFor(true, true)).toBe(FLAT_MAX);
+    expect(flatMaxFor(false, true)).toBe(FLAT_MAX);
+    expect(flatMaxFor(true, false)).toBe(FLAT_MAX_HI);
+    expect(FLAT_MAX_HI).toBe(2048);
+    expect(flatMaxFor(false, false)).toBeNull();
+  });
+});

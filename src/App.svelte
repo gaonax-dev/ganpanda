@@ -2,6 +2,7 @@
   import TermsNotice from './lib/ui/TermsNotice.svelte';
   import SuspendedPage from './lib/ui/SuspendedPage.svelte';
   import AskDialog from './lib/ui/AskDialog.svelte';
+  import CrashNotice from './lib/ui/CrashNotice.svelte';
   import { askPrompt } from './lib/ui/ask.svelte';
   import { homeTalks } from './lib/ui/homeTalkList.svelte';
   import { COMPANY } from './lib/core/company';
@@ -371,6 +372,7 @@
 {#if app.estimateOpen && (app.consumer || app.outsourceProject)}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 <AskDialog />
+<CrashNotice />
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
 {#if app.inviteOpen}<InviteDialog />{/if}
 {#if app.versionsOpen && app.room}<VersionsDialog />{/if}

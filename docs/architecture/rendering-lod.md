@@ -15,12 +15,25 @@
 
 | 층 | 2D 단계 | 3D 단계 | 만드는 곳 |
 |---|---|---|---|
-| 사진 | 표시용 사본(`photoDisplay.displayUrl`, 원본을 통째로 풀지 않음) | 같음 | `views/PhotoZone.svelte` |
+| 사진 | **작게 보이면 작은 그림**(긴 변 480, `photo-img`), 크게 보이면 표시용 사본(`photoDisplay.displayUrl`, 휴대폰 긴 변 1600)을 위에(`photo-full`) | 같음 + 저장된 3D 그림도(`photo-overlay` / `photo-overlay-full`) | `render/smallImage.ts`, `views/PhotoZone.svelte` |
 | 안개 시트 | 미리 흐린 작은 그림 | 같음 | `render/blurImage.ts` |
 | 원근 글자·그림 | 작게 보이면 **사진마다 납작한 그림 1장**(3D 변환 없음), 크게 보이면 사인물마다 구운 그림(`<img>` + `matrix3d`) | 납작한 사진만(아래 "납작한 사진") | `render/flatOverlay.ts`, `render/bake2d.ts`, `ui/BakedParts.svelte`·`BakedDesign.svelte` |
 | 저장된 3D 그림 | — | 사진마다 1장(JPEG) | `render/stageCache.ts` |
 | 실시간 3D | — | **가운데 사진 1장만**, 보이는 조각만 화면 해상도로 | `render/scene.ts LiveStage`, `core/liveView.ts` |
 | 편집 층(svg) | 외곽선·손잡이 | 같음 | `PhotoZone.svelte` |
+
+## 사진 LOD
+- 2026-10-29 사용자: "줌인아웃을 반복하면 다운된다" → "사진도 lod 쓸수 있나?". 줌아웃하면 모든 사진이 화면에 들어와 표시 사본(휴대폰 긴 변 1600 ≈ 풀면 7.7MB)이 한꺼번에 풀렸다(사진 16장 ≈ 120MB, 3D 는 저장된 3D 그림 1280 이 더).
+- 바닥 그림(`photo-img`)은 **긴 변 `THUMB_MAX`(480) 작은 그림**(`smallUrl` — 한 번에 하나씩 만들고 최근 200장 주소 기억, 이미 작으면 원래 그림). 사진이 화면에서 `화면 크기 × 기기 배율 > 480`(`needsFull`)일 때만 원래 그림(`photo-full`)을 **위에** 얹는다 — 바닥은 그대로라 바뀌는 동안 빈 화면이 없다. 3D 단계의 저장된 그림도 같다(`photo-overlay` 작은 그림 + `photo-overlay-full`).
+- 테스트 `tests/e2e/photoLod.spec.ts`.
+
+## 아이폰 방지 장치 되살림 (2026-10-29)
+사용자: "2d는 줌인아웃 3d는 화면 팬에서 둘다 반복에서 나타났음 안드로이드는 잘된다. 그리고 맥북 크롬에서도 잘됨" → "혹시 실시간 업데이트 최적화 이후 벌어진 일인데" → "진행해줘".
+기록을 보면 그 무렵 두 변경이 예전 아이폰 방지 장치를 없앴다: `334287b`(움직이는 동안에도 실시간 3D — 그전엔 움직이는 동안 저장된 그림, 멈춘 뒤 짓기) · `7589601`(2D 두 손가락 조작 중 원근 층 숨기기(10-21 핀치 크래시 대응)를 `will-change` 로 바꿈). 맥 크롬·안드로이드는 메모리를 바로 돌려주지만 아이폰은 늦어 반복하면 넘친다고 본다(실기기 측정은 아님).
+- **휴대폰 2D 는 원근 층을 아예 안 씀**: 크게 보여도 사진마다 납작한 그림 — 긴 변 `FLAT_MAX_HI`(2048)(`flatMaxFor(phone, enough)`: 작게 보이면 1024, 휴대폰에서 크게 2048, 데스크톱에서 크게 = 사인물별 원근 층). 줌인·줌아웃 때 층을 만들고 버리는 일이 없다.
+- **휴대폰 3D 는 멈춘 뒤 짓기**: 새 가운데 사진의 장면은 화면이 `LIVE_SETTLE_MS`(300ms) 멈춘 뒤(`liveBuildDelay` — 지어 둔 장면이면 바로). 기억하는 장면 휴대폰 2 → **1**, 앞면 텍스처 휴대폰 1536 → **1024**.
+- **버린 장면의 캔버스를 바로 비움**(`render/release.ts releaseTextures`): `texture.dispose()` 는 GPU 쪽만 — 앞면·빛 번짐 캔버스는 가비지 수거까지 남았다. 버릴 때 크기를 0 으로.
+- 맥 WebKit(아이폰 13 설정) 핀볼 3D 화면 이동 20번: 그래픽 최대 223 → 184MB, 오류 없음 (가운데 사진이 거의 안 바뀐 조건이라 참고만).
 
 ## 2D LOD
 - **줌아웃 = 사진마다 납작한 그림 한 장**(2026-10-29 사용자: "아이폰 앱과 크롬에서 둘다 2d에서 줌 아웃에 앱은 다시 열고 크롬은 죽었다"): 사인물마다 원근 층(`matrix3d`)이면 줌아웃 때 **모든 층이 한꺼번에 화면에** 들어와 층마다 메모리를 잡는다(위에 그려진 이름 줄·안개 층도 겹친다는 이유로 따로 층이 된다). 핀볼 휴대폰(3배): 층 31개, 층 크기 합 약 500MB.
@@ -52,18 +65,23 @@
 
 | 항목 | 휴대폰 | 그 외 |
 |---|---|---|
+| 2D 사인물 그림 | 늘 사진마다 납작한 그림(1024 / 크게 보이면 2048) | 작게 보이면 납작한 그림, 크게 보이면 사인물별 원근 층 |
+| 새 장면 짓기 | 화면이 300ms 멈춘 뒤 | 바로 |
 | WebGL 화면 | 1개(실시간만) | 실시간 + 합성 |
 | MSAA | 없음 | 4 |
 | 화면 배율 | ≤ 1.5 | ≤ 2 |
 | 그림자 버퍼 | 1024 | 2048 |
-| 배경·면 텍스처 긴 변 | 1536 (`LIVE_TEX_LONG_PHONE`) | 3072 (`LIVE_TEX_LONG`) |
-| 기억하는 장면 | 2 | 4 |
+| 배경·면 텍스처 긴 변 | 1024 (`LIVE_TEX_LONG_PHONE`, 10-29 1536 → 1024) | 3072 (`LIVE_TEX_LONG`) |
+| 기억하는 장면 | 1 (10-29 2 → 1) | 4 |
 
 ## 상수 모음
 
 | 상수 | 값 | 곳 |
 |---|---|---|
 | `BAKE_MAX` | 1024px (배율 ≤ 2) | `render/bake2d.ts` |
+| `THUMB_MAX` | 480px — 사진·3D 그림 작은 그림 긴 변, 화면 크기 × 기기 배율이 이보다 크면 원래 그림을 위에 | `render/smallImage.ts` |
+| `FLAT_MAX_HI` | 2048px — 휴대폰에서 크게 보일 때 납작한 그림 | `render/flatOverlay.ts` |
+| `LIVE_SETTLE_MS` | 300ms — 휴대폰 새 장면은 화면이 이만큼 멈춘 뒤 | `core/liveView.ts` |
 | `FLAT_MAX` | 1024px — 사진 화면 크기 × 기기 배율이 이 이하면 납작한 그림 | `render/flatOverlay.ts` |
 | `BLUR_MAX_W` / `BLUR_SMALL_PER_RADIUS` | 400px / 0.8 | `render/blurImage.ts` |
 | `LIVE_MIN_PX` | 80px | `core/liveView.ts` |
@@ -82,17 +100,19 @@
 | 2026-10-29 | 2D 변경·이동 때 그림이 사라졌다 나타남, 3D 매번 다시 만듦 | 내용 키 없이 늘 다시 그림 | 저장된 그림 + LOD 겹치기, 2D 앞 그림 유지 |
 | 2026-10-29 | 아이폰 앱 2D·3D 줌 중 오류(핀볼) | 안개 `blur(30px)` 를 확대 배율로 다시 그림, `matrix3d` DOM 층 20개가 1200% 에서 화면 약 9,500px | 미리 흐린 작은 그림, 구운 그림 1장 |
 | 2026-10-29 | 아이폰 앱·크롬 2D 줌아웃에서 다시 열림·죽음 | 줌아웃하면 사인물 원근 층 31개(+겹친 층)가 한꺼번에 화면에 | 사진마다 납작한 그림 한 장 (3D 는 에뮬레이터에서 큰 층 없음 — 실기기 확인 필요) |
+| 2026-10-29 | 아이폰: 2D 줌인·줌아웃 반복, 3D 화면 이동 반복에서 다시 열림 (안드로이드·맥 크롬은 괜찮음) | `334287b`·`7589601` 이 예전 방지 장치(움직이는 동안 짓지 않기, 핀치 중 원근 층 숨기기)를 없앰 + 아이폰은 메모리를 늦게 돌려줌 | 휴대폰 2D 원근 층 없음(납작한 그림 2048), 3D 멈춘 뒤 짓기·장면 1개·텍스처 1024·캔버스 바로 비움 |
 | 2026-10-29 | 아이폰: 두 손가락을 벌리고 오므리며 동시에 이동을 반복하면 자주 다시 열림 | 확인 전 (재현 조건만 찾음) | 두 손가락은 한 번에 하나만(이동 또는 확대·축소) — 사라지면 원인 확인 |
 | 2026-10-29 | 안드로이드 2D 이동이 프레임마다 갱신 | 사진 끌기가 움직일 때마다 문서에 씀 | 끄는 동안 화면만, 놓을 때 한 번 저장 |
 
 ## 재는 방법
+- **진단 기록**(2026-10-29, `crashLog.ts`·`ui/CrashNotice.svelte`): 아이폰은 웹 화면이 메모리를 넘기면 pagehide 없이 다시 연다. 돌아가는 동안 1초마다 지금 상태(단계·배율·실시간 3D 사진·지은 장면·그림판 크기·그림 수 등)와 최근 사건 30개(단계 바꿈, 3D 장면 시작·끝, 3D 그림 뜨기, 3D 화면 잃음, 두 손가락 시작·끝)를 `localStorage ganpanda.crash.live` 에 쓴다. 화면을 숨기거나 떠나면 "깨끗"으로. 다음에 열 때 깨끗하지 않은 기록이 60초(`CRASH_GAP_MS`) 안이면 화면 위에 **직전 상태**를 보여 주고 [기록 복사]·[닫기]. 테스트 `tests/unit/crashLog.test.ts`, `tests/e2e/crashLog.spec.ts`.
 - WebKit 에뮬레이션: Playwright `browserName: 'webkit'`(채널 없음). 스크립트 오류가 없다고 메모리가 괜찮은 것은 아니다.
 - 층 크기: Chrome CDP `LayerTree`(층 수·화면 크기), 터치: `Input.dispatchTouchEvent`.
 - 프레임마다 쓰기: `project.doc.on('update')` 횟수, `MutationObserver` 로 끄는 동안 바뀌는 요소.
 - 실제 아이폰 확인이 최종 — 에뮬레이터로 재현 못 한 다시 열림이 있었다.
 
 ## 테스트
-`tests/unit/flatOverlay.test.ts`(기준·아핀), `tests/e2e/stageLod.spec.ts`(줌아웃 납작한 그림·확대하면 원근 층, 저장된 그림 재사용·겹치기·납작한 사진·휴대폰 떠서 저장·핀치 중 원근 그림·구운 그림 끊김 없음), `tests/e2e/stage.spec.ts`(가운데 사진 실시간, 확대해도 그림 ≤ 화면), `tests/e2e/materialStack.spec.ts`(안개 미리 흐림), `tests/e2e/photoMove.spec.ts`(끄는 동안 문서 쓰기 0, 놓을 때 1), `tests/unit/liveView.test.ts`.
+`tests/unit/releaseTextures.test.ts`(캔버스 비우기·휴대폰 짓기 기다림), `tests/e2e/stageLod.spec.ts` "휴대폰 폭"(크게 확대해도 원근 층 없음), `tests/e2e/photoLod.spec.ts`(사진 작은 그림·확대하면 원래 그림 위에), `tests/unit/crashLog.test.ts`·`tests/e2e/crashLog.spec.ts`(진단 기록), `tests/unit/flatOverlay.test.ts`(기준·아핀), `tests/e2e/stageLod.spec.ts`(줌아웃 납작한 그림·확대하면 원근 층, 저장된 그림 재사용·겹치기·납작한 사진·휴대폰 떠서 저장·핀치 중 원근 그림·구운 그림 끊김 없음), `tests/e2e/stage.spec.ts`(가운데 사진 실시간, 확대해도 그림 ≤ 화면), `tests/e2e/materialStack.spec.ts`(안개 미리 흐림), `tests/e2e/photoMove.spec.ts`(끄는 동안 문서 쓰기 0, 놓을 때 1), `tests/unit/liveView.test.ts`.
 
 ## 남은 일
 - **3D 과격한 줌아웃 죽음**(2026-10-29 보고): 에뮬레이터(크롬 층·맥 WebKit 메모리)로는 재현 안 됨 — 줌아웃 중 3D 단계 층은 화면 틀 5개뿐, 맥 WebKit 메모리는 줄었다. 실기기에서 다시 보고 Safari 웹 검사기(층·메모리)로 잰다.

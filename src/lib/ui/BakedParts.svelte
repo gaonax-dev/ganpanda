@@ -15,7 +15,7 @@
   let { o, mmW, mmH, w, h, transform, flat = false, onbaked }: {
     o: SignObject; mmW: number; mmH: number; w: number; h: number; transform: string;
     /** 줌아웃 LOD (2026-10-29): 굽기만 하고 그리지 않는다 — 사진이 납작한 그림 한 장으로 모아 그린다 */
-    flat?: boolean; onbaked?: (url: string | null | undefined) => void;
+    flat?: boolean; onbaked?: (url: string | null | undefined, colors?: string) => void;
   } = $props();
   const laid = $derived(layoutParts(o, mmW, mmH, w, h));
   let urls = $state<Record<string, string>>({});
@@ -37,7 +37,7 @@
     const k = key;
     bakeParts(k, laid, w, h, (l) => urls[l.id]).then((u) => { if (u && k === key) baked = u; });
   });
-  $effect(() => onbaked?.(laid.length ? baked : null));
+  $effect(() => onbaked?.(laid.length ? baked : null, colors));
 </script>
 
 {#if laid.length && !flat}

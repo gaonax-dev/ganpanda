@@ -160,3 +160,28 @@ test('줌아웃 LOD: 작게 보이는 사진은 원근 층 없이 납작한 그�
   await expect(zone.getByTestId('baked-parts')).toHaveCount(1, { timeout: 15_000 });
   await expect(flat).toHaveCount(0);
 });
+
+// 2026-10-29 사용자: "2d는 줌인아웃 … 반복에서 나타났음 안드로이드는 잘된다" — 휴대폰은 크게 확대해도 사인물별 원근 층 없이 더 큰 납작한 그림
+test.describe('휴대폰 폭', () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+  test('크게 확대해도 원근 층(3D 변환) 없이 납작한 그림 한 장 — 더 선명한 것(긴 변 1024 초과)', async ({ page, request }) => {
+    await setup(page, request);
+    await page.evaluate(async () => {
+      const path = '/src/lib/core/parts.ts';
+      const { addPrintItem } = await import(/* @vite-ignore */ path);
+      const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
+      const { patch } = addPrintItem(a.objects[0], 'text');
+      for (const p of patch.parts ?? []) for (const it of p.items) if (it.kind === 'text') it.text = '간판다';
+      a.project.updateObject(a.objects[0].id, patch);
+    });
+    await page.getByTestId('stage-2d').click();
+    const zone = page.getByTestId('photo-zone');
+    const bb = (await page.getByTestId('board-canvas').boundingBox())!;
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    for (let i = 0; i < 8; i++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, -400); await page.keyboard.up('Control'); await page.waitForTimeout(150); }
+    const flat = zone.getByTestId('flat-overlay');
+    await expect.poll(() => flat.evaluate((e) => (e as HTMLImageElement).naturalWidth).catch(() => 0), { timeout: 15_000 }).toBeGreaterThan(1024);
+    await expect(zone.getByTestId('baked-parts')).toHaveCount(0);
+    expect(await zone.evaluate((z) => [...z.querySelectorAll('*')].filter((e) => /matrix3d/.test(getComputedStyle(e).transform)).length)).toBe(0);
+  });
+});

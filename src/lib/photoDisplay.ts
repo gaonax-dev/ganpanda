@@ -1,12 +1,13 @@
 // 보드·리스트 표시용 사진: 긴 변을 줄인 사본(blob URL)과 평면도 카드 얼굴(작은 그림). 원본은 렌더링·원근 창에서만 쓴다.
 // 휴대폰에서 12MP 사진 여러 장 + 카드마다 원본을 matrix3d 로 겹치던 것이 메모리를 넘겨 탭이 죽던 문제 (2026-10-15)
 import { assetUrl } from './assets';
+import { smallUrl, THUMB_MAX } from './render/smallImage';
 import { getDerived, putDerived } from './derivedImages';
 import { displaySize, warpPixels } from './core/warpPixels';
 import { rectToQuad } from './core/perspective';
 import type { Pt } from './core/homography';
 
-const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
+export const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
 /** 표시용 긴 변 (휴대폰 1600, 그 외 2400) */
 export const displayMax = () => (isPhone() ? 1600 : 2400);
 
@@ -134,4 +135,26 @@ async function makeFace(assetId: string, photoW: number, quad: Pt[], ow: number,
   const blob = await toJpeg(c);
   void putDerived(dkey, { blob });
   return URL.createObjectURL(blob);
+}
+
+/**
+ * 사진 LOD 의 작은 그림 (2026-10-29 "사진도 lod 쓸수 있나?") — 표시 사본에서 긴 변 THUMB_MAX 로 줄여 기기에 저장(`t|사진|480`).
+ * 다시 열면 다시 만들지 않는다. 표시 사본이 이미 작으면 그 주소 그대로
+ */
+const thumbCache = new Map<string, Promise<string>>();
+export function photoThumb(assetId: string, displaySrc: string): Promise<string> {
+  const k = `${assetId}|${displaySrc}`;
+  const hit = thumbCache.get(k);
+  if (hit) return hit;
+  const key = `t|${assetId}|${THUMB_MAX}|${displayMax()}`;
+  const p = (async () => {
+    const d = await getDerived(key);
+    if (d) return 'original' in d ? displaySrc : URL.createObjectURL(d.blob);
+    const u = await smallUrl(displaySrc);
+    if (u === displaySrc) { void putDerived(key, { original: true }); return u; }
+    void fetch(u).then((r) => r.blob()).then((blob) => putDerived(key, { blob })).catch(() => undefined);
+    return u;
+  })().catch(() => displaySrc);
+  thumbCache.set(k, p);
+  return p;
 }
