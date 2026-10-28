@@ -21,10 +21,14 @@ test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈
   await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); }, cust);
   await page.goto(`/r/${id}`);
   await expect(page.getByTestId('request-proposal')).toHaveCount(2);
+  // 확정 전 표시 (2026-10-28 "3번은 좋아"): 간판집이 아직 견적을 고칠 수 있다
+  await expect(page.getByTestId('request-undecided')).toContainText('아직 결정 전');
+  await expect(page.getByTestId('request-undecided')).toContainText('간판집이 견적을 고칠 수 있');
   page.once('dialog', (d) => d.accept());
   await page.locator(`[data-testid="request-proposal"]`).first().getByTestId('request-choose').click();
   await expect(page.getByTestId('request-chosen')).toHaveCount(1);
   await expect(page.getByTestId('request-status')).toHaveAttribute('data-status', 'approved');
+  await expect(page.getByTestId('request-undecided')).toHaveCount(0);
   await expect(page.getByTestId('request-choose')).toHaveText('이 곳으로 바꾸기'); // 마음을 바꿀 수 있다
   // 떨어진 간판집 (먼저 보인 제안이 아닌 쪽)
   const chosen = await page.locator('[data-testid="request-proposal"][data-chosen]').locator('a.go').getAttribute('href');

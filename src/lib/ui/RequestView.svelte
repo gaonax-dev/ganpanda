@@ -67,6 +67,8 @@
         ✅ <b>{view.request.approvedShop}</b>의 제안을 골랐습니다. 이후 일정·계약은 그 간판집과 직접 진행하세요.
       {:else if view.responses.length}
         <b>제안 {view.responses.length}건이 도착했어요.</b> 각 제안에서 내 가게 사진 위 모습과 금액을 보고, 마음에 드는 곳을 <b>[확정]</b>으로 골라 주세요. 제안 안에서 [진행 동의]를 누르면 제작이 시작됩니다.
+        <!-- 확정 전 표시 (2026-10-28 사용자: 견적 요청 제안 3번 "확정 전까지는 간판집들이 계속 고칠 수 있게 두고 표시" → "3번은 좋아") -->
+        <p class="undecided" data-testid="request-undecided"><span class="dot" aria-hidden="true"></span><b>아직 결정 전</b> — 확정하기 전까지는 간판집이 견적을 고칠 수 있어요. 제안을 다시 열면 바뀐 내용이 보여요.</p>
       {:else}
         <b>간판집에 요청을 전달했어요.</b> 보통 하루 안에 제안이 옵니다. 제안이 오면 여기에 바로 보여요.
         <span class="pulse" aria-hidden="true"></span>
@@ -143,6 +145,8 @@
   .status { position: relative; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
   .status[data-status='open'] { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
   .status[data-status='approved'] { border-color: rgba(60, 200, 120, 0.6); }
+  .undecided { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn, #f59e0b) 12%, transparent); font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .undecided .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn, #f59e0b); flex: none; }
   .status .btn { text-decoration: none; }
   .pulse { position: absolute; top: 14px; right: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-out infinite; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent); } }
