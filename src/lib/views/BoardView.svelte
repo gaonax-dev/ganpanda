@@ -655,7 +655,8 @@
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}
-        ontap={() => { if (app.compact) { const first = app.photoSigns(p.id)[0]; if (first) app.selectObject(first.id); } }}
+        moving={app.movingPhotoId === p.id}
+        onpick={() => { app.movingPhotoId = app.movingPhotoId === p.id ? null : p.id; if (app.movingPhotoId) { app.selectObject(null); app.selectPin(null); } }}
         onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}

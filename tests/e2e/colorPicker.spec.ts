@@ -72,7 +72,7 @@ test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피
   await page.getByTestId('width-mm').fill('3000');
   await page.getByTestId('height-mm').fill('600');
   await page.getByTestId('close-object-settings').click();
-  await expect(page.getByTestId('photo-zone').getByTestId('parts-overlay').locator('text')).toHaveAttribute('fill', '#ffcc00');
+  await expect(page.getByTestId('photo-zone').getByTestId('baked-parts')).toHaveAttribute('data-colors', /#ffcc00/); // 2D 는 구운 그림 (2026-10-29)
   await openObjectSettings(page);
   await page.getByTestId('close-object-settings').click();
   await expect(page.getByTestId('object-summary')).toContainText('검정');

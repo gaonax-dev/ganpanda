@@ -9,9 +9,10 @@
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
   import type { MeasureResult } from '../core/measure';
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
-  import DesignFace from '../ui/DesignFace.svelte';
-  import PartsOverlay from '../ui/PartsOverlay.svelte';
+  import BakedDesign from '../ui/BakedDesign.svelte';
+  import BakedParts from '../ui/BakedParts.svelte';
   import { hasFrost, hasPartsToDraw } from '../core/sheetArea';
+  import { blurredUrl } from '../render/blurImage';
   import { bodyLook, frameLook } from '../core/render';
   import { SKEW_ALERT, alignQuad, frameOf, gizmoOf, moveFrame, quadOf as frameToQuad, boxGuideOf, resizeFrameAt, rotateFrame, sizeHandlesOf, skewOf, snapFrame, tiltOf, type Frame, type RefPlane } from '../core/manipulator';
   import { anchorOf, axisOfDir, boxGizmoOf, moveOutline, outlineCenter3, rotateDir, shiftOutline, worldAxes, type PosedPlane, type V3 } from '../core/boxGizmo';
@@ -28,7 +29,7 @@
 
   let {
     photo, url, zoom, objects, measures, selectedId, sameIds = [], multiIds = [], tool, editable = true, unread = {},
-    ontap,
+    onpick, moving = false,
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onpinpatch, onbubble, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
@@ -65,7 +66,10 @@
     /** 사인물별 안 읽은 메시지 수 */
     unread?: Record<string, number>;
     /** 머리글(이름)을 끌지 않고 탭했을 때 — 휴대폰에서 사진 → 첫 사인물 실측 입력 흐름 */
-    ontap?: () => void;
+    /** 제목을 눌렀다 (옮기기 강조 켜고 끄기, 2026-10-29) */
+    onpick?: () => void;
+    /** 옮기려고 강조된 사진 — 어디를 잡아도 사진을 옮긴다 */
+    moving?: boolean;
     /** 선택한 사인물과 같은 사인물(다른 사진) — 핸들 없이 하이라이트만 */
     sameIds?: string[];
     photo: Photo;
@@ -116,6 +120,14 @@
   } = $props();
 
   const scale = $derived(photo.width / photo.w);
+  /** 안개 시트의 흐린 그림 (미리 만든 것 — 2026-10-29). 바탕이 3D 그림이면 그것을, 아니면 사진을 흐린다 */
+  let frostSrc = $state<string | undefined>(undefined);
+  $effect(() => {
+    const src = overlay ?? url;
+    if (!src || !objects.some((o) => hasFrost(o))) { frostSrc = undefined; return; }
+    const w = photo.width;
+    blurredUrl(src, w).then((u) => { if ((overlay ?? url) === src) frostSrc = u; });
+  });
   /** 머리글이 화면에서 좁으면(휴대폰·축소) 라벨을 축약 */
   const narrow = $derived(photo.width * zoom < 520);
   /** 아주 좁으면(260px 미만, 휴대폰에서 전체 보기) 머리글은 이름만, 사진 위 글자 라벨은 숨김 — 겹쳐서 읽을 수 없으므로 */
@@ -493,19 +505,31 @@
     return out;
   }
   let headerDrag: { x: number; y: number } | null = null;
+  /** 끄는 동안 옮긴 양(화면 px) — 화면에만 보이고, 놓을 때 한 번 문서에 쓴다 (2026-10-29 "안드로이드에서는 2d 이동에 프레임마다 업데이트를 한다") */
+  let dragOff = $state({ x: 0, y: 0 });
   let headerMoved = false;
+  /** 제목을 누른 자리 — 끌다 놓은 것은 탭(강조)으로 치지 않는다 */
+  let headerAt: { x: number; y: number } | null = null;
   function headerDown(e: PointerEvent) {
     headerMoved = false;
+    headerAt = { x: e.clientX, y: e.clientY };
     if (!editable) return;
     e.stopPropagation();
+    if (!moving) return; // 제목을 눌러 강조한 뒤에만 옮긴다 (2026-10-29) — 누르기는 그대로 탭(onpick)
     headerDrag = { x: e.clientX, y: e.clientY };
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
   }
   function headerMove(e: PointerEvent) {
     if (!headerDrag) return;
     if (Math.hypot(e.clientX - headerDrag.x, e.clientY - headerDrag.y) > 2) headerMoved = true;
-    onmove((e.clientX - headerDrag.x) / zoom, (e.clientY - headerDrag.y) / zoom);
-    headerDrag = { x: e.clientX, y: e.clientY };
+    dragOff = { x: e.clientX - headerDrag.x, y: e.clientY - headerDrag.y };
+  }
+  function headerUp() {
+    if (!headerDrag) return;
+    headerDrag = null;
+    const d = dragOff;
+    dragOff = { x: 0, y: 0 };
+    if (d.x || d.y) onmove(d.x / zoom, d.y / zoom);
   }
   /** 그릴 때 쓸 사인물 크기(mm): 입력 치수 > 실측 추정 > 외곽선 크기(사진 px) */
   function drawMm(o: SignObject): { w: number; h: number } {
@@ -532,7 +556,7 @@
 {/snippet}
 
 
-<div class="zone" data-testid="photo-zone" style:left="{photo.x}px" style:top="{photo.y}px" style:width="{photo.width}px" style:height="{worldH}px">
+<div class="zone" class:moving data-moving={moving ? 'true' : undefined} data-testid="photo-zone" style:--z={zoom} style:left="{photo.x + dragOff.x / zoom}px" style:top="{photo.y + dragOff.y / zoom}px" style:width="{photo.width}px" style:height="{worldH}px">
   <div
     class="header"
     style:transform="scale({1 / zoom})"
@@ -541,9 +565,9 @@
     tabindex="-1"
     onpointerdown={headerDown}
     onpointermove={headerMove}
-    onpointerup={() => (headerDrag = null)}
-    onclick={(e) => { const t = e.target as HTMLElement; if (!headerMoved && (t === e.currentTarget || t.classList.contains('name'))) ontap?.(); }}
-    onkeydown={(e) => { if (e.key === 'Enter') ontap?.(); }}
+    onpointerup={headerUp}
+    onclick={(e) => { const t = e.target as HTMLElement; if (!headerMoved && !(headerAt && Math.hypot(e.clientX - headerAt.x, e.clientY - headerAt.y) > 4) && (t === e.currentTarget || t.classList.contains('name'))) onpick?.(); }}
+    onkeydown={(e) => { if (e.key === 'Enter') onpick?.(); }}
   >
     <span class="name" title={photo.name}>{photo.name}</span>
     {#if !narrow}<span class="count">사인물 {objects.length}</span>{/if}
@@ -598,8 +622,9 @@
     {#if twoD || overlay}
       <div class="designs frosts" style:width="{photo.w * scale}px" style:height="{photo.h * scale}px">
         {#each objects.filter((o) => hasFrost(o)) as o (o.id)}
-          <!-- 같은 그림(2D 사진 · 3D 합성)을 흐리게 해 외곽선 모양으로 자른다 — backdrop-filter 는 확대 변환 안·아이폰에서 불안정 -->
-          <img class="frost" data-testid="frost" src={overlay ?? url} alt="" draggable="false" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" />
+          <!-- 같은 그림(2D 사진 · 3D 합성)을 흐리게 해 외곽선 모양으로 자른다 — backdrop-filter 는 확대 변환 안·아이폰에서 불안정.
+               흐린 그림은 미리 만든 작은 그림(blurredUrl) — CSS 블러 필터는 확대하면 층이 커져 아이폰 웹뷰가 멈췄다 (2026-10-29). 만들기 전엔 그리지 않는다 -->
+          {#if frostSrc}<img class="frost" data-testid="frost" data-blurred="true" src={frostSrc} alt="" draggable="false" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" />{/if}
         {/each}
       </div>
     {/if}
@@ -631,9 +656,7 @@
         {@const q = quadOf(o).map((p) => [p[0] * scale, p[1] * scale] as Pt)}
         {@const c = capBox(o.design!.crop.w, o.design!.crop.h)}<!-- 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) -->
         <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
-          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()}>
-            <DesignFace design={o.design!} w={c.w} h={c.h} />
-          </div>
+          <BakedDesign design={o.design!} w={c.w} h={c.h} transform={(() => { try { return cssMatrix3d(rectToQuad(c.w, c.h, q)); } catch { return 'none'; } })()} />
         </div>
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
@@ -645,9 +668,7 @@
         {@const pw = pb.w}
         {@const ph = pb.h}
         <div class="design" style:clip-path={o.shape === 'rect' && !o.corner ? 'none' : `polygon(${outlinePts(o.shape, q, o.polygon?.map((p) => [p[0] * scale, p[1] * scale] as Pt), o.corner).map((p) => `${p[0]}px ${p[1]}px`).join(',')})`}>
-          <div class="warp" style:transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()}>
-            <div class="pbox" style:width="{pw}px" style:height="{ph}px"><PartsOverlay {o} mmW={mm.w} mmH={mm.h} w={pw} h={ph} /></div>
-          </div>
+          <BakedParts {o} mmW={mm.w} mmH={mm.h} w={pw} h={ph} transform={(() => { try { return cssMatrix3d(rectToQuad(pw, ph, q)); } catch { return 'none'; } })()} />
         </div>
       {/each}
     </div>
@@ -655,6 +676,14 @@
   {:else}
     <!-- 사진 파일을 받는 동안 (2026-10-25 "이미지 로딩이 표시되지 않는다"): 보드 축척과 상관없이 화면 크기의 스피너 -->
     <div class="loading" data-testid="photo-loading"><div class="lbox" style:transform="scale({1 / zoom})"><span class="lspin" data-testid="photo-loading-spin"></span><small>사진 불러오는 중…</small></div></div>
+  {/if}
+  {#if moving && editable}
+    <!-- 옮기기 강조 중: 사진 어디를 잡아도 사진을 옮긴다 (2026-10-29 "사진도 제목을 클릭하면 하일라이트 되면 그때 이동 가능하게 그때는 사진 어디를 잡든 이동") -->
+    <div class="move-cover" data-testid="photo-move-cover" role="presentation"
+      onpointerdown={(e) => { if (e.button !== 0 && e.pointerType === 'mouse') return; e.stopPropagation(); headerMoved = false; headerDrag = { x: e.clientX, y: e.clientY }; (e.currentTarget as Element).setPointerCapture(e.pointerId); }}
+      onpointermove={headerMove}
+      onpointerup={headerUp}
+      onpointercancel={headerUp}></div>
   {/if}
   <svg
     class:tiny={tiny}
@@ -939,6 +968,9 @@
 
 <style>
   .zone { position: absolute; box-shadow: 0 6px 30px rgba(0, 0, 0, 0.35); background: #222; }
+  /* 옮기기 강조 (2026-10-29) — 테두리는 화면 3px 정도로 보이게 확대 배율에 맞춘다 */
+  .zone.moving { outline: calc(3px / var(--z, 1)) solid var(--accent); box-shadow: 0 0 0 calc(6px / var(--z, 1)) color-mix(in srgb, var(--accent) 35%, transparent), 0 6px 30px rgba(0, 0, 0, 0.35); }
+  .move-cover { position: absolute; inset: 0; z-index: 5; cursor: move; touch-action: none; background: color-mix(in srgb, var(--accent) 6%, transparent); }
   img, .loading { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   .loading { display: grid; place-items: center; color: #aaa; }
   .lbox { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
@@ -971,7 +1003,7 @@
   .header .x { white-space: nowrap; flex-shrink: 0; }
   .overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .designs.hidden { display: none; }
-  .frost { position: absolute; left: 0; top: 0; width: 100%; height: 100%; filter: blur(30px); pointer-events: none; } /* 흰색 없이 블러만 (2026-10-22 "화이트 없이 지금 블러에 10배" → "안개 40으로" → "30으로") */
+  .frost { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; } /* 흰색 없이 블러만 (2026-10-22 "… → "30으로") — 블러는 미리 만든 흐린 그림으로 (2026-10-29) */
   svg.tiny text { display: none; }
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
