@@ -44,3 +44,8 @@ export function liveView(photos: BoardPhoto[], v: Viewport, screen: { w: number;
     px: { w: Math.round(vis.x1 - vis.x0), h: Math.round(vis.y1 - vis.y0) },
   };
 }
+
+/** 휴대폰: 화면이 이만큼 멈춘 뒤에 새 장면을 짓는다 — 움직이는 동안 가운데 사진이 바뀔 때마다 지으면 아이폰이 메모리를 늦게 돌려줘 다시 열렸다
+ *  (2026-10-29 "3d는 화면 팬에서 … 반복에서 나타났음", "실시간 업데이트 최적화 이후 벌어진 일") */
+export const LIVE_SETTLE_MS = 300;
+export function liveBuildDelay(light: boolean, cached: boolean): number { return light && !cached ? LIVE_SETTLE_MS : 0; }

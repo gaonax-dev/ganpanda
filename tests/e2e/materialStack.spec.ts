@@ -191,7 +191,8 @@ test('글자 없는 시트(UV·안개·재질 시트 컷팅 없음·옛 시트)�
     a.project.addObject({ photoId: pid, name: '정면문시트', shape: 'rect', quad: q(1100), sheetIds: ['sh-cut'], widthMm: 870, heightMm: 2010 });
   });
   await page.getByTestId('stage-2d').click();
-  const fills = async () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
+  // 2D 는 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29) — 그린 색은 data-colors
+  const fills = async () => page.locator('[data-testid="photo-zone"] [data-colors]').evaluateAll((es) => es.flatMap((e) => (e.getAttribute('data-colors') ?? '').split(' ')));
   await expect.poll(fills).toEqual(expect.arrayContaining(['#d9d9d9', '#e9f0f5', '#141414', '#ffffff']));
 });
 

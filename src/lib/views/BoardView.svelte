@@ -19,13 +19,14 @@
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
   import type { LiveStage, StageRenderer } from '../render/scene';
-  import { liveView, type LiveView } from '../core/liveView';
+  import { liveBuildDelay, liveView, type LiveView } from '../core/liveView';
   import { needs3d } from '../core/stageFlat';
   import { loadSnapshot, saveSnapshot } from '../render/stageCache';
   import { app } from '../state.svelte';
   import { defaultProductFor } from '../core/catalog';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
-  import { displayUrl } from '../photoDisplay';
+  import { displayUrl, isPhone } from '../photoDisplay';
+  import { crashLog } from '../crashLog';
   import { prepareUpload } from '../photoPrep';
   import { formatBytes } from '../core/format';
   import { fitRect, toScreen, type Viewport } from '../core/viewport';
@@ -321,6 +322,9 @@
   /** 실시간 장면의 사진·사인물 수 (확인용 — 다른 사진의 사인물이 섞이면 안 된다) */
   let liveScene = $state({ photo: '', signs: 0 });
   let liveToken = 0;
+  // 진단 기록 (2026-10-29 "줌인아웃을 반복하면 다운된다") — 다시 열렸을 때 직전 상태를 보여 준다
+  $effect(() => crashLog.set('board', { stage: app.stage, zoom: Math.round(viewport.zoom * 1000) / 1000, live: live?.id ?? null, built: liveBuilt?.id ?? null, builds: liveBuilds, lost: liveLost, photos: app.photos.length, objects: app.objects.length }));
+  $effect(() => crashLog.event('단계 ' + app.stage));
   // 장면: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면 — 기억한 장면이면 바로 얹는다
   $effect(() => {
     if (app.stage !== '3d' || !live || !liveHost || liveLost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; liveLost = false; } return; }
@@ -332,13 +336,18 @@
     if (!p || !plane) return;
     const token = ++liveToken, host = liveHost;
     untrack(() => void (async () => {
+      // 휴대폰은 화면이 멈춘 뒤에 짓는다 — 움직이는 동안은 저장된 3D 그림 (2026-10-29 아이폰 "3d는 화면 팬에서 … 반복에서 나타났음")
+      const wait = liveBuildDelay(liveLight || isPhone(), !!liveStage?.cachedIds.includes(id));
+      if (wait) { await new Promise((ok) => setTimeout(ok, wait)); if (token !== liveToken) return; }
       const [{ loadFont }, { LiveStage }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
       stageFont ??= await loadFont(fontUrl);
       if (token !== liveToken) return;
-      if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
+      if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { crashLog.event('3D 화면 잃음'); liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
       let made: 'built' | 'cached' | false = false;
+      crashLog.event(`3D 장면 ${p.name} 시작`);
       try { made = await liveStage.build(p, key, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
+      crashLog.event(`3D 장면 ${p.name} ${made || '취소'}`);
       if (made && token === liveToken) { liveBuilt = { id, key }; if (made === 'built') liveBuilds++; prefetchNeighbors(id); snapshotLater(id, key); }
       liveScene = { photo: liveStage?.scenePhoto ?? '', signs: liveStage?.sceneSigns ?? 0 };
     })());
@@ -351,6 +360,7 @@
     snapTimer = window.setTimeout(async () => {
       if (!liveStage || liveBuilt?.id !== id || liveBuilt.key !== key || app.stageRenders[id]?.key === key && app.stageRenders[id]?.url) return;
       if (await loadSnapshot(id, key)) { app.stageRenders[id] = { key, url: (await loadSnapshot(id, key))! }; return; }
+      crashLog.event('3D 그림 뜨기 ' + id.slice(0, 6));
       const blob = await liveStage.snapshot(live && live.id === id ? live.crop : null);
       if (!blob || liveBuilt?.id !== id || liveBuilt.key !== key) return;
       app.stageMade++;

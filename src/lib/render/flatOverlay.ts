@@ -5,6 +5,12 @@ import { solveHomography, applyHomography, type Pt } from '../core/homography';
 
 /** 납작한 그림의 긴 변 최대 (px) — 화면에서 사진이 이 해상도보다 크게 보이면 사인물별 원근 층으로 */
 export const FLAT_MAX = 1024;
+/** 휴대폰에서 크게 보일 때 납작한 그림의 긴 변 — 휴대폰은 사인물별 원근 층을 아예 쓰지 않는다 (2026-10-29 아이폰 줌인·줌아웃 반복 다운) */
+export const FLAT_MAX_HI = 2048;
+/** 납작한 그림의 긴 변: 작게 보이면 FLAT_MAX, 휴대폰에서 크게 보이면 FLAT_MAX_HI, 데스크톱에서 크게 보이면 null(사인물별 원근 층) */
+export function flatMaxFor(phone: boolean, enough: boolean): number | null {
+  return enough ? FLAT_MAX : phone ? FLAT_MAX_HI : null;
+}
 /** 원근을 근사하는 칸 수 (한 변) */
 const GRID = 12;
 const UNIT: Pt[] = [[0, 0], [1, 0], [1, 1], [0, 1]];
@@ -69,11 +75,11 @@ function load(url: string): Promise<HTMLImageElement | null> {
 }
 
 /** 층들을 W×H(사진 표시 좌표) 그림 한 장으로 — 긴 변 ≤ FLAT_MAX PNG. 같은 key 는 다시 그리지 않는다 */
-export function flattenOverlay(key: string, layers: FlatLayer[], W: number, H: number): Promise<string | undefined> {
+export function flattenOverlay(key: string, layers: FlatLayer[], W: number, H: number, max = FLAT_MAX): Promise<string | undefined> {
   let p = cache.get(key);
   if (p) { cache.delete(key); cache.set(key, p); return p; }
   p = (async () => {
-    const k = Math.min(2, FLAT_MAX / Math.max(W, H, 1)); // 긴 변 ≤ FLAT_MAX, 작은 사진은 2배까지
+    const k = Math.min(2, max / Math.max(W, H, 1)); // 긴 변 ≤ FLAT_MAX, 작은 사진은 2배까지
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(W * k)); c.height = Math.max(1, Math.round(H * k));
     const g = c.getContext('2d');

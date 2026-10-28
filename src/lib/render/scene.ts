@@ -1,5 +1,6 @@
 // 화면 없이 사진 한 장을 3D 합성해 PNG 로 (제안 이미지 만들기). RenderDialog 와 같은 규칙
 import * as THREE from 'three';
+import { releaseTextures } from './release';
 import type { Font } from 'opentype.js';
 import type { CameraPose } from '../core/homography';
 import type { DesignSource, Photo, SignObject } from '../core/model';
@@ -102,7 +103,7 @@ function applyScene(v: Viewer, s: PreparedScene, owned: boolean) {
   for (const g of s.signs) { v.signsRoot.add(g.b.group); v.addSignCamera(g.b.group, g.P, g.pose, g.corners); }
   v.setNight(false);
 }
-function disposeScene(s: PreparedScene) { for (const g of s.signs) { g.b.group.removeFromParent(); g.b.dispose(); } s.tex.dispose(); }
+function disposeScene(s: PreparedScene) { for (const g of s.signs) { g.b.group.removeFromParent(); releaseTextures(g.b.group); g.b.dispose(); } s.tex.dispose(); } // 캔버스도 바로 비운다 (2026-10-29 아이폰 화면 이동 반복 다운)
 
 /** 뷰어 하나에 사진·사인물을 올린다 (호출자가 뷰어를 재사용하거나 버린다). designs=false 면 디자인 이미지를 입히지 않아 가볍다 */
 async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, opts: SceneOpts & { maxW: number; maxH: number }): Promise<BuiltSign[]> {
@@ -166,7 +167,7 @@ export class StageRenderer {
  * 장면은 내용이 바뀔 때만 다시 짓고(build), 화면 이동·확대는 보이는 부분·크기만 바꿔 다시 그린다(frame) — PNG 만들기 없음
  */
 /** 실시간 3D 의 앞면 그림 긴 변 (보통 1024 의 3배 · 휴대폰 1.5배) */
-export const LIVE_TEX_LONG = 3072, LIVE_TEX_LONG_PHONE = 1536;
+export const LIVE_TEX_LONG = 3072, LIVE_TEX_LONG_PHONE = 1024; // 휴대폰 1536 → 1024 (2026-10-29 아이폰 화면 이동 반복 다운 — 사인물마다 앞면 캔버스)
 /** 실시간 3D 가 디자인 그림을 기다리는 시간 */
 export const LIVE_ASSET_WAIT_MS = 2500;
 export const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
@@ -177,7 +178,7 @@ export class LiveStage {
   private applied: string | null = null;
   private readonly keep: number;
   /** 휴대폰은 가볍게 (MSAA 없음, 화면 배율 1.5) */
-  constructor(host: HTMLElement, light = isPhone()) { this.viewer = new Viewer(host, { light }); this.keep = light ? 2 : 4; }
+  constructor(host: HTMLElement, light = isPhone()) { this.viewer = new Viewer(host, { light }); this.keep = light ? 1 : 4; } // 휴대폰 2 → 1 (2026-10-29 아이폰 화면 이동 반복 다운)
   private chain: Promise<unknown> = Promise.resolve();
   private opts(estOf?: EstOf): SceneOpts { return { designs: true, estOf, texLong: this.viewer.light ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG, assetWaitMs: LIVE_ASSET_WAIT_MS }; }
   private remember(id: string, key: string, scene: PreparedScene) {

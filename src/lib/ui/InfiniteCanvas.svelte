@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
   import { isPanThrough } from './panThrough';
+  import { crashLog } from '../crashLog';
   import type { Snippet } from 'svelte';
   import { pan, startTwoFinger, toWorld, twoFinger, zoomAt, type TwoFingerState, type Viewport, type XY } from '../core/viewport';
   import { wheelIntent, isWindowsPlatform } from '../core/wheel';
@@ -69,6 +70,7 @@
     if (touches.size === 1) firstTarget = e.target;
     if (touches.size === 2) {
       pinching = true; drag = null; e.stopPropagation(); e.preventDefault();
+      crashLog.event(`두 손가락 시작 ${Math.round(viewport.zoom * 1000) / 10}%`);
       const [a, b] = [...touches.values()];
       tf = startTwoFinger([a, b]);
       const firstId = [...touches.keys()][0];
@@ -95,7 +97,7 @@
   function touchUp(e: PointerEvent) {
     if (e.pointerType !== 'touch' || cancelling) return; // 첫 손가락 편집 취소용으로 보낸 pointercancel 은 손가락을 떼는 것이 아니다
     touches.delete(e.pointerId);
-    if (pinching) { e.stopPropagation(); if (touches.size < 2) { pinching = false; touches.clear(); tf = null; firstTarget = null; } }
+    if (pinching) { e.stopPropagation(); if (touches.size < 2) { crashLog.event(`두 손가락 끝 ${tf?.mode ?? ''} ${Math.round(viewport.zoom * 1000) / 10}%`); pinching = false; touches.clear(); tf = null; firstTarget = null; } }
     else if (!touches.size) firstTarget = null;
   }
   const isWindows = isWindowsPlatform();

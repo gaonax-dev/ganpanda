@@ -13,7 +13,9 @@
   import BakedParts from '../ui/BakedParts.svelte';
   import { hasFrost, hasPartsToDraw } from '../core/sheetArea';
   import { blurredUrl } from '../render/blurImage';
-  import { flatEnough, flattenOverlay, type FlatLayer } from '../render/flatOverlay';
+  import { flatEnough, flatMaxFor, flattenOverlay, type FlatLayer } from '../render/flatOverlay';
+  import { needsFull, smallUrl } from '../render/smallImage';
+  import { isPhone, photoThumb } from '../photoDisplay';
   import { fnv1a } from '../core/proposal';
   import { untrack } from 'svelte';
   import { bodyLook, frameLook } from '../core/render';
@@ -155,10 +157,26 @@
   const SPARKS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37 + 11) % 97, y: (i * 53 + 23) % 89, d: ((i * 7) % 10) / 10 * 1.4, s: 0.6 + ((i * 13) % 7) / 10 }));
   const worldH = $derived(photo.width * (photo.h / photo.w));
 
+  // ---------- 사진 LOD (2026-10-29 "줌인아웃을 반복하면 다운된다" → "사진도 lod 쓸수 있나?") ----------
+  // 바닥 그림(photo-img)은 작은 그림, 화면에서 크게 보일 때만 원래 그림(photo-full)을 위에 — 바뀌는 동안 빈 화면이 없다. 3D 그림도 같다
+  const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
+  const full = $derived(needsFull(photo.width * zoom, worldH * zoom, dpr));
+  let thumb = $state<{ src: string; url: string } | null>(null);
+  $effect(() => { const src = url; if (!src) return; photoThumb(photo.assetId, src).then((u) => { if (url === src) thumb = { src, url: u }; }); });
+  let overlayThumb = $state<{ src: string; url: string } | null>(null);
+  $effect(() => { const src = overlay; if (!src) return; smallUrl(src).then((u) => { if (overlay === src) overlayThumb = { src, url: u }; }); });
+  /** 바닥 그림 — 작은 그림이 있으면 그것 (원래 그림이 이미 작으면 같은 주소) */
+  const baseSrc = $derived(thumb && thumb.src === url ? thumb.url : url);
+  const baseOverlay = $derived(overlayThumb && overlayThumb.src === overlay ? overlayThumb.url : overlay);
+
   // ---------- 줌아웃 LOD (2026-10-29 사용자: "아이폰 앱과 크롬에서 둘다 2d에서 줌 아웃에 앱은 다시 열고 크롬은 죽었다") ----------
   // 사인물마다 원근 층(matrix3d)이면 줌아웃 때 모든 층이 한꺼번에 화면에 들어와 층마다 메모리를 잡는다(핀볼: 층 31개).
   // 사진이 화면에서 납작한 그림 해상도로 충분할 만큼 작으면 구운 그림들을 사진마다 한 장으로 모아 3D 변환 없이 그린다
-  const flatMode = $derived(flatEnough(photo.width * zoom, worldH * zoom, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1));
+  // 휴대폰은 크게 보여도 사인물별 원근 층을 쓰지 않고 더 큰 납작한 그림(2048) — 줌인·줌아웃 반복 때마다 층을 만들고 버리면 아이폰이 메모리를 늦게 돌려줘 다시 열렸다
+  // (2026-10-29 "2d는 줌인아웃 … 반복에서 나타났음 안드로이드는 잘된다", 10-21 의 "두 손가락 조작 중 원근 층 숨기기"를 없앤 뒤 생김)
+  const phone = isPhone();
+  const flatMax = $derived(flatMaxFor(phone, flatEnough(photo.width * zoom, worldH * zoom, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)));
+  const flatMode = $derived(flatMax !== null);
   const scaled = (pts: Pt[]) => pts.map((p) => [p[0] * scale, p[1] * scale] as Pt);
   const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, o.polygon ? scaled(o.polygon) : undefined, o.corner));
   /** 입힌 디자인 층 — 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) */
@@ -174,7 +192,13 @@
   const layerTransform = (w: number, h: number, q: Pt[]) => { try { return cssMatrix3d(rectToQuad(w, h, q)); } catch { return 'none'; } };
   /** 구운 그림 주소 (null = 그릴 것 없음, 없음 = 아직) */
   let bakedOf = $state<Record<string, string | null | undefined>>({});
-  const onbakedFor = (id: string) => (u: string | null | undefined) => { if (untrack(() => bakedOf[id]) !== u) bakedOf = { ...untrack(() => bakedOf), [id]: u }; };
+  /** 구운 그림에 쓴 색 — 납작한 그림의 data-colors (읽기 도구·테스트용) */
+  let colorsOf = $state<Record<string, string>>({});
+  const onbakedFor = (id: string) => (u: string | null | undefined, colors = '') => {
+    if (untrack(() => bakedOf[id]) !== u) bakedOf = { ...untrack(() => bakedOf), [id]: u };
+    if (untrack(() => colorsOf[id]) !== colors) colorsOf = { ...untrack(() => colorsOf), [id]: colors };
+  };
+  const flatColors = $derived([...new Set(partsLayers.flatMap((l) => (colorsOf[l.id] ?? '').split(' ')).filter(Boolean))].join(' '));
   let flatSrc = $state<string | undefined>(undefined);
   /** 납작한 그림에 무엇이 그려졌는지 — 글자 (읽기 도구·테스트용) */
   const flatAlt = $derived(partsLayers.flatMap((l) => (l.o.parts ?? []).flatMap((p) => p.items.map((it) => it.text ?? ''))).filter(Boolean).join(' ') || `${photo.name} 사인물`);
@@ -185,8 +209,9 @@
     const layers: FlatLayer[] = all.filter((a) => a.url).map((a) => ({ url: a.url!, w: a.l.w, h: a.l.h, quad: a.l.q, clip: a.l.clip }));
     if (!layers.length) { flatSrc = undefined; return; }
     const W = photo.w * scale, H = photo.h * scale;
-    const key = fnv1a(JSON.stringify([W, H, layers]));
-    flattenOverlay(key, layers, W, H).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
+    const max = flatMax ?? 1024;
+    const key = fnv1a(JSON.stringify([W, H, max, layers]));
+    flattenOverlay(key, layers, W, H, max).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
   });
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
@@ -653,8 +678,10 @@
     </div>
   {/if}
   {#if url}
-    <img src={url} alt={photo.name} data-testid="photo-img" draggable="false" />
-    {#if overlay}<img class="overlay" src={overlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />{/if}
+    <img src={baseSrc} alt={photo.name} data-testid="photo-img" draggable="false" />
+    {#if full && baseSrc !== url}<img class="full" src={url} alt="" data-testid="photo-full" draggable="false" />{/if}
+    {#if overlay}<img class="overlay" src={baseOverlay} alt="3D 합성" data-testid="photo-overlay" draggable="false" />
+      {#if full && baseOverlay !== overlay}<img class="overlay" src={overlay} alt="" data-testid="photo-overlay-full" draggable="false" />{/if}{/if}
     <!-- 안개 시트 = 뒤를 흐리게 (2026-10-22 "안개는 블러처리하면되는데"): 2D·3D 단계에서 사진(3D 면 합성 그림) 위에 외곽선 모양 블러 층 -->
     {#if twoD || overlay}
       <div class="designs frosts" style:width="{photo.w * scale}px" style:height="{photo.h * scale}px">
@@ -689,7 +716,7 @@
         {@const ring = [...outer, outer[0], inner[0], ...inner.slice(1).reverse(), inner[0]]}
         <div class="design fill" data-testid="sign-frame" style:clip-path="polygon(evenodd, {ring.map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={fl.color}></div>
       {/each}
-      {#if flatMode && flatSrc}<img class="flat-overlay" data-testid="flat-overlay" src={flatSrc} alt={flatAlt} draggable="false" />{/if}
+      {#if flatMode && flatSrc}<img class="flat-overlay" data-testid="flat-overlay" src={flatSrc} alt={flatAlt} data-colors={flatColors} draggable="false" />{/if}
       {#each designLayers as l (l.id)}
         <div class="design" style:clip-path={l.clip ? `polygon(${l.clip.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
           <BakedDesign design={l.o.design!} w={l.w} h={l.h} transform={layerTransform(l.w, l.h, l.q)} flat={flatMode} onbaked={onbakedFor(l.id)} />
