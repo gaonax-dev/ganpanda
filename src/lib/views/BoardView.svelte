@@ -270,13 +270,14 @@
       }
     } finally {
       stagePumping = false;
-      // 휴대폰: 합성 그림을 다 만들면 그 3D 화면을 바로 놓는다 — 실시간 3D 와 둘이 메모리를 함께 차지하지 않게 (2026-10-28 아이폰 새로고침)
-      if (!stageQueue.length && stageRenderer && (await import('../render/scene')).isPhone()) { stageRenderer.dispose(); stageRenderer = null; }
     }
   }
   let stageTimer = 0;
+  /** 휴대폰: 3D 화면(WebGL)은 실시간 하나만 — 합성 그림을 따로 만들지 않는다 (2026-10-28 "3d에서 사진이 새로 3d랜더링이 되려는 시점에 리프레시된다":
+   *  합성 그림용 3D 화면을 만들었다 버리기를 되풀이하고 실시간과 겹쳐 아이폰 사파리가 페이지를 다시 열었다). 가운데가 아닌 사진은 사진 그대로 */
+  const phoneStage = typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
   $effect(() => {
-    if (app.stage !== '3d') { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
+    if (app.stage !== '3d' || phoneStage) { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
     // 의존: 사진·사인물·카메라 (키 계산이 전부 읽는다)
     const stale = app.photos.filter((p) => app.stageRenders[p.id]?.key !== app.stageKey(p.id)).map((p) => p.id);
     if (!stale.length) return;

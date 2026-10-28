@@ -124,8 +124,12 @@ test('3D 단계: 화면 가운데 사진은 실시간 3D — 보이는 부분만
 // 2026-10-28 사용자: "아이폰에서 사진 이동하면 처음 로딩처럼 빈화면 스피너 돌다가 다시 정상된다" — 휴대폰 메모리 초과로 페이지가 다시 열렸다
 test.describe('휴대폰 3D 메모리', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-  test('휴대폰 실시간 3D 는 가볍게(MSAA 없음 · 배율 1.5 · 배경은 줄인 사본), 합성 그림 3D 화면은 다 만들면 놓는다, 3D 화면을 잃으면 합성 그림으로', async ({ page, request }) => {
+  // 2026-10-28 "3d에서 사진이 새로 3d랜더링이 되려는 시점에 리프레시된다" — 휴대폰은 3D 화면(WebGL)을 하나만: 합성 그림을 따로 만들지 않고 가운데 사진만 실시간
+  test('휴대폰은 3D 화면 하나만 — 실시간(가볍게)만, 합성 그림은 만들지 않고, 3D 화면을 잃으면 사진 그대로', async ({ page, request }) => {
     await setup(page, request);
+    let maxCanvases = 0;
+    await page.exposeFunction('__countCanvas', (n: number) => { maxCanvases = Math.max(maxCanvases, n); });
+    await page.evaluate(() => { const w = window as unknown as { __countCanvas(n: number): void }; setInterval(() => w.__countCanvas(document.querySelectorAll('canvas').length), 50); });
     await page.getByTestId('stage-3d').tap();
     const live = page.getByTestId('live-3d');
     await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
@@ -133,13 +137,14 @@ test.describe('휴대폰 3D 메모리', () => {
     const dpr = await page.evaluate(() => devicePixelRatio);
     const c = await live.locator('canvas').evaluate((el: HTMLCanvasElement) => ({ w: el.width, cw: el.clientWidth }));
     expect(c.w).toBeLessThanOrEqual(Math.ceil(c.cw * Math.min(dpr, 1.5)) + 1);
-    // 합성 그림용 3D 화면(숨은 곳)은 놓았다 — 화면 안 WebGL 캔버스는 실시간 하나뿐
-    await expect.poll(() => page.evaluate(() => document.querySelectorAll('canvas').length)).toBe(1);
-    // 3D 화면을 잃으면 실시간을 접고 합성 그림이 보인다
+    await page.waitForTimeout(1500);
+    expect(maxCanvases).toBe(1); // 실시간 하나뿐 — 합성 그림용 3D 화면을 만들었다 버리지 않는다
+    await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
+    // 3D 화면을 잃으면 실시간을 접고 사진 그대로
     await live.locator('canvas').evaluate((el: HTMLCanvasElement) => (el.getContext('webgl2') as WebGL2RenderingContext).getExtension('WEBGL_lose_context')!.loseContext());
     await expect(live).toHaveAttribute('data-lost', 'true');
     await expect(live).toHaveAttribute('data-shown', 'false');
-    await expect(page.getByTestId('photo-overlay')).toHaveCount(1);
+    await expect(page.getByTestId('photo-img')).toBeVisible();
   });
 });
 
