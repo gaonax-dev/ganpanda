@@ -1,5 +1,5 @@
 // 가게 사장이 제안 목록에서 간판집 확정 (2026-10-22 "소비자가 간판집을 제안 리스트에서 확정을 선택하면 견적요청에서 사라지고 탈락한 업체의 복제된 프로젝트에 배지를 달아
-// 다른 곳에서 진행하게 된것을 알린다. 다만 변심으로 다시 시작할 수 있음으로 정지 처리 안내한다.")
+// 다른 곳에서 진행하게 된것을 알린다. 다만 변심으로 다시 시작할 수 있음으로 정지 처리 안내한다.") — 변심(바꾸기)은 2026-10-28 대체됨
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { SERVER, apiLogin } from './helpers';
 
@@ -8,8 +8,8 @@ async function shopProposal(request: APIRequestContext, id: string) {
   const s = await apiLogin(request);
   await request.put(`${SERVER}/api/me/request-settings`, { data: { receive: true, regions: ['경기 광주시'] }, headers: auth(s) });
   const { project } = await (await request.post(`${SERVER}/api/requests/${id}/respond`, { data: {}, headers: auth(s) })).json();
-  await request.post(`${SERVER}/api/projects/${project.id}/invites`, { data: { role: 'viewer', kind: 'proposal' }, headers: auth(s) });
-  return { s, project: project.id as string };
+  const inv = await (await request.post(`${SERVER}/api/projects/${project.id}/invites`, { data: { role: 'viewer', kind: 'proposal' }, headers: auth(s) })).json();
+  return { s, project: project.id as string, token: inv.token as string };
 }
 
 test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈 카드 "다른 업체 선택" + 정지, 프로젝트에 안내', async ({ page, request, browser }) => {
@@ -29,10 +29,15 @@ test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈
   await expect(page.getByTestId('request-chosen')).toHaveCount(1);
   await expect(page.getByTestId('request-status')).toHaveAttribute('data-status', 'approved');
   await expect(page.getByTestId('request-undecided')).toHaveCount(0);
-  await expect(page.getByTestId('request-choose')).toHaveText('이 곳으로 바꾸기'); // 마음을 바꿀 수 있다
-  // 떨어진 간판집 (먼저 보인 제안이 아닌 쪽)
+  // 확정하면 고른 제안만 — 다른 곳으로 바꾸기 없음 (2026-10-28 "이미 견적을 결정했다면 다른 업체의 견적을 보여주지 않는다 … 바꿀수 있다고 내가 했어 취소")
+  await expect(page.getByTestId('request-proposal')).toHaveCount(1);
+  await expect(page.getByTestId('request-choose')).toHaveCount(0);
+  // 떨어진 간판집 (고른 제안이 아닌 쪽)
   const chosen = await page.locator('[data-testid="request-proposal"][data-chosen]').locator('a.go').getAttribute('href');
   const loser = chosen!.includes(a.project) ? b : a;
+  // 고객이 떨어진 간판집의 예전 제안 링크를 열면 견적 대신 안내
+  await page.goto(`/?room=${loser.project}&invite=${loser.token}&proposal=1`);
+  await expect(page.getByTestId('access-denied')).toContainText('다른 간판집');
   const ctx = await browser.newContext();
   const shop = await ctx.newPage();
   await shop.goto('/');
@@ -46,6 +51,9 @@ test('제안 목록에서 [확정] → 확정 표시, 떨어진 간판집은 홈
   await shop.getByTestId('folder-paused').locator('summary').first().click();
   await card.click();
   await expect(shop.getByTestId('project-lost-banner')).toContainText('정지');
+  // 떨어진 간판집은 견적을 바꾸지 못한다 — 제안 보내기 막힘
+  await expect(shop.getByTestId('project-lost-banner')).toContainText('견적을 바꿀 수 없');
+  await expect(shop.getByTestId('proposal-button')).toBeDisabled();
   await ctx.close();
 });
 

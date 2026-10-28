@@ -67,7 +67,7 @@ export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
 export type Access =
   | { status: 'loading' }
   | { status: 'ok'; role: Role; projectName: string; /** 원가 배수 — 소유자 계정 전체 설정 (2026-10-26 "원가는 전체 변경이다"). 소유자·팀에게만, null = 아직 없음 */ costMarkup?: import('./core/pricing').Markup | null;  /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }
-  | { status: 'denied'; code: 401 | 403 | 404 | 0 };
+  | { status: 'denied'; code: 401 | 403 | 404 | 410 | 0 }; // 410 = 다른 간판집으로 확정된 요청의 견적 (2026-10-28)
 
 class AppState {
   project = new Project();
@@ -538,12 +538,14 @@ class AppState {
    * 지금 사양·견적 줄·합계를 값 그대로 박제한다 — 이후 단가표·원가·배수가 바뀌어도 이 발행본은 그대로. 같은 내용이면 새로 만들지 않는다
    */
   issueQuote(id: string, note?: string): IssuedQuote | null {
-    if (!this.canEdit) return null;
+    if (!this.canEdit || this.lostQuote) return null;
     if (this.latestIssue && this.latestIssue.hash === this.contentHash) return this.latestIssue;
     const q = issueOf({ ...this.draftIssue, id, at: Date.now(), by: this.nickname, ...(note ? { note } : {}) });
     this.updateSettings({ issues: [...this.issues, q].slice(-50) });
     return q;
   }
+  /** 가게 사장이 다른 간판집으로 확정 — 이 프로젝트의 견적은 바꾸지 못한다 (2026-10-28 "견적이 선택되면 다른 업체의 견적을 바꾸지 못한다") */
+  get lostQuote(): boolean { return this.access.status === 'ok' && !!this.access.lost; }
   /** 사인물·번호 대화의 안 읽은 수 (톡은 따로 → talkUnreadInfo) */
   unreadTotal = $derived(Object.entries(this.unread).reduce((a, [k, n]) => (roomIdOf(k) === null ? a + n : a), 0));
   /** 톡: 보이는 방의 안 읽은 수 (상단 [톡] 단추) */
@@ -1157,7 +1159,7 @@ class AppState {
       this.startRoom(room, this.roomParams(room, access.role));
     } catch (e) {
       const code = e instanceof AuthError ? e.status : 0;
-      this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 ? code : 0 };
+      this.access = { status: 'denied', code: code === 401 || code === 403 || code === 404 || code === 410 ? code : 0 };
     }
   }
 
@@ -1170,7 +1172,7 @@ class AppState {
       this.applyAccess(access);
     } catch (e) {
       const code = e instanceof AuthError ? e.status : 0;
-      if (code !== 401 && code !== 403 && code !== 404) return; // 인터넷 문제 → 기기 문서로 계속
+      if (code !== 401 && code !== 403 && code !== 404 && code !== 410) return; // 인터넷 문제 → 기기 문서로 계속
       dropCachedAccess(room);
       this.client?.destroy();
       this.client = null;

@@ -62,7 +62,7 @@ async function inviteByToken(env: Env, token: string): Promise<InviteRow | null>
  * 반환: { role, project } | 상태 코드(401 자격 없음 / 403 권한 없음 / 404 방 없음)
  */
 export async function resolveAccess(req: Request, env: Env, projectId: string, inviteToken: string | null)
-  : Promise<{ role: Role; project: ProjectRow; account: Account | null } | 401 | 403 | 404> {
+  : Promise<{ role: Role; project: ProjectRow; account: Account | null } | 401 | 403 | 404 | 410> {
   const project = await getProject(env, projectId);
   if (!project) return 404;
   const account = await authenticate(req, env);
@@ -82,6 +82,8 @@ export async function resolveAccess(req: Request, env: Env, projectId: string, i
     const inv = await inviteByToken(env, inviteToken);
     if (!inv) return account ? 403 : 401;
     if (inv.project_id !== project.id) return 403;
+    // 다른 간판집으로 확정된 요청의 견적은 고객(보기 링크)에게 보이지 않는다 (2026-10-28 "이미 견적을 결정했다면 다른 업체의 견적을 보여주지 않는다")
+    if (project.lost_at && inv.role === 'viewer') return 410;
     return { role: inv.role, project, account };
   }
   return account ? 403 : 401;
@@ -235,6 +237,8 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       if (!role || !INVITE_ROLES.has(role)) return text('bad role', 400);
       // kind = 'proposal': 제안 보내기 링크 — 무료 요금제는 한 달 건수 한도 (2026-10-17). 보통 초대는 세지 않는다
       const kind = body?.kind === 'proposal' ? 'proposal' : null;
+      // 가게 사장이 다른 간판집으로 확정한 프로젝트는 견적을 바꾸지 못한다 — 새 제안 링크 없음 (2026-10-28)
+      if (kind && project.lost_at) return json({ error: 'lost' }, 403);
       // 요청에서 가져온 프로젝트의 첫 제안 = 크레딧 예약 (2026-10-25 "고객이 견적을 확인하면 그때 결제 … 간판집은 예약하고", 전엔 이때 결제) — 요금제 건수 대신.
       // 카드·한도(결제 + 예약)만 보고, 결제는 고객이 제안을 열 때(settleCredit). 운영자는 결제 없이 바로 열림
       const credit = kind && project.request_id && creditsOn(env) ? await creditState(env, project.request_id, me) : null;
