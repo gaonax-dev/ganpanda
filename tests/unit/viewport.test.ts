@@ -66,25 +66,42 @@ describe('핀치 (두 손가락)', async () => {
   });
 });
 
-describe('두 손가락: 화면 이동이 가장 먼저, 그다음 확대·축소 (twoFinger, 2026-10-20 "두손가락 드래그(화면팬)는 모든 제스처중 가장 우선한다. 그 다음 줌이다")', async () => {
-  const { twoFinger, startTwoFinger } = await import('../../src/lib/core/viewport');
+describe('두 손가락: 한 번에 하나만 — 이동 또는 확대·축소 (twoFinger, 2026-10-29 "두손가락을 벌리고 오무리면서 이동을 (동시에)반복하면 자주 발생해" → "한 번에 하나만")', async () => {
+  const { twoFinger, startTwoFinger, PAN_ENGAGE } = await import('../../src/lib/core/viewport');
   const v = { x: 0, y: 0, zoom: 1 };
   const A = { x: 100, y: 300 }, B = { x: 300, y: 300 };
-  it('나란히 끌면 이동만 — 손가락 간격이 조금(8% 안) 흔들려도 배율은 그대로', () => {
-    let st = startTwoFinger([A, B]);
-    let r = twoFinger(v, st, [A, B], [{ x: 150, y: 340 }, { x: 357, y: 340 }]); // 간격 200 → 207 (3.5%)
-    expect(r.v.zoom).toBe(1);
-    expect(r.v.x).toBeCloseTo(53.5, 1); expect(r.v.y).toBeCloseTo(40, 5); // 가운데 점을 따라 이동
-    st = r.st;
-    r = twoFinger(r.v, st, [{ x: 150, y: 340 }, { x: 357, y: 340 }], [{ x: 200, y: 380 }, { x: 410, y: 380 }]); // 누적 5%
-    expect(r.v.zoom).toBe(1);
-    expect(r.st.zooming).toBe(false);
+  it('정해지기 전 작은 흔들림에는 아무것도 안 바뀐다', () => {
+    const r = twoFinger(v, startTwoFinger([A, B]), [A, B], [{ x: 104, y: 303 }, { x: 306, y: 303 }]); // 가운데 5px, 간격 1%
+    expect(r.v).toEqual(v);
+    expect(r.st.mode).toBe('none');
   });
-  it('간격이 분명히 바뀌면(8% 넘게) 그때부터 확대·축소도 — 이동은 계속', () => {
-    const st = startTwoFinger([A, B]);
-    const r = twoFinger(v, st, [A, B], [{ x: 50, y: 300 }, { x: 350, y: 300 }]); // 200 → 300
-    expect(r.st.zooming).toBe(true);
+  it('나란히 끌면 이동으로 정해지고, 그 뒤 간격이 크게 바뀌어도 배율은 그대로', () => {
+    let st = startTwoFinger([A, B]);
+    let r = twoFinger(v, st, [A, B], [{ x: 150, y: 340 }, { x: 357, y: 340 }]); // 가운데 53px 이동, 간격 3.5%
+    expect(r.st.mode).toBe('pan');
+    expect(r.v.zoom).toBe(1);
+    expect(r.v.x).toBeCloseTo(53.5, 1); expect(r.v.y).toBeCloseTo(40, 5);
+    st = r.st;
+    r = twoFinger(r.v, st, [{ x: 150, y: 340 }, { x: 357, y: 340 }], [{ x: 50, y: 340 }, { x: 457, y: 340 }]); // 벌려도
+    expect(r.v.zoom).toBe(1);
+    expect(r.st.mode).toBe('pan');
+  });
+  it('간격이 분명히 바뀌면(8% 넘게) 확대·축소로 정해지고, 그 뒤 손가락이 함께 움직여도 화면은 이동하지 않는다 — 처음 가운데 점 기준', () => {
+    let st = startTwoFinger([A, B]);
+    let r = twoFinger(v, st, [A, B], [{ x: 50, y: 300 }, { x: 350, y: 300 }]); // 200 → 300
+    expect(r.st.mode).toBe('zoom');
     expect(r.v.zoom).toBeCloseTo(1.5, 5);
+    // 처음 가운데(200,300)는 화면에서 그대로
+    expect(200 * r.v.zoom + r.v.x).toBeCloseTo(200, 5); expect(300 * r.v.zoom + r.v.y).toBeCloseTo(300, 5);
+    st = r.st;
+    const before = r.v;
+    r = twoFinger(r.v, st, [{ x: 50, y: 300 }, { x: 350, y: 300 }], [{ x: 150, y: 380 }, { x: 450, y: 380 }]); // 간격 그대로, 함께 이동
+    expect(r.v).toEqual(before);
+  });
+  it('이동 기준은 가운데 점이 PAN_ENGAGE 넘게 움직였을 때', () => {
+    expect(PAN_ENGAGE).toBeGreaterThan(5);
+    const r = twoFinger(v, startTwoFinger([A, B]), [A, B], [{ x: 100 + PAN_ENGAGE + 1, y: 300 }, { x: 300 + PAN_ENGAGE + 1, y: 300 }]);
+    expect(r.st.mode).toBe('pan');
   });
 });
 
