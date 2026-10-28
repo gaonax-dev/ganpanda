@@ -158,6 +158,15 @@ export class Viewer {
   envReady: Promise<void> = Promise.resolve();
   invalidate() { this.dirty = true; }
 
+  private photoOwned = false;
+  /** 사진 텍스처를 그대로 쓴다. owned = 뷰어가 가진다(다음에 바꿀 때 버린다) — 실시간 3D 는 장면 기억에서 가지므로 false */
+  usePhotoTexture(tex: THREE.Texture, owned: boolean) {
+    const old = this.bgMat.uniforms.map.value as THREE.Texture | null;
+    if (old && old !== tex && this.photoOwned) old.dispose();
+    this.bgMat.uniforms.map.value = tex;
+    this.photoOwned = owned;
+    this.invalidate();
+  }
   setPhoto(img: HTMLImageElement | HTMLCanvasElement) {
     const old = this.bgMat.uniforms.map.value as THREE.Texture | null;
     old?.dispose();

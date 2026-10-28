@@ -135,8 +135,9 @@ test.describe('휴대폰 3D 메모리', () => {
     await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
     await expect(live).toHaveAttribute('data-light', 'true');
     const dpr = await page.evaluate(() => devicePixelRatio);
-    const c = await live.locator('canvas').evaluate((el: HTMLCanvasElement) => ({ w: el.width, cw: el.clientWidth }));
-    expect(c.w).toBeLessThanOrEqual(Math.ceil(c.cw * Math.min(dpr, 1.5)) + 1);
+    const c = await live.locator('canvas').evaluate((el: HTMLCanvasElement) => ({ w: el.width }));
+    const bw = (await page.getByTestId('board-canvas').boundingBox())!.width;
+    expect(c.w).toBeLessThanOrEqual(Math.ceil(bw * Math.min(dpr, 1.5)) + 1); // 그림판 = 보드 화면 크기 × 배율 1.5 까지
     await page.waitForTimeout(1500);
     expect(maxCanvases).toBe(1); // 실시간 하나뿐 — 합성 그림용 3D 화면을 만들었다 버리지 않는다
     await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
@@ -183,5 +184,56 @@ test('3D 단계: 화면을 이리저리 옮겨 가운데 사진이 빠르게 바
   await expect(live).toHaveAttribute('data-scene-photo', photo!);
   const want = await page.evaluate((pid) => (window as unknown as { __ganpanda: { objects: { photoId: string }[] } }).__ganpanda.objects.filter((o) => o.photoId === pid).length, photo);
   await expect(live).toHaveAttribute('data-scene-signs', String(want));
+});
+
+// 2026-10-28 사용자: "3d가 실시간으로 랜더링 보이느게 어려운건가?" → "진행해봐"
+test('3D 단계 실시간: 화면을 끄는 동안에도 3D 가 계속 보이고, 확대해도 그림판을 다시 만들지 않으며, 다시 가운데로 온 사진은 장면을 다시 짓지 않는다', async ({ page, request }) => {
+  await setup(page, request);
+  await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string; x: number; width: number }[]; addPhoto(p: unknown): string; addObject(o: unknown): string }; objects: unknown[] } }).__ganpanda;
+    const a = app.project.allPhotos()[0];
+    const id = app.project.addPhoto({ ...a, id: undefined, name: '둘째', x: a.x + a.width + 200 });
+    app.project.addObject({ ...(app.objects[0] as object), id: undefined, photoId: id, text: '둘째', name: '둘째' });
+  });
+  await page.getByTestId('zoom-fit').click();
+  await page.getByTestId('stage-3d').click();
+  const live = page.getByTestId('live-3d');
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
+  const zones = page.getByTestId('photo-zone');
+  // 첫 사진을 가운데로 크게
+  const z0 = (await zones.nth(0).boundingBox())!;
+  await page.mouse.move(z0.x + z0.width / 2, z0.y + z0.height / 2);
+  for (let i = 0; i < 2; i++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, -300); await page.keyboard.up('Control'); }
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 15_000 });
+  const first = await live.getAttribute('data-photo');
+  const size = () => live.locator('canvas').evaluate((el: HTMLCanvasElement) => `${el.width}x${el.height}`);
+  const sz0 = await size();
+  // 끄는 중(손을 떼지 않은 채)에도 보인다
+  const c = (await page.getByTestId('board-canvas').boundingBox())!;
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2); await page.mouse.down();
+  await page.mouse.move(c.x + c.width / 2 - 40, c.y + c.height / 2, { steps: 4 });
+  await expect(live).toHaveAttribute('data-shown', 'true');
+  await page.mouse.move(c.x + c.width / 2 - 80, c.y + c.height / 2, { steps: 4 });
+  await expect(live).toHaveAttribute('data-shown', 'true');
+  await page.mouse.up();
+  // 확대해도 그림판 크기는 그대로 (다시 만들지 않는다)
+  await page.keyboard.down('Control'); await page.mouse.wheel(0, -300); await page.keyboard.up('Control');
+  await page.waitForTimeout(300);
+  expect(await size()).toBe(sz0);
+  // 둘째 사진을 가운데로 → 새로 짓고, 다시 첫 사진으로 → 기억한 장면 (짓기 수 그대로)
+  await page.getByTestId('zoom-fit').click();
+  const center = async (n: number) => {
+    const z = (await zones.nth(n).boundingBox())!;
+    await page.mouse.move(c.x + c.width / 2, c.y + 30); await page.mouse.down();
+    await page.mouse.move(c.x + c.width / 2 + (c.x + c.width / 2 - (z.x + z.width / 2)), c.y + 30, { steps: 5 }); await page.mouse.up();
+  };
+  await center(1);
+  await expect.poll(async () => (await live.getAttribute('data-photo')) !== first && (await live.getAttribute('data-shown')) === 'true', { timeout: 15_000 }).toBe(true);
+  const builds = Number(await live.getAttribute('data-builds'));
+  await center(0);
+  await expect(live).toHaveAttribute('data-photo', first!);
+  await expect(live).toHaveAttribute('data-shown', 'true');
+  expect(Number(await live.getAttribute('data-builds'))).toBe(builds);
+  await expect(live).toHaveAttribute('data-scene-photo', first!);
 });
 
