@@ -268,7 +268,11 @@
         catch (e) { console.warn('3D 단계 합성 실패', e); app.stageRenders[id] = { key, url: '' }; }
         finally { app.stageBusy--; }
       }
-    } finally { stagePumping = false; }
+    } finally {
+      stagePumping = false;
+      // 휴대폰: 합성 그림을 다 만들면 그 3D 화면을 바로 놓는다 — 실시간 3D 와 둘이 메모리를 함께 차지하지 않게 (2026-10-28 아이폰 새로고침)
+      if (!stageQueue.length && stageRenderer && (await import('../render/scene')).isPhone()) { stageRenderer.dispose(); stageRenderer = null; }
+    }
   }
   let stageTimer = 0;
   $effect(() => {
@@ -294,12 +298,15 @@
   let liveSettled = $state(true);
   /** 장면을 지은 횟수 (테스트·확인용) */
   let liveBuilds = $state(0);
+  /** 3D 화면을 잃음(휴대폰 메모리) — 이 단계에서는 합성 그림만 */
+  let liveLost = $state(false);
+  let liveLight = $state(false);
   let settleTimer = 0;
   $effect(() => { void viewport.x; void viewport.y; void viewport.zoom; liveSettled = false; clearTimeout(settleTimer); settleTimer = window.setTimeout(() => (liveSettled = true), 150); });
   let liveToken = 0;
   // 장면 짓기: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면
   $effect(() => {
-    if (app.stage !== '3d' || !live || !liveHost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; } return; }
+    if (app.stage !== '3d' || !live || !liveHost || liveLost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; liveLost = false; } return; }
     const id = live.id, key = app.stageKey(id);
     if (liveBuilt?.id === id && liveBuilt.key === key) return;
     const p = app.photos.find((x) => x.id === id);
@@ -311,7 +318,7 @@
       const [{ loadFont }, { LiveStage }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
       stageFont ??= await loadFont(fontUrl);
       if (token !== liveToken) return;
-      liveStage ??= new LiveStage(host);
+      if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
       try { await liveStage.build(p, objs, plane, app.sources, stageFont, app.estSize); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
       if (token === liveToken) { liveBuilt = { id, key }; liveBuilds++; }
@@ -319,7 +326,7 @@
   });
   // 보이는 부분·크기 맞추기 (멈췄을 때만)
   $effect(() => { if (live && liveSettled && liveBuilt?.id === live.id) liveStage?.frame(live.crop, live.px.w, live.px.h); });
-  const liveShown = $derived(!!live && liveSettled && liveBuilt?.id === live.id);
+  const liveShown = $derived(!!live && liveSettled && !liveLost && liveBuilt?.id === live.id);
 
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   // 데스크톱 Shift (2026-10-22 "시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"):
@@ -622,7 +629,7 @@
     {#if app.stage === '3d'}
       {@const lp = live ? app.photos.find((x) => x.id === live.id) : null}
       <!-- 실시간 3D (가운데 사진, 보이는 부분만 화면 해상도) — 편집 층(svg)보다 아래 -->
-      <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} bind:this={liveHost}
+      <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} data-light={liveLight} data-lost={liveLost} bind:this={liveHost}
         style:visibility={liveShown ? 'visible' : 'hidden'}
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>

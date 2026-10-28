@@ -6,6 +6,7 @@ import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf,
 import { Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
+import { displayUrl } from '../photoDisplay';
 import { loadItemImages } from './itemImages';
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
@@ -30,7 +31,8 @@ async function buildScene(v: Viewer, photo: Photo, objects: SignObject[], plane:
   v.clearSignCameras();
   const k = Math.min(opts.maxW / photo.w, opts.maxH / photo.h, 1);
   v.resize(Math.max(1, Math.floor(photo.w * k)), Math.max(1, Math.floor(photo.h * k)));
-  const url = await assetUrl(photo.assetId);
+  // 배경 사진은 줄인 표시용 사본으로 (휴대폰 1600 · 그 외 2400px) — 원본(3200px)을 통째로 텍스처로 올리면 휴대폰 메모리가 넘친다 (2026-10-28 아이폰 새로고침)
+  const url = (await displayUrl(photo.assetId, { w: photo.w, h: photo.h })) ?? (await assetUrl(photo.assetId));
   if (!url) throw new Error('photo asset missing');
   v.setPhoto(await loadImage(url));
   await v.envReady; // HDRI 조명으로 (2026-10-17)
@@ -109,18 +111,19 @@ export class StageRenderer {
  * 실시간 3D (2026-10-27 "화면에서 가운데 있는 사진의 3d만 실시간"): 화면 가운데 사진 하나를 WebGL 로 바로 그린다.
  * 장면은 내용이 바뀔 때만 다시 짓고(build), 화면 이동·확대는 보이는 부분·크기만 바꿔 다시 그린다(frame) — PNG 만들기 없음
  */
-/** 실시간 3D 의 앞면 그림 긴 변 (보통 1024 의 3배·2배) */
-export const LIVE_TEX_LONG = 3072, LIVE_TEX_LONG_PHONE = 2048;
+/** 실시간 3D 의 앞면 그림 긴 변 (보통 1024 의 3배 · 휴대폰 1.5배) */
+export const LIVE_TEX_LONG = 3072, LIVE_TEX_LONG_PHONE = 1536;
+export const isPhone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
 export class LiveStage {
   readonly viewer: Viewer;
   private built: BuiltSign[] = [];
   private photo: Photo | null = null;
-  constructor(host: HTMLElement) { this.viewer = new Viewer(host); }
+  /** 휴대폰은 가볍게 (MSAA 없음, 화면 배율 1.5) */
+  constructor(host: HTMLElement, light = isPhone()) { this.viewer = new Viewer(host, { light }); }
   async build(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf) {
     this.clear();
     // 앞면 그림을 크게 — 확대해도 인쇄 글자가 또렷하게 (휴대폰은 메모리 때문에 덜)
-    const phone = typeof matchMedia === 'function' && matchMedia('(max-width: 720px), (pointer: coarse)').matches;
-    this.built = await buildScene(this.viewer, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf, texLong: phone ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG });
+    this.built = await buildScene(this.viewer, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf, texLong: this.viewer.light ? LIVE_TEX_LONG_PHONE : LIVE_TEX_LONG });
     this.viewer.setNight(false); for (const b of this.built) b.setNight(false);
     this.photo = photo;
   }

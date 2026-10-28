@@ -80,16 +80,23 @@ export class Viewer {
   private crop: { m: THREE.Matrix4 | null } = { m: null };
   night = false;
   private dirty = true;
+  readonly light: boolean;
+  private size = { w: 0, h: 0 };
+  /** 3D 화면을 잃었을 때(휴대폰 메모리 등) */
+  onLost: (() => void) | null = null;
 
-  constructor(host: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  /** light: 휴대폰 실시간 3D (2026-10-28 "아이폰에서 사진 이동하면 처음 로딩처럼 빈화면") — 메모리 아끼기: MSAA 없음, 화면 배율 1.5 까지 */
+  constructor(host: HTMLElement, opts: { light?: boolean } = {}) {
+    this.light = !!opts.light;
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.light, preserveDrawingBuffer: false });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.light ? 1.5 : 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // 톤 매핑: 밝은 반사·발광이 하얗게 날아가지 않게 (2026-10-17 사용자: "3d의 스팩큘러가 과도하다")
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     host.appendChild(this.renderer.domElement);
+    this.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onLost?.(); });
 
     this.bgMat = new THREE.ShaderMaterial({
       uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) } },
@@ -116,7 +123,7 @@ export class Viewer {
     this.scene.add(this.wallShadow, this.grid, this.signsRoot, this.selection);
     this.selection.visible = false;
 
-    this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+    this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: this.light ? 0 : 4 }));
     this.composer.addPass(new RenderPass(this.bgScene, this.bgCamera));
     this.composer.addPass(new SignsPass(this.scene, this.camera, this.signCameras, this.crop));
     // 조명·그림자는 모든 레이어에
@@ -162,6 +169,8 @@ export class Viewer {
   }
 
   resize(w: number, h: number) {
+    if (w === this.size.w && h === this.size.h) return; // 같은 크기면 버퍼를 다시 만들지 않는다
+    this.size = { w, h };
     this.renderer.setSize(w, h);
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
@@ -365,6 +374,7 @@ export class Viewer {
     const url = el.toDataURL('image/png');
     this.grid.visible = grid; this.selection.visible = sel;
     this.renderer.setPixelRatio(prev.dpr);
+    this.size = { w: -1, h: -1 }; // 위에서 크기를 직접 바꿨다 — 되돌리기는 반드시
     this.resize(prev.w, prev.h);
     return url;
   }
