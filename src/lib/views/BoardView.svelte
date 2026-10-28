@@ -301,6 +301,8 @@
   /** 3D 화면을 잃음(휴대폰 메모리) — 이 단계에서는 합성 그림만 */
   let liveLost = $state(false);
   let liveLight = $state(false);
+  /** 실시간 장면의 사진·사인물 수 (확인용 — 다른 사진의 사인물이 섞이면 안 된다) */
+  let liveScene = $state({ photo: '', signs: 0 });
   let settleTimer = 0;
   $effect(() => { void viewport.x; void viewport.y; void viewport.zoom; liveSettled = false; clearTimeout(settleTimer); settleTimer = window.setTimeout(() => (liveSettled = true), 150); });
   let liveToken = 0;
@@ -319,9 +321,11 @@
       stageFont ??= await loadFont(fontUrl);
       if (token !== liveToken) return;
       if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
-      try { await liveStage.build(p, objs, plane, app.sources, stageFont, app.estSize); }
+      let done = false;
+      try { done = await liveStage.build(p, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
-      if (token === liveToken) { liveBuilt = { id, key }; liveBuilds++; }
+      if (done && token === liveToken) { liveBuilt = { id, key }; liveBuilds++; }
+      liveScene = { photo: liveStage?.scenePhoto ?? '', signs: liveStage?.sceneSigns ?? 0 };
     })());
   });
   // 보이는 부분·크기 맞추기 (멈췄을 때만)
@@ -629,7 +633,7 @@
     {#if app.stage === '3d'}
       {@const lp = live ? app.photos.find((x) => x.id === live.id) : null}
       <!-- 실시간 3D (가운데 사진, 보이는 부분만 화면 해상도) — 편집 층(svg)보다 아래 -->
-      <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} data-light={liveLight} data-lost={liveLost} bind:this={liveHost}
+      <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} data-light={liveLight} data-lost={liveLost} data-scene-photo={liveScene.photo} data-scene-signs={liveScene.signs} bind:this={liveHost}
         style:visibility={liveShown ? 'visible' : 'hidden'}
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>

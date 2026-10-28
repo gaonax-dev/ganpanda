@@ -143,3 +143,40 @@ test.describe('휴대폰 3D 메모리', () => {
   });
 });
 
+// 2026-10-28 사용자: "핀볼 … 화면 이동하면서 3d랜더링 에러 확인해줘 옆에 사진 간판도 난립하고 있어" — 이동 중 가운데 사진이 바뀌면
+// 앞 사진의 장면 짓기가 끝나기 전에 다음 사진을 같은 3D 화면에 짓기 시작해 사진·사인물이 섞였다
+test('3D 단계: 화면을 이리저리 옮겨 가운데 사진이 빠르게 바뀌어도 실시간 장면은 지금 사진의 사진·사인물만', async ({ page, request }) => {
+  await setup(page, request);
+  // 두 번째 사진(같은 건물 사진) + 사인물 2개
+  await page.evaluate(async () => {
+    const app = (window as unknown as { __ganpanda: { project: { allPhotos(): { id: string; assetId: string; w: number; h: number; name: string; x: number; y: number; width: number }[]; addPhoto(p: unknown): string; addObject(o: unknown): string; objects(): { photoId: string; quad: unknown; widthMm: number; heightMm: number }[] } } }).__ganpanda;
+    const a = app.project.allPhotos()[0];
+    const id = app.project.addPhoto({ ...a, id: undefined, name: '둘째', x: a.x + a.width + 200 });
+    const o = (window as unknown as { __ganpanda: { objects: { photoId: string; quad: unknown; widthMm: number; heightMm: number }[] } }).__ganpanda.objects[0];
+    for (const t of ['둘째 간판 1', '둘째 간판 2']) app.project.addObject({ ...o, id: undefined, photoId: id, text: t, name: t });
+  });
+  await page.getByTestId('zoom-fit').click();
+  await page.getByTestId('stage-3d').click();
+  const live = page.getByTestId('live-3d');
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
+  const zones = page.getByTestId('photo-zone');
+  await expect(zones).toHaveCount(2);
+  // 두 사진을 번갈아 화면 가운데로 — 기다리지 않고 여러 번 (CPU 를 느리게 해 장면 짓기가 겹치게)
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+  const c = (await page.getByTestId('board-canvas').boundingBox())!;
+  for (let k = 0; k < 6; k++) {
+    const z = (await zones.nth(k % 2).boundingBox())!;
+    const dx = c.x + c.width / 2 - (z.x + z.width / 2);
+    await page.mouse.move(c.x + c.width / 2, c.y + 40); await page.mouse.down(); await page.mouse.move(c.x + c.width / 2 + dx, c.y + 40, { steps: 2 }); await page.mouse.up();
+    await page.waitForTimeout(60);
+  }
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  const photo = await live.getAttribute('data-photo');
+  await expect(live).toHaveAttribute('data-scene-photo', photo!);
+  const want = await page.evaluate((pid) => (window as unknown as { __ganpanda: { objects: { photoId: string }[] } }).__ganpanda.objects.filter((o) => o.photoId === pid).length, photo);
+  await expect(live).toHaveAttribute('data-scene-signs', String(want));
+});
+
