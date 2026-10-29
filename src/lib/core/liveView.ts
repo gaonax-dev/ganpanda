@@ -19,9 +19,15 @@ export interface LiveView {
  *  (2026-10-28 "3d 화면에서 줌 아웃하면 3d 랜더링 뜨고 화면을 새로고침한다. 개별 업데이트로 하고 화면 새로고침을 피할 수 있어?") */
 export const LIVE_MIN_PX = 80;
 
-export function liveView(photos: BoardPhoto[], v: Viewport, screen: { w: number; h: number }, usable: (id: string) => boolean = () => true): LiveView | null {
+/**
+ * prev = 지금 실시간인 사진 — **쉽게 바꾸지 않는다**(2026-10-30 아이폰 진단 기록: 3D 확대·축소 중 가운데 사진이 두 장 사이를 한 프레임에도 여러 번 오가며
+ * 장면을 다시 얹었고 그 직후 다시 열렸다). 앞 사진이 아직 쓸 만하면(충분히 크고 보임) 가운데를 차지하고 있거나 아무도 가운데를 차지하지 않을 때 그대로 둔다.
+ * 다른 사진이 가운데를 차지하고 앞 사진은 아닐 때만 넘어간다
+ */
+export function liveView(photos: BoardPhoto[], v: Viewport, screen: { w: number; h: number }, usable: (id: string) => boolean = () => true, prev?: string | null): LiveView | null {
   const cx = screen.w / 2, cy = screen.h / 2;
-  let best: { p: BoardPhoto; vis: { x0: number; y0: number; x1: number; y1: number }; center: boolean; area: number } | null = null;
+  type Cand = { p: BoardPhoto; vis: { x0: number; y0: number; x1: number; y1: number }; center: boolean; area: number };
+  let best: Cand | null = null, kept: Cand | null = null;
   for (const p of photos) {
     if (!usable(p.id)) continue;
     const bh = p.width * (p.h / p.w);
@@ -32,8 +38,10 @@ export function liveView(photos: BoardPhoto[], v: Viewport, screen: { w: number;
     const center = cx >= a.x && cx <= b.x && cy >= a.y && cy <= b.y;
     const area = (vis.x1 - vis.x0) * (vis.y1 - vis.y0);
     if (!best || (center && !best.center) || (center === best.center && area > best.area)) best = { p, vis, center, area };
+    if (p.id === prev) kept = { p, vis, center, area };
   }
   if (!best) return null;
+  if (kept && (kept.center || !best.center)) best = kept;
   const { p, vis } = best;
   const z = v.zoom, k = p.w / p.width; // 원본 픽셀 / 보드 단위
   const rect = { x: (vis.x0 - v.x) / z - p.x, y: (vis.y0 - v.y) / z - p.y, w: (vis.x1 - vis.x0) / z, h: (vis.y1 - vis.y0) / z };
@@ -48,4 +56,5 @@ export function liveView(photos: BoardPhoto[], v: Viewport, screen: { w: number;
 /** 휴대폰: 화면이 이만큼 멈춘 뒤에 새 장면을 짓는다 — 움직이는 동안 가운데 사진이 바뀔 때마다 지으면 아이폰이 메모리를 늦게 돌려줘 다시 열렸다
  *  (2026-10-29 "3d는 화면 팬에서 … 반복에서 나타났음", "실시간 업데이트 최적화 이후 벌어진 일") */
 export const LIVE_SETTLE_MS = 300;
-export function liveBuildDelay(light: boolean, cached: boolean): number { return light && !cached ? LIVE_SETTLE_MS : 0; }
+/** 휴대폰은 지어 둔 장면이어도 기다린다 (2026-10-30 진단 기록: 기억한 두 장면을 프레임마다 번갈아 얹은 직후 다시 열림) */
+export function liveBuildDelay(light: boolean, _cached: boolean): number { return light ? LIVE_SETTLE_MS : 0; }

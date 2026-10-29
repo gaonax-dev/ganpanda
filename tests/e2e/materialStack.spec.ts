@@ -237,9 +237,10 @@ test('치수 없는 시트 사인물도 2D 에 면·글자가 칠해진다 (추�
     a.project.addObject({ photoId: pid, name: '도어', shape: 'rect', quad: q(1050, 200), sheetIds: ['sh-cut'], widthMm: 900, heightMm: 2100 });
   });
   await page.getByTestId('stage-2d').click();
-  const fills = () => page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] rect').evaluateAll((rs) => rs.map((r) => r.getAttribute('fill')));
+  // 2D 는 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29) — 색은 data-colors, 글자는 alt
+  const fills = () => page.locator('[data-testid="photo-zone"] [data-colors]').evaluateAll((es) => es.flatMap((e) => (e.getAttribute('data-colors') ?? '').split(' ')));
   await expect.poll(fills).toEqual(expect.arrayContaining(['#ffffff', '#d9d9d9']));
-  await expect(page.locator('[data-testid="photo-zone"] [data-testid="parts-overlay"] text', { hasText: '푸르미도그' }).first()).toBeAttached();
+  await expect(page.locator('[data-testid="photo-zone"]').locator('[data-testid="flat-overlay"], [data-testid="baked-parts"]').first()).toHaveAttribute('alt', /푸르미도그/);
 });
 
 // 2026-10-22 사용자: "안개는 블러처리하면되는데"
