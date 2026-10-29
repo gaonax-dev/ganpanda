@@ -238,3 +238,19 @@ test('3D 단계 실시간: 화면을 끄는 동안에도 3D 가 계속 보이고
   await expect(live).toHaveAttribute('data-scene-photo', first!);
 });
 
+
+// 2026-10-30 아이폰 진단 기록: 3D 에서 두 손가락을 대자마자(34~400ms) 다시 열림 — 휴대폰은 움직이는 동안 실시간 3D 를 숨기고 그리지 않는다(저장된 3D 그림), 멈추면 다시
+test.describe('휴대폰 폭 3D', () => {
+  test.use({ viewport: { width: 700, height: 900 } });
+  test('화면이 움직이는 동안 실시간 3D 는 숨고, 멈추면 다시 보인다', async ({ page, request }) => {
+    await setup(page, request);
+    await page.getByTestId('stage-3d').click();
+    const live = page.getByTestId('live-3d');
+    await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 20_000 });
+    const bb = (await page.getByTestId('board-canvas').boundingBox())!;
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await page.keyboard.down('Control'); await page.mouse.wheel(0, -60); await page.keyboard.up('Control'); // 조금 확대 = 움직임
+    await expect(live).toHaveAttribute('data-shown', 'false', { timeout: 200 });
+    await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 3000 });
+  });
+});
