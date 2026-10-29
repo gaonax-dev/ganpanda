@@ -309,7 +309,7 @@
   const planeOf = (id: string) => wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id));
   const live = $derived.by((): LiveView | null => {
     if (app.stage !== '3d' || !boardSize.w) return null;
-    return liveView(app.photos, viewport, boardSize, (id) => !flatPhoto(id) && !!planeOf(id));
+    return liveView(app.photos, viewport, boardSize, (id) => !flatPhoto(id) && !!planeOf(id), untrack(() => liveBuilt?.id)); // 앞 사진 유지 (2026-10-30)
   });
   let liveHost: HTMLDivElement | null = $state(null);
   let liveStage: LiveStage | null = null;

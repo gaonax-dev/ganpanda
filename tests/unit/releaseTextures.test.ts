@@ -25,10 +25,10 @@ describe('장면을 버릴 때 그림 캔버스를 바로 비운다', () => {
 });
 
 describe('휴대폰 3D 는 화면이 멈춘 뒤에 장면을 짓는다', () => {
-  it('휴대폰이고 지어 둔 장면이 없으면 기다린다, 아니면 바로', () => {
+  it('휴대폰이면 기다린다(지어 둔 장면이어도 — 2026-10-30), 데스크톱은 바로', () => {
     expect(LIVE_SETTLE_MS).toBeGreaterThanOrEqual(250);
     expect(liveBuildDelay(true, false)).toBe(LIVE_SETTLE_MS);
-    expect(liveBuildDelay(true, true)).toBe(0);
+    expect(liveBuildDelay(true, true)).toBe(LIVE_SETTLE_MS);
     expect(liveBuildDelay(false, false)).toBe(0);
   });
 });
