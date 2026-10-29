@@ -19,7 +19,7 @@
   import { wallPlaneOf } from '../core/wallPlane';
   import type { Font } from 'opentype.js';
   import type { LiveStage, StageRenderer } from '../render/scene';
-  import { liveBuildDelay, liveView, type LiveView } from '../core/liveView';
+  import { LIVE_SETTLE_MS, liveBuildDelay, liveView, type LiveView } from '../core/liveView';
   import { needs3d } from '../core/stageFlat';
   import { loadSnapshot, saveSnapshot } from '../render/stageCache';
   import { app } from '../state.svelte';
@@ -380,8 +380,20 @@
     for (const { p } of near) liveStage.prefetch(p, app.stageKey(p.id), app.objects.filter((o) => o.photoId === p.id), planeOf(p.id)!, app.sources, stageFont, app.estSize);
   }
   // 보이는 부분 맞추기 — 화면을 움직이는 동안에도 매번 (그림판 크기는 그대로라 가볍다)
-  $effect(() => { if (live && liveBuilt?.id === live.id) liveStage?.frame(live.crop, boardSize.w, boardSize.h); });
-  const liveShown = $derived(!!live && !liveLost && liveBuilt?.id === live.id);
+  // 휴대폰: 화면이 움직이는 동안 실시간 3D 를 숨기고 그리지 않는다 — 저장된 3D 그림이 보인다, 멈추고 LIVE_SETTLE_MS 뒤 다시
+  // (2026-10-30 아이폰 진단 기록: 두 손가락을 대자마자 다시 열림 — 334287b "움직이는 동안에도 실시간" 이전처럼, 휴대폰만)
+  let liveHold = $state(false);
+  let holdTimer = 0;
+  $effect(() => {
+    void viewport.x; void viewport.y; void viewport.zoom;
+    if (!isPhone()) return;
+    if (!untrack(() => liveHold)) crashLog.event('실시간 3D 쉼');
+    liveHold = true;
+    clearTimeout(holdTimer);
+    holdTimer = window.setTimeout(() => { liveHold = false; crashLog.event('실시간 3D 다시'); }, LIVE_SETTLE_MS);
+  });
+  $effect(() => { if (live && liveBuilt?.id === live.id && !liveHold) liveStage?.frame(live.crop, boardSize.w, boardSize.h); });
+  const liveShown = $derived(!!live && !liveLost && liveBuilt?.id === live.id && !liveHold);
 
   // 3D 단계에서는 편집 도구를 쓰지 않는다
   // 데스크톱 Shift (2026-10-22 "시프트가 눌리면 다중 켜지고 시프트 때면 다중 꺼지게 버튼을 눌렀을때는 그 상태로"):
@@ -686,7 +698,7 @@
       {@const lp = live ? app.photos.find((x) => x.id === live.id) : null}
       <!-- 실시간 3D (가운데 사진, 보이는 부분만 화면 해상도) — 편집 층(svg)보다 아래 -->
       <div class="live3d" data-testid="live-3d" data-photo={live?.id ?? ''} data-shown={liveShown} data-builds={liveBuilds} data-light={liveLight} data-lost={liveLost} data-scene-photo={liveScene.photo} data-scene-signs={liveScene.signs} bind:this={liveHost}
-        style:visibility={live && liveBuilt?.id === live.id && !liveLost ? 'visible' : 'hidden'} style:opacity={liveShown ? 1 : 0}
+        style:visibility={liveShown ? 'visible' : 'hidden'} style:opacity={liveShown ? 1 : 0}
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>
     {/if}
