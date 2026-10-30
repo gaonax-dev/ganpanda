@@ -47,6 +47,16 @@
   let drag: { x: number; y: number } | null = $state(null);
   /** 화면에 닿아 있는 손가락 (pointerId → 캔버스 기준 좌표). 둘이면 핀치 */
   const touches = new Map<number, XY>();
+  /** 손가락마다 마지막으로 소식이 온 때 — 두 손가락은 **가장 최근 두 개**로 (2026-10-30 아이폰: 끊긴 터치가 새 번호로 다시 오면 낡은 좌표와 짝지어 화면이 튀었다) */
+  const seen = new Map<number, number>();
+  /** 한 번에 이보다 많이 움직인 손가락은 끊긴 터치의 낡은 좌표로 보고 무시한다(기준만 새로) */
+  const TOUCH_JUMP_PX = 150;
+  /** 이만큼 소식이 없는 손가락은 버린다 (끝 소식 없이 사라진 터치) */
+  const TOUCH_STALE_MS = 1000;
+  const recentPair = (): [number, number] | null => {
+    const ids = [...touches.keys()].sort((a, b) => (seen.get(b) ?? 0) - (seen.get(a) ?? 0));
+    return ids.length >= 2 ? [ids[0], ids[1]] : null;
+  };
   let pinching = $state(false);
   export function isPinching() { return pinching; }
 
@@ -66,38 +76,44 @@
    */
   function touchDown(e: PointerEvent) {
     if (e.pointerType !== 'touch') return;
-    touches.set(e.pointerId, local(e));
+    const now = performance.now();
+    for (const [id, t] of seen) if (now - t > TOUCH_STALE_MS && id !== e.pointerId) { touches.delete(id); seen.delete(id); }
+    touches.set(e.pointerId, local(e)); seen.set(e.pointerId, now);
     if (touches.size === 1) firstTarget = e.target;
-    if (touches.size === 2) {
+    if (touches.size >= 2 && !pinching) {
       pinching = true; drag = null; e.stopPropagation(); e.preventDefault();
       crashLog.event(`두 손가락 시작 ${Math.round(viewport.zoom * 1000) / 10}%`);
-      const [a, b] = [...touches.values()];
-      tf = startTwoFinger([a, b]);
-      const firstId = [...touches.keys()][0];
+      const [ia, ib] = recentPair()!;
+      tf = startTwoFinger([touches.get(ia)!, touches.get(ib)!]);
+      const firstId = ib;
       if (firstTarget) {
         cancelling = true;
         try { firstTarget.dispatchEvent(new PointerEvent('pointercancel', { pointerId: firstId, pointerType: 'touch', isPrimary: true, bubbles: true, composed: true })); } finally { cancelling = false; }
       }
     }
-    else if (touches.size > 2) e.stopPropagation();
+    else if (pinching) { e.stopPropagation(); tf = null; } // 손가락이 더 닿으면 가장 최근 둘로 새로 시작
   }
   function touchMove(e: PointerEvent) {
     if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
-    if (!pinching) { touches.set(e.pointerId, local(e)); return; }
+    const at = local(e), was = touches.get(e.pointerId)!;
+    seen.set(e.pointerId, performance.now());
+    if (!pinching) { touches.set(e.pointerId, at); return; }
     e.stopPropagation(); e.preventDefault();
-    const ids = [...touches.keys()];
-    if (ids.length < 2 || !ids.includes(e.pointerId)) return;
-    const [a, b] = ids;
+    const pair = recentPair();
+    if (!pair || !pair.includes(e.pointerId)) { touches.set(e.pointerId, at); return; }
+    if (Math.hypot(at.x - was.x, at.y - was.y) > TOUCH_JUMP_PX) { touches.set(e.pointerId, at); tf = null; crashLog.event('터치 튐 무시'); return; } // 끊긴 터치 — 기준만 새로
+    const [a, b] = pair;
     const prev: [XY, XY] = [touches.get(a)!, touches.get(b)!];
-    touches.set(e.pointerId, local(e));
+    touches.set(e.pointerId, at);
     const now: [XY, XY] = [touches.get(a)!, touches.get(b)!];
     const r = twoFinger(viewport, tf ?? startTwoFinger(prev), prev, now);
     viewport = r.v; tf = r.st;
   }
   function touchUp(e: PointerEvent) {
     if (e.pointerType !== 'touch' || cancelling) return; // 첫 손가락 편집 취소용으로 보낸 pointercancel 은 손가락을 떼는 것이 아니다
-    touches.delete(e.pointerId);
-    if (pinching) { e.stopPropagation(); if (touches.size < 2) { crashLog.event(`두 손가락 끝 ${tf?.mode ?? ''} ${Math.round(viewport.zoom * 1000) / 10}%`); pinching = false; touches.clear(); tf = null; firstTarget = null; } }
+    touches.delete(e.pointerId); seen.delete(e.pointerId);
+    // 남은 손가락은 계속 추적한다 — 떨어진 손가락이 다시 닿으면 두 손가락으로 이어진다 (2026-10-30: 전엔 모두 잊어 다시 대도 한 손가락 끌기가 됐다)
+    if (pinching) { e.stopPropagation(); if (touches.size < 2) { crashLog.event(`두 손가락 끝 ${tf?.mode ?? ''} ${Math.round(viewport.zoom * 1000) / 10}%`); pinching = false; tf = null; firstTarget = null; } else tf = null; }
     else if (!touches.size) firstTarget = null;
   }
   const isWindows = isWindowsPlatform();
