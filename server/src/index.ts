@@ -14,6 +14,7 @@ import { storageUsed } from './usage';
 import { authenticate, handleAuth, suspensionOf } from './auth';
 import { handleBusiness, recheckBusinesses } from './business';
 import { handleBilling, runBillingCycle } from './billing';
+import { handlePlanRequest, runPlanGrants } from './planRequest';
 import { handleStores } from './stores';
 import { handleAccountKind } from './accountKind';
 import { handleEstimateProject } from './projects';
@@ -286,6 +287,7 @@ export default {
     if (pathname === '/api/spec-samples') return withCors(await handleSpecSamples(req, env)); // 퀵입력이 못 알아본 글 표본 (2026-10-18)
     if (pathname === '/api/me/spec-rules' || pathname === '/api/spec-rules/suggest' || pathname === '/api/spec-rules/defaults') return withCors(await handleSpecRules(req, env, pathname, url)); // 사양 글 개인 사전 + 추천 + 전국 기본값 (2026-10-18 V1 · 10-19 V2)
     if (pathname === '/api/me/business') return withCors(await handleBusiness(req, env)); // 사업자 확인 (2026-10-21)
+    if (pathname === '/api/me/plan-request') return withCors(await handlePlanRequest(req, env)); // 유료 버전 신청 (2026-10-30, 정식 결제 전)
     if (pathname === '/api/me/billing' || pathname.startsWith('/api/me/billing/') || pathname === '/api/billing/webhook') return withCors(await handleBilling(req, env, pathname)); // 결제 — 토스 자동결제 (2026-10-23)
     if (pathname === '/api/me/kind' || (pathname === '/api/me' && req.method === 'DELETE')) return withCors(await handleAccountKind(req, env, pathname)); // 계정 종류 전환·삭제 (2026-10-22)
     if (pathname.startsWith('/api/me/stores')) return withCors(await handleStores(req, env, pathname)); // 가게 사장의 사업자 (2026-10-22)
@@ -347,5 +349,6 @@ export default {
     ctx.waitUntil(runBackup(env));
     ctx.waitUntil(recheckBusinesses(env).catch(() => 0));
     ctx.waitUntil(runBillingCycle(env).catch(() => 0)); // 매달 구독 결제·유예·해지 (2026-10-23)
+    ctx.waitUntil(runPlanGrants(env).catch(() => 0)); // 유료 버전 신청 1시간 뒤 적용 (2026-10-30, 정식 결제 전)
   },
 } satisfies ExportedHandler<Env>;

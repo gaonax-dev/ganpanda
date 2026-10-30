@@ -13,7 +13,7 @@
   import { BIZ_STATUS_LABEL, bizStartDate, formatBizNo, isValidBizNo } from '../core/business';
   import { describeBusinessError, removeBusiness, updateBusinessAddress, verifyBusiness } from '../business';
   import { KOREA_REGIONS, regionLabel, sidoOf } from '../core/regions';
-  import BillingSection from './BillingSection.svelte';
+  import PlanRequestSection from './PlanRequestSection.svelte';
   import { paymentsShown } from '../auth';
   /** 용어집 내보내기 (V5, 2026-10-19): 표준 용어 · 연결 공급사 용어 · 내 동의어 CSV */
   function exportGlossary() {
@@ -204,7 +204,7 @@
           </section>
         {:else}
         <!-- 구독 (2026-10-23 토스 자동결제) — 사업자 확인이 먼저 -->
-        {#if paymentsShown()}<BillingSection />{/if}
+        {#if paymentsShown()}<PlanRequestSection />{/if}
         <!-- 사업자 확인 (2026-10-21): 소유자 계정만. 번호·대표자명·개업일 → 국세청 → 제안 페이지 배지, 체험·요금은 사업자당 1번 -->
         <section data-testid="business-section">
           <h3>사업자 확인 <small class="hint">제안 페이지에 "사업자 확인된 간판집" 배지 — 국세청 등록 정보로 확인합니다</small></h3>

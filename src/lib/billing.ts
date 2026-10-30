@@ -99,3 +99,14 @@ export function takeBillingReturn(): BillingReturn | null {
 /** 돌아온 카드 등록 → 빌링키 발급 + (새 구독이면) 첫 달 결제 */
 export const issueBilling = (r: { plan: string; customerKey: string; authKey: string }) =>
   post<{ ok: true; changed?: 'card' }>('/api/me/billing/issue', r);
+
+// ---------- 유료 버전 신청 (2026-10-30, 정식 결제 전) ----------
+// 토스가 견적 연동 수수료 구조로 입점을 거절해 정식 결제 전까지는 신청제: 신청 → 서버가 1~2시간 안에 요금제를 올린다(결제 없음)
+export interface PlanRequestInfo {
+  /** 정식 결제 전 (신청제) */
+  beta: boolean;
+  delayMs: number;
+  request: { plan: string; requestedAt: number; grantedAt: number | null } | null;
+}
+export const fetchPlanRequest = () => call<PlanRequestInfo>('/api/me/plan-request');
+export const requestPlan = (plan: 'basic' | 'pro') => post<{ ok: boolean }>('/api/me/plan-request', { plan });

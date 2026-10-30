@@ -11,7 +11,11 @@
 
   let info = $state<BillingInfo | null>(null);
   let busy = $state(false), error = $state('');
-  const load = async () => { try { info = await fetchBilling(); } catch (e) { error = describeBillingError(e); } };
+  // 불러오기가 실패하면 세 번까지 다시 (2026-10-30: 한 번 실패하면 구독 칸이 통째로 안 보였다 — 부하 걸린 E2E 에서 자주)
+  const load = async (tries = 3) => {
+    try { info = await fetchBilling(); error = ''; }
+    catch (e) { if (tries > 1) { await new Promise((ok) => setTimeout(ok, 800)); return load(tries - 1); } error = describeBillingError(e); }
+  };
   // 사업자 확인·요금제가 실제로 바뀌면 다시 — 객체가 아니라 값으로 (refreshMe 마다 새 객체라 매번 다시 불렀다, 2026-10-27)
   const reloadKey = $derived(`${app.business?.status ?? ''}|${app.account?.plan ?? ''}|${app.billingEpoch}`);
   $effect(() => { void reloadKey; untrack(() => void load()); });

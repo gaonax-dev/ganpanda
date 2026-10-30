@@ -1845,6 +1845,8 @@ class AppState {
   }
 
   applyAccount(a: Account | null) {
+    // 정식 결제 전 여부는 /api/me 에만 온다 — 다른 응답(로그인·이름 바꾸기 등)이 계정을 덮어도 잃지 않게 (2026-10-30: 잃으면 설정의 요금제 칸이 오락가락)
+    if (a && a.paymentsBeta === undefined && this.account?.id === a.id && this.account.paymentsBeta !== undefined) a = { ...a, paymentsBeta: this.account.paymentsBeta };
     this.account = a;
     if (a) this.setNickname(a.name || this.nickname || a.email.split('@')[0], false); else this.client?.setName(this.nickname, this.myId);
   }

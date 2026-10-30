@@ -1,4 +1,5 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
+import { paymentsLive } from './plans'; // 정식 결제 전(신청제)인가 — 설정이 바로 고른다 (2026-10-30)
 import { PLANS } from './plans';
 import { businessOf, checkBusiness, saveBusiness, type BusinessInput } from './business';
 import { isOperator } from './operator';
@@ -257,7 +258,7 @@ export async function handleAuth(req: Request, env: Env, pathname: string): Prom
     return json({ ok: true });
   }
   if (pathname === '/api/me' && req.method === 'GET') {
-    return json({ account: { ...publicAccount(me), operator: isOperator(env, me.email) }, business: await businessOf(env, me.id), prices: me.prices ? JSON.parse(me.prices) : null, colors: me.colors ? JSON.parse(me.colors) : null, sets: me.sets ? JSON.parse(me.sets) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
+    return json({ account: { ...publicAccount(me), operator: isOperator(env, me.email), paymentsBeta: !paymentsLive(env, me.email) }, business: await businessOf(env, me.id), prices: me.prices ? JSON.parse(me.prices) : null, colors: me.colors ? JSON.parse(me.colors) : null, sets: me.sets ? JSON.parse(me.sets) : null, requestSettings: { receive: !!me.receive_requests, regions: regionsOf(me) }, ...(await usageOf(env, me.id, me.plan)) });
   }
   if (pathname === '/api/me/password' && req.method === 'POST') {
     // 새 비밀번호 설정: 비밀번호가 있으면 현재 비밀번호가 맞아야 한다. 재설정 링크로 들어온 직후(15분)는 예외
