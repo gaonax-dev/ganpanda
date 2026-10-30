@@ -29,3 +29,7 @@ export type PlanId = keyof typeof PLANS;
 /** 옛 요금제 id 는 가까운 것으로 (starter → basic). 모르는 값은 무료 */
 const ALIAS: Record<string, PlanId> = { starter: 'basic' };
 export const planOf = (id: string): Plan => PLANS[(id in PLANS ? id : ALIAS[id] ?? 'free') as PlanId];
+
+// 유료 버전 신청 (2026-10-30) — 토스 입점 거절 뒤 정식 결제 전까지 신청제
+/** 정식 결제가 시작됐나. 개발 전용(AUTH_DEV_LINK=1): beta- 로 시작하는 이메일은 결제 전으로 본다 — E2E 는 카드 결제(PAYMENTS_LIVE=1)와 신청을 둘 다 시험 */
+export const paymentsLive = (env: Env, email?: string) => env.PAYMENTS_LIVE === '1' && !(env.AUTH_DEV_LINK === '1' && !!email?.toLowerCase().startsWith('beta-'));
