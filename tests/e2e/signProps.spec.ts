@@ -1,6 +1,6 @@
 // 간판 속성 (2026-10-31 사용자: "현재 사인물 설정이 많이 복잡해 … 3d 뷰가 최상단 · 배치버튼 · 단으로 · 요소를 클릭하면 클로즈업 · 고르기 · 글,그림,path,gltf · 색상은 프로젝트 컬러")
 import { test, expect } from '@playwright/test';
-import { openObjectSettings, openOwnedProject, uploadPhoto } from './helpers';
+import { openOwnedProject, uploadPhoto } from './helpers';
 
 type G = { __ganpanda: { objects: { id: string; parts?: { id: string; kind: string; options?: Record<string, unknown>; items: unknown[] }[] }[]; projectColors: { sets: { slots: { id: string }[] }[] }; project: { allPhotos(): { id: string }[]; addObject(o: unknown): string }; selectObject(id: string): void } };
 
@@ -16,10 +16,10 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
       ] });
     a.selectObject(id);
   });
-  await openObjectSettings(page);
-  const props = page.getByTestId('sign-props');
+  // 간판 속성은 사인물 패널 안 (2026-10-31 오후 "해당 위치로 변경해줘")
+  const props = page.getByTestId('object-panel').getByTestId('sign-props');
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
-  if (process.env.KIT_SHOTS) await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-overview.png' });
+  if (process.env.KIT_SHOTS) await page.getByTestId('object-panel').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-overview.png' });
   // 단: 채널·스카시(프레임에 붙음) 위, 프레임 맨 아래. 전체 보기에는 두 요소 글자가 다 보인다
   await expect(props.getByTestId('sign-el')).toHaveCount(2);
   await expect(props.getByTestId('sign-el').first()).toContainText('카페');
@@ -62,7 +62,7 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   const main = await page.evaluate(() => (window as unknown as G).__ganpanda.projectColors.sets[0].slots[0].id);
   await expect.poll(() => page.evaluate(() => (window as unknown as G).__ganpanda.objects[0].parts?.[0].options)).toMatchObject({ faceSlot: main, faceHex: '#ffbf00' });
   await expect(faceRow.getByTestId('sign-color-slot').first()).toHaveClass(/on/);
-  if (process.env.KIT_SHOTS) { await page.waitForTimeout(800); await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-focus.png' }); }
+  if (process.env.KIT_SHOTS) { await page.waitForTimeout(800); await page.getByTestId('object-panel').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-focus.png' }); }
   // 돌아가기 — 전체가 다시 보인다
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-tiers')).toBeVisible();
@@ -72,24 +72,7 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await expect(props).toHaveAttribute('data-mode', 'focus');
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-focus', 'frame');
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', '');
-  if (process.env.KIT_SHOTS) { await page.waitForTimeout(500); await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-frame.png' }); }
+  if (process.env.KIT_SHOTS) { await page.waitForTimeout(500); await page.getByTestId('object-panel').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-frame.png' }); }
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
-});
-
-test('세부 설정은 접힌 채로 시작하고, 펼치면 이 기기에 기억된다 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘")', async ({ page, request }) => {
-  await openOwnedProject(page, request);
-  await uploadPhoto(page);
-  await page.evaluate(() => {
-    const a = (window as unknown as G).__ganpanda;
-    a.selectObject(a.project.addObject({ photoId: a.project.allPhotos()[0].id, name: '간판', shape: 'rect', quad: [[100, 100], [700, 100], [700, 300], [100, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 800 }));
-  });
-  await page.getByTestId('object-settings-open').click(); // 헬퍼를 안 쓴다 — 헬퍼는 펼친다
-  await expect(page.getByTestId('sign-detail')).not.toHaveAttribute('open');
-  await expect(page.getByTestId('size-section')).toBeHidden();
-  await page.getByTestId('sign-detail-toggle').click();
-  await expect(page.getByTestId('size-section')).toBeVisible();
-  await page.getByTestId('close-object-settings').click();
-  await page.getByTestId('object-settings-open').click();
-  await expect(page.getByTestId('sign-detail')).toHaveAttribute('open');
 });

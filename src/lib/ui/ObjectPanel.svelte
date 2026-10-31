@@ -14,6 +14,7 @@
   import { describeOptions } from '../core/options';
   import type { SignObject } from '../core/model';
   import SpecInput from './SpecInput.svelte';
+  import SignProps from './SignProps.svelte';
   import QuickSpec from './QuickSpec.svelte';
   import TemplateQuick from './TemplateQuick.svelte';
 
@@ -147,6 +148,8 @@
       <!-- 완성품 퀵 (2026-10-23): 사진 고르기 → 바꿀 칸 하나씩 -->
       <TemplateQuick {obj} {ro} {update} />
       {#if !sizeFirst}{@render sizeRow()}{/if}
+      <!-- 간판 속성 (2026-10-31 사용자: 스크린샷 "해당 위치로 변경해줘 / 모바일에서는 상세가 왼쪽 네모안만 있게"): 3D 뷰어 · [배치] · 단 · 요소 클로즈업이 패널 안으로 — 사양 글 입력이 있던 자리. 세부 설정 창은 [세부 설정]으로 -->
+      <SignProps {obj} />
       {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
       <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.objectSettingsOpen = true; }} />
     {/if}
@@ -170,7 +173,7 @@
       <p class="summary" data-testid="object-summary">
         {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
       </p>
-      <button class="btn small" data-testid="object-settings-open" onclick={() => (app.objectSettingsOpen = true)}>설정</button>
+      <button class="btn small" data-testid="object-settings-open" onclick={() => (app.objectSettingsOpen = true)}>세부 설정</button>
     </div>
     {#if app.warnMeasure && m?.warnings.length}
       <button class="warning" data-testid="measure-warning-hint" onclick={() => (app.objectSettingsOpen = true)}>⚠ 실측 확인 필요 — 설정에서 확인</button>
@@ -196,7 +199,7 @@
   .icon.chat i { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 800; font-style: normal; display: grid; place-items: center; }
   /* 내용 높이만큼만 (화면 높이를 넘으면 안에서 스크롤) — 전엔 위아래 전체로 떠 있어 내용 아래 빈 자리가 그 밑의 정면도 카드를 덮었다 (2026-10-19 젠 프로젝트 점검: "정면도들이 이동시 블로킹") */
   .panel {
-    position: absolute; top: 12px; right: 12px; max-height: calc(100% - 24px); width: 330px; z-index: 5;
+    position: absolute; top: 12px; right: 12px; max-height: calc(100% - 24px); width: 400px; z-index: 5; /* 330 → 400: 3D 뷰어가 들어왔다 (2026-10-31) */
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
     display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   }
@@ -230,7 +233,7 @@
   /* 휴대폰 폭: 화면 아래쪽 시트 (사진이 위에 보이게) */
   @media (max-width: 720px) {
     .panel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 62%; max-height: none; border-radius: 14px; }
-    .info { max-height: 55%; }
+    .info { max-height: none; } /* 상세(왼쪽 네모 = 뷰어·배치·단)가 잘리지 않게 (2026-10-31) */
   }
   /* 휴대폰 세로 보기: [상세정보] 패널도 전체 화면 (2026-10-17) */
   @media (max-width: 720px) and (orientation: portrait) {

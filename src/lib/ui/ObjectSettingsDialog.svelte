@@ -5,7 +5,6 @@
   import { addPrintItem, commitParts, partKindsFor, partsForProduct, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import FrontEditor from './FrontEditor.svelte';
-  import SignProps from './SignProps.svelte';
   import LayerPanel from './LayerPanel.svelte';
   import { flatten, isItemLayer, layersOf, lockedItemIds } from '../core/layers';
   import type { PartItem } from '../core/model';
@@ -20,14 +19,6 @@
   import type { SignObject } from '../core/model';
 
   let { obj }: { obj: SignObject } = $props();
-  // 세부 설정 접기 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘"): 누구나 접힌 채로 시작, 펼치면 이 기기에 기억. E2E 는 helpers.openObjectSettings 가 펼친다
-  const DETAIL_KEY = 'ganpanda.signDetail';
-  const storedDetail = (() => { try { return localStorage.getItem(DETAIL_KEY); } catch { return null; } })();
-  // 칩·[+] 로 특정 탭을 열어 달라고 했으면(objectSettingsFocus) 그 탭은 세부 설정 안이니 펼친 채로 연다 — 기억값은 바꾸지 않는다
-  let detailOpen = $state(storedDetail === 'open' || !!app.objectSettingsFocus);
-  // 저장은 사용자가 바꿨을 때만 — <details> 의 toggle 이벤트로 저장하면 창이 닫히며 내려갈 때 'closed' 가 적혀, 방을 다시 열고 처음 켠 창이 치수 입력 도중 접혔다 (2026-10-31)
-  let detailTouched = false;
-  $effect(() => { const open = detailOpen; if (!detailTouched) return; try { localStorage.setItem(DETAIL_KEY, open ? 'open' : 'closed'); } catch { /* 기기 저장 불가 */ } });
 
   const category = $derived(categoryOf(obj));
   const m = $derived(app.measures.get(obj.id));
@@ -95,14 +86,9 @@
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => { if (e.target === e.currentTarget) close(); }}>
   <div class="dialog" class:ro data-ro={ro || undefined} role="dialog" aria-modal="true" aria-label="사인물 설정" data-testid="object-settings">
-    <header><h2>{obj.name} 설정</h2><button class="icon" data-testid="close-object-settings" title="닫기" onclick={close}>✕</button></header>
+    <header><h2>{obj.name} 세부 설정</h2><button class="icon" data-testid="close-object-settings" title="닫기" onclick={close}>✕</button></header>
     <div class="body">
-      <!-- 간판 속성 (2026-10-31 "현재 사인물 설정이 많이 복잡해 …"): 3D 뷰어 · 배치 · 단 · 요소 클로즈업 — 지금까지의 설정은 아래 "세부 설정"에 접어 둔다 -->
-      <SignProps {obj}>
-        {#snippet layout()}<FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} locked={lockedIds} />{/snippet}
-      </SignProps>
-      <details class="detail" data-testid="sign-detail" bind:open={detailOpen} ontoggle={() => (detailTouched = true)}>
-      <summary data-testid="sign-detail-toggle">세부 설정 <span class="hint">치수·단면·옵션·시트·문구·견적</span></summary>
+      <!-- 간판 속성(3D 뷰어·배치·단)은 패널로 갔다 (2026-10-31) — 이 창은 세부 설정만 -->
       <section data-testid="size-section"> <!-- 사인물 전체 치수는 맨 위 (2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에") -->
         <h3>
           치수 (mm)
@@ -269,7 +255,6 @@
           </tbody></table>
         </section>
       {/if}
-      </details>
     </div>
     <footer>
       {#if can3d}<button class="btn small" data-testid="open-letter3d" onclick={() => (app.letter3dOpen = true)}>입체 보기 (3D)</button>{/if}
@@ -281,8 +266,7 @@
 </div>
 
 <style>
-  .detail > summary { cursor: pointer; padding: 8px 0; font-weight: 700; }
-  .detail { border-top: 1px solid var(--line); margin-top: 8px; }
+
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: grid; place-items: center; z-index: 60; }
   .dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
   header { display: flex; align-items: center; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); }

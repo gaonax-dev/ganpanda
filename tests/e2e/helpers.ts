@@ -121,7 +121,7 @@ export async function pickCategory(page: Page, g: 'sign' | 'sheet' | 'scashi' | 
   if (await confirm.count()) await confirm.click();
 }
 
-/** 설정 창의 "세부 설정"(치수·단면·옵션…)을 펼친다 — 접힌 채로 시작한다(2026-10-31 간판 속성). 예전 화면을 시험하는 테스트용 */
+/** (2026-10-31 오후) 간판 속성이 패널로 가고 설정 창은 세부 설정만 — 접기가 없어져 지금은 하는 일이 없다. 호출부 호환용 */
 export async function openSignDetail(page: Page) {
   const detail = page.getByTestId('sign-detail');
   if (!(await detail.count())) return;

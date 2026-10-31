@@ -18,12 +18,19 @@
   import { kitLookFor, kitVariantFor } from '../core/channelKit';
   import { cardKey, kitCards } from '../render/kitCards.svelte';
   import SignView3D from './SignView3D.svelte';
+  import FrontEditor from './FrontEditor.svelte';
+  import { layersOf, lockedItemIds } from '../core/layers';
+  import type { PartItem } from '../core/model';
 
   let { obj, layout }: { obj: SignObject; layout?: Snippet } = $props();
   const ro = $derived(!app.canEdit);
   const update = (patch: Partial<SignObject>) => { if (!app.canEdit) return; app.editBoundary(); app.project.updateObject(obj.id, patch); app.editBoundary(); };
   const parts = $derived(partsOf(obj));
   const editParts = (fn: (ps: SignPart[]) => void) => { const ps: SignPart[] = JSON.parse(JSON.stringify(parts)); fn(ps); update(commitParts(obj, ps)); };
+  // 배치 (정면도 편집기) — 패널 안에서도 쓰도록 여기서 가진다 (2026-10-31 "해당 위치로 변경해줘": 간판 속성이 패널로)
+  let layoutSel = $state<{ part: string; item: string } | null>(null);
+  const lockedIds = $derived(lockedItemIds(layersOf(obj, parts)));
+  const setItemById = (partId: string, itemId: string, patch: Partial<PartItem>) => editParts((ps) => { const it = ps.find((x) => x.id === partId)?.items.find((x) => x.id === itemId); if (it) Object.assign(it, patch); });
 
   let mode = $state<'overview' | 'layout'>('overview');
   /** 클로즈업한 요소: 'frame' 또는 구성 요소 id */
@@ -72,8 +79,8 @@
     <div class="slot" style:visibility={mode === 'layout' && !focus ? 'hidden' : 'visible'}>
       <SignView3D {obj} closeUp={!!focus} focusPart={focus} />
     </div>
-    {#if mode === 'layout' && !focus && layout}
-      <div class="slot layout" data-testid="sign-props-layout" in:scale={{ start: 0.96, duration: 220 }} out:fade={{ duration: 160 }}>{@render layout()}</div>
+    {#if mode === 'layout' && !focus}
+      <div class="slot layout" data-testid="sign-props-layout" in:scale={{ start: 0.96, duration: 220 }} out:fade={{ duration: 160 }}>{#if layout}{@render layout()}{:else}<FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} locked={lockedIds} />{/if}</div>
     {/if}
   </div>
 
