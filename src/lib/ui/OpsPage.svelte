@@ -4,13 +4,14 @@
     → [메시지 숨김](문서에서 삭제) · [기각]. [간판다 밖 거래 신고](2026-10-24 bypass): 열람한 간판집마다 [위약금 부과] · [기각], 요청 받기 [정지 풀기] -->
 <script lang="ts">
   import BackLink from './BackLink.svelte';
+  import KitOpsSection from './KitOpsSection.svelte';
   import { askConfirm } from './ask.svelte';
   import { app } from '../state.svelte';
   import { listAccounts, type AdminAccount, type AdminSummary } from '../projects';
   import { actOnMember, decideAppeal, listAppeals, listBypassReports, listContentReports, resolveBypassReport, resolveContentReport, searchMembers, unblockRequests, type Appeal, type BypassReport, type ContentReport, type MemberAction, type MemberRecord } from '../projects';
   import { askPrompt } from './ask.svelte';
 
-  let tab = $state<'accounts' | 'content' | 'bypass' | 'members'>('accounts');
+  let tab = $state<'accounts' | 'content' | 'bypass' | 'members' | 'kit'>('accounts');
   // ---- 가입 계정 목록 (2026-10-27) ----
   let accounts = $state<AdminAccount[]>([]);
   let summary = $state<AdminSummary | null>(null);
@@ -109,6 +110,7 @@
         <button role="tab" class:on={tab === 'content'} data-testid="ops-tab-content" onclick={() => (tab = 'content')}>대화·사용자 신고 {#if content.some((r) => r.status === 'open')}<b class="n">{content.filter((r) => r.status === 'open').length}</b>{/if}</button>
         <button role="tab" class:on={tab === 'members'} data-testid="ops-tab-members" onclick={() => (tab = 'members')}>회원 조치 {#if appeals.some((a) => a.status === 'open')}<b class="n">{appeals.filter((a) => a.status === 'open').length}</b>{/if}</button>
         <button role="tab" class:on={tab === 'bypass'} data-testid="ops-tab-bypass" onclick={() => (tab = 'bypass')}>간판다 밖 거래 신고 {#if bypass.some((r) => r.status === 'open')}<b class="n">{bypass.filter((r) => r.status === 'open').length}</b>{/if}</button>
+        <button role="tab" class:on={tab === 'kit'} data-testid="ops-tab-kit" onclick={() => (tab = 'kit')}>채널 키트</button>
       </div>
       {#if tab !== 'accounts'}<div class="filters">
         <button class:on={filter === 'open'} data-testid="ops-filter-open" onclick={() => (filter = 'open')}>처리 대기</button>
@@ -184,6 +186,8 @@
       {:else}
         <p class="hint" data-testid="ops-empty">{filter === 'open' ? '처리 대기 신고가 없습니다.' : '신고가 없습니다.'}</p>
       {/each}
+    {:else if tab === 'kit'}
+      <KitOpsSection />
     {:else if tab === 'members'}
       <p class="hint">약관 제5조의2: 경고 → 기간 정지 → 영구 정지(이용계약 해지). 조치하면 회원에게 사유와 이의 신청(14일) 안내를 이메일로 보냅니다.</p>
       {#if appeals.some((a) => filter === 'all' || a.status === 'open')}

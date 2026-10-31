@@ -27,3 +27,6 @@ playwright-report/
 .env
 .env.*.local
 !.env.production
+
+# 블렌더 애드온 빌드 (npm run kit:addon)
+dist-addon/

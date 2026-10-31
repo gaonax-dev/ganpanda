@@ -1,0 +1,15 @@
+schema_version = "1.0.0"
+
+id = "ganpanda_kit"
+version = "1.0.0"
+name = "간판다 채널 키트"
+tagline = "채널 모델을 굽고 간판다에 초안으로 보냅니다"
+maintainer = "Gaonax <support@ganpanda.co.kr>"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+website = "https://ganpanda.co.kr"
+
+[permissions]
+network = "간판다 서버에 키트 파일과 초안 목록을 올립니다"
+files = "굽기 결과를 임시 폴더에 저장합니다"

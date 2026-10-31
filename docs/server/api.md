@@ -130,3 +130,16 @@
 - 관리자 가입 계정 목록 (2026-10-27): `GET /api/operator/accounts?q=&kind=shop|consumer|none&limit=50&offset=` (운영자만, 최근 가입 순) → `{accounts:[{id,email,name,kind,plan,createdAt,emailVerified,termsVersion,projects(요청 제외),lastSeenAt(마지막 세션 생성),status:active|suspended|banned,requestsBlocked,business:{name,status}|null,operator}], summary:{total,today(한국 자정부터),week,shops,consumers,verified,suspended}, next}`.
 - 운영자: `GET /api/operator/members?q=`(이메일·이름·아이디, 비우면 정지된 회원, 조치 이력 포함) · `POST /api/operator/members/:id/action` {action: warn|suspend|ban|lift, days?, reason}(회원 이메일) · `GET /api/operator/appeals` · `POST /api/operator/appeals/:id` {decision: accept|reject, reply}(accept = 해제).
 - 가입: 계정 생성 때 `terms_version`·`terms_at`. 영구 정지 뒤 탈퇴한 이메일(해시, 1년)은 가입 403 `banned`.
+
+## 채널 키트 (2026-10-31) → [../features/channel-models.md](../features/channel-models.md)
+업로드는 `KIT_UPLOAD_TOKEN` 비밀값이 있을 때만(없으면 404). 공개·되돌리기는 운영자(`OPERATOR_EMAILS`) 세션.
+| 방법 | 경로 | 설명 | 응답 |
+|---|---|---|---|
+| PUT | `/api/kit/files/<sha256>.<glb\|webp\|png>` (Bearer KIT_UPLOAD_TOKEN) | 파일 올리기 — 내용 해시가 이름과 같아야, 10MB 이하 | `{ok}` / 400 hash_mismatch·bad_name / 401 / 413 |
+| GET·HEAD | `/api/kit/files/<이름>` | 파일 (누구나, 1년 immutable 캐시) | 파일 / 404 |
+| POST | `/api/kit/draft` `{letter, variants}` (Bearer KIT_UPLOAD_TOKEN) | 초안 목록 — 가리키는 파일이 모두 있어야 | `{ok, version}` / 400 missing_files·bad_manifest |
+| GET | `/api/kit/manifest` · `?draft=1`(운영자) | 공개판(60초 캐시) · 초안 | 목록 / 404(없음 — 앱은 기본 키트) / 403 |
+| GET | `/api/kit/history` (운영자) | 지난 판 번호·초안·공개판 | `{versions, draft, published}` |
+| POST | `/api/kit/publish` (운영자) | 초안을 공개 | `{ok, version}` / 404 no_draft |
+| POST | `/api/kit/rollback` `{version}` (운영자) | 지난 판을 새 판 번호로 다시 공개 | `{ok, version}` / 404 |
+

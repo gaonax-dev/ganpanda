@@ -14,14 +14,27 @@
 - **뷰 레이어 제외(체크 해제)된 컬렉션**은 블렌더가 계산하지 않아 옛 위치로 저장돼 있다 — 스크립트가 모두 넣고 다시 계산한다(2026-10-31: 90° 세운 글자가 누워 나왔다).
 - 블렌더는 파일을 저장한 판과 같은 판으로(지금 5.2). 옛 판은 "newer Blender" 경고와 함께 데이터를 잃을 수 있다.
 
-## 굽기 (`npm run models:build`, 약 6분)
-`scripts/models/bake_kit.py`(블렌더 백그라운드) → `scripts/models/pack.mjs`:
+## 블렌더 애드온 — 굽고 초안 보내기 (2026-10-31)
+사용자: "블랜더에서 간판다로 모델 생성해서 보낼수 있는 플러그인 만들수 있나?" → "운영자만, 초안 공개 2단계로 진행해줘".
+- **설치**: `npm run kit:addon` → `dist-addon/ganpanda_kit-1.0.0.zip` → 블렌더 편집 › 환경 설정 › 확장(Get Extensions) › ⌄ › **디스크에서 설치**. 블렌더 4.2 이상(지금 5.2).
+- **설정**(환경 설정 › 애드온 › 간판다 채널 키트): 서버 `https://sync.ganpanda.co.kr`, **업로드 키** = 서버 비밀값 `KIT_UPLOAD_TOKEN`(운영자가 정해 서버와 애드온에 같은 값 — 대화·명령줄에 적지 않는다).
+- **패널**(3D 뷰 N 패널 "간판다"):
+  - 종류: 컬렉션을 고르고 id·이름·벽 간격·부품(예: 까치발) → [종류로 지정]. 처음 한 번은 [kit.json 가져오기]로 저장소 설정을 파일 안으로(컬렉션 속성 `gp_variant`·`gp_label`·`gp_wall_gap`·`gp_parts`·`gp_order`, 오브젝트 `gp_role`).
+  - 역할: 오브젝트를 고르고 역할 → [역할 지정](`gp_role`). 이름 끝 `__역할`도 그대로 된다.
+  - [검사]: 역할 없음·모르는 역할·5m 넘는 크기·앞면/옆면/프레임 없음·없는 부품 컬렉션.
+  - [굽고 초안 보내기]: 지금 파일의 **사본**을 저장해 백그라운드 블렌더로 굽고(지금 파일·화면은 그대로), 결과를 **내용 해시 이름**(`<sha256>.glb|webp`)으로 올린 뒤 초안 목록을 보낸다 → "초안 N판을 보냈습니다". 모든 종류를 한 벌로 보낸다(공개판이 통째로 바뀐다 — 빠진 종류는 앱에서 사진으로).
+- **공개**: 간판다 `/ops` › **채널 키트** — 공개판·초안 판 번호, [초안 미리보기 (이 기기)](켜면 이 기기의 사인물 설정 채널 미리보기·그림 카드가 초안으로), [초안 공개](모두에게), 지난 판 [되돌리기](새 판 번호로 다시 공개 — 기기에 저장된 카드 그림이 다시 그려진다).
+- 앱이 쓰는 키트: 운영자가 미리보기를 켰으면 초안 → 서버 공개판 → 없으면 앱에 든 기본(`public/channel-models`).
+- 서버: `server/src/kit.ts` — R2 `kit/files/<sha256>.<ext>`(바뀌지 않음, 1년 캐시), `kit/draft.json`, `kit/published.json`, `kit/history/<판>.json`. 판 번호는 1000부터(앱 기본 키트와 겹치지 않게). 테스트 `server/test/kit.test.ts`, `tests/e2e/kitUpload.spec.ts`.
+
+## 굽기 (`npm run models:build`, 약 6분 — 앱에 든 기본 키트)
+굽기 코드는 애드온과 한 벌(`blender/ganpanda_kit/bake.py`), 저장소에서는 `scripts/models/bake_kit.py`(블렌더 백그라운드, 설정 `scripts/models/kit.json`):
 1. 종류마다 파일을 새로 열고, 모디파이어 적용 사본 + **벽**(글자 뒤 `wallGap` m, 글자 크기 2배)을 만든다. 나머지 오브젝트는 렌더에서 숨김.
 2. 두 번째 UV `lightmap` — 글자는 한 장에 펼치고(smart project), 벽은 자기 그림 전체.
 3. **낮**: 흰 확산 재질 + 하늘(0.62,0.66,0.72) + 해(앞·위·왼쪽) → Cycles 확산 굽기(빛만, 색 없음). **밤**: 하늘 없음 + `emissiveRoles`(앞면·뒤판·LED·전구) 발광 → 벽·몸통에 번진 빛까지. 벽은 굽기 잡음만 흐림(2px).
-4. 그림마다 99.5% 값으로 펴서 8비트 회색조로, 세기는 `manifest.json` 의 `letterIntensity`·`wallIntensity`. `pack.mjs` 가 회색조 WebP 로(전체 약 0.9MB, 종류당 약 90KB).
+4. 그림마다 99.5% 값으로 펴서 8비트 회색조로, 세기는 `manifest.json` 의 `letterIntensity`·`wallIntensity`. 블렌더가 바로 WebP 로 저장(전체 약 0.9MB, 종류당 약 90KB).
 5. glb(역할 이름 재질, 두 UV) + `manifest.json`(`version` 은 굽을 때마다 +1 — 기기에 저장된 카드 그림도 다시).
-- 일부만: `"$BLENDER" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json "$PWD" halo epoxy && npm run models:pack`
+- 일부만: `"$BLENDER" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json "$PWD" halo epoxy`
 
 ## 앱 (`render/kitView.ts`, `core/channelKit.ts`)
 - `kitVariantFor(part)`: 앞면 발광 `ch-front` → 캡이면 `front-lit-cap` 아니면 `front-lit`, 후광 `ch-halo` → 아크릴 뒤판이면 `acrylic-halo` 아니면 `halo`, 전후광 `ch-both` → 아크릴 뒤판이면 캡 `cap-acrylic-halo`/그 외 `epoxy-acrylic-halo`, 아니면 `both-cap`, 갈바 `ch-galva` → `epoxy`. 그 외(벌브·통아크릴) 없음.

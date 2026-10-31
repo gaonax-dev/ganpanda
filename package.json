@@ -22,8 +22,9 @@
     "app:android": "scripts/android-env.sh cargo tauri android dev --config src-tauri/tauri.live.json",
     "app:android:local": "scripts/android-env.sh cargo tauri android dev",
     "app:android:build": "scripts/android-env.sh cargo tauri android build",
-    "models:build": "\"${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}\" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json \"$PWD\" && node scripts/models/pack.mjs",
-    "models:pack": "node scripts/models/pack.mjs"
+    "models:build": "\"${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}\" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json \"$PWD\"",
+    "models:pack": "node scripts/models/pack.mjs",
+    "kit:addon": "\"${BLENDER:-/Applications/Blender.app/Contents/MacOS/Blender}\" --command extension build --source-dir blender/ganpanda_kit --output-dir dist-addon"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

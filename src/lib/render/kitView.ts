@@ -5,34 +5,58 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { roomEnvironment } from '../sim/env';
 import type { KitLook } from '../core/channelKit';
+import { SERVER_URL } from '../sync';
+import { loadSession } from '../auth';
 
 export interface KitMaps { letters: string; wall: string; letterIntensity: number; wallIntensity: number }
 export interface KitVariant { id: string; label: string; file: string; roles: string[]; lightmaps: { day: KitMaps; night: KitMaps }; size: [number, number, number]; bytes: number }
 export interface KitManifest { version: number; letter: string; variants: KitVariant[] }
+/** 받은 키트: 어디서(공개판·초안·앱에 든 기본) + 파일 주소 앞부분 */
+export interface LoadedKit extends KitManifest { source: 'server' | 'draft' | 'static'; base: string }
 
 const BASE = `${import.meta.env.BASE_URL ?? '/'}channel-models/`.replace(/\/\/+/g, '/');
+// 서버 키트 (2026-10-31 "운영자만, 초안 공개 2단계로 진행해줘"): 블렌더 애드온이 올린 공개판을 먼저, 운영자가 [초안 미리보기]를 켜면 초안, 없으면 앱에 든 기본
+const DRAFT_KEY = 'ganpanda.kitDraft';
+export const kitDraftOn = () => { try { return localStorage.getItem(DRAFT_KEY) === '1'; } catch { return false; } };
+export function setKitDraft(on: boolean) { try { if (on) localStorage.setItem(DRAFT_KEY, '1'); else localStorage.removeItem(DRAFT_KEY); } catch { /* 기기 저장 불가 */ } resetKitManifest(); }
+export function resetKitManifest() { manifestP = null; }
+async function fetchServer(draft: boolean): Promise<LoadedKit | null> {
+  if (!SERVER_URL) return null;
+  const s = loadSession();
+  // 늘 새로 확인 — 세션에 한 번만 받으니 가볍고, 공개하면 바로 (브라우저 캐시 60초를 기다리지 않게)
+  const r = await fetch(`${SERVER_URL}/api/kit/manifest${draft ? '?draft=1' : ''}`, { cache: 'no-cache', headers: draft && s ? { authorization: `Bearer ${s}` } : {} }).catch(() => null);
+  if (!r?.ok) return null;
+  return { ...(await r.json()), source: draft ? 'draft' : 'server', base: `${SERVER_URL}/api/kit/files/` };
+}
+/** 파일 주소 — 서버 파일은 내용 해시 이름이라 판 표시가 필요 없다 */
+const fileUrl = (mf: LoadedKit, f: string) => (mf.source === 'static' ? `${BASE}${f}?v=${mf.version}` : `${mf.base}${f}`);
 /** 라이트맵 세기 보정 — 블렌더 확산 굽기 값 → three 라이트맵(조도) */
 const LM_GAIN = Math.PI;
 const WALL_DAY = '#d9d6d0';
 
-let manifestP: Promise<KitManifest | null> | null = null;
-export function loadKitManifest(): Promise<KitManifest | null> {
-  manifestP ??= fetch(`${BASE}manifest.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+let manifestP: Promise<LoadedKit | null> | null = null;
+export function loadKitManifest(): Promise<LoadedKit | null> {
+  manifestP ??= (async () => {
+    const m = (kitDraftOn() ? await fetchServer(true) : null) ?? (await fetchServer(false));
+    if (m) return m;
+    const r = await fetch(`${BASE}manifest.json`).catch(() => null);
+    return r?.ok ? { ...(await r.json()), source: 'static', base: BASE } : null;
+  })();
   return manifestP;
 }
 const sceneCache = new Map<string, Promise<THREE.Group>>();
-function loadScene(v: KitVariant, version: number): Promise<THREE.Group> {
-  const k = `${v.id}@${version}`;
-  let p = sceneCache.get(k);
-  if (!p) { p = new GLTFLoader().loadAsync(`${BASE}${v.file}?v=${version}`).then((g) => g.scene); sceneCache.set(k, p); }
+function loadScene(v: KitVariant, mf: LoadedKit): Promise<THREE.Group> {
+  const url = fileUrl(mf, v.file);
+  let p = sceneCache.get(url);
+  if (!p) { p = new GLTFLoader().loadAsync(url).then((g) => g.scene); sceneCache.set(url, p); }
   return p;
 }
 const texCache = new Map<string, Promise<THREE.Texture>>();
-function loadMap(file: string, version: number): Promise<THREE.Texture> {
-  const k = `${file}@${version}`;
+function loadMap(file: string, mf: LoadedKit): Promise<THREE.Texture> {
+  const k = fileUrl(mf, file);
   let p = texCache.get(k);
   if (!p) {
-    p = new THREE.TextureLoader().loadAsync(`${BASE}${file}?v=${version}`).then((t) => {
+    p = new THREE.TextureLoader().loadAsync(k).then((t) => {
       t.flipY = false; // glTF UV 와 같은 방향
       t.colorSpace = THREE.NoColorSpace; // 빛 세기(선형)
       t.channel = 1; // 두 번째 UV
@@ -57,6 +81,9 @@ export class KitView {
   private walls: THREE.Mesh[] = [];
   /** 지금 보이는 종류 */
   variant = '';
+  private loadedKey = '';
+  /** 지금 키트의 출처·판 (확인용) */
+  source = { source: '', version: 0 };
   private yaw = 0;
   private fit = { center: new THREE.Vector3(), radius: 0.3 };
 
@@ -79,8 +106,9 @@ export class KitView {
     const mf = await loadKitManifest();
     const v = mf?.variants.find((x) => x.id === variantId);
     if (!mf || !v) return false;
-    if (this.variant !== variantId) {
-      const [src, dl, dw, nl, nw] = await Promise.all([loadScene(v, mf.version), loadMap(v.lightmaps.day.letters, mf.version), loadMap(v.lightmaps.day.wall, mf.version), loadMap(v.lightmaps.night.letters, mf.version), loadMap(v.lightmaps.night.wall, mf.version)]);
+    const key = `${mf.source}:${mf.version}:${variantId}`;
+    if (this.loadedKey !== key) {
+      const [src, dl, dw, nl, nw] = await Promise.all([loadScene(v, mf), loadMap(v.lightmaps.day.letters, mf), loadMap(v.lightmaps.day.wall, mf), loadMap(v.lightmaps.night.letters, mf), loadMap(v.lightmaps.night.wall, mf)]);
       if (this.root) this.scene.remove(this.root);
       this.root = src.clone(true);
       this.maps = { day: { letters: dl, wall: dw, v: v.lightmaps.day }, night: { letters: nl, wall: nw, v: v.lightmaps.night } };
@@ -98,6 +126,8 @@ export class KitView {
       });
       this.scene.add(this.root);
       this.variant = variantId;
+      this.loadedKey = key;
+      this.source = { source: mf.source, version: mf.version };
       const box = new THREE.Box3();
       this.root.traverse((o) => { if ((o as THREE.Mesh).isMesh && !this.walls.includes(o as THREE.Mesh)) box.expandByObject(o); });
       box.getCenter(this.fit.center);
