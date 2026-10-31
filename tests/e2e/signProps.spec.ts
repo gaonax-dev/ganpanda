@@ -67,6 +67,14 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-tiers')).toBeVisible();
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
+  // 프레임(갈바)을 누르면 글자(채널·스카시)는 모두 숨고 프레임만 (2026-10-31 "갈바를 선택했는데 체널은 그대로 보이네")
+  await props.getByTestId('sign-el-frame').click();
+  await expect(props).toHaveAttribute('data-mode', 'focus');
+  await expect(props.getByTestId('sign-view')).toHaveAttribute('data-focus', 'frame');
+  await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', '');
+  if (process.env.KIT_SHOTS) { await page.waitForTimeout(500); await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-frame.png' }); }
+  await props.getByTestId('sign-focus-back').click();
+  await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
 });
 
 test('세부 설정은 접힌 채로 시작하고, 펼치면 이 기기에 기억된다 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘")', async ({ page, request }) => {
