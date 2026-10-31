@@ -1,4 +1,5 @@
 // 계정·로그인 (1-2a): 이메일·비밀번호(기본, 2026-10-15) · 이메일 매직링크(비밀번호 재설정 겸) → 세션 Bearer 토큰. 카카오·구글·애플은 1-2d.
+import { isAppRequest } from './appRequest';
 import { paymentsLive } from './plans'; // 정식 결제 전(신청제)인가 — 설정이 바로 고른다 (2026-10-30)
 import { PLANS } from './plans';
 import { businessOf, checkBusiness, saveBusiness, type BusinessInput } from './business';
@@ -25,14 +26,19 @@ const LOCK_FAILS = 10;
 export const normalizeEmail = (e: string) => e.trim().toLowerCase();
 
 /** Authorization: Bearer <세션> → 계정 (없거나 만료면 null) */
-export async function authenticate(req: Request, env: Env): Promise<(Account & { sessionHash: string }) | null> {
+export async function authenticate(req: Request, env: Env): Promise<(Account & { sessionHash: string; /** 앱(UA 토큰)으로 만들거나 쓴 세션 — 차단 중 소켓도 통과 (2026-10-31) */ appSession: boolean }) | null> {
   const m = req.headers.get('authorization')?.match(/^Bearer\s+(\S+)$/i);
   if (!m) return null;
   const sessionHash = await sha256hex(m[1]);
   const row = await env.DB.prepare(
-    'SELECT a.* FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.expires_at > ?',
-  ).bind(sessionHash, Date.now()).first<Account>();
-  return row ? { ...row, sessionHash } : null;
+    'SELECT a.*, s.app AS session_app FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.expires_at > ?',
+  ).bind(sessionHash, Date.now()).first<Account & { session_app: number }>();
+  if (!row) return null;
+  const { session_app, ...account } = row;
+  let appSession = !!session_app;
+  // 브라우저로 만든 세션이라도 앱에서 한 번 쓰면 앱 세션으로 — 이미 로그인된 앱이 차단 뒤에도 끊기지 않게
+  if (!appSession && isAppRequest(req)) { appSession = true; await env.DB.prepare('UPDATE sessions SET app = 1 WHERE token_hash = ?').bind(sessionHash).run(); }
+  return { ...(account as Account), sessionHash, appSession };
 }
 
 /** 가입할 때 동의한 이용약관·개인정보처리방침 버전 (2026-10-27 — 가입 화면에 "가입하면 동의" 안내, 계정에 버전·시각 기록) */
@@ -52,11 +58,12 @@ const publicAccount = (a: Account) => { const sp = suspensionOf(a); return { id:
 /** /api/me 용: 운영자 여부 (홈 운영 배너, 2026-10-22) */
 
 /** 새 세션 (reset = 비밀번호 재설정 링크로 들어온 세션: 15분 동안 현재 비밀번호 없이 새 비밀번호 설정 가능) */
-async function newSession(env: Env, accountId: string, reset = false): Promise<string> {
+async function newSession(env: Env, accountId: string, reset = false, app = false): Promise<string> {
   const session = randomToken();
   const now = Date.now();
-  await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at, reset_until) VALUES (?, ?, ?, ?, ?)')
-    .bind(await sha256hex(session), accountId, now, now + SESSION_TTL, reset ? now + LOGIN_TTL : null).run();
+  // app = 앱(UA 토큰)에서 만든 세션 — 차단 중 소켓(UA 없음)도 통과 (2026-10-31)
+  await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at, reset_until, app) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(await sha256hex(session), accountId, now, now + SESSION_TTL, reset ? now + LOGIN_TTL : null, app ? 1 : 0).run();
   await acceptTeamInvites(env, accountId); // 이 이메일 앞으로 온 멤버 초대 (2026-10-24)
   return session;
 }
@@ -78,7 +85,7 @@ async function signup(req: Request, env: Env): Promise<Response> {
   const name = typeof body?.name === 'string' ? body.name.trim().slice(0, NAME_MAX) : '';
   // 가입할 때 이메일 인증 (2026-10-15 사용자: "가입할 때 이메일 인증도 받게 해줘"): 인증 메일의 링크를 열어야 로그인된다
   const exists = await env.DB.prepare('SELECT * FROM accounts WHERE email = ?').bind(email).first<Account>();
-  if (typeof body?.teamInvite === 'string') return inviteSignup(env, email, body.password!, name, body.teamInvite, exists);
+  if (typeof body?.teamInvite === 'string') return inviteSignup(env, email, body.password!, name, body.teamInvite, exists, isAppRequest(req));
   if (exists?.email_verified) return text('already registered', 409);
   if (await bannedEmail(env, email)) return json({ error: 'banned' }, 403); // 영구 정지 뒤 탈퇴 1년 (2026-10-27)
   // 이메일 가입은 간판집·가게 사장 모두 사업자 확인 (2026-10-24) — 확인된 사업자끼리만 만나도록. 카카오 가입은 그대로
@@ -102,7 +109,7 @@ async function signup(req: Request, env: Env): Promise<Response> {
 /**
  * 멤버 초대 링크로 가입 (2026-10-24 "맴버는 메일로 가입링크 들어오기로"): 초대 메일의 링크를 열었으니 이메일은 확인됨 → 사업자 확인·인증 메일 없이 바로 계정 + 세션 + 팀
  */
-async function inviteSignup(env: Env, email: string, password: string, name: string, token: string, exists: Account | null): Promise<Response> {
+async function inviteSignup(env: Env, email: string, password: string, name: string, token: string, exists: Account | null, app = false): Promise<Response> {
   const inv = await inviteOf(env, token);
   if (inv === 404) return json({ error: 'not_found' }, 404);
   if (inv === 410) return json({ error: 'expired' }, 410);
@@ -124,7 +131,7 @@ async function inviteSignup(env: Env, email: string, password: string, name: str
     await env.DB.prepare('INSERT INTO accounts (id, email, name, plan, created_at, password_hash, email_verified, terms_version, terms_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)').bind(id, email, name, 'free', Date.now(), hash, TERMS_VERSION, Date.now()).run();
   }
   const account = (await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(id).first<Account>())!;
-  return json({ session: await newSession(env, id!), account: publicAccount(account) });
+  return json({ session: await newSession(env, id!, false, app), account: publicAccount(account) });
 }
 
 async function passwordLogin(req: Request, env: Env): Promise<Response> {
@@ -141,7 +148,7 @@ async function passwordLogin(req: Request, env: Env): Promise<Response> {
   }
   await env.DB.prepare('DELETE FROM login_failures WHERE email = ?').bind(email).run();
   if (!account.email_verified) return text('email not verified', 403); // 인증 메일의 링크를 먼저
-  return json({ session: await newSession(env, account.id), account: publicAccount(account) });
+  return json({ session: await newSession(env, account.id, false, isAppRequest(req)), account: publicAccount(account) });
 }
 
 async function requestEmailLogin(req: Request, env: Env): Promise<Response> {
@@ -214,7 +221,7 @@ async function verifyEmailLogin(req: Request, env: Env): Promise<Response> {
     account = { ...account, email_verified: 1 };
   } else account = await markEmailVerified(env, account);
   const reset = row.purpose === 'reset';
-  return json({ session: await newSession(env, account.id, reset), account: publicAccount(account), reset });
+  return json({ session: await newSession(env, account.id, reset, isAppRequest(req)), account: publicAccount(account), reset });
 }
 
 export async function handleAuth(req: Request, env: Env, pathname: string): Promise<Response> {
