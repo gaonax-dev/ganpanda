@@ -3,7 +3,8 @@
 import { getDerived, putDerived } from '../derivedImages';
 import { fnv1a } from '../core/proposal';
 import type { KitLook } from '../core/channelKit';
-import { loadKitManifest, type KitView } from './kitView';
+import { loadKitManifest } from './kitSource';
+import type { KitView } from './kitView';
 
 export interface KitCard { variant: string; look: KitLook }
 /** 카드 그림 주소 (키 → blob URL) */
@@ -22,11 +23,11 @@ export function ensureKitCards(view: KitView, cards: KitCard[], size = { w: 240,
       const dk = `k|${mf.version}|${k}`;
       const hit = await getDerived(dk);
       if (hit && 'blob' in hit) { kitCards[k] = URL.createObjectURL(hit.blob); continue; }
-      const prev = view.renderer.getSize(new (await import('three')).Vector2());
+      const prev = view.size();
       view.setSize(size.w, size.h);
-      if (!(await view.show(c.variant, c.look, false))) { view.setSize(prev.x, prev.y); continue; }
+      if (!(await view.show(c.variant, c.look, false))) { view.setSize(prev.w, prev.h); continue; }
       const blob = await view.snapshot();
-      view.setSize(prev.x, prev.y);
+      view.setSize(prev.w, prev.h);
       if (!blob) continue;
       void putDerived(dk, { blob });
       kitCards[k] = URL.createObjectURL(blob);

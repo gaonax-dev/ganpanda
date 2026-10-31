@@ -6,7 +6,7 @@
   import { SERVER_URL } from '../sync';
   import { loadSession } from '../auth';
   import { askConfirm } from './ask.svelte';
-  import { kitDraftOn, setKitDraft } from '../render/kitView';
+  import { kitDraftOn, setKitDraft } from '../render/kitSource';
 
   let info = $state<{ versions: number[]; draft: number | null; published: number | null } | null>(null);
   let preview = $state(kitDraftOn());

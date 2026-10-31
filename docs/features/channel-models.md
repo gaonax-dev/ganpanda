@@ -39,6 +39,7 @@
 ## 앱 (`render/kitView.ts`, `core/channelKit.ts`)
 - `kitVariantFor(part)`: 앞면 발광 `ch-front` → 캡이면 `front-lit-cap` 아니면 `front-lit`, 후광 `ch-halo` → 아크릴 뒤판이면 `acrylic-halo` 아니면 `halo`, 전후광 `ch-both` → 아크릴 뒤판이면 캡 `cap-acrylic-halo`/그 외 `epoxy-acrylic-halo`, 아니면 `both-cap`, 갈바 `ch-galva` → `epoxy`. 그 외(벌브·통아크릴) 없음.
 - `kitLookFor(part)`: 앞면·몸통·캡 색(`paintHex`, 없으면 앞면 흰색·캡은 몸통 색), LED 색(3D 단계와 같은 `LED_HEX`), 마감(헤어라인·미러·티타늄 = 금속), 점등(비조명·갈바 = 꺼짐).
+- **나중에 불러오기**(2026-10-31): 목록·출처(`render/kitSource.ts`, three 없음)와 그리기(`render/kitView.ts`, three·GLTFLoader)를 나눴다 — 그리기는 채널 미리보기가 열릴 때만 받는다. 한때 카드·운영 화면이 그리기 파일을 바로 가져와 첫 화면 번들이 1.1MB → 1.5MB 로 커졌었다.
 - 그리기: 라이트맵(`lightMap`, uv1, 세기 × π) × 고른 색 + 약한 환경맵(금속 반사만). 밤: 밤 라이트맵 + 앞면(앞면 색)·뒤판(LED 색) 발광 + 벽 = 밤 벽 라이트맵 × LED 색. 휴대폰 안전: WebGL 화면 하나(미리보기), 카드도 그 화면으로 차례로.
 - 테스트: `tests/unit/channelKit.test.ts`(모델·색 고르기), `tests/e2e/kitPreview.spec.ts`(모델이 뜨고 앞면 색을 바꾸면 화면이 바뀜, 밤, 그림 카드). `KIT_SHOTS=<폴더>` 로 돌리면 화면을 저장한다.
 
