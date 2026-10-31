@@ -10,6 +10,8 @@
 - 구조: 묶음 데이터 `core/channelLibrary.ts`(`CHANNEL_PRESETS`) → 채널 레지스트리 `presets` → 적용·판정 `core/partPresets.ts`(종류 무관). 다른 구성 요소(스카시·시트)도 `presets` 만 채우면 같은 UI.
 - 보기 권한(ro)에는 고르기가 없다.
 
+**그림 카드 (2026-10-31)**: 키트 모델이 있는 묶음은 사진 대신 키트 모델(G)에 그 묶음의 색을 입힌 그림, 채널 카드 위에는 지금 옵션 그대로의 미리보기 → [channel-models.md](channel-models.md).
+
 ## 15종 → 옵션 묶음
 | # | 이름 | 채널 종류 · 주요 옵션 | 아직 없음 |
 |---|---|---|---|
