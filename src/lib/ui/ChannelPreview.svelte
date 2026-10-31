@@ -18,6 +18,7 @@
   let view: KitView | null = null;
   let ready = $state(false);
   let shown = $state('');
+  let kitSrc = $state({ source: '', version: 0 });
 
   $effect(() => {
     const c = canvas, v = variant, l = look, n = night;
@@ -30,7 +31,7 @@
         view.setSize(c.clientWidth || 280, c.clientHeight || 180);
       }
       const ok = await view.show(v, l, n);
-      if (ok && variant === v) { ready = true; shown = v; }
+      if (ok && variant === v) { ready = true; shown = v; kitSrc = view?.source ?? kitSrc; }
     })();
   });
   // 그림 카드: 미리보기가 뜬 뒤 차례로 그리고 지금 것으로 되돌린다
@@ -54,7 +55,7 @@
 
 {#if variant}
   <div class="kit" data-testid="kit-preview" data-variant={variant} data-ready={ready && shown === variant ? 'true' : undefined} data-night={night || undefined}
-    data-face={look.face} data-side={look.side} data-led={look.led}>
+    data-face={look.face} data-side={look.side} data-led={look.led} data-source={kitSrc.source} data-version={kitSrc.version}>
     <canvas bind:this={canvas} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="채널 미리보기 — 끌어서 돌려 보기"></canvas>
     <button class="dn" data-testid="kit-night" onclick={() => (night = !night)} title={night ? '낮으로' : '밤으로 (불 켠 모습)'}>{night ? '☀ 낮' : '☾ 밤'}</button>
     {#if !ready}<span class="hint load">불러오는 중…</span>{/if}

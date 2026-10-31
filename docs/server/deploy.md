@@ -88,3 +88,7 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 - **외부 모니터**(사용자 설정): UptimeRobot·healthchecks.io 같은 무료 서비스에 `https://sync.ganpanda.co.kr/api/health` 를 5분 간격으로 등록 → 503 이면 휴대폰 푸시·문자. 메일이 죽어도 알림은 다른 길로 온다.
 - **운영자 배너**: `OPERATOR_EMAILS` 계정이 홈을 열면 같은 헬스를 읽어 이상이면 빨간 배너(`ops-health-warning`).
 - **스모크**: `npm run deploy` 끝에 `scripts/smoke.mjs` 가 자동으로 돈다(앱 첫 화면·없는 에셋 404·서버 헬스·카카오 공급자). 따로는 `npm run smoke`. 실패하면 종료 코드 1.
+
+## 채널 키트 업로드 키 (2026-10-31)
+블렌더 애드온이 키트를 올릴 때 쓰는 운영자 키. 운영자가 긴 무작위 값을 정해 서버와 애드온 설정에 같은 값을 넣는다(대화·명령줄에 적지 않는다): 값을 복사해 둔 뒤 `cd server && pbpaste | npx wrangler secret put KIT_UPLOAD_TOKEN`. 없으면 업로드 API 는 404. → [../features/channel-models.md](../features/channel-models.md)
+
