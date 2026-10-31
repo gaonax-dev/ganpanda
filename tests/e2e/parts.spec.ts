@@ -131,9 +131,8 @@ test('사인물 설정 창: 전체 치수가 맨 위', async ({ page, request })
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
   await openObjectSettings(page);
-  // 2026-10-31 간판 속성(sign-props)이 맨 위로 오고, 기존 설정은 "세부 설정" 안 — 그 안에서는 치수가 첫 칸
-  await expect(page.getByTestId('object-settings').locator('.body > *').first()).toHaveAttribute('data-testid', 'sign-props');
-  await expect(page.getByTestId('sign-detail').locator('section').first().locator('h3')).toContainText('치수');
+  // 간판 속성은 패널로 갔다(2026-10-31 오후) — 세부 설정 창은 다시 치수가 첫 칸
+  await expect(page.getByTestId('object-settings').locator('.body > section').first().locator('h3')).toContainText('치수');
 });
 
 test('모든 분류 조합형 + 중복 정리: 포맥스 두께는 치수 두께 하나, 분류마다 붙일 수 있는 구성 요소만', async ({ page, request }) => {
