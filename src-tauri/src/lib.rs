@@ -61,6 +61,14 @@ const INIT_SCRIPT: &str = r#"
 "#;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 웹뷰 User-Agent — 서비스 차단 중 앱만 통과시키는 토큰 `Ganpanda-App/<버전>` (server/src/index.ts isAppRequest · worker/index.ts)
+pub fn app_user_agent(version: &str) -> String {
+    #[cfg(any(target_os = "ios", target_os = "android"))]
+    { format!("Ganpanda-App/{version}") } // 모바일은 기본 UA 뒤에 붙는다
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    { format!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Ganpanda-App/{version}") }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -69,7 +77,11 @@ pub fn run() {
         .setup(|app| {
             // 창은 여기서 만든다 — tauri.conf.json 의 창에는 이동 규칙(on_navigation)을 붙일 수 없다
             let handle = app.handle().clone();
+            // 앱 표시 (2026-10-31 "앱만 열어줘"): 서비스 차단 중에도 서버·앱 워커가 이 토큰(User-Agent 의 Ganpanda-App/<버전>)이 있는 요청만 통과시킨다.
+            // iOS 는 applicationNameForUserAgent 로 기본 UA 뒤에 붙고, 데스크톱은 UA 전체를 대신하므로 브라우저 모양의 UA 에 토큰을 더한다
+            let ua = app_user_agent(app.package_info().version.to_string().as_str());
             let builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App(Default::default()))
+                .user_agent(&ua)
                 .initialization_script(INIT_SCRIPT)
                 .on_navigation(move |url| handle_navigation(&handle, url));
             #[cfg(desktop)]
