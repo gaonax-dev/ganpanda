@@ -36,13 +36,16 @@
   });
   // 그림 카드: 미리보기가 뜬 뒤 차례로 그리고 지금 것으로 되돌린다
   let cardsDone = '';
+  /** 카드를 그리는 동안(같은 그림판을 카드 크기로 쓴다) 미리보기를 가린다 — 카드 크기 그림이 늘어나 보이지 않게 (2026-10-31) */
+  let cardsBusy = $state(false);
   $effect(() => {
     const list = cards, r = ready;
     const sig = JSON.stringify(list.map((c) => c.variant + JSON.stringify(c.look)));
     if (!r || !view || !list.length || sig === cardsDone) return;
     cardsDone = sig;
     const v = view;
-    void ensureKitCards(v, list).then(() => { if (view === v && variant) void v.show(variant, look, night); });
+    cardsBusy = true;
+    void ensureKitCards(v, list).then(async () => { if (view === v && variant) await v.show(variant, look, night); cardsBusy = false; });
   });
   onDestroy(() => { view?.dispose(); view = null; });
 
@@ -54,11 +57,11 @@
 </script>
 
 {#if variant}
-  <div class="kit" data-testid="kit-preview" data-variant={variant} data-ready={ready && shown === variant ? 'true' : undefined} data-night={night || undefined}
+  <div class="kit" data-testid="kit-preview" data-variant={variant} data-ready={ready && !cardsBusy && shown === variant ? 'true' : undefined} data-night={night || undefined}
     data-face={look.face} data-side={look.side} data-led={look.led} data-source={kitSrc.source} data-version={kitSrc.version}>
-    <canvas bind:this={canvas} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="채널 미리보기 — 끌어서 돌려 보기"></canvas>
+    <canvas bind:this={canvas} style:visibility={cardsBusy ? 'hidden' : 'visible'} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} aria-label="채널 미리보기 — 끌어서 돌려 보기"></canvas>
     <button class="dn" data-testid="kit-night" onclick={() => (night = !night)} title={night ? '낮으로' : '밤으로 (불 켠 모습)'}>{night ? '☀ 낮' : '☾ 밤'}</button>
-    {#if !ready}<span class="hint load">불러오는 중…</span>{/if}
+    {#if !ready || cardsBusy}<span class="hint load">불러오는 중…</span>{/if}
   </div>
 {/if}
 
