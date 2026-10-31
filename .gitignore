@@ -33,3 +33,7 @@ dist-addon/
 
 # 블렌더 환경맵 원본(4K EXR, 수백 MB) — 저장소에 넣지 않는다
 3D models/sourceimages/
+
+# 파이썬 캐시 (블렌더 애드온·굽기)
+__pycache__/
+*.pyc
