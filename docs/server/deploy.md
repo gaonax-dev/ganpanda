@@ -95,11 +95,11 @@ npm run types    # wrangler.jsonc 변경 후 타입 재생성
 ## 서비스 차단 · 앱만 열기 (2026-10-31 법적 문제)
 사용자: "법적문제가 있다. 웹에서 접근을 차단한다." → "모든 접근을 차단할게" → "앱만 열어줘". 데이터(D1·R2·Durable Object)는 그대로 두고 **브라우저 접근을 막되, 설치한 앱(Tauri)은 쓴다**.
 - **구별**: 앱 셸(`src-tauri`)이 웹뷰 User-Agent 에 `Ganpanda-App/<버전>` 을 붙인다. 앱 워커·서버는 `SERVICE_BLOCKED="1"` 일 때 이 토큰이 없는 요청만 막는다. **토큰은 그 뒤에 빌드한 앱에만 있다** — 그 전에 설치된 앱은 브라우저와 같이 막힌다(앱을 다시 빌드·설치해야 열린다).
-- **앱 워커**(`wrangler.jsonc` → `worker/index.ts`): 토큰 없는 모든 경로에 안내 페이지만(503, `cache-control: no-store`, noindex). 이를 위해 `run_worker_first` 가 `"/*"`(전에는 `/assets/*`·`/env/*`).
+- **앱 워커**(`wrangler.jsonc` → `worker/index.ts`): 토큰 없는 모든 경로에 빈 503(`cache-control: no-store`, noindex). 이를 위해 `run_worker_first` 가 `"/*"`(전에는 `/assets/*`·`/env/*`).
 - **서버**(`server/wrangler.jsonc` → `server/src/index.ts` `isAppRequest`): 토큰 없는 요청은 `/api/health` 만 빼고 503(WebSocket 업그레이드 포함) — 헬스는 외부 모니터가 오인하지 않게 그대로.
 - **차단**: 두 파일의 `SERVICE_BLOCKED` 를 `"1"` 로 두고 `cd server && npm run deploy` → `npm run deploy`(앱). 스모크는 브라우저 UA 로 503·앱 UA 로 200 을 확인한다.
 - **해제**: 두 파일을 `""` 로 바꿔 같은 순서로 배포. `no-store` 라 새로고침 즉시 돌아온다.
-- 안내 문구: "서비스 이용이 일시 중단되었습니다. 문의: support@ganpanda.co.kr" — 법적 사안이라 사유는 적지 않는다(`worker/index.ts` `BLOCKED_HTML`, `server/src/index.ts`).
+- **안내 없음**(2026-10-31 "모든 정보를 못보게 해" → 2): 브라우저에는 서비스명·문의 메일·사유 어느 것도 없는 **빈 503**(앱 워커는 빈 HTML + noindex, 서버는 본문 없음). 처음 넣었던 "일시 중단 · 문의 메일" 안내는 대체됨.
 - 한계: UA 토큰은 비밀이 아니다 — 누군가 UA 를 흉내 내면 통과한다. "일반 사용자의 웹 접근 차단"에는 충분하지만, 적대적 접근까지 막으려면 앱 전용 키(서명 헤더)가 필요하다.
 - 테스트 `server/test/blocked.test.ts`. 회원 알림 메일은 보내지 않았다(가입자는 테스터뿐).
 
