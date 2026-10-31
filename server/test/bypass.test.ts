@@ -30,12 +30,12 @@ describe('간판다 밖 거래 신고', () => {
     expect((await json(`/api/requests/${q.id}/respond`, { mode: 'blank' }, shop)).status).toBe(201); // 가져오기 = 열람
     expect((await json(`/api/requests/${q.id}/report`, { shop: '', text: 'x' }, q.cust)).status).toBe(400);
     const stranger = await login(`bp-x-${u()}@example.com`);
-    expect((await json(`/api/requests/${q.id}/report`, { shop: '한울광고' }, stranger)).status).toBe(403);
-    expect((await json(`/api/requests/${q.id}/report?key=${q.key}`, { shop: '한울광고 010-1234-5678', text: '요청서 보고 직접 전화 왔어요' })).status).toBe(201);
+    expect((await json(`/api/requests/${q.id}/report`, { shop: '가온광고' }, stranger)).status).toBe(403);
+    expect((await json(`/api/requests/${q.id}/report?key=${q.key}`, { shop: '가온광고 010-1234-5678', text: '요청서 보고 직접 전화 왔어요' })).status).toBe(201);
     expect((await get('/api/operator/reports', shop)).status).toBe(403);
     const op = await login('op@example.com');
     const rep = (await (await get('/api/operator/reports', op)).json<Reports>()).reports.find((r) => r.requestId === q.id)!;
-    expect(rep).toMatchObject({ shop: '한울광고 010-1234-5678', status: 'open', penalty: 25_200 });
+    expect(rep).toMatchObject({ shop: '가온광고 010-1234-5678', status: 'open', penalty: 25_200 });
     expect(rep.viewers).toEqual([expect.objectContaining({ accountId: await idOf(shop), paid: false, blocked: false })]);
   });
 

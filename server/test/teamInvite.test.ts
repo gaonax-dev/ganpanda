@@ -12,7 +12,7 @@ type Team = { members: { email: string; canBilling: boolean }[]; invites: { emai
 describe('멤버 초대 메일', () => {
   it('가입 안 한 이메일 → 202 가입 링크(/login?team=), 목록에 대기 중. 링크 정보(초대한 사람·이메일) → 비밀번호만으로 가입(사업자 없이) → 바로 로그인되고 팀 멤버', async () => {
     const owner = await login(`own-${rnd()}@example.com`);
-    await json('/api/me', { name: '한울광고' }, owner, 'PATCH');
+    await json('/api/me', { name: '가온광고' }, owner, 'PATCH');
     const email = `staff-${rnd()}@example.com`;
     const r = await json('/api/me/team', { email: email.toUpperCase(), canBilling: true }, owner);
     expect(r.status).toBe(202);
@@ -24,7 +24,7 @@ describe('멤버 초대 메일', () => {
     expect(team.members).toEqual([]);
 
     const info = await (await get(`/api/team-invite/${tokenOf(link)}`)).json<{ email: string; ownerName: string }>();
-    expect(info).toMatchObject({ email, ownerName: '한울광고' });
+    expect(info).toMatchObject({ email, ownerName: '가온광고' });
 
     const s = await json('/api/auth/signup', { email, password: 'staff-pass-1', name: '김직원', teamInvite: tokenOf(link) });
     expect(s.status).toBe(200);

@@ -1,4 +1,4 @@
-// 한울상사(hanwoolcorp.co.kr) 조합형 주문 구성 (2026-10-15 사용자: "여기에서 사인물 나중에 주문할거야… 조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘")
+// 조합형 주문 구성 (2026-10-15 사용자: "사인물 나중에 주문할거야… 조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘" — 공급사 공개 홈페이지의 분류를 참고)
 // 조합 = 종류(몸통) + 소재·두께 + 가공 + 출력·마감 + 조명 + 채널(입체 글자) + 설치·부속
 import { thickPresetsFor } from '../../src/lib/core/catalog';
 import { partsOf } from '../../src/lib/core/parts';
@@ -18,7 +18,7 @@ const fields = (o: SignObject) => [...optionGroupsFor(o).flatMap((g) => g.fields
 const keys = (o: SignObject) => fields(o).map((f) => f.key);
 const values = (o: SignObject, k: string) => fields(o).find((f) => f.key === k)?.values?.map((v) => v.id);
 
-describe('간판 종류: 한울 제작 간판 분류', () => {
+describe('간판 종류: 조합형 분류', () => {
   const NEW = [
     ['board-lightpanel', '라이트패널', 'm2'], ['board-fabric', '패브릭 라이트박스', 'm2'], ['board-pole', '지주 간판', 'ea'],
     ['board-awning', '어닝', 'm2'], ['board-mirror', 'LED 사인미러', 'ea'], ['board-ledsign', '전광판', 'ea'], ['board-air', '에어간판', 'ea'],

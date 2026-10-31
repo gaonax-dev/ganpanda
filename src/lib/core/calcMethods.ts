@@ -1,9 +1,9 @@
 // 공급사별 계산법 (2026-10-16 사용자: "공급사별 계산법을 사용할 수 있게해줘")
 // 공급 단가표 품목의 세부 표기(구간·기본가·폭)를 읽어 계산법을 만든다. 공급업체마다 표 모양이 달라도 표기만 맞으면 같은 엔진으로 계산한다.
 //  - letters  글자 크기 구간 자당 (예: 알리다 캡 채널 30~200cm, 갈바 채널 30각…, 고무 스카시 "11~20cm", 레이저 "10mm" · 영문/한글)
-//  - width    폭 구간 ㎡ (예: 한울 플렉스 단폭 2,100 / 장폭 3,000 / 4,800 — 짧은 변이 들어가는 가장 좁은 폭)
+//  - width    폭 구간 ㎡ (예: 알리다 후렉스 소폭 2,100 / 장폭 3,050 — 짧은 변이 들어가는 가장 좁은 폭)
 //  - area     헤베(또는 M) 단가 + 기본가(1.8헤베까지) + 광폭(2,010폭 이상) (예: 알리다 프레임 간판)
-//  - areaTier 면적 구간 (예: 한울 현수막 1회배 이하 장당 / 3회배 미만 장당 / 3회배 이상 회배당)
+//  - areaTier 면적 구간 (예: 현수막 1회배 이하 장당 / 3회배 미만 장당 / 3회배 이상 회배당 — 지금 공급 단가표엔 없고 업로드 단가표용)
 // 금액은 공급 단가 기준(raw)이고, 견적에서 배수(`markupFor`)를 곱한다.
 import type { PriceTable } from './pricing';
 import { isDirect } from './markup';
@@ -42,7 +42,8 @@ const areaTierOf = (option: string | undefined) => {
   return m ? { n: Number(m[1]), op: m[2] as '이하' | '미만' | '이상' } : null;
 };
 
-function build(list: SupplierPriceList): CalcMethod[] {
+/** 단가표 하나에서 계산법을 만든다 (업로드·API 단가표도 같은 규칙) */
+export function buildMethods(list: SupplierPriceList): CalcMethod[] {
   const out: CalcMethod[] = [];
   const byName = new Map<string, SupplierItem[]>();
   for (const it of list.items) {
@@ -80,7 +81,7 @@ function build(list: SupplierPriceList): CalcMethod[] {
   return out;
 }
 
-export const CALC_METHODS: CalcMethod[] = SUPPLIER_LISTS.flatMap(build);
+export const CALC_METHODS: CalcMethod[] = SUPPLIER_LISTS.flatMap(buildMethods);
 const BY_ID = new Map(CALC_METHODS.map((m) => [m.id, m]));
 export const findMethod = (id: string | undefined) => (id ? BY_ID.get(id) : undefined);
 

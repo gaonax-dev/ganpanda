@@ -6,7 +6,7 @@ let owner = '';
 let project = { id: '', name: '' };
 beforeEach(async () => {
   owner = await login(`own-${crypto.randomUUID().slice(0, 8)}@example.com`);
-  project = await createProject(owner, '한울상사');
+  project = await createProject(owner, '가온사인');
   TestClient.defaultAuth = {};
 });
 
@@ -61,7 +61,7 @@ describe('제안 링크 (카카오톡 미리보기용 OG 페이지)', () => {
     expect(r.headers.get('content-type')).toContain('text/html');
     const html = await r.text();
     expect(html).toContain('og:title');
-    expect(html).toContain('한울상사');
+    expect(html).toContain('가온사인');
     expect(html).toContain(`/p/${project.id}/${inv.token}/image.png`);
     expect(html).toContain(`/?room=${project.id}&invite=${inv.token}&proposal=1`);
   });

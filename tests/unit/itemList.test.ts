@@ -9,7 +9,7 @@ describe('itemDetail — 견적 줄 설명에서 금액만 뺀다 (수량·크�
     expect(itemDetail('2.80㎡ × 35,000원 (1,200폭)')).toBe('2.80㎡ (1,200폭)');
     expect(itemDetail('1개 12,000원 (반사, 2.00㎡)')).toBe('1개 (반사, 2.00㎡)');
     expect(itemDetail('2.00헤베 → 기본가 30,000원 (3헤베까지)')).toBe('2.00헤베 (3헤베까지)');
-    expect(itemDetail('4×0.7m · 2.80㎡ × 35,000원 · 한울상사 단가')).toBe('4×0.7m · 2.80㎡');
+    expect(itemDetail('4×0.7m · 2.80㎡ × 35,000원 · 가온사인 단가')).toBe('4×0.7m · 2.80㎡');
     expect(itemDetail('치수 필요')).toBe('치수 필요');
   });
 });

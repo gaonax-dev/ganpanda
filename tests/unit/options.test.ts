@@ -65,7 +65,7 @@ describe('돌출 간판 (2026-10-15 사용자: "간판에 돌출간판이 없다
   });
   it('옵션: 면(양면 기본) · 몸체(갈바 도색/후렉스/아크릴) · 내부 조명 · 갈바 도색일 때만 컬러코드 · 브라켓', () => {
     const o = obj({ productId: 'board-protrude' });
-    expect(keys(o)).toEqual(['sides', 'shape', 'body', 'light', 'paintSystem', 'bracket', 'channel', 'scashi'] /* 상단 조명은 구성 요소로 (2026-10-19) */); // 모양(사각/원형)은 2026-10-15 한울 조합형
+    expect(keys(o)).toEqual(['sides', 'shape', 'body', 'light', 'paintSystem', 'bracket', 'channel', 'scashi'] /* 상단 조명은 구성 요소로 (2026-10-19) */); // 모양(사각/원형)은 2026-10-15 조합형
     const [g] = optionGroupsFor(o);
     expect(g.fields.find((f) => f.key === 'sides')!.values![0].id).toBe('양면');
     expect(keys(obj({ productId: 'board-protrude', options: { body: '후렉스' } }))).not.toContain('paintCode');

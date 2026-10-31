@@ -21,7 +21,7 @@ export interface QuoteLine {
   objectId: string; label: string; detail: string;
   /** 견적 금액 (수동 금액 또는 자동 금액) */
   amount: number;
-  /** 연결된 공급 단가의 꼬리표 (예: '한울') */
+  /** 연결된 공급 단가의 꼬리표 (예: '알리다') */
   supplier?: string;
   /** 단가표·계산법으로 낸 자동 금액 */
   auto?: number;

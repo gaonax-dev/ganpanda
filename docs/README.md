@@ -22,7 +22,6 @@
   - [decisions.md](product/decisions.md) — 사용자와 합의한 결정 기록 (날짜순)
   - [terms-amendment-2026-11.md](product/terms-amendment-2026-11.md) — 이용약관 개정(가입 거절·탈퇴·이용 제한·손해배상) — 2026-10-27 바로 시행, 법무 검토 전
   - [supplier-alida.md](product/supplier-alida.md) — 공급업체 알리다솔루션 단가표(2025년 3월 1호) 범위·해석·빠진 것
-  - [supplier-hanwool.md](product/supplier-hanwool.md) — 발주처 한울상사 조사, 조합형 주문 구조, 3D 모델링 필요 요소, 품목 코드
 - architecture
   - [overview.md](architecture/overview.md) — 앱·서버 구성, 폴더 구조, 데이터 흐름
   - [data-model.md](architecture/data-model.md) — Yjs 프로젝트 문서 스키마
@@ -35,7 +34,7 @@
   - [shortcuts.md](features/shortcuts.md) — 화면 조작(xlpop과 동일)과 단축키 설정
   - [measurement.md](features/measurement.md) — 카메라 설정(축 선·원점·기준 길이), 실측 판독과 경고 규칙
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
-  - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(한울 꼬리표)와 내 단가표 연결, 업로드·API 형식
+  - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(알리다, 공개 자료만)와 내 단가표 연결, 업로드·API 형식
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON
   - [spec-vocabulary.md](features/spec-vocabulary.md) — 사양 글 사전: 못 알아본 글을 묻고 배우기, 개인 > 지역 > 전국 우선순위, 이의 (2026-10-18 설계)
   - [patent-bubble.md](product/patent-bubble.md) — 말풍선(지점·영역 지정 소통, 받는 사람, 마지막 상태) 특허 준비 자료 (발명 설명·청구항 초안·일정)
