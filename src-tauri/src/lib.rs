@@ -60,7 +60,6 @@ const INIT_SCRIPT: &str = r#"
 })();
 "#;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 /// 웹뷰 User-Agent — 서비스 차단 중 앱만 통과시키는 토큰 `Ganpanda-App/<버전>` (server/src/index.ts isAppRequest · worker/index.ts)
 pub fn app_user_agent(version: &str) -> String {
     #[cfg(any(target_os = "ios", target_os = "android"))]
@@ -69,6 +68,7 @@ pub fn app_user_agent(version: &str) -> String {
     { format!("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15 Ganpanda-App/{version}") }
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
