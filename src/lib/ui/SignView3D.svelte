@@ -19,7 +19,7 @@
   import { renderSpecOf } from '../core/render';
   import { loadItemImages } from '../render/itemImages';
 
-  /** focusPart: 그 구성 요소만 남기고 나머지(다른 구성 요소·프레임)는 숨겨 가까이 본다 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업") */
+  /** focusPart: 그 구성 요소만 남기고 나머지(다른 구성 요소·프레임)는 숨겨 가까이 본다 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업"). 'frame' = 프레임(상자)만 — 글자는 모두 숨김 */
   let { obj, closeUp = false, focusPart = null }: { obj: SignObject; closeUp?: boolean; focusPart?: string | null } = $props();
   let host: HTMLDivElement;
   let font: Font | null = null;
@@ -113,7 +113,8 @@
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       const pid = tagged(m);
-      const on = !focusPart || pid === focusPart;
+      // 'frame': 표시 없는 메시(상자·프레임·앞면)만 — 글자 그룹은 모두 숨김. 구성 요소 id: 그 글자 그룹만
+      const on = !focusPart || (focusPart === 'frame' ? !pid : pid === focusPart);
       m.visible = on;
       if (on && pid) shown.add(pid);
     });

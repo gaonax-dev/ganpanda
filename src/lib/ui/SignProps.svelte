@@ -70,7 +70,7 @@
     <!-- 3D 뷰어는 늘 붙어 있다 — 요소를 고르거나 배치로 바꿀 때 다시 만들지 않는다(다시 만들면 카메라가 다가가는 대신 화면이 새로 그려져 "리프레시"처럼 보였다, 2026-10-31).
          같은 사인물 3D 에서 고른 요소만 남기고 가까이 (키트 G 모델은 고르기 카드에만) -->
     <div class="slot" style:visibility={mode === 'layout' && !focus ? 'hidden' : 'visible'}>
-      <SignView3D {obj} closeUp={!!focus} focusPart={focused?.id ?? null} />
+      <SignView3D {obj} closeUp={!!focus} focusPart={focus} />
     </div>
     {#if mode === 'layout' && !focus && layout}
       <div class="slot layout" data-testid="sign-props-layout" in:scale={{ start: 0.96, duration: 220 }} out:fade={{ duration: 160 }}>{@render layout()}</div>
