@@ -13,7 +13,8 @@ from bpy.props import EnumProperty, FloatProperty, IntProperty, PointerProperty,
 
 ROLES = [
     ('face', '앞면', '빛나는 앞판·도장 앞면'), ('side', '옆면(몸통)', '채널 몸통'), ('cap', '캡', '캡 테두리'), ('back', '뒤판·후광면', '아크릴 뒤판·후광 발광면'),
-    ('light', 'LED', 'LED 모듈'), ('bulb', '전구', ''), ('bulbBase', '전구받침', ''), ('bracket', '까치발', ''), ('frame', '프레임', ''), ('none', '(없앰)', '역할 지우기'),
+    ('light', 'LED', 'LED 모듈'), ('bulb', '전구', ''), ('bulbBase', '전구받침', ''), ('bracket', '까치발', ''), ('frame', '프레임', ''),
+    ('inner', '안쪽 바닥판', '열린 채널의 안쪽 바닥(몸통 색, 스스로 빛나지 않음)'), ('bymaterial', '재질별', '재질마다 나눠 재질 이름으로 역할 (전구 = 유리 + 받침)'), ('none', '(없앰)', '역할 지우기'),
 ]
 ROLE_IDS = {r[0] for r in ROLES} - {'none'}
 BAKE = os.path.join(os.path.dirname(__file__), 'bake.py')
@@ -80,6 +81,7 @@ def import_kit_json(path):
             o['gp_role'] = role
     sc = bpy.context.scene
     sc['gp_lightmap_px'] = int(cfg.get('lightmapPx', 1024)); sc['gp_samples'] = int(cfg.get('samples', 96))
+    sc['gp_material_roles'] = json.dumps(cfg.get('materialRoles', {}), ensure_ascii=False)
     return n
 
 

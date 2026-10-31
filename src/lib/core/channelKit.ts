@@ -23,7 +23,9 @@ export function kitVariantFor(p: KitPart): string | null {
   const cap = String(o.chType ?? '').startsWith('캡');
   const acrylicBack = /아크릴/.test(String(o.chBack ?? ''));
   switch (p.type) {
-    case 'ch-front': return cap ? 'front-lit-cap' : 'front-lit';
+    // 키트의 '전광'은 앞판 없는 열린 채널(벌브·LED 용) — 앞판 있는 전광 채널은 모두 전광 캡 모델 (2026-10-31)
+    case 'ch-front': return 'front-lit-cap';
+    case 'ch-bulb': return 'open-bulb';
     case 'ch-halo': return acrylicBack ? 'acrylic-halo' : 'halo';
     case 'ch-both': return acrylicBack ? (cap ? 'cap-acrylic-halo' : 'epoxy-acrylic-halo') : 'both-cap';
     case 'ch-galva': return 'epoxy';

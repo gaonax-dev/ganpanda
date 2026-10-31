@@ -1,7 +1,7 @@
 # 간판다 채널 키트 굽기 (2026-10-31, docs/features/channel-models.md) — 애드온과 CLI(scripts/models/bake_kit.py)가 함께 쓰는 한 벌.
 # 종류(컬렉션)마다: 모디파이어 적용 사본 + 벽 → 라이트맵 UV(두 번째 UV) → 낮·밤 회색조 라이트맵 굽기(색은 굽지 않음 — 앱이 입힌다)
 #                    → 역할 이름 재질로 glb + 회색조 WebP 라이트맵 → manifest 항목
-import bpy, json, os, sys
+import bpy, bmesh, json, os, sys
 import numpy as np
 
 
@@ -76,6 +76,21 @@ def luminance(img):
     return a[:, :3].mean(axis=1), img.size[0], img.size[1]
 
 
+def split_by_material(me, material_roles):
+    """재질 칸마다 메시를 나눈다 → [(역할, 메시)]"""
+    out = []
+    for idx, mat in enumerate(me.materials):
+        part = me.copy()
+        bm = bmesh.new()
+        bm.from_mesh(part)
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index != idx], context='FACES')
+        bm.to_mesh(part)
+        bm.free()
+        if len(part.polygons):
+            out.append((material_roles.get(mat.name) if mat else None, part))
+    return out
+
+
 def norm(lum):
     nz = lum[lum > 0]
     p = float(np.percentile(nz, 99.5)) if nz.size else 1.0
@@ -135,13 +150,31 @@ def process(v, cfg, src, out):
             continue
         ev = o.evaluated_get(dg)
         me = bpy.data.meshes.new_from_object(ev)
-        c = bpy.data.objects.new(f'{role}', me)
-        c.matrix_world = ev.matrix_world.copy()
-        c['role'] = role
-        bake_col.objects.link(c)
-        copies.append(c)
+        # 'bymaterial': 재질마다 나눠 재질 이름으로 역할 (전구 = 유리 bulb + 받침 bulbBase, 2026-10-31)
+        pieces = split_by_material(me, cfg.get('materialRoles', {})) if role == 'bymaterial' else [(role, me)]
+        for prole, pme in pieces:
+            if not prole:
+                print(f'!! 역할 없음: {o.name} 재질 ({v["collection"]}) — kit.json materialRoles')
+                continue
+            c = bpy.data.objects.new(f'{prole}', pme)
+            c.matrix_world = ev.matrix_world.copy()
+            c['role'] = prole
+            bake_col.objects.link(c)
+            copies.append(c)
     if not copies:
         raise SystemExit(f'{v["id"]}: 내보낼 오브젝트 없음')
+    # 면이 너무 많으면 줄인다 (2026-10-31: 전구 19개 = glb 1.16MB — 휴대폰에서 받는 양)
+    max_polys = int(cfg.get('maxPolys', 6000))
+    for c in copies:
+        n = len(c.data.polygons)
+        if n > max_polys:
+            md = c.modifiers.new('decimate', 'DECIMATE')
+            md.ratio = max(0.05, max_polys / n)
+            dg2 = bpy.context.evaluated_depsgraph_get()
+            small = bpy.data.meshes.new_from_object(c.evaluated_get(dg2))
+            c.modifiers.remove(md)
+            c.data = small
+            print(f'   면 줄임 {c["role"]}: {n} → {len(small.polygons)}', flush=True)
     # 크기 (블렌더 좌표: 앞 = -Y, 벽 쪽 = +Y)
     pts = np.array([c.matrix_world @ vtx.co for c in copies for vtx in c.data.vertices])
     lo, hi = pts.min(axis=0), pts.max(axis=0)
@@ -243,7 +276,8 @@ def config_from_blend(src):
             variants.append({'id': str(c['gp_variant']), 'collection': c.name, 'label': str(c.get('gp_label', c.name)), 'wallGap': float(c.get('gp_wall_gap', 0.0)), 'parts': parts})
     variants.sort(key=lambda v: int(bpy.data.collections[v['collection']].get('gp_order', 999)))
     sc = bpy.context.scene
-    return {'variants': variants, 'roles': {}, 'lightmapPx': int(sc.get('gp_lightmap_px', 1024)), 'samples': int(sc.get('gp_samples', 96)),
+    mr = sc.get('gp_material_roles')
+    return {'variants': variants, 'roles': {}, 'materialRoles': json.loads(mr) if mr else {'주백색': 'bulb', '웜 화이트 4000K': 'bulb', '전구받침': 'bulbBase'}, 'lightmapPx': int(sc.get('gp_lightmap_px', 1024)), 'samples': int(sc.get('gp_samples', 96)),
             'emissiveRoles': ['face', 'back', 'light', 'bulb'], 'letter': str(sc.get('gp_letter', 'G'))}
 
 

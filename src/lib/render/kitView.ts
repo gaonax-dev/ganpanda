@@ -115,17 +115,28 @@ export class KitView {
     if (!this.maps) return;
     const m = night ? this.maps.night : this.maps.day;
     const lit = night && look.lit;
-    const color = (role: string): string => (role === 'face' ? look.face : role === 'side' ? look.side : role === 'cap' ? look.cap : role === 'back' ? look.back : role === 'bracket' ? '#9aa0a6' : role === 'frame' ? look.side : '#cccccc');
+    const color = (role: string): string => {
+      switch (role) {
+        case 'face': return look.face;
+        case 'side': case 'frame': case 'inner': return look.side; // inner = 열린 채널 안쪽 바닥판 (몸통 색)
+        case 'cap': return look.cap;
+        case 'back': return look.back;
+        case 'bulb': return '#f3f1ea'; // 전구 유리 — 밤에는 LED 색으로 빛난다
+        case 'light': return '#e8e8e8'; // LED 모듈
+        case 'bracket': case 'bulbBase': return '#9aa0a6';
+        default: return '#cccccc';
+      }
+    };
     for (const [role, mat] of this.mats) {
       mat.color.set(color(role));
-      const f = role === 'side' || role === 'cap' ? finishOf(look.finish) : role === 'bracket' ? { metalness: 0.9, roughness: 0.4 } : { metalness: 0, roughness: role === 'face' ? 0.3 : 0.5 };
+      const f = role === 'side' || role === 'cap' || role === 'inner' ? finishOf(look.finish) : role === 'bracket' || role === 'bulbBase' ? { metalness: 0.9, roughness: 0.4 } : role === 'bulb' ? { metalness: 0, roughness: 0.15 } : { metalness: 0, roughness: role === 'face' ? 0.3 : 0.5 };
       mat.metalness = f.metalness; mat.roughness = f.roughness;
       mat.lightMap = m.letters;
       mat.lightMapIntensity = m.v.letterIntensity * LM_GAIN * (night ? 0.6 : 1);
       mat.envMapIntensity = f.metalness > 0.5 ? 1 : 0.15; // 빛은 라이트맵 — 환경맵은 반사만
-      const glow = lit && (role === 'face' || role === 'back');
+      const glow = lit && (role === 'face' || role === 'back' || role === 'bulb' || role === 'light');
       mat.emissive.set(glow ? (role === 'face' ? look.face : look.led) : '#000000');
-      mat.emissiveIntensity = glow ? 1.4 : 0;
+      mat.emissiveIntensity = glow ? (role === 'bulb' ? 2.2 : 1.4) : 0;
       mat.needsUpdate = true;
     }
     for (const w of this.walls) {

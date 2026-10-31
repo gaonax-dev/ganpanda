@@ -10,7 +10,8 @@
 ## 블렌더 원본과 규칙 — `3D models/G_01.blend`
 (2026-10-31 사용자: "노말이 뒤집어진게 있어서 수정했다. 다시 불러와줘" — 원본을 G.blend → **G_01.blend** 로. 노말을 고치니 앞면 판이 보여 갈바·에폭시 카드가 흰 앞면으로 나왔다 → 갈바는 앞면도 몸통 색(`kitLookFor`).)
 - **컬렉션 = 종류 = 굽기 단위.** 종류 목록·역할·벽 간격은 `scripts/models/kit.json`.
-- **오브젝트 역할**: 이름 끝 `__역할`(예: `G_mark.003__face`)이 있으면 그것, 없으면 `kit.json` 의 `roles`. 역할: `face` 앞면 · `side` 옆면(몸통) · `cap` 캡 · `back` 뒤판·후광면 · `light` LED · `bulb` 전구 · `bulbBase` 전구받침 · `bracket` 까치발 · `frame` 프레임. 앱은 역할로 색을 입힌다(재질 이름 = 역할로 내보냄). 같은 재질("웜 화이트 4000K")을 앞면·LED 에 함께 써도 역할로 구분된다.
+- **오브젝트 역할**: 이름 끝 `__역할`(예: `G_mark.003__face`)이 있으면 그것, 없으면 `kit.json` 의 `roles`. 역할: `face` 앞면 · `side` 옆면(몸통) · `cap` 캡 · `back` 뒤판·후광면 · `light` LED · `bulb` 전구 · `bulbBase` 전구받침 · `bracket` 까치발 · `frame` 프레임 · `inner` 열린 채널의 안쪽 바닥판(몸통 색, 스스로 빛나지 않음) · `bymaterial` 재질마다 나눠 `materialRoles`(재질 이름 → 역할)로 — 전구 하나에 유리(`주백색`/`웜 화이트 4000K` → bulb)와 받침(`전구받침` → bulbBase).
+- **`전광` 컬렉션 = 앞판 없는 열린 채널**(몸통 + 안쪽 바닥판, 2026-10-31 사용자: "전광은 벌브,led 와 조합하는 것이고 발광판이 없다") — 혼자 굽지 않고 부품과 함께: `open-bulb` = 전광 + `Bulbs 주백색`, `open-led` = 전광 + `LED 주백색`(빛 색은 앱이 LED 색으로 입히므로 웜/주백색 두 벌은 필요 없다). 앱은 역할로 색을 입힌다(재질 이름 = 역할로 내보냄). 같은 재질("웜 화이트 4000K")을 앞면·LED 에 함께 써도 역할로 구분된다.
 - **방향**: 앞 = 블렌더 -Y, 벽 쪽 = +Y. 크기는 미터(G 약 32cm). 회전·크기는 오브젝트 변환 그대로 써도 된다(스크립트가 계산).
 - **뷰 레이어 제외(체크 해제)된 컬렉션**은 블렌더가 계산하지 않아 옛 위치로 저장돼 있다 — 스크립트가 모두 넣고 다시 계산한다(2026-10-31: 90° 세운 글자가 누워 나왔다).
 - 블렌더는 파일을 저장한 판과 같은 판으로(지금 5.2). 옛 판은 "newer Blender" 경고와 함께 데이터를 잃을 수 있다.
@@ -34,18 +35,19 @@
 2. 두 번째 UV `lightmap` — 글자는 한 장에 펼치고(smart project), 벽은 자기 그림 전체.
 3. **낮**: 흰 확산 재질 + 해(앞·위·왼쪽) + **파일의 월드** — 월드가 HDRI(환경 텍스처)를 쓰면 그 빛으로(G_01 은 `sourceimages/pergola_walkway_4k.exr`), 아니면 하늘색(0.62,0.66,0.72). HDRI 를 바꾸면 굽는 빛도 바뀐다. 4K EXR 은 크기 때문에 저장소에 넣지 않는다(`3D models/sourceimages/` 무시) → Cycles 확산 굽기(빛만, 색 없음). **밤**: 하늘 없음 + `emissiveRoles`(앞면·뒤판·LED·전구) 발광 → 벽·몸통에 번진 빛까지. 벽은 굽기 잡음만 흐림(2px).
 4. 그림마다 99.5% 값으로 펴서 8비트 회색조로, 세기는 `manifest.json` 의 `letterIntensity`·`wallIntensity`. 블렌더가 바로 WebP 로 저장(전체 약 0.9MB, 종류당 약 90KB).
-5. glb(역할 이름 재질, 두 UV) + `manifest.json`(`version` 은 굽을 때마다 +1 — 기기에 저장된 카드 그림도 다시).
+5. 면이 `maxPolys`(6000)를 넘는 오브젝트는 줄인다(전구 19개 — glb 1.16MB → 0.99MB; 더 줄이려면 Draco 압축, 남은 일). glb(역할 이름 재질, 두 UV) + `manifest.json`(`version` 은 굽을 때마다 +1 — 기기에 저장된 카드 그림도 다시).
 - 일부만: `"$BLENDER" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json "$PWD" halo epoxy`
 
 ## 앱 (`render/kitView.ts`, `core/channelKit.ts`)
-- `kitVariantFor(part)`: 앞면 발광 `ch-front` → 캡이면 `front-lit-cap` 아니면 `front-lit`, 후광 `ch-halo` → 아크릴 뒤판이면 `acrylic-halo` 아니면 `halo`, 전후광 `ch-both` → 아크릴 뒤판이면 캡 `cap-acrylic-halo`/그 외 `epoxy-acrylic-halo`, 아니면 `both-cap`, 갈바 `ch-galva` → `epoxy`. 그 외(벌브·통아크릴) 없음.
+- `kitVariantFor(part)`: 앞면 발광 `ch-front` → `front-lit-cap`(앞판 있는 채널은 모두 — 2026-10-31, 전에는 캡이 아니면 열린 `전광`으로 가서 알루미늄 채널이 앞판 없이 보였다), 벌브 `ch-bulb` → `open-bulb`, `open-led` 는 아직 앱 옵션 없음, 후광 `ch-halo` → 아크릴 뒤판이면 `acrylic-halo` 아니면 `halo`, 전후광 `ch-both` → 아크릴 뒤판이면 캡 `cap-acrylic-halo`/그 외 `epoxy-acrylic-halo`, 아니면 `both-cap`, 갈바 `ch-galva` → `epoxy`. 그 외(벌브·통아크릴) 없음.
 - `kitLookFor(part)`: 앞면·몸통·캡 색(`paintHex`, 없으면 앞면 흰색·캡은 몸통 색), LED 색(3D 단계와 같은 `LED_HEX`), 마감(헤어라인·미러·티타늄 = 금속), 점등(비조명·갈바 = 꺼짐).
 - **나중에 불러오기**(2026-10-31): 목록·출처(`render/kitSource.ts`, three 없음)와 그리기(`render/kitView.ts`, three·GLTFLoader)를 나눴다 — 그리기는 채널 미리보기가 열릴 때만 받는다. 한때 카드·운영 화면이 그리기 파일을 바로 가져와 첫 화면 번들이 1.1MB → 1.5MB 로 커졌었다.
 - 그리기: 라이트맵(`lightMap`, uv1, 세기 × π) × 고른 색 + 약한 환경맵(금속 반사만). 밤: 밤 라이트맵 + 앞면(앞면 색)·뒤판(LED 색) 발광 + 벽 = 밤 벽 라이트맵 × LED 색. 휴대폰 안전: WebGL 화면 하나(미리보기), 카드도 그 화면으로 차례로.
 - 테스트: `tests/unit/channelKit.test.ts`(모델·색 고르기), `tests/e2e/kitPreview.spec.ts`(모델이 뜨고 앞면 색을 바꾸면 화면이 바뀜, 밤, 그림 카드). `KIT_SHOTS=<폴더>` 로 돌리면 화면을 저장한다.
 
 ## 남은 일
-- 벌브·통아크릴·오사이·일체형·용접·타카 — 키트에 컬렉션을 더하면 `kit.json` 에 한 줄.
+- 통아크릴·오사이·일체형·용접·타카 — 키트에 컬렉션을 더하면 `kit.json` 에 한 줄.
+- glb Draco 압축(앱에 Draco 디코더 — 미리보기 열 때만 받기) — 벌브 0.99MB.
+- 노출 LED 채널(`open-led`)에 맞는 앱 옵션.
 - 블렌더에서 역할을 이름(`__역할`)으로 붙이면 `kit.json` 의 `roles` 를 비울 수 있다.
-- 전구 웜(Sphere.001~019) 메시 크기가 주백색 전구의 약 60배, bulbClear 약 85m — 전구를 키트에 넣기 전에 맞춰야 한다.
 - 카드·미리보기 화면 구도와 밤 세기는 첫판 — 보면서 다듬는다.

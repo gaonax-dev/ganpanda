@@ -6,15 +6,17 @@ const opt = (o: Record<string, unknown>) => o;
 describe('채널 → 키트 모델', () => {
   it('종류·캡·뒤판으로 고른다', () => {
     expect(kitVariantFor({ type: 'ch-front', options: opt({ chType: '캡' }) })).toBe('front-lit-cap');
-    expect(kitVariantFor({ type: 'ch-front', options: opt({ chType: '오싸이' }) })).toBe('front-lit');
+    // 키트의 '전광'은 앞판 없는 열린 채널(벌브·LED 용) — 앞판 있는 전광 채널은 모두 전광 캡 모델 (2026-10-31 "전광은 벌브,led 와 조합하는 것이고 발광판이 없다")
+    expect(kitVariantFor({ type: 'ch-front', options: opt({ chType: '오싸이' }) })).toBe('front-lit-cap');
+    expect(kitVariantFor({ type: 'ch-front', options: {} })).toBe('front-lit-cap');
     expect(kitVariantFor({ type: 'ch-halo', options: {} })).toBe('halo');
     expect(kitVariantFor({ type: 'ch-halo', options: opt({ chBack: '유백 아크릴' }) })).toBe('acrylic-halo');
     expect(kitVariantFor({ type: 'ch-both', options: opt({ chType: '캡' }) })).toBe('both-cap');
     expect(kitVariantFor({ type: 'ch-both', options: opt({ chType: '캡', chBack: '투명 아크릴' }) })).toBe('cap-acrylic-halo');
     expect(kitVariantFor({ type: 'ch-galva', options: {} })).toBe('epoxy');
   });
-  it('키트에 없는 종류(벌브·통아크릴)는 없음 — 사진 그대로', () => {
-    expect(kitVariantFor({ type: 'ch-bulb', options: {} })).toBeNull();
+  it('벌브 채널 = 열린 채널 + 전구, 키트에 없는 종류(통아크릴)는 없음 — 사진 그대로', () => {
+    expect(kitVariantFor({ type: 'ch-bulb', options: {} })).toBe('open-bulb');
     expect(kitVariantFor({ type: 'ch-acrylic', options: {} })).toBeNull();
   });
 });
