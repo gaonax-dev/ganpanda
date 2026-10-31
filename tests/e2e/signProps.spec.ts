@@ -26,13 +26,20 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
   await expect(props.getByTestId('sign-el-frame')).toBeVisible();
   // 배치: 뷰어 자리에 배치 화면, 끝내면 다시 3D
+  await page.getByTestId('sign-view-canvas').evaluate((c) => { (c as unknown as { __mark: string }).__mark = 'L'; });
   await props.getByTestId('sign-props-layout-toggle').click();
   await expect(props.getByTestId('sign-props-layout')).toBeVisible();
   await props.getByTestId('sign-props-layout-toggle').click();
+  await expect(props.getByTestId('sign-props-layout')).toHaveCount(0);
   await expect(props.getByTestId('sign-view')).toBeVisible();
+  expect(await page.getByTestId('sign-view-canvas').evaluate((c) => (c as unknown as { __mark?: string }).__mark)).toBe('L'); // 뷰어는 그대로
   // 요소 클로즈업 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업"): 같은 3D 에서 그 채널 글자만 남고 스카시·프레임은 숨는다. 단·배치 숨김, 고르기·글·그림·path·gltf
+  // 요소를 눌러도 3D 뷰어(캔버스)는 같은 것 — 다시 만들면 카메라가 다가가는 대신 화면이 새로 그려진다 (2026-10-31 "클로드업이 아니고 리플레시야")
+  await page.getByTestId('sign-view-canvas').evaluate((c) => { (c as unknown as { __mark: string }).__mark = 'A'; });
   await props.getByTestId('sign-el').first().click();
   await expect(props).toHaveAttribute('data-mode', 'focus');
+  await page.waitForTimeout(400);
+  expect(await page.getByTestId('sign-view-canvas').evaluate((c) => (c as unknown as { __mark?: string }).__mark)).toBe('A');
   await expect(props.getByTestId('sign-tiers')).toHaveCount(0);
   await expect(props.getByTestId('sign-props-layout-toggle')).toHaveCount(0);
   await expect(props.getByTestId('kit-preview')).toHaveCount(0); // 키트 G 모델은 고르기 카드에만
