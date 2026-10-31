@@ -63,22 +63,18 @@
     editParts((ps) => { const p = ps.find((x) => x.id === focused!.id)!; const it = newItem(kind); if (kind === 'text') it.text = '글자'; p.items.push(it); });
   }
   const back = () => { focus = null; picking = false; };
-  // 뷰어는 하나만 두고 focusPart 로 바꾼다 — 요소를 고를 때마다 다시 만들면 사라지는 동안 WebGL 화면이 둘(아이폰 메모리). 배치 ↔ 3D 바꿀 때만 다시 (2026-10-31)
-  const viewKey = $derived(mode === 'layout' && !focus ? 'layout' : 'sign');
 </script>
 
 <section class="props" data-testid="sign-props" data-mode={focus ? 'focus' : mode}>
   <div class="viewer" data-testid="sign-props-viewer">
-    {#key viewKey}
-      <div class="slot" in:scale={{ start: 0.9, duration: 280 }} out:fade={{ duration: 220 }}>
-        {#if mode === 'layout' && !focus && layout}
-          <div class="layout" data-testid="sign-props-layout">{@render layout()}</div>
-        {:else}
-          <!-- 같은 사인물 3D 에서 고른 요소만 남기고 가까이 (키트 G 모델은 고르기 카드에만) -->
-          <SignView3D {obj} closeUp={!!focus} focusPart={focused?.id ?? null} />
-        {/if}
-      </div>
-    {/key}
+    <!-- 3D 뷰어는 늘 붙어 있다 — 요소를 고르거나 배치로 바꿀 때 다시 만들지 않는다(다시 만들면 카메라가 다가가는 대신 화면이 새로 그려져 "리프레시"처럼 보였다, 2026-10-31).
+         같은 사인물 3D 에서 고른 요소만 남기고 가까이 (키트 G 모델은 고르기 카드에만) -->
+    <div class="slot" style:visibility={mode === 'layout' && !focus ? 'hidden' : 'visible'}>
+      <SignView3D {obj} closeUp={!!focus} focusPart={focused?.id ?? null} />
+    </div>
+    {#if mode === 'layout' && !focus && layout}
+      <div class="slot layout" data-testid="sign-props-layout" in:scale={{ start: 0.96, duration: 220 }} out:fade={{ duration: 160 }}>{@render layout()}</div>
+    {/if}
   </div>
 
   {#if !focus}
@@ -159,7 +155,7 @@
   .props { display: flex; flex-direction: column; gap: 8px; }
   .viewer { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; background: #cfdbe8; }
   .slot { position: absolute; inset: 0; }
-  .layout { position: absolute; inset: 0; overflow: auto; background: var(--panel); }
+  .layout { overflow: auto; background: var(--panel); }
   .tiers { display: flex; flex-direction: column; gap: 6px; }
   .tier { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; border-radius: 8px; background: var(--hover); }
   .tier.frame { background: color-mix(in srgb, var(--hover) 60%, #000); }

@@ -3,6 +3,7 @@
   closeUp = 고른 요소로 다가가기(프레임 등 — 채널은 키트 미리보기가 대신). 그릴 수 없으면(치수·구성 없음) 안내
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import * as THREE from 'three';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
   import { loadEnvironment, roomEnvironment } from '../sim/env';
@@ -55,8 +56,10 @@
     wall = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xd9cfc0, roughness: 0.9 }));
     wall.receiveShadow = true;
     scene.add(wall);
-    const resize = () => { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); frame(); };
-    const ro = new ResizeObserver(resize); ro.observe(host); resize();
+    // frame() 은 closeUp·focusPart(프롭)를 읽는다 — 이 만들기 effect 안에서 그냥 부르면 그 프롭이 바뀔 때마다 effect 가 다시 돌아 렌더러를 통째로 다시 만들었다
+    // (요소를 누르면 카메라가 다가가는 대신 화면이 새로 그려지는 "리프레시", 2026-10-31). untrack 으로 끊는다
+    const resize = () => { const w = host.clientWidth, h = host.clientHeight; renderer.setSize(w, h); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); untrack(frame); };
+    const ro = new ResizeObserver(resize); ro.observe(host); untrack(resize);
     let raf = 0;
     const loop = () => {
       if (camGoal) {
@@ -68,7 +71,7 @@
       controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop);
     };
     loop();
-    loadFont(fontUrl).then((f) => { font = f; void rebuild(); }).catch(() => (empty = true));
+    loadFont(fontUrl).then((f) => { font = f; void untrack(rebuild); }).catch(() => (empty = true));
     return () => { cancelAnimationFrame(raf); ro.disconnect(); built?.dispose(); controls.dispose(); renderer.dispose(); host.innerHTML = ''; };
   });
 
