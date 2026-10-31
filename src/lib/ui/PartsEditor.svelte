@@ -6,6 +6,13 @@
   옛 사인물(채널 옵션·문구·시트)은 구성 요소로 보이고, 처음 고칠 때 구성 요소로 저장한다(옛 필드는 정리).
 -->
 <script lang="ts">
+  import ChannelPreview from './ChannelPreview.svelte';
+  import { kitLookFor, kitVariantFor } from '../core/channelKit';
+  import { cardKey, kitCards, type KitCard } from '../render/kitCards.svelte';
+  // 그림 카드 (2026-10-31): 키트에 있는 묶음은 키트 모델 그림, 없으면 사진
+  const presetCard = (pr: { type: string; options: Record<string, unknown> }): KitCard | null => { const variant = kitVariantFor(pr); return variant ? { variant, look: kitLookFor(pr) } : null; };
+  const kitPresetCards = (list: { type: string; options: Record<string, unknown> }[]) => list.map(presetCard).filter((c): c is KitCard => !!c);
+  const kitCardOf = (pr: { type: string; options: Record<string, unknown> }) => { const c = presetCard(pr); return c ? kitCards[cardKey(c)] : undefined; };
   import { app } from '../state.svelte';
   import { putAsset } from '../assets';
   import type { PartItem, SignObject, SignPart } from '../core/model';
@@ -140,13 +147,15 @@
         {/if}
         {#if !ro}<button class="icon del" data-testid="part-delete" title="구성 요소 지우기" onclick={() => delPart(i)}>✕</button>{/if}
       </div>
+      <!-- 채널 미리보기 (2026-10-31): 키트 모델 + 구운 라이트맵, 색은 옵션 그대로 바로 — 키트에 없는 종류는 안 나온다 -->
+      {#if kitVariantFor(p)}<ChannelPreview part={p} cards={kitPresetCards(comp.presets ?? [])} />{/if}
       {#if comp.presets?.length && !ro}
         {@const cur = presetOf(p)}
         {#if pickShown(p)}
           <div class="presets" data-testid="preset-grid">
             {#each comp.presets as pr (pr.no)}
               <button class="preset" class:on={cur?.no === pr.no} data-testid="preset-pick" title={pr.desc} onclick={() => pickPreset(i, pr)}>
-                <img src={pr.img} alt={pr.label} loading="lazy" width="120" height="80" />
+                <img src={kitCardOf(pr) ?? pr.img} alt={pr.label} loading="lazy" width="120" height="80" data-kit={kitCardOf(pr) ? 'true' : undefined} />
                 <span>{String(pr.no).padStart(2, '0')} {pr.label}</span>
               </button>
             {/each}

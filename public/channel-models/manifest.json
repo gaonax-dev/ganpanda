@@ -1,0 +1,304 @@
+{
+ "version": 6,
+ "letter": "G",
+ "variants": [
+  {
+   "id": "front-lit",
+   "label": "전광",
+   "file": "front-lit.glb",
+   "roles": [
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "front-lit.day.letters.webp",
+     "wall": "front-lit.day.wall.webp",
+     "letterIntensity": 1.7848,
+     "wallIntensity": 1.6222
+    },
+    "night": {
+     "letters": "front-lit.night.letters.webp",
+     "wall": "front-lit.night.wall.webp",
+     "letterIntensity": 2.4134,
+     "wallIntensity": 7.3575
+    }
+   },
+   "size": [
+    0.32,
+    0.3199,
+    0.0805
+   ],
+   "bytes": 171916
+  },
+  {
+   "id": "front-lit-cap",
+   "label": "전광 캡",
+   "file": "front-lit-cap.glb",
+   "roles": [
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "front-lit-cap.day.letters.webp",
+     "wall": "front-lit-cap.day.wall.webp",
+     "letterIntensity": 1.6927,
+     "wallIntensity": 1.6222
+    },
+    "night": {
+     "letters": "front-lit-cap.night.letters.webp",
+     "wall": "front-lit-cap.night.wall.webp",
+     "letterIntensity": 1.3617,
+     "wallIntensity": 5.2043
+    }
+   },
+   "size": [
+    0.32,
+    0.3199,
+    0.0805
+   ],
+   "bytes": 172228
+  },
+  {
+   "id": "halo",
+   "label": "후광",
+   "file": "halo.glb",
+   "roles": [
+    "back",
+    "bracket",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "halo.day.letters.webp",
+     "wall": "halo.day.wall.webp",
+     "letterIntensity": 1.5044,
+     "wallIntensity": 1.4351
+    },
+    "night": {
+     "letters": "halo.night.letters.webp",
+     "wall": "halo.night.wall.webp",
+     "letterIntensity": 6.9227,
+     "wallIntensity": 1.6761
+    }
+   },
+   "size": [
+    0.3345,
+    0.3319,
+    0.1334
+   ],
+   "bytes": 166484
+  },
+  {
+   "id": "both-cap",
+   "label": "전후광 캡",
+   "file": "both-cap.glb",
+   "roles": [
+    "back",
+    "bracket",
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "both-cap.day.letters.webp",
+     "wall": "both-cap.day.wall.webp",
+     "letterIntensity": 1.5861,
+     "wallIntensity": 1.459
+    },
+    "night": {
+     "letters": "both-cap.night.letters.webp",
+     "wall": "both-cap.night.wall.webp",
+     "letterIntensity": 10.2784,
+     "wallIntensity": 2.5224
+    }
+   },
+   "size": [
+    0.3345,
+    0.3319,
+    0.1326
+   ],
+   "bytes": 288628
+  },
+  {
+   "id": "acrylic-halo",
+   "label": "아크릴 후광",
+   "file": "acrylic-halo.glb",
+   "roles": [
+    "back",
+    "bracket",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "acrylic-halo.day.letters.webp",
+     "wall": "acrylic-halo.day.wall.webp",
+     "letterIntensity": 1.7096,
+     "wallIntensity": 1.4929
+    },
+    "night": {
+     "letters": "acrylic-halo.night.letters.webp",
+     "wall": "acrylic-halo.night.wall.webp",
+     "letterIntensity": 21.9914,
+     "wallIntensity": 6.0406
+    }
+   },
+   "size": [
+    0.3345,
+    0.3319,
+    0.1177
+   ],
+   "bytes": 232220
+  },
+  {
+   "id": "epoxy",
+   "label": "에폭시 전광",
+   "file": "epoxy.glb",
+   "roles": [
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "epoxy.day.letters.webp",
+     "wall": "epoxy.day.wall.webp",
+     "letterIntensity": 0.0136,
+     "wallIntensity": 1.6283
+    },
+    "night": {
+     "letters": "epoxy.night.letters.webp",
+     "wall": "epoxy.night.wall.webp",
+     "letterIntensity": 6.2556,
+     "wallIntensity": 0.0001
+    }
+   },
+   "size": [
+    0.3112,
+    0.3114,
+    0.0805
+   ],
+   "bytes": 70556
+  },
+  {
+   "id": "epoxy-acrylic-halo",
+   "label": "에폭시 전광 + 아크릴 후광",
+   "file": "epoxy-acrylic-halo.glb",
+   "roles": [
+    "back",
+    "bracket",
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "epoxy-acrylic-halo.day.letters.webp",
+     "wall": "epoxy-acrylic-halo.day.wall.webp",
+     "letterIntensity": 1.7113,
+     "wallIntensity": 1.4938
+    },
+    "night": {
+     "letters": "epoxy-acrylic-halo.night.letters.webp",
+     "wall": "epoxy-acrylic-halo.night.wall.webp",
+     "letterIntensity": 21.7676,
+     "wallIntensity": 6.0068
+    }
+   },
+   "size": [
+    0.3345,
+    0.3319,
+    0.1177
+   ],
+   "bytes": 233452
+  },
+  {
+   "id": "cap-acrylic-halo",
+   "label": "전광 캡 + 아크릴 후광",
+   "file": "cap-acrylic-halo.glb",
+   "roles": [
+    "back",
+    "bracket",
+    "face",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "cap-acrylic-halo.day.letters.webp",
+     "wall": "cap-acrylic-halo.day.wall.webp",
+     "letterIntensity": 1.6125,
+     "wallIntensity": 1.4685
+    },
+    "night": {
+     "letters": "cap-acrylic-halo.night.letters.webp",
+     "wall": "cap-acrylic-halo.night.wall.webp",
+     "letterIntensity": 20.804,
+     "wallIntensity": 5.4258
+    }
+   },
+   "size": [
+    0.3345,
+    0.3319,
+    0.1177
+   ],
+   "bytes": 418776
+  },
+  {
+   "id": "galva-perforated",
+   "label": "갈바 타공 프레임",
+   "file": "galva-perforated.glb",
+   "roles": [
+    "face",
+    "frame"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "galva-perforated.day.letters.webp",
+     "wall": "galva-perforated.day.wall.webp",
+     "letterIntensity": 1.446,
+     "wallIntensity": 1.6138
+    },
+    "night": {
+     "letters": "galva-perforated.night.letters.webp",
+     "wall": "galva-perforated.night.wall.webp",
+     "letterIntensity": 1.6862,
+     "wallIntensity": 1.0526
+    }
+   },
+   "size": [
+    0.6781,
+    0.4608,
+    0.1308
+   ],
+   "bytes": 160956
+  },
+  {
+   "id": "flex-frame",
+   "label": "후렉스 프레임",
+   "file": "flex-frame.glb",
+   "roles": [
+    "face",
+    "frame"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "flex-frame.day.letters.webp",
+     "wall": "flex-frame.day.wall.webp",
+     "letterIntensity": 1.466,
+     "wallIntensity": 1.615
+    },
+    "night": {
+     "letters": "flex-frame.night.letters.webp",
+     "wall": "flex-frame.night.wall.webp",
+     "letterIntensity": 5.857,
+     "wallIntensity": 0.001
+    }
+   },
+   "size": [
+    0.6935,
+    0.4755,
+    0.1374
+   ],
+   "bytes": 6272
+  }
+ ]
+}

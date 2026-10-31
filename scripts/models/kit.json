@@ -1,0 +1,34 @@
+{
+  "_doc": "채널 키트 굽기 설정 (2026-10-31, docs/features/channel-models.md). 컬렉션 = 종류 = 굽기 단위. roles: 오브젝트 → 역할. 오브젝트 이름이 '__역할'로 끝나면 그것이 우선",
+  "source": "3D models/G.blend",
+  "out": "public/channel-models",
+  "lightmapPx": 1024,
+  "samples": 96,
+  "variants": [
+    { "id": "front-lit", "collection": "전광", "label": "전광", "wallGap": 0.0 },
+    { "id": "front-lit-cap", "collection": "전광 캡채널", "label": "전광 캡", "wallGap": 0.0 },
+    { "id": "halo", "collection": "후광채널", "label": "후광", "wallGap": 0.04, "parts": ["까치발"] },
+    { "id": "both-cap", "collection": "전후광 캡채널", "label": "전후광 캡", "wallGap": 0.04, "parts": ["까치발"] },
+    { "id": "acrylic-halo", "collection": "아크릴 후광채널", "label": "아크릴 후광", "wallGap": 0.04, "parts": ["까치발"] },
+    { "id": "epoxy", "collection": "에폭시전광", "label": "에폭시 전광", "wallGap": 0.0 },
+    { "id": "epoxy-acrylic-halo", "collection": "에폭시전광-아크릴후광", "label": "에폭시 전광 + 아크릴 후광", "wallGap": 0.04, "parts": ["까치발"] },
+    { "id": "cap-acrylic-halo", "collection": "전광캡_아크릴후광", "label": "전광 캡 + 아크릴 후광", "wallGap": 0.04, "parts": ["까치발"] },
+    { "id": "galva-perforated", "collection": "갈바타공", "label": "갈바 타공 프레임", "wallGap": 0.0 },
+    { "id": "flex-frame", "collection": "후렉스 프레임", "label": "후렉스 프레임", "wallGap": 0.0 }
+  ],
+  "roles": {
+    "G_mark.006": "face", "G_outline.001": "side",
+    "G_mark.003": "face", "G_outline.002": "side",
+    "G_mark.001": "side", "G_mark.004": "back",
+    "G_mark": "face", "G_mark.002": "back", "G_outline.003": "side",
+    "G_mark.005": "side", "G_mark.008": "back",
+    "G_mark.009": "side", "G_mark.010": "face",
+    "G_mark.011": "face", "G_mark.012": "side", "G_mark.013": "back",
+    "G_mark.014": "face", "G_outline.004": "side", "G_outline.005": "back",
+    "Cube.003": "frame", "Cube.004": "face",
+    "Cube.005": "frame", "Cube.006": "face",
+    "Cube.002": "bracket"
+  },
+  "_rolesDoc": "face 앞면 · side 옆면(몸통) · cap 캡 · back 뒤판·후광면 · light LED · bulb 전구 · bulbBase 전구받침 · bracket 까치발 · frame 프레임 · wall 벽(굽기에서 자동)",
+  "emissiveRoles": ["face", "back", "light", "bulb"]
+}

@@ -21,7 +21,7 @@ const FINISH_3D: Record<string, { finish: 'hairline' | 'mirror'; sideColor: stri
   '티타늄 골드': { finish: 'mirror', sideColor: '#c9a24a' }, '티타늄 로즈골드': { finish: 'mirror', sideColor: '#c48f7f' }, '티타늄 블랙': { finish: 'mirror', sideColor: '#2b2b2e' },
 };
 /** LED 색 → 벽 빛 색 */
-const LED_HEX: Record<string, string> = { 백색: '#f4f8ff', 주백색: '#fff0d8', 전구색: '#ffcf8a', 빨강: '#ff3b30', 파랑: '#2f6bff', RGB: '#f4f8ff' };
+export const LED_HEX: Record<string, string> = { 백색: '#f4f8ff', 주백색: '#fff0d8', 전구색: '#ffcf8a', 빨강: '#ff3b30', 파랑: '#2f6bff', RGB: '#f4f8ff' };
 const unlit = (p: SignPart) => p.options?.chLight === '비조명';
 const finishOf = (p: SignPart) => String(p.options?.chFinish ?? '도장');
 
