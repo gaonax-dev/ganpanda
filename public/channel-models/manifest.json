@@ -1,27 +1,29 @@
 {
- "version": 8,
+ "version": 10,
  "letter": "G",
  "variants": [
   {
-   "id": "front-lit",
-   "label": "전광",
-   "file": "front-lit.glb",
+   "id": "open-bulb",
+   "label": "벌브 (오픈 채널)",
+   "file": "open-bulb.glb",
    "roles": [
-    "face",
+    "bulb",
+    "bulbBase",
+    "inner",
     "side"
    ],
    "lightmaps": {
     "day": {
-     "letters": "front-lit.day.letters.webp",
-     "wall": "front-lit.day.wall.webp",
-     "letterIntensity": 1.7355,
+     "letters": "open-bulb.day.letters.webp",
+     "wall": "open-bulb.day.wall.webp",
+     "letterIntensity": 1.6061,
      "wallIntensity": 1.6222
     },
     "night": {
-     "letters": "front-lit.night.letters.webp",
-     "wall": "front-lit.night.wall.webp",
-     "letterIntensity": 7.1453,
-     "wallIntensity": 7.354
+     "letters": "open-bulb.night.letters.webp",
+     "wall": "open-bulb.night.wall.webp",
+     "letterIntensity": 9.8158,
+     "wallIntensity": 1.0526
     }
    },
    "size": [
@@ -29,7 +31,37 @@
     0.3199,
     0.0805
    ],
-   "bytes": 171916
+   "bytes": 992404
+  },
+  {
+   "id": "open-led",
+   "label": "노출 LED (오픈 채널)",
+   "file": "open-led.glb",
+   "roles": [
+    "inner",
+    "light",
+    "side"
+   ],
+   "lightmaps": {
+    "day": {
+     "letters": "open-led.day.letters.webp",
+     "wall": "open-led.day.wall.webp",
+     "letterIntensity": 1.6664,
+     "wallIntensity": 1.6222
+    },
+    "night": {
+     "letters": "open-led.night.letters.webp",
+     "wall": "open-led.night.wall.webp",
+     "letterIntensity": 3.6047,
+     "wallIntensity": 1.0526
+    }
+   },
+   "size": [
+    0.32,
+    0.3199,
+    0.0805
+   ],
+   "bytes": 185648
   },
   {
    "id": "front-lit-cap",
