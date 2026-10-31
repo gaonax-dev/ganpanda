@@ -188,6 +188,8 @@ export interface ExtraItem { id: string; label: string; amount: number }
 
 /** 프로젝트 설정 (단가표·설치비·추가 항목) — 모두 선택 */
 export interface ProjectSettings {
+  /** 프로젝트 컬러 (2026-10-31) → core/projectColors.ts */
+  colors?: import('./projectColors').ProjectColors;
   prices?: import('./pricing').PriceTable;
   /** 프로젝트별 설치비 (없으면 단가표 기본값) */
   installFee?: number;

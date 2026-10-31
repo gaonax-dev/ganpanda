@@ -17,6 +17,7 @@ const hidden = (type: string) => new Set(['thickness', ...(type === 'ch-rubber' 
 
 export const scashi: Component = {
   kind: 'scashi', label: '스카시', color: '#e0b85a', types: SCASHI_OPTIONS,
+  colorRoles: [['paint', '도색']],
   termKey: 'product',
   takesItems: true,
   hasSpec: true, sits: false, layer: 100, itemWidth: false, extrude: true,

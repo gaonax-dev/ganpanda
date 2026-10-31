@@ -42,6 +42,7 @@
   - [color-library.md](features/color-library.md) — 색 라이브러리: 컬러 카드(페인트·시트·천·필름 + 이름·hex·공급사·코드), 계정 저장, 색 피커·사양 글에서 선택
   - [composition.md](features/composition.md) — 조합형 사인물: 간판 프레임 + 구성 요소(채널·스카시·시트) + 글자·그림 객체, 단계별 계획
   - [material-stack.md](features/material-stack.md) — 재료 조합 사인물: 2.5D 단면 쌓기(아래 접이 속성)·재료 카드·레시피 라이브러리 (설계, 2026-10-22)
+  - [sign-props.md](features/sign-props.md) — 간판 속성(3D 뷰어·배치·단·요소 클로즈업) · 프로젝트 컬러(칸·브랜드 코드·컬러셋) (2026-10-31)
   - [channel-models.md](features/channel-models.md) — 채널 키트: glTF 모델(G 한 글자) + 구운 라이트맵, 설정의 채널 미리보기·그림 카드, 블렌더 규칙과 `npm run models:build` (2026-10-31)
   - [channel-library.md](features/channel-library.md) — 채널 라이브러리: 15종 사진으로 빠른 선택 → 세부는 편집기에서 (구현됨, 2026-10-23)
   - [sign-templates.md](features/sign-templates.md) — 완성품 퀵: 간판 → 완성품 사진 → 바꿀 칸(색 → 글자) 하나씩, 멈추면 거기까지 완성 (구현됨, 2026-10-23)

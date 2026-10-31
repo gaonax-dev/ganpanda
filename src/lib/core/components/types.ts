@@ -94,6 +94,8 @@ export interface Component {
   presetStack?(type: string, o?: SignObject): MaterialLayer[];
   /** 글자·그림·도형 객체를 받나 (상단 조명은 아님) */
   takesItems: boolean;
+  /** 간판 속성에서 프로젝트 컬러 칸을 고르는 면 — [도색 접두사, 이름] (2026-10-31 sign-props.md). 없으면 색 칸 없음 */
+  colorRoles?: [string, string][];
   /** 견적 줄 키 (없으면 `<사인물>:part:<구성 요소>`) — 옛 키를 이어 써서 수동 금액을 지킨다 */
   quoteKey?(o: SignObject, part: SignPart): string;
   /** 예전엔 몸통 옵션이던 종류 (상단 조명): 구성 요소를 저장하지 않은 옛 사인물에서도 요약에 구성 요소로 보인다 */

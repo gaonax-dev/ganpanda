@@ -3,6 +3,7 @@
   import SuspendedPage from './lib/ui/SuspendedPage.svelte';
   import AskDialog from './lib/ui/AskDialog.svelte';
   import CrashNotice from './lib/ui/CrashNotice.svelte';
+  import ProjectColorsDialog from './lib/ui/ProjectColorsDialog.svelte';
   import { askPrompt } from './lib/ui/ask.svelte';
   import { homeTalks } from './lib/ui/homeTalkList.svelte';
   import { COMPANY } from './lib/core/company';
@@ -201,6 +202,8 @@
         {#if app.canEdit && !app.boardOnly}<label class="up" data-testid="design-upload" title="일러스트(.ai, PDF 호환)·PDF·SVG·그림">＋ {app.compact ? '파일' : '일러스트·SVG 올리기'}<input data-testid="design-upload-input" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
         <button data-testid="view-uv" class:on={app.view === 'uv'} title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { if (app.view === 'uv') { app.view = 'board'; } else { app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>
         {#if app.selected && app.view === 'board' && app.canEdit}<button data-testid="design-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => (app.view = 'uv')}>이 사인물에 연결</button>{/if}
+        <!-- 프로젝트 컬러셋 (2026-10-31 "컬러셋 프로젝트 뷰어 디자인에 컬러셋 누르면 컬러 대화창 나오고 여기에서 컬러셋 체인지한다") -->
+        <button data-testid="colors-open" title="프로젝트 컬러 — 메인·배경·포인트 … 컬러셋 바꾸기" onclick={() => (app.colorsOpen = true)}>컬러셋</button>
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
       </div>
       {/if}
@@ -371,6 +374,7 @@
 {#if app.settingsOpen}<Settings />{/if}
 {#if app.estimateOpen && (app.consumer || app.outsourceProject)}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
+{#if app.colorsOpen}<ProjectColorsDialog />{/if}
 <AskDialog />
 <CrashNotice />
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}

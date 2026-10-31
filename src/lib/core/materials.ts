@@ -23,6 +23,8 @@ export const labelsOf = (ids: string[]) => ids.map((id) => materialById(id)!.lab
 
 /** 도색 객체: 색상 체계(도색 없음이 기본) + 컬러코드 + 광택. 기본색 = 색 이름으로 바로 (2026-10-17 빠른 설정 "갈바 흰색 / 채널 갈색") */
 export const PAINT_SYSTEMS = ['도색 없음', '기본색', '직접', 'PANTONE', 'RAL', 'KCC', '라이브러리']; // 직접 = 컬러 피커로 고른 #hex (2026-10-17) · 라이브러리 = 내 컬러 카드 스냅샷(Code=이름, Hex, Ref — core/colorLibrary.ts)
+/** 프로젝트 컬러 칸에 연결된 색 (2026-10-31, core/projectColors.ts) — 선택 목록에는 없다(간판 속성의 색 칸에서 고른다). Hex = 지금 칸 색, Code = 칸 이름, Ref = 제작 코드 */
+export const PROJECT_SYSTEM = '프로젝트';
 /** 기본색: 이름 + 3D 에 쓰는 색. basic = 컬러 피커 견본 줄에 보이는 11개, 나머지는 글·확장 모드에서 (2026-10-17 "연한베이지 … 버건디" 도 알아보게) */
 export const NAMED_COLORS: { label: string; hex: string; basic?: boolean }[] = [
   { label: '흰색', hex: '#f4f4f2', basic: true }, { label: '검정', hex: '#141414', basic: true }, { label: '회색', hex: '#8a8f94', basic: true }, { label: '진회색', hex: '#3a3f44', basic: true },
@@ -47,12 +49,12 @@ export function paintHex(opts: Record<string, unknown> | undefined, prefix: stri
   const sys = opts?.[`${prefix}System`], code = opts?.[`${prefix}Code`];
   if (sys === PAINT_SYSTEMS[1]) return colorHex(code);
   if (sys === PAINT_SYSTEMS[2] && typeof code === 'string' && HEX_RE.test(code)) return code.toLowerCase();
-  if (sys === PAINT_SYSTEMS[6]) { const hex = opts?.[`${prefix}Hex`]; return typeof hex === 'string' && HEX_RE.test(hex) ? hex.toLowerCase() : null; }
+  if (sys === PAINT_SYSTEMS[6] || sys === PROJECT_SYSTEM) { const hex = opts?.[`${prefix}Hex`]; return typeof hex === 'string' && HEX_RE.test(hex) ? hex.toLowerCase() : null; }
   return null;
 }
 /** 라이브러리 색의 출처 ("시트 · 3M · 1080-G13"), 아니면 null */
 export function paintRef(opts: Record<string, unknown> | undefined, prefix: string): string | null {
-  if (opts?.[`${prefix}System`] !== PAINT_SYSTEMS[6]) return null;
+  if (opts?.[`${prefix}System`] !== PAINT_SYSTEMS[6] && opts?.[`${prefix}System`] !== PROJECT_SYSTEM) return null;
   const ref = opts?.[`${prefix}Ref`];
   return typeof ref === 'string' && ref ? ref : null;
 }
@@ -65,7 +67,7 @@ export function paintAlpha(opts: Record<string, unknown> | undefined, prefix: st
 export function paintLabel(opts: Record<string, unknown> | undefined, prefix: string): string | null {
   const sys = opts?.[`${prefix}System`] as string | undefined, code = opts?.[`${prefix}Code`] as string | undefined;
   if (!sys || sys === PAINT_SYSTEMS[0]) return null;
-  if (sys === PAINT_SYSTEMS[1] || sys === PAINT_SYSTEMS[2] || sys === PAINT_SYSTEMS[6]) return code || null;
+  if (sys === PAINT_SYSTEMS[1] || sys === PAINT_SYSTEMS[2] || sys === PAINT_SYSTEMS[6] || sys === PROJECT_SYSTEM) return code || null;
   return code ? `${sys} ${code}` : sys;
 }
 export const GLOSSES = ['유광', '반광', '무광'];
