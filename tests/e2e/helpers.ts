@@ -121,10 +121,22 @@ export async function pickCategory(page: Page, g: 'sign' | 'sheet' | 'scashi' | 
   if (await confirm.count()) await confirm.click();
 }
 
+/** 설정 창의 "세부 설정"(치수·단면·옵션…)을 펼친다 — 접힌 채로 시작한다(2026-10-31 간판 속성). 예전 화면을 시험하는 테스트용 */
+export async function openSignDetail(page: Page) {
+  const detail = page.getByTestId('sign-detail');
+  if (!(await detail.count())) return;
+  // 창이 막 열릴 때 open 이 아직 안 정해졌을 수 있다 — 펼쳐질 때까지 토글을 다시 시도 (한 번 누르고 바로 읽으면 애니메이션 중에 되돌아가는 일이 있었다)
+  await expect(async () => {
+    if (!(await detail.evaluate((e) => (e as HTMLDetailsElement).open))) await page.getByTestId('sign-detail-toggle').click();
+    expect(await detail.evaluate((e) => (e as HTMLDetailsElement).open)).toBe(true);
+  }).toPass({ timeout: 5000 });
+}
+
 export async function openObjectSettings(page: Page) {
   if (await page.getByTestId('object-settings').count()) return;
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
+  await openSignDetail(page);
   // 첫 화면은 단면 쌓기(2026-10-22 재료 조합 S1) — 예전 테스트는 예전 첫 탭(몸통, 몸통 없으면 첫 구성 요소)에서 시작
   const dlg = page.getByTestId('object-settings');
   if (await dlg.getByTestId('quick-stack').count()) {

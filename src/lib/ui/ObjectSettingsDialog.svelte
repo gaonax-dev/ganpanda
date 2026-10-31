@@ -20,11 +20,14 @@
   import type { SignObject } from '../core/model';
 
   let { obj }: { obj: SignObject } = $props();
-  // 세부 설정 접기 (2026-10-31): 기본은 접힘 — 이 기기에 기억. 자동화(E2E)는 펼친 채로 시작해 예전 화면 그대로 시험한다
+  // 세부 설정 접기 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘"): 누구나 접힌 채로 시작, 펼치면 이 기기에 기억. E2E 는 helpers.openObjectSettings 가 펼친다
   const DETAIL_KEY = 'ganpanda.signDetail';
   const storedDetail = (() => { try { return localStorage.getItem(DETAIL_KEY); } catch { return null; } })();
-  let detailOpen = $state(storedDetail ? storedDetail === 'open' : typeof navigator !== 'undefined' && navigator.webdriver);
-  const setDetail = (open: boolean) => { detailOpen = open; try { localStorage.setItem(DETAIL_KEY, open ? 'open' : 'closed'); } catch { /* 기기 저장 불가 */ } };
+  // 칩·[+] 로 특정 탭을 열어 달라고 했으면(objectSettingsFocus) 그 탭은 세부 설정 안이니 펼친 채로 연다 — 기억값은 바꾸지 않는다
+  let detailOpen = $state(storedDetail === 'open' || !!app.objectSettingsFocus);
+  // 저장은 사용자가 바꿨을 때만 — <details> 의 toggle 이벤트로 저장하면 창이 닫히며 내려갈 때 'closed' 가 적혀, 방을 다시 열고 처음 켠 창이 치수 입력 도중 접혔다 (2026-10-31)
+  let detailTouched = false;
+  $effect(() => { const open = detailOpen; if (!detailTouched) return; try { localStorage.setItem(DETAIL_KEY, open ? 'open' : 'closed'); } catch { /* 기기 저장 불가 */ } });
 
   const category = $derived(categoryOf(obj));
   const m = $derived(app.measures.get(obj.id));
@@ -98,7 +101,7 @@
       <SignProps {obj}>
         {#snippet layout()}<FrontEditor {obj} {parts} {ro} bind:sel={layoutSel} setItem={setItemById} locked={lockedIds} />{/snippet}
       </SignProps>
-      <details class="detail" data-testid="sign-detail" open={detailOpen} ontoggle={(e) => setDetail((e.currentTarget as HTMLDetailsElement).open)}>
+      <details class="detail" data-testid="sign-detail" bind:open={detailOpen} ontoggle={() => (detailTouched = true)}>
       <summary data-testid="sign-detail-toggle">세부 설정 <span class="hint">치수·단면·옵션·시트·문구·견적</span></summary>
       <section data-testid="size-section"> <!-- 사인물 전체 치수는 맨 위 (2026-10-16 사용자: "치수가 가장 아래있어. 사인물 전체 치수는 최상단에") -->
         <h3>

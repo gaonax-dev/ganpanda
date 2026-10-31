@@ -53,3 +53,20 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-tiers')).toBeVisible();
 });
+
+test('세부 설정은 접힌 채로 시작하고, 펼치면 이 기기에 기억된다 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    a.selectObject(a.project.addObject({ photoId: a.project.allPhotos()[0].id, name: '간판', shape: 'rect', quad: [[100, 100], [700, 100], [700, 300], [100, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 800 }));
+  });
+  await page.getByTestId('object-settings-open').click(); // 헬퍼를 안 쓴다 — 헬퍼는 펼친다
+  await expect(page.getByTestId('sign-detail')).not.toHaveAttribute('open');
+  await expect(page.getByTestId('size-section')).toBeHidden();
+  await page.getByTestId('sign-detail-toggle').click();
+  await expect(page.getByTestId('size-section')).toBeVisible();
+  await page.getByTestId('close-object-settings').click();
+  await page.getByTestId('object-settings-open').click();
+  await expect(page.getByTestId('sign-detail')).toHaveAttribute('open');
+});

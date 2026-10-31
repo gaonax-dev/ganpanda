@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearAutoCamera, openOwnedProject, uploadPhoto } from './helpers';
+import { clearAutoCamera, openOwnedProject, openSignDetail, uploadPhoto } from './helpers';
 
 type G = { __ganpanda: { photos: { id: string }[]; objects: { id: string; parts?: { id: string; kind: string; on?: string; stack?: { material: string; thickness: number }[] }[] }[]; selectObject(id: string): void; project: { addObject(o: unknown): string } } };
 
@@ -21,6 +21,7 @@ async function setup(page: import('@playwright/test').Page, request: import('@pl
   });
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
+  await openSignDetail(page); // 단면 쌓기·옵션은 세부 설정 안 (2026-10-31)
   return id;
 }
 
@@ -156,6 +157,7 @@ test('단면 그림: 시트(커팅)에 넣은 글자도 컷팅 모양으로 보�
   });
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
+  await openSignDetail(page); // 단면 쌓기·옵션은 세부 설정 안 (2026-10-31)
   const sheet = page.locator('[data-testid="cs-block"][data-part="sh"]');
   await expect(sheet.locator('text').filter({ hasText: '오픈세일' }).first()).toBeAttached();
 });
@@ -172,6 +174,7 @@ test('단면 그림: 시트 커팅도 스카시처럼 바운드 박스 + 컷팅 
   });
   await page.getByTestId('object-settings-open').click();
   await page.getByTestId('object-settings').waitFor();
+  await openSignDetail(page); // 단면 쌓기·옵션은 세부 설정 안 (2026-10-31)
   const sheet = page.locator('[data-testid="cs-block"][data-part="sh"]');
   await expect(sheet.locator('text', { hasText: '오픈세일' }).first()).toBeAttached();
   await expect(sheet.locator('polygon.bbox').first()).toBeAttached();
@@ -207,6 +210,8 @@ test('재질 시트: 제작사·시트 코드는 구성내역에, 미리보기 �
   });
   await page.getByTestId('object-settings-open').click();
   const dlg = page.getByTestId('object-settings');
+  await dlg.waitFor();
+  await openSignDetail(page); // 옵션은 세부 설정 안 (2026-10-31)
   await dlg.getByTestId('quick-part').first().click();
   await expect(dlg.getByTestId('part-option-sheetSystem')).toHaveCount(0);
   await dlg.getByTestId('part-option-sheetMaker').fill('3M');
