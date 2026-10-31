@@ -37,3 +37,6 @@ dist-addon/
 # 파이썬 캐시 (블렌더 애드온·굽기)
 __pycache__/
 *.pyc
+
+# wrangler 로컬 상태 (miniflare 캐시·D1·KV — 테스트·dev 때마다 바뀜)
+.wrangler/
