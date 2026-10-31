@@ -10,28 +10,35 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await page.evaluate(() => {
     const a = (window as unknown as G).__ganpanda;
     const id = a.project.addObject({ photoId: a.project.allPhotos()[0].id, name: '간판', shape: 'rect', quad: [[100, 100], [700, 100], [700, 300], [100, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 800,
-      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', options: { chType: '캡' }, items: [{ id: 't1', kind: 'text', text: '카페', x: 0, y: 0, h: 400 }] }] });
+      parts: [
+        { id: 'ch1', kind: 'channel', type: 'ch-front', options: { chType: '캡' }, items: [{ id: 't1', kind: 'text', text: '카페', x: -600, y: 0, h: 400 }] },
+        { id: 'sc1', kind: 'scashi', type: 'ch-rubber', options: {}, items: [{ id: 't2', kind: 'text', text: '빵', x: 800, y: 0, h: 300 }] },
+      ] });
     a.selectObject(id);
   });
   await openObjectSettings(page);
   const props = page.getByTestId('sign-props');
   await expect(props.getByTestId('sign-view')).toHaveAttribute('data-ready', 'true', { timeout: 20_000 });
   if (process.env.KIT_SHOTS) await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-overview.png' });
-  // 단: 채널(프레임에 붙음) 위, 프레임 맨 아래
-  await expect(props.getByTestId('sign-el')).toHaveCount(1);
-  await expect(props.getByTestId('sign-el')).toContainText('카페');
+  // 단: 채널·스카시(프레임에 붙음) 위, 프레임 맨 아래. 전체 보기에는 두 요소 글자가 다 보인다
+  await expect(props.getByTestId('sign-el')).toHaveCount(2);
+  await expect(props.getByTestId('sign-el').first()).toContainText('카페');
+  await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
   await expect(props.getByTestId('sign-el-frame')).toBeVisible();
   // 배치: 뷰어 자리에 배치 화면, 끝내면 다시 3D
   await props.getByTestId('sign-props-layout-toggle').click();
   await expect(props.getByTestId('sign-props-layout')).toBeVisible();
   await props.getByTestId('sign-props-layout-toggle').click();
   await expect(props.getByTestId('sign-view')).toBeVisible();
-  // 요소 클로즈업: 단·배치 숨김, 채널은 키트 G 한 글자, 고르기·글·그림·path·gltf
-  await props.getByTestId('sign-el').click();
+  // 요소 클로즈업 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업"): 같은 3D 에서 그 채널 글자만 남고 스카시·프레임은 숨는다. 단·배치 숨김, 고르기·글·그림·path·gltf
+  await props.getByTestId('sign-el').first().click();
   await expect(props).toHaveAttribute('data-mode', 'focus');
   await expect(props.getByTestId('sign-tiers')).toHaveCount(0);
   await expect(props.getByTestId('sign-props-layout-toggle')).toHaveCount(0);
-  await expect(props.getByTestId('kit-preview')).toBeVisible();
+  await expect(props.getByTestId('kit-preview')).toHaveCount(0); // 키트 G 모델은 고르기 카드에만
+  const view = props.getByTestId('sign-view');
+  await expect(view).toHaveAttribute('data-focus', 'ch1');
+  await expect(view).toHaveAttribute('data-visible-parts', 'ch1');
   await expect(props.getByTestId('sign-items').locator('button')).toHaveCount(4);
   await props.getByTestId('sign-add-text').click();
   await expect.poll(() => page.evaluate(() => (window as unknown as G).__ganpanda.objects[0].parts?.[0].items.length)).toBe(2);
@@ -49,9 +56,10 @@ test('간판 속성: 3D 뷰어 · 배치 · 단(프레임 맨 아래) → 요소
   await expect.poll(() => page.evaluate(() => (window as unknown as G).__ganpanda.objects[0].parts?.[0].options)).toMatchObject({ faceSlot: main, faceHex: '#ffbf00' });
   await expect(faceRow.getByTestId('sign-color-slot').first()).toHaveClass(/on/);
   if (process.env.KIT_SHOTS) { await page.waitForTimeout(800); await page.getByTestId('object-settings').screenshot({ path: '/private/tmp/claude-501/-Users-eshell-dev-ganpanda/88dde551-deea-4a11-833d-78c16980eff4/scratchpad/props-focus.png' }); }
-  // 돌아가기
+  // 돌아가기 — 전체가 다시 보인다
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-tiers')).toBeVisible();
+  await expect(props.getByTestId('sign-view')).toHaveAttribute('data-visible-parts', 'ch1 sc1');
 });
 
 test('세부 설정은 접힌 채로 시작하고, 펼치면 이 기기에 기억된다 (2026-10-31 "사인물 기본 정보 아래 내용 안보이게 해줘")', async ({ page, request }) => {

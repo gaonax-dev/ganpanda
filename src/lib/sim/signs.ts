@@ -260,6 +260,7 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
     let b: BuiltSign;
     try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
     catch { continue; }
+    if (L.partId) b.group.userData.partId = L.partId; // 간판 속성 클로즈업용 (2026-10-31)
     bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
     box.group.add(b.group);
     built.push(b);
