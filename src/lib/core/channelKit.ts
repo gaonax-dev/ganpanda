@@ -36,7 +36,8 @@ export function kitLookFor(p: KitPart): KitLook {
   const finish = String(o.chFinish ?? '도장');
   const side = paintHex(o, 'body') ?? (METAL_FINISH.test(finish) ? '#c9ccd1' : '#2b2f36');
   return {
-    face: paintHex(o, 'face') ?? '#ffffff',
+    // 갈바(도장·에폭시 앞면)는 앞면도 몸통 색으로 칠한다
+    face: p.type === 'ch-galva' ? (paintHex(o, 'face') ?? side) : (paintHex(o, 'face') ?? '#ffffff'),
     side,
     cap: paintHex(o, 'cap') ?? side,
     back: '#f4f4f0',

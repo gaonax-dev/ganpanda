@@ -1,6 +1,6 @@
 {
   "_doc": "채널 키트 굽기 설정 (2026-10-31, docs/features/channel-models.md). 컬렉션 = 종류 = 굽기 단위. roles: 오브젝트 → 역할. 오브젝트 이름이 '__역할'로 끝나면 그것이 우선",
-  "source": "3D models/G.blend",
+  "source": "3D models/G_01.blend",
   "out": "public/channel-models",
   "lightmapPx": 1024,
   "samples": 96,
