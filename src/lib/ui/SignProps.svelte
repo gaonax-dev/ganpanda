@@ -18,7 +18,6 @@
   import { kitLookFor, kitVariantFor } from '../core/channelKit';
   import { cardKey, kitCards } from '../render/kitCards.svelte';
   import SignView3D from './SignView3D.svelte';
-  import ChannelPreview from './ChannelPreview.svelte';
 
   let { obj, layout }: { obj: SignObject; layout?: Snippet } = $props();
   const ro = $derived(!app.canEdit);
@@ -64,7 +63,8 @@
     editParts((ps) => { const p = ps.find((x) => x.id === focused!.id)!; const it = newItem(kind); if (kind === 'text') it.text = '글자'; p.items.push(it); });
   }
   const back = () => { focus = null; picking = false; };
-  const viewKey = $derived(mode === 'layout' ? 'layout' : focus ? `focus:${focus}` : 'sign');
+  // 뷰어는 하나만 두고 focusPart 로 바꾼다 — 요소를 고를 때마다 다시 만들면 사라지는 동안 WebGL 화면이 둘(아이폰 메모리). 배치 ↔ 3D 바꿀 때만 다시 (2026-10-31)
+  const viewKey = $derived(mode === 'layout' && !focus ? 'layout' : 'sign');
 </script>
 
 <section class="props" data-testid="sign-props" data-mode={focus ? 'focus' : mode}>
@@ -73,10 +73,9 @@
       <div class="slot" in:scale={{ start: 0.9, duration: 280 }} out:fade={{ duration: 220 }}>
         {#if mode === 'layout' && !focus && layout}
           <div class="layout" data-testid="sign-props-layout">{@render layout()}</div>
-        {:else if focused && kitVariantFor(focused)}
-          <ChannelPreview part={focused} />
         {:else}
-          <SignView3D {obj} closeUp={!!focus} />
+          <!-- 같은 사인물 3D 에서 고른 요소만 남기고 가까이 (키트 G 모델은 고르기 카드에만) -->
+          <SignView3D {obj} closeUp={!!focus} focusPart={focused?.id ?? null} />
         {/if}
       </div>
     {/key}

@@ -106,7 +106,7 @@ function composedOf(o: SignObject, p: Placement, d: typeof DEFAULT_LETTER3D, let
     if (it.kind === 'text' && c.extrude) {
       const b = itemBox(it); // 글자 상자 (가로 없으면 글자수 × 높이 × 0.9) — 3D 글자도 이 상자에 맞춘다 (2026-10-18)
       letterItems.push({
-        text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing, ...(zMm ? { z: zMm } : {}),
+        partId: part.id, text: it.text!.trim(), heightMm: it.h * sy, widthMm: b.w * sx, x: it.x * sx, y: it.y * sy, letterSpacing, ...(zMm ? { z: zMm } : {}),
         depthMm: c.depthMm(part, o),
         // 앞면 색(시트)을 골랐으면 그 색이 글자 앞면 (2026-10-17)
         lighting: c.lighting(part), faceColor: surfaceOf(part).face ?? d.faceColor, sideColor: surfaceOf(part).side ?? d.sideColor, // 재료 층 마감 > 도색 키 (2026-10-21)

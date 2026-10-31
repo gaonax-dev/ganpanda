@@ -47,7 +47,7 @@ export interface SignSpec {
    * 조합형 4단계 (2026-10-16): 구성 요소의 글자 객체마다 자기 자리(상자 중심 기준 mm, 위 +)에 입체 글자.
    * 있으면 letters 대신 이것 — 정면도 편집기에서 정한 위치·상자 크기 그대로(상자 안에 2D 와 같은 규칙으로 맞춤)
    */
-  letterItems?: { text: string; heightMm: number; /** 글자 상자 폭 (mm) — 있으면 상자에 맞춘다(fitBox) */ widthMm?: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number; /** 앞면에서 올라선 높이 (mm, 2단계 깊이 누적) */ z?: number; finish?: 'hairline' | 'mirror'; standoffMm?: number; backLit?: boolean; haloColor?: string; sideLit?: boolean; bulbPitchMm?: number }[];
+  letterItems?: { /** 어느 구성 요소의 글자인가 — 간판 속성 클로즈업이 그 요소만 남긴다 (2026-10-31) */ partId?: string; text: string; heightMm: number; /** 글자 상자 폭 (mm) — 있으면 상자에 맞춘다(fitBox) */ widthMm?: number; depthMm: number; lighting: Lighting; faceColor: string; sideColor: string; letterSpacing: number; x: number; y: number; /** 앞면에서 올라선 높이 (mm, 2단계 깊이 누적) */ z?: number; finish?: 'hairline' | 'mirror'; standoffMm?: number; backLit?: boolean; haloColor?: string; sideLit?: boolean; bulbPitchMm?: number }[];
   /** 앞면에 평면으로 그리는 객체 (그림, 시트의 글자): 중심 기준 mm, 위 +. 그림은 buildSign 의 images[id] */
   faceItems?: { id: string; kind: 'text' | 'image' | 'shape'; text?: string; x: number; y: number; w: number; h: number; color: string; /** 채움 불투명도 (안개 시트, 2026-10-22) */ opacity?: number; /** 앞면에서 올라선 높이 (mm): 0 이면 앞면 텍스처에, 크면 그 높이의 얇은 판으로 (2단계 — 채널 앞면 위 시트) */ z?: number; shape?: 'rect' | 'ellipse' | 'line'; fill?: string; stroke?: string }[];
   /** 몸통 없음: 상자는 그리지 않고 글자만 (letterItems) */
