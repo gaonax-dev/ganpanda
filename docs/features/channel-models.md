@@ -7,7 +7,8 @@
 - **그림 카드**: 채널 묶음(15종) 중 키트에 있는 것은 사진 대신 **키트 모델에 그 묶음의 색을 입힌 그림**(`data-kit`). 미리보기와 같은 WebGL 화면으로 한 장씩 그려 기기에 저장(`k|키트버전|…`). 키트에 없는 묶음(벌브·통아크릴 등)은 사진 그대로.
 - 사진 위 실제 간판(아무 글자·실제 치수)은 지금처럼 3D 생성(`sim/signs.ts`) — 키트는 형태 고르기·색 확인용.
 
-## 블렌더 원본과 규칙 — `3D models/G.blend`
+## 블렌더 원본과 규칙 — `3D models/G_01.blend`
+(2026-10-31 사용자: "노말이 뒤집어진게 있어서 수정했다. 다시 불러와줘" — 원본을 G.blend → **G_01.blend** 로. 노말을 고치니 앞면 판이 보여 갈바·에폭시 카드가 흰 앞면으로 나왔다 → 갈바는 앞면도 몸통 색(`kitLookFor`).)
 - **컬렉션 = 종류 = 굽기 단위.** 종류 목록·역할·벽 간격은 `scripts/models/kit.json`.
 - **오브젝트 역할**: 이름 끝 `__역할`(예: `G_mark.003__face`)이 있으면 그것, 없으면 `kit.json` 의 `roles`. 역할: `face` 앞면 · `side` 옆면(몸통) · `cap` 캡 · `back` 뒤판·후광면 · `light` LED · `bulb` 전구 · `bulbBase` 전구받침 · `bracket` 까치발 · `frame` 프레임. 앱은 역할로 색을 입힌다(재질 이름 = 역할로 내보냄). 같은 재질("웜 화이트 4000K")을 앞면·LED 에 함께 써도 역할로 구분된다.
 - **방향**: 앞 = 블렌더 -Y, 벽 쪽 = +Y. 크기는 미터(G 약 32cm). 회전·크기는 오브젝트 변환 그대로 써도 된다(스크립트가 계산).
@@ -31,7 +32,7 @@
 굽기 코드는 애드온과 한 벌(`blender/ganpanda_kit/bake.py`), 저장소에서는 `scripts/models/bake_kit.py`(블렌더 백그라운드, 설정 `scripts/models/kit.json`):
 1. 종류마다 파일을 새로 열고, 모디파이어 적용 사본 + **벽**(글자 뒤 `wallGap` m, 글자 크기 2배)을 만든다. 나머지 오브젝트는 렌더에서 숨김.
 2. 두 번째 UV `lightmap` — 글자는 한 장에 펼치고(smart project), 벽은 자기 그림 전체.
-3. **낮**: 흰 확산 재질 + 하늘(0.62,0.66,0.72) + 해(앞·위·왼쪽) → Cycles 확산 굽기(빛만, 색 없음). **밤**: 하늘 없음 + `emissiveRoles`(앞면·뒤판·LED·전구) 발광 → 벽·몸통에 번진 빛까지. 벽은 굽기 잡음만 흐림(2px).
+3. **낮**: 흰 확산 재질 + 해(앞·위·왼쪽) + **파일의 월드** — 월드가 HDRI(환경 텍스처)를 쓰면 그 빛으로(G_01 은 `sourceimages/pergola_walkway_4k.exr`), 아니면 하늘색(0.62,0.66,0.72). HDRI 를 바꾸면 굽는 빛도 바뀐다. 4K EXR 은 크기 때문에 저장소에 넣지 않는다(`3D models/sourceimages/` 무시) → Cycles 확산 굽기(빛만, 색 없음). **밤**: 하늘 없음 + `emissiveRoles`(앞면·뒤판·LED·전구) 발광 → 벽·몸통에 번진 빛까지. 벽은 굽기 잡음만 흐림(2px).
 4. 그림마다 99.5% 값으로 펴서 8비트 회색조로, 세기는 `manifest.json` 의 `letterIntensity`·`wallIntensity`. 블렌더가 바로 WebP 로 저장(전체 약 0.9MB, 종류당 약 90KB).
 5. glb(역할 이름 재질, 두 UV) + `manifest.json`(`version` 은 굽을 때마다 +1 — 기기에 저장된 카드 그림도 다시).
 - 일부만: `"$BLENDER" -b --python scripts/models/bake_kit.py -- scripts/models/kit.json "$PWD" halo epoxy`

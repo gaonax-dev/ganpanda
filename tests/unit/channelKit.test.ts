@@ -37,4 +37,9 @@ describe('채널 → 키트 색', () => {
     expect(kitLookFor({ type: 'ch-front', options: opt({ chLight: '비조명' }) }).lit).toBe(false);
     expect(kitLookFor({ type: 'ch-galva', options: {} }).lit).toBe(false);
   });
+  it('갈바(도장·에폭시)는 앞면도 몸통과 같은 색 — 앞면 판이 따로 흰색으로 보이지 않게 (2026-10-31 노말 고친 G_01)', () => {
+    const l = kitLookFor({ type: 'ch-galva', options: opt({ bodySystem: '직접', bodyCode: '#1144aa', chGalvaFace: '에폭시' }) });
+    expect(l.face).toBe('#1144aa');
+    expect(l.side).toBe('#1144aa');
+  });
 });

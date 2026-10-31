@@ -1,5 +1,5 @@
 {
- "version": 7,
+ "version": 8,
  "letter": "G",
  "variants": [
   {
@@ -14,14 +14,14 @@
     "day": {
      "letters": "front-lit.day.letters.webp",
      "wall": "front-lit.day.wall.webp",
-     "letterIntensity": 1.7848,
+     "letterIntensity": 1.7355,
      "wallIntensity": 1.6222
     },
     "night": {
      "letters": "front-lit.night.letters.webp",
      "wall": "front-lit.night.wall.webp",
-     "letterIntensity": 2.4134,
-     "wallIntensity": 7.3575
+     "letterIntensity": 7.1453,
+     "wallIntensity": 7.354
     }
    },
    "size": [
@@ -43,14 +43,14 @@
     "day": {
      "letters": "front-lit-cap.day.letters.webp",
      "wall": "front-lit-cap.day.wall.webp",
-     "letterIntensity": 1.6927,
+     "letterIntensity": 1.6552,
      "wallIntensity": 1.6222
     },
     "night": {
      "letters": "front-lit-cap.night.letters.webp",
      "wall": "front-lit-cap.night.wall.webp",
-     "letterIntensity": 1.3617,
-     "wallIntensity": 5.2043
+     "letterIntensity": 6.1567,
+     "wallIntensity": 5.2042
     }
    },
    "size": [
@@ -79,8 +79,8 @@
     "night": {
      "letters": "halo.night.letters.webp",
      "wall": "halo.night.wall.webp",
-     "letterIntensity": 6.9227,
-     "wallIntensity": 1.6761
+     "letterIntensity": 6.9129,
+     "wallIntensity": 1.6765
     }
    },
    "size": [
@@ -88,7 +88,7 @@
     0.3319,
     0.1334
    ],
-   "bytes": 166484
+   "bytes": 166564
   },
   {
    "id": "both-cap",
@@ -134,14 +134,14 @@
     "day": {
      "letters": "acrylic-halo.day.letters.webp",
      "wall": "acrylic-halo.day.wall.webp",
-     "letterIntensity": 1.7096,
+     "letterIntensity": 1.7092,
      "wallIntensity": 1.4929
     },
     "night": {
      "letters": "acrylic-halo.night.letters.webp",
      "wall": "acrylic-halo.night.wall.webp",
-     "letterIntensity": 21.9914,
-     "wallIntensity": 6.0406
+     "letterIntensity": 21.968,
+     "wallIntensity": 6.0395
     }
    },
    "size": [
@@ -163,13 +163,13 @@
     "day": {
      "letters": "epoxy.day.letters.webp",
      "wall": "epoxy.day.wall.webp",
-     "letterIntensity": 0.0136,
+     "letterIntensity": 1.5444,
      "wallIntensity": 1.6283
     },
     "night": {
      "letters": "epoxy.night.letters.webp",
      "wall": "epoxy.night.wall.webp",
-     "letterIntensity": 6.2556,
+     "letterIntensity": 0.0009,
      "wallIntensity": 0.0001
     }
    },
@@ -194,14 +194,14 @@
     "day": {
      "letters": "epoxy-acrylic-halo.day.letters.webp",
      "wall": "epoxy-acrylic-halo.day.wall.webp",
-     "letterIntensity": 1.7113,
+     "letterIntensity": 1.7108,
      "wallIntensity": 1.4938
     },
     "night": {
      "letters": "epoxy-acrylic-halo.night.letters.webp",
      "wall": "epoxy-acrylic-halo.night.wall.webp",
-     "letterIntensity": 21.7676,
-     "wallIntensity": 6.0068
+     "letterIntensity": 21.7459,
+     "wallIntensity": 6.0084
     }
    },
    "size": [
@@ -254,13 +254,13 @@
     "day": {
      "letters": "galva-perforated.day.letters.webp",
      "wall": "galva-perforated.day.wall.webp",
-     "letterIntensity": 1.446,
+     "letterIntensity": 1.6204,
      "wallIntensity": 1.6138
     },
     "night": {
      "letters": "galva-perforated.night.letters.webp",
      "wall": "galva-perforated.night.wall.webp",
-     "letterIntensity": 1.6862,
+     "letterIntensity": 4.5531,
      "wallIntensity": 1.0526
     }
    },
