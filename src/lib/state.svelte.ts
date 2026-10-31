@@ -1,4 +1,5 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
+import { newProjectColors, refreshColorPatches } from './core/projectColors';
 import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
 import { loadLocalDefaults, loadLocalRules, saveLocalDefaults, saveLocalRules, validRule, type SpecDefault, type SpecRule } from './core/specRules';
@@ -459,6 +460,21 @@ class AppState {
   uvObjectId = $state<string | null>(null);
   converting = $state(false);
   settings = $derived.by<ProjectSettings>(() => (this.version, this.project.settings()));
+  /** 프로젝트 컬러 (2026-10-31, core/projectColors.ts) — 없으면 메인·배경·포인트 빈 칸 (저장은 처음 고칠 때) */
+  projectColors = $derived.by(() => this.settings.colors ?? this.emptyColors);
+  private emptyColors = newProjectColors();
+  /** 컬러 대화창 */
+  colorsOpen = $state(false);
+  /** 프로젝트 컬러를 고친다 — 그 칸을 쓰는 모든 사인물·구성 요소를 같은 묶음(되돌리기 한 번)으로 다시 적는다 */
+  setProjectColors(pc: import('./core/projectColors').ProjectColors) {
+    if (!this.canEdit) return;
+    this.editBoundary();
+    this.project.batch(() => {
+      this.project.updateSettings({ colors: pc });
+      for (const { id, patch } of refreshColorPatches(this.objects, pc)) this.project.updateObject(id, patch as Partial<SignObject>);
+    });
+    this.editBoundary();
+  }
   /** 이 프로젝트의 단가표 (문서에 있으면 그것, 없으면 계정 기본값, 없으면 예시) */
   /**
    * 견적 단가표: 프로젝트 단가표에 원가 배수는 소유자 계정의 전체 설정을 덮어 쓴다 (2026-10-26 "원가는 전체 변경이다") — 연결된 항목은 공급 원가 × 이 배수.
