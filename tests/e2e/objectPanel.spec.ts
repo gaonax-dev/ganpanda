@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
+import { dragOnPhoto, openOwnedProject, openSignDetail, uploadPhoto } from './helpers';
 
 test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 설정은 따로 열리는 창', async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -31,6 +31,7 @@ test('사인물 패널은 분류(간판/스카시/시트)와 요약만, 세부 �
   await page.getByTestId('object-settings-open').click();
   const dlg = page.getByTestId('object-settings');
   await expect(dlg).toBeVisible();
+  await openSignDetail(page); // 단면 쌓기는 세부 설정 안 (2026-10-31 간판 속성이 맨 위)
   await expect(dlg.getByTestId('cross-section')).toBeVisible(); // 첫 화면은 단면 쌓기 (2026-10-22 재료 조합 S1)
   await dlg.getByTestId('quick-part').first().click();
   await dlg.getByTestId('part-type').selectOption('sh-print'); // 시트 분류 = 시트 구성 요소 (2026-10-16)
