@@ -16,6 +16,7 @@ import { handleBusiness, recheckBusinesses } from './business';
 import { handleBilling, runBillingCycle } from './billing';
 import { handlePlanRequest, runPlanGrants } from './planRequest';
 import { handleKit } from './kit';
+import { isAppRequest } from './appRequest';
 import { handleStores } from './stores';
 import { handleAccountKind } from './accountKind';
 import { handleEstimateProject } from './projects';
@@ -263,8 +264,11 @@ async function serveModel(req: Request, env: Env, rawPath: string): Promise<Resp
   return new Response(req.method === 'HEAD' ? null : (obj as R2ObjectBody).body, { headers });
 }
 
-/** 설치한 앱(Tauri)의 요청인가 — 앱 셸이 User-Agent 에 붙이는 토큰 (2026-10-31 서비스 차단 중 앱만 열기) */
-export const isAppRequest = (req: Request) => (req.headers.get('user-agent') ?? '').includes('Ganpanda-App/');
+/** 차단 중 통과시킬 앱 세션인가 — Bearer 또는 ?session= 이 앱(UA 토큰)으로 만들거나 쓴 세션 (2026-10-31 "로딩 스피너만 돌아": 아이폰 WebSocket 은 UA 토큰이 없다) */
+async function isAppSession(req: Request, url: URL, env: Env): Promise<boolean> {
+  const a = await authenticate(withSessionParam(req, url), env);
+  return !!a?.appSession;
+}
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -273,7 +277,7 @@ export default {
     const { pathname } = url;
     // 서비스 차단 (2026-10-31 "법적문제가 있다. 웹에서 접근을 차단한다."): 헬스만 빼고 전부 503 — WebSocket 업그레이드도 여기로 오므로 함께 막힌다. 데이터는 그대로
     // 2026-10-31 "모든 접근을 차단할게" → "앱만 열어줘": 설치한 앱(Tauri)은 User-Agent 에 Ganpanda-App/ 을 붙인다(src-tauri) — 그 요청만 통과, 브라우저는 503
-    if (env.SERVICE_BLOCKED === '1' && pathname !== '/api/health' && !isAppRequest(req)) {
+    if (env.SERVICE_BLOCKED === '1' && pathname !== '/api/health' && !isAppRequest(req) && !(await isAppSession(req, url, env))) {
       return new Response(null, { status: 503, headers: { ...CORS, 'cache-control': 'no-store', 'retry-after': '3600' } }); // 본문 없음 — 정보를 주지 않는다 ("모든 정보를 못보게 해")
     }
 

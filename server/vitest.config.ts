@@ -12,6 +12,8 @@ export default defineConfig({
         // 테스트에서는 이메일 대신 링크를 응답에 돌려준다
         bindings: {
           TEST_MIGRATIONS: migrations, AUTH_DEV_LINK: '1', APP_URL: 'http://localhost:5199', OPERATOR_EMAILS: 'op@example.com',
+          // 서비스 차단(wrangler.jsonc 운영값 "1")은 테스트에서 끈다 — 켜진 채 돌리면 모든 요청이 503 (2026-10-31). blocked.test.ts 가 켜서 시험한다
+          SERVICE_BLOCKED: '',
           // 운영자 복원 API (2026-10-21 백업 2단계)
           ADMIN_TOKEN: 'test-admin',
           // 소셜 로그인 테스트용 가짜 자격 (외부 호출은 fetchMock 으로 대체)

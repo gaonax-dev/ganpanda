@@ -1,6 +1,7 @@
 // 소셜 로그인 (1-2d): 카카오·구글·애플. 서버가 OAuth 전 과정을 처리하고 세션을 앱(/login#session=)으로 넘긴다.
 import { acceptInviteToken, acceptTeamInvites } from './team';
 import { json, randomToken, sha256hex, text } from './http';
+import { isAppRequest } from './appRequest';
 import { normalizeEmail, type Account, markEmailVerified, TERMS_VERSION, bannedEmail } from './auth';
 import { appleClientSecret, verifyJwtRS256 } from './oauth/jwt';
 
@@ -132,8 +133,8 @@ export async function handleSocial(req: Request, env: Env, pathname: string): Pr
   try { account = await accountFor(env, identity); }
   catch (e) { if (e instanceof Error && e.message === 'banned') return text('이 계정은 이용이 정지되어 다시 가입할 수 없습니다. 문의: support@ganpanda.co.kr', 403); throw e; }
   const session = randomToken();
-  await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)')
-    .bind(await sha256hex(session), account.id, Date.now(), Date.now() + SESSION_TTL).run();
+  await env.DB.prepare('INSERT INTO sessions (token_hash, account_id, created_at, expires_at, app) VALUES (?, ?, ?, ?, ?)')
+    .bind(await sha256hex(session), account.id, Date.now(), Date.now() + SESSION_TTL, isAppRequest(req) ? 1 : 0).run(); // 앱 세션 표시 (2026-10-31)
   // 초대 링크로 시작했으면 이메일이 달라도 그 초대를 받아들인다 (링크 = 초대받은 사람). 앱은 next 의 joined= 로 안내
   const joined = row.team_token ? await acceptInviteToken(env, row.team_token, account.id) : null;
   await acceptTeamInvites(env, account.id); // 카카오 이메일 앞으로 온 멤버 초대 (2026-10-24)
