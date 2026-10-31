@@ -3,7 +3,7 @@ import { apiCreateInvite, openInvited, openOwnedProject, openObjectSettings } fr
 
 /** 합성 건물 사진 + 원근(치수 입력 사인물) + 전광 채널 "간판다" */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
-  const r = await openOwnedProject(page, request, '한울상사');
+  const r = await openOwnedProject(page, request, '가온사인');
   const dataUrl = await page.evaluate(async () => {
     const path = '/src/lib/sim/sample.ts';
     const { makeSamplePhoto } = await import(/* @vite-ignore */ path);
@@ -44,7 +44,7 @@ test('제안 보내기: [링크 발급](실사 이미지 안 만듦, 2026-10-24)
   // 고객: 링크 → 제안 페이지 (서버 랜딩이 앱의 ?proposal=1 로 보냄)
   const guest = await openInvited(browser, `http://localhost:5199/?room=${room}&invite=${token}&proposal=1`, '홍길동');
   const pg = guest.getByTestId('proposal-page');
-  await expect(pg).toContainText('한울상사');
+  await expect(pg).toContainText('가온사인');
   // 견적 제안 화면은 파랑 (2026-10-22 "견적제안은 블루컬러로")
   expect(await guest.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#3b82f6');
   await expect(pg.getByTestId('proposal-note-view')).toContainText('야간 모습');
@@ -140,14 +140,14 @@ test('제안을 만들 수 없을 때 이유를 보여 준다', async ({ page, r
 });
 
 test('서버 제안 링크 랜딩은 OG 메타를 주고 앱의 제안 페이지로 보낸다', async ({ page, request }) => {
-  const { session, projectId } = await openOwnedProject(page, request, '한울상사');
+  const { session, projectId } = await openOwnedProject(page, request, '가온사인');
   const invite = await apiCreateInvite(request, session, projectId, 'viewer');
   const token = new URL(invite).searchParams.get('invite')!;
   const r = await request.get(`http://localhost:8787/p/${projectId}/${token}`);
   expect(r.status()).toBe(200);
   const html = await r.text();
   expect(html).toContain('og:title');
-  expect(html).toContain('한울상사');
+  expect(html).toContain('가온사인');
   expect(html).toContain(`&proposal=1`);
 });
 

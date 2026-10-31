@@ -1,7 +1,8 @@
 // 공급사별 계산법 (2026-10-16 사용자: "공급사별 계산법을 사용할 수 있게해줘")
 // 공급 단가표의 구간·기본가·폭 표기를 읽어 계산법을 만든다: 글자 크기 구간 자당 / 폭 구간 ㎡ / 헤베 + 기본가 + 광폭 / 면적 구간
 import { describe, expect, it } from 'vitest';
-import { CALC_METHODS, evalArea, evalLetter, findMethod, methodsFor } from '../../src/lib/core/calcMethods';
+import { CALC_METHODS, buildMethods, evalArea, evalLetter, findMethod, methodsFor } from '../../src/lib/core/calcMethods';
+import { parseSupplierList } from '../../src/lib/core/supplierPrices';
 import { DEFAULT_PRICES, mergePrices } from '../../src/lib/core/pricing';
 import { applyMarkup } from '../../src/lib/core/markup';
 import { quoteObject } from '../../src/lib/core/quote';
@@ -12,29 +13,33 @@ const capLed = m((x) => x.supplier.id === 'alida' && x.group === '알미늄 캡 
 const galva = m((x) => x.group === '갈바 채널');
 const rubber = m((x) => x.group === '고무 스카시' && x.name.startsWith('고무 스카시 (수지') && x.variant === '고무 5T~30T');
 const frame = m((x) => x.group === '조명용 프레임 간판' && x.name === 'UV 주야모드 양면출력');
-const hwFlex = m((x) => x.supplier.id === 'hanwool' && x.group === '플렉스' && x.name === 'UV 단면');
-const hwBanner = m((x) => x.supplier.id === 'hanwool' && x.name === '현수막');
+const flex = m((x) => x.supplier.id === 'alida' && x.group === 'UV 후렉스 출력' && x.name === '비조명모드');
+// 면적 구간은 지금 공급 단가표엔 없다 — 업로드 단가표 모양으로 만든 예시 (숫자는 가상)
+const banner = buildMethods(parseSupplierList({ supplier: { id: 'acme', name: '에이크미', tag: '에이' }, effectiveDate: '2026-11-01', items: [
+  { id: 'acme.ban.1', group: '현수막', name: '현수막', option: '1회배 이하', unit: '장', price: 4000 },
+  { id: 'acme.ban.3', group: '현수막', name: '현수막', option: '3회배 미만', unit: '장', price: 7000 },
+  { id: 'acme.ban.over', group: '현수막', name: '현수막', option: '3회배 이상', unit: '회배', price: 2500 },
+] }).list!)[0];
 
 describe('계산법 만들기', () => {
   it('종류와 단위', () => {
     expect(capLed).toMatchObject({ kind: 'letters', unit: 'charCm' });
     expect(frame).toMatchObject({ kind: 'area', unit: 'm2' });
-    expect(hwFlex).toMatchObject({ kind: 'width', unit: 'm2' });
-    expect(hwBanner).toMatchObject({ kind: 'areaTier', unit: 'm2' });
+    expect(flex).toMatchObject({ kind: 'width', unit: 'm2' });
+    expect(banner).toMatchObject({ kind: 'areaTier', unit: 'm2', supplier: { id: 'acme' } });
     expect(findMethod(capLed.id)).toBe(capLed);
     expect(capLed.label).toContain('알미늄 캡 채널');
   });
   it('폭 구간은 폭을 말하는 세부만 (레이어·용도 변형은 아님)', () => {
     const widths = CALC_METHODS.filter((x) => x.kind === 'width').map((x) => `${x.group}|${x.name}`);
-    expect(widths).toContain('솔벤|솔벤현수막');
-    expect(widths).not.toContain('솔벤|원웨이');
+    expect(widths).toContain('UV 후렉스 출력|비조명모드');
+    expect(widths).toContain('라텍스 후렉스 출력|후렉스 조명용');
     expect(widths).not.toContain('UV투명시트 출력|투명 시트(PVC점착)');
   });
   it('직접 출력 분류의 계산법은 고를 수 없다', () => {
     const ids = methodsFor('m2', DEFAULT_PRICES).map((x) => x.group);
     expect(ids).not.toContain('UV 후렉스 출력');
-    expect(ids).not.toContain('플렉스');
-    expect(methodsFor('m2', { ...DEFAULT_PRICES, markup: { all: 1 } }).map((x) => x.group)).toContain('플렉스');
+    expect(methodsFor('m2', { ...DEFAULT_PRICES, markup: { all: 1 } }).map((x) => x.group)).toContain('UV 후렉스 출력');
     expect(methodsFor('charCm', DEFAULT_PRICES)).toContain(capLed);
   });
 });
@@ -64,13 +69,13 @@ describe('면적 계산법', () => {
     expect(evalArea(frame, 3000, 2100).raw).toBeCloseTo(6.3 * 44000);
   });
   it('폭 구간: 짧은 변이 들어가는 가장 좁은 폭', () => {
-    expect(evalArea(hwFlex, 3000, 2000).raw).toBeCloseTo(6 * 8000);
-    expect(evalArea(hwFlex, 5000, 2500).raw).toBeCloseTo(12.5 * 10000);
+    expect(evalArea(flex, 3000, 2000).raw).toBeCloseTo(6 * 4500); // 소폭 2,100
+    expect(evalArea(flex, 5000, 2500).raw).toBeCloseTo(12.5 * 8000); // 장폭 3,050
   });
   it('면적 구간 (현수막 1회배 이하 장당 / 3회배 미만 장당 / 3회배 이상 회배당)', () => {
-    expect(evalArea(hwBanner, 900, 1000).raw).toBe(3000);
-    expect(evalArea(hwBanner, 2000, 1000).raw).toBe(6000);
-    expect(evalArea(hwBanner, 4000, 1000).raw).toBe(8000);
+    expect(evalArea(banner, 900, 1000).raw).toBe(4000);
+    expect(evalArea(banner, 2000, 1000).raw).toBe(7000);
+    expect(evalArea(banner, 4000, 1000).raw).toBe(10000);
   });
 });
 

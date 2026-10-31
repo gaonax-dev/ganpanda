@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·주문서·JSON 에 반영된다', async ({ page, request }) => {
-  await openOwnedProject(page, request, '한울상사');
+  await openOwnedProject(page, request, '조합형 주문');
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
@@ -69,9 +69,9 @@ test('주문 사양: 종류를 고르면 그 옵션 폼이 나오고, 요약·�
   expect(json.totals.total).toBeGreaterThan(0);
 });
 
-test('한울 조합형: 새 종류(라이트패널·사인미러)와 채널 조합 옵션이 폼에 나오고, 개 단위는 1식으로 견적', async ({ page, request }) => {
-  // 2026-10-15 사용자: "hanwoolcorp… 조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘"
-  await openOwnedProject(page, request, '한울상사');
+test('조합형: 새 종류(라이트패널·사인미러)와 채널 조합 옵션이 폼에 나오고, 개 단위는 1식으로 견적', async ({ page, request }) => {
+  // 2026-10-15 사용자: "조합형으로 주문 가능하게… 현재 사인물 설정 구성해줘"
+  await openOwnedProject(page, request, '조합형 주문');
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

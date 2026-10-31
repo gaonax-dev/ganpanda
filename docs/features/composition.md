@@ -149,7 +149,7 @@ PartItem { id, kind: 'text' | 'image', text?, count?, x, y, h, w?, image? }
 - **재질 객체**(`material()` in `options.ts`): 재질 선택 + 도색 가능한 재질이면 도색 객체. 재질 목록 `MATERIALS`: 스텐 `stain` · 철 `iron` · 알루미늄 `alu` · 갈바 `galva`(도색 가능) · 텐션 천 `tension`(도색 없음). 채널 앞면 판 `FACE_MATERIALS`: 아크릴 `acrylic` · PC판 `pc`.
 - **도색 객체**(`paint()`): 색상 체계(도색 없음 기본 / **기본색** / PANTONE / RAL / KCC) → 기본색이면 색 이름 선택, 그 밖은 컬러코드 · 광택(유광/반광/무광). 키 `<prefix>System·Code·Gloss`. 기본색은 빠른 설정 칩이 쓴다(2026-10-17) → [order.md](order.md).
 - 쓰는 곳: 간판 프레임 재질(갈바·트러스·파이프 간접: `frameMat` + `framePaint*`), 갈바 판 도색(`paint*`), 돌출·복합판 도색, 채널 **몸통 재질**(`chSideMat`: 알루미늄/스텐/철/갈바) + 몸통 도색(`body*`), 채널 **앞면 판**(`chFace`: 아크릴/PC판, 전광·전후광만), 스카시 도색(`paint*`), 간판에 붙인 스카시 도색(`scPaint*`).
-- **공급업체 자재(계획)**: 옵션 값은 이름으로 저장하고 재질 id 는 나중에 공급업체별 자재(품목 코드·단가)를 붙일 자리입니다(예: 한울 품목 코드 → [../product/supplier-hanwool.md](../product/supplier-hanwool.md)).
+- **공급업체 자재(계획)**: 옵션 값은 이름으로 저장하고 재질 id 는 나중에 공급업체별 자재(품목 코드·단가)를 붙일 자리입니다(공급업체 품목 코드는 업로드·API 단가표에서).
 
 ## 관련 테스트
 `tests/unit/parts.test.ts`, `tests/unit/composeAll.test.ts`, `tests/unit/sheetCut.test.ts`, `tests/unit/materials.test.ts`, `tests/unit/frontView.test.ts`, `tests/unit/partsLayout.test.ts`, `tests/e2e/parts.spec.ts`, `tests/e2e/frontEditor.spec.ts`, `tests/e2e/partsLayout.spec.ts` (및 조합형으로 바뀐 `order`·`quote`·`link`·`board`·`letter3d` E2E)

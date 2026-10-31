@@ -186,7 +186,7 @@ describe('초대 링크 → 카카오로 팀 들어가기', () => {
   it('start?team= 을 state 에 실어 콜백에서 초대를 받아들인다 (이메일 달라도), 앱에는 joined=초대한 사람', async () => {
     const { json } = await import('./helpers');
     const owner = await login(`kowner-${crypto.randomUUID().slice(0, 6)}@example.com`);
-    await json('/api/me', { name: '한울광고' }, owner, 'PATCH');
+    await json('/api/me', { name: '가온광고' }, owner, 'PATCH');
     const { link } = await (await json('/api/me/team', { email: `office-${crypto.randomUUID().slice(0, 6)}@example.com` }, owner)).json<{ link: string }>();
     const team = new URL(link).searchParams.get('team')!;
     const r = await api(`/api/auth/kakao/start?next=%2F&team=${team}`, { redirect: 'manual' });
@@ -194,7 +194,7 @@ describe('초대 링크 → 카카오로 팀 들어가기', () => {
     mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
     mock('https://kapi.kakao.com/v2/user/me', { id: 4242, kakao_account: { email: 'personal@kakao.example', is_email_verified: true }, properties: { nickname: '김직원' } });
     const q = sessionFromRedirect(await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual' }));
-    expect(q.get('next')).toBe('/?joined=' + encodeURIComponent('한울광고'));
+    expect(q.get('next')).toBe('/?joined=' + encodeURIComponent('가온광고'));
     const members = (await (await get('/api/me/team', owner)).json<{ members: { email: string }[]; invites: unknown[] }>());
     expect(members.members.map((m) => m.email)).toEqual(['personal@kakao.example']);
     expect(members.invites).toEqual([]);

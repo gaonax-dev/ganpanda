@@ -32,10 +32,10 @@ describe('수동 입력 + 자동 전환', () => {
 
 describe('원가 (공급사 금액) · 이익율', () => {
   it('공급 품목 연결: 원가 = 수량 × 공급 단가', () => {
-    const prices = { ...P, markup: { all: 2 }, sheets: { ...P.sheets, 'sh-cut': 15000 }, links: { 'sh-cut': 'hanwool:hanwool.solvent.백색시트' } };
+    const prices = { ...P, markup: { all: 2 }, sheets: { ...P.sheets, 'sh-cut': 15000 }, links: { 'sh-cut': 'alida:alida.aqua.유포지' } };
     const [l] = quoteProject([sign({ productId: undefined, sheetIds: ['sh-cut'] })], prices).lines;
     expect(l.amount).toBe(30000);
-    expect(l.cost).toBe(15000);
+    expect(l.cost).toBe(16000); // 2㎡ × 8,000
   });
   it('계산법: 원가 = 배수 전 금액', () => {
     const frame = CALC_METHODS.find((m) => m.group === '조명용 프레임 간판' && m.name === 'UV 주야모드 양면출력')!;

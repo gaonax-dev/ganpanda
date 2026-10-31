@@ -7,7 +7,7 @@ describe('전개도 SVG (최종 출력 → PDF)', () => {
     { id: 'b', name: '출입문', x: 3600, y: 0, w: 1200, h: 2100, estimated: true, lines: ['시트 컷팅'], corner: 0.2, image: { href: 'data:image/png;base64,AAAA', pageW: 1000, pageH: 800, crop: { x: 100, y: 50, w: 400, h: 700 } } },
   ];
   it('A4 가로 한 장에 전부 들어가는 축척으로, 카드마다 사각·치수선·이름·사양·금액을 그린다', () => {
-    const svg = listSvg({ title: '한울상사 사인물', subtitle: '2026-10-15', cards });
+    const svg = listSvg({ title: '가온사인 사인물', subtitle: '2026-10-15', cards });
     expect(svg.startsWith('<svg')).toBe(true);
     expect(svg).toContain('width="297mm"');
     expect(svg).toContain('정면 간판');
@@ -66,7 +66,7 @@ describe('SVG 내보내기 옵션: 비율·글자 윤곽선', () => {
   });
   it('글자 윤곽선: 모든 글자가 <path> 로 바뀌고 <text> 가 없다 (폰트 없는 일러에서도 같은 모양)', () => {
     const font = fontFromBuffer(readFileSync('node_modules/pretendard/dist/public/static/Pretendard-Bold.otf').buffer.slice(0) as ArrayBuffer);
-    const svg = listSvg({ title: '한울 전개도', cards, text: outlineRenderer(font) });
+    const svg = listSvg({ title: '가온 전개도', cards, text: outlineRenderer(font) });
     expect(svg).not.toContain('<text');
     expect((svg.match(/<path /g) ?? []).length).toBeGreaterThan(5); // 제목·축척·치수 둘·이름·사양·금액
     expect(svg).toContain('fill="#2f8bff"'); // 치수 색 유지

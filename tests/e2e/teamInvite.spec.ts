@@ -8,7 +8,7 @@ test('가입 안 한 이메일을 멤버로 → 가입 링크 메일(대기 중)
   await page.evaluate((s) => { localStorage.clear(); localStorage.setItem('ganpanda.session', s); localStorage.setItem('ganpanda.touchHelp', 'off'); }, owner);
   await page.reload();
   await page.getByTestId('account-menu').click();
-  await page.getByTestId('account-name').fill('한울광고');
+  await page.getByTestId('account-name').fill('가온광고');
   await page.getByTestId('account-name').press('Enter');
   await page.keyboard.press('Escape');
   await openSettings(page);
@@ -28,7 +28,7 @@ test('가입 안 한 이메일을 멤버로 → 가입 링크 메일(대기 중)
   await sp.goto(link.pathname + link.search);
   const dlg = sp.getByTestId('login-dialog');
   await expect(dlg).toHaveAttribute('data-mode', 'signup');
-  await expect(sp.getByTestId('invite-banner')).toContainText('한울광고');
+  await expect(sp.getByTestId('invite-banner')).toContainText('가온광고');
   await expect(sp.getByTestId('login-email')).toHaveValue(staff);
   await expect(sp.getByTestId('login-email')).toBeDisabled();
   await expect(sp.getByTestId('signup-business')).toHaveCount(0);
@@ -76,8 +76,8 @@ test('초대 링크 창의 [카카오로 팀 들어가기]는 초대를 들고 �
   expect(await kakao.getAttribute('href')).toContain(`team=${link.searchParams.get('team')}`);
   // 카카오에서 돌아온 모습 (서버가 next 에 joined= 를 붙인다)
   const session = await apiLogin(request);
-  await page.goto(`/login#session=${encodeURIComponent(session)}&next=${encodeURIComponent('/?joined=' + encodeURIComponent('한울광고'))}`);
-  await expect(page.getByTestId('notice')).toContainText('한울광고님의 팀에 들어왔습니다');
+  await page.goto(`/login#session=${encodeURIComponent(session)}&next=${encodeURIComponent('/?joined=' + encodeURIComponent('가온광고'))}`);
+  await expect(page.getByTestId('notice')).toContainText('가온광고님의 팀에 들어왔습니다');
   await expect(page).not.toHaveURL(/joined=/);
 });
 

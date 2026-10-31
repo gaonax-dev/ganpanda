@@ -10,9 +10,9 @@ test('원가 배수는 단가 설정 [자재 원가]에서만 — 바꾸면 확�
   await uploadPhoto(page);
   const id = await page.evaluate(() => { const g = (window as unknown as G).__ganpanda; return g.project.addObject({ photoId: g.photos[0].id, name: '판', shape: 'rect', quad: [[100, 100], [700, 100], [700, 400], [100, 400]], sheetIds: [], productId: 'board-acp', widthMm: 2000, heightMm: 1000 }); });
   await page.getByTestId('view-list').click();
-  // 알루미늄 복합판 ㎡ ← 한울 솔벤 백색시트 7,500 (배수 ×1)
+  // 알루미늄 복합판 ㎡ ← 알리다 수성미디어 유포지 8,000 (배수 ×1)
   await page.getByTestId('open-prices').click();
-  await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.solvent.백색시트');
+  await page.getByTestId('price-link-board-acp').selectOption('alida:alida.aqua.유포지');
   await page.getByTestId('close-prices').click();
   await page.evaluate(() => (window as unknown as G).__ganpanda.autoAllLines());
   const amount = page.locator(`[data-testid="quote-line"][data-key="${id}:body"]`).getByTestId('line-amount');

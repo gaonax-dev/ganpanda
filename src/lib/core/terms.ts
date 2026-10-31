@@ -18,11 +18,6 @@ export const SUPPLIER_TERMS: Record<string, Record<string, string>> = {
     'opt:chType=오싸이': '오사이', 'opt:chType=일체형': '일체형 채널',
     'sheet:sh-print': 'UV시트 출력', 'opt:cut=돔보컷팅': '돔보컷팅', 'opt:base=회색': '그레이 시트', 'opt:base=흰색': '백색 시트',
   },
-  // 한울상사 2026-03-27 (원단별 단가표 품목명)
-  hanwool: {
-    'sheet:sh-print': 'UV 백색시트', 'opt:base=흰색': '백색시트', 'opt:base=회색': '그레이시트', 'opt:cut=돔보컷팅': '돔보', 'opt:ink=솔벤트': '솔벤', 'opt:ink=UV': 'UV',
-    'product:board-flex': '플렉스',
-  },
 };
 
 /** 단가 항목(제품·시트 id)에 연결된 공급사 id — 계산법 > 연결. 없으면 undefined */

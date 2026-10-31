@@ -23,9 +23,9 @@ describe('알리다 단가표 (2025년 3월 1호)', () => {
     expect(ea.length).toBeGreaterThan(0);
     expect(ea.some((x) => x.item.note?.includes('자당'))).toBe(false);
   });
-  it('한울과 함께 연결 목록에 나온다 (꼬리표로 구분)', () => {
+  it('연결 목록에 꼬리표로 나온다 (공개 단가표만 — 2026-10-31)', () => {
     const tags = new Set(linkableItems('m2').map((x) => x.list.supplier.tag));
-    expect(tags).toEqual(new Set(['한울', '알리다']));
+    expect(tags).toEqual(new Set(['알리다']));
     const any = al.items.find((i) => i.unit === '회배' && !i.surcharge)!;
     expect(findSupplierItem(`alida:${any.id}`)!.list.supplier.tag).toBe('알리다');
   });

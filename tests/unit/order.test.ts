@@ -14,7 +14,7 @@ describe('주문서 JSON', () => {
   ];
   const sources = [{ id: 's1', name: 'design_v1.ai', kind: 'pdf' as const, fileAssetId: 'f', pages: [{ assetId: 'p1', w: 100, h: 100 }], author: '제작자', createdAt: 0 }];
   const quote = quoteProject(signs, { ...DEFAULT_PRICES, minimum: 0 });
-  const json = orderJson({ projectName: '한울상사', signs, sizeOf: (o) => (o.widthMm && o.heightMm ? { w: o.widthMm, h: o.heightMm, estimated: false } : null), sources, quote, order: { customer: '홍길동', company: '한울상사', phone: '010-1234-5678', delivery: 'install', address: '경기도 이천시', dueDate: '2026-10-25', notes: '크레인 진입 확인' }, now: new Date('2026-10-14T00:00:00Z') });
+  const json = orderJson({ projectName: '가온사인', signs, sizeOf: (o) => (o.widthMm && o.heightMm ? { w: o.widthMm, h: o.heightMm, estimated: false } : null), sources, quote, order: { customer: '홍길동', company: '가온사인', phone: '010-1234-5678', delivery: 'install', address: '경기도 이천시', dueDate: '2026-10-25', notes: '크레인 진입 확인' }, now: new Date('2026-10-14T00:00:00Z') });
 
   it('주문 정보·품목·사양·파일·합계를 담는다', () => {
     expect(json.order_info.delivery_label).toBe('시공 요청');

@@ -1,4 +1,4 @@
-// 공급 단가 × 배수 = 내 판매 단가 (2026-10-16 사용자: "이건 소비자가 예시로 한울 가격을 몇배로 할지 조정해봐" — 단가표.xlsx(가오낙스 판매가)를 예시로)
+// 공급 단가 × 배수 = 내 판매 단가 (2026-10-16 사용자: "이건 소비자가 예시로 공급 가격을 몇배로 할지 조정해봐" — 단가표.xlsx(가오낙스 판매가)를 예시로)
 import { describe, expect, it } from 'vitest';
 import { applyMarkup, isDirect, linkedPrice, markupFor } from '../../src/lib/core/markup';
 import { findSupplierItem } from '../../src/lib/core/supplierPrices';
@@ -8,22 +8,22 @@ const item = (link: string) => findSupplierItem(link)!.item;
 
 describe('배수', () => {
   it('분류 배수 > 전체 배수 > 1', () => {
-    const uv = item('hanwool:hanwool.uv.백색시트');
+    const uv = item('alida:alida.solvent.백색시트');
     expect(markupFor({ ...DEFAULT_PRICES }, uv)).toBe(1);
     expect(markupFor({ ...DEFAULT_PRICES, markup: { all: 1.5 } }, uv)).toBe(1.5);
-    expect(markupFor({ ...DEFAULT_PRICES, markup: { all: 1.5, groups: { UV: 2 } } }, uv)).toBe(2);
+    expect(markupFor({ ...DEFAULT_PRICES, markup: { all: 1.5, groups: { '솔벤시트 출력': 2 } } }, uv)).toBe(2);
   });
   it('연결 단가 = 공급 단가 × 배수, 100원 단위 반올림', () => {
-    expect(linkedPrice({ ...DEFAULT_PRICES, markup: { all: 1.3 } }, 'hanwool:hanwool.uv.백색시트')).toBe(9800); // 7,500 × 1.3 = 9,750
+    expect(linkedPrice({ ...DEFAULT_PRICES, markup: { all: 1.3 } }, 'alida:alida.solvent.백색시트')).toBe(7200); // 5,500 × 1.3 = 7,150
     expect(linkedPrice(DEFAULT_PRICES, 'nope:x')).toBeNull();
   });
   it('배수를 바꾸면 연결된 항목만 다시 계산된다', () => {
-    const p = { ...DEFAULT_PRICES, links: { 'sh-print': 'hanwool:hanwool.uv.백색시트', 'board-flex': 'hanwool:hanwool.flex.UV 단면.단폭 2,100' } };
-    const next = applyMarkup(p, { all: 2, groups: { 플렉스: 3 } });
-    expect(next.sheets['sh-print']).toBe(15000);
-    expect(next.products['board-flex']).toBe(24000);
+    const p = { ...DEFAULT_PRICES, links: { 'sh-print': 'alida:alida.solvent.백색시트', 'board-flex': 'alida:alida.uvflex.비조명모드.소폭' } };
+    const next = applyMarkup(p, { all: 2, groups: { 'UV 후렉스 출력': 3 } });
+    expect(next.sheets['sh-print']).toBe(11000);
+    expect(next.products['board-flex']).toBe(13500);
     expect(next.sheets['sh-cut']).toBe(DEFAULT_PRICES.sheets['sh-cut']);
-    expect(next.markup).toEqual({ all: 2, groups: { 플렉스: 3 } });
+    expect(next.markup).toEqual({ all: 2, groups: { 'UV 후렉스 출력': 3 } });
   });
   it('저장값: 배수는 0 초과 10 이하만', () => {
     expect(mergePrices({ markup: { all: 1.8, groups: { UV: 2, 솔벤: -1, 수성: 'x' } } }).markup).toEqual({ all: 1.8, groups: { UV: 2 } });
@@ -32,24 +32,24 @@ describe('배수', () => {
 });
 
 describe('직접 출력 (2026-10-16 사용자: "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수를 적용해야한다")', () => {
-  it('샘플 기본값: 시트·후렉스·UV 실사 출력은 직접 출력 (한울·알리다)', () => {
+  it('샘플 기본값: 시트·후렉스·UV 실사 출력은 직접 출력 (알리다 분류)', () => {
     expect(DEFAULT_PRICES.markup!.all).toBe(1);
-    expect(DEFAULT_PRICES.markup!.direct).toEqual(expect.arrayContaining(['UV', '플렉스', 'UV시트평판', 'UV 후렉스 출력', 'UV 대형 후렉스 출력', '라텍스 후렉스 출력', 'UV시트 출력', 'UV투명시트 출력', '라텍스시트 출력', '솔벤시트 출력', 'UV 평판 출력']));
+    expect(DEFAULT_PRICES.markup!.direct).toEqual(expect.arrayContaining(['UV 후렉스 출력', 'UV 대형 후렉스 출력', '라텍스 후렉스 출력', 'UV시트 출력', 'UV투명시트 출력', '라텍스시트 출력', '솔벤시트 출력', 'UV 평판 출력']));
     expect(DEFAULT_PRICES.markup!.direct).not.toContain('고무 스카시');
-    expect(isDirect(DEFAULT_PRICES, item('hanwool:hanwool.uv.백색시트'))).toBe(true);
-    expect(isDirect(DEFAULT_PRICES, item('hanwool:hanwool.solvent.백색시트'))).toBe(false);
+    expect(isDirect(DEFAULT_PRICES, item('alida:alida.solvent.백색시트'))).toBe(true);
+    expect(isDirect(DEFAULT_PRICES, item('alida:alida.aqua.유포지'))).toBe(false);
   });
   it('직접 출력 분류는 연결 단가가 없고(직접 입력), 나머지는 배수', () => {
-    const p = { ...DEFAULT_PRICES, markup: { all: 1.5, direct: ['UV'] } };
-    expect(linkedPrice(p, 'hanwool:hanwool.uv.백색시트')).toBeNull();
-    expect(linkedPrice(p, 'hanwool:hanwool.solvent.백색시트')).toBe(11300); // 7,500 × 1.5 = 11,250
+    const p = { ...DEFAULT_PRICES, markup: { all: 1.5, direct: ['솔벤시트 출력'] } };
+    expect(linkedPrice(p, 'alida:alida.solvent.백색시트')).toBeNull();
+    expect(linkedPrice(p, 'alida:alida.aqua.유포지')).toBe(12000); // 8,000 × 1.5
   });
   it('분류를 직접 출력으로 바꾸면 그 연결은 풀리고 단가는 그대로 남는다', () => {
-    const p = { ...DEFAULT_PRICES, markup: { all: 1 }, links: { 'sh-print': 'hanwool:hanwool.uv.백색시트', 'sh-cut': 'hanwool:hanwool.solvent.백색시트' } };
-    const next = applyMarkup({ ...p, sheets: { ...p.sheets, 'sh-print': 7500 } }, { all: 2, direct: ['UV'] });
-    expect(next.links).toEqual({ 'sh-cut': 'hanwool:hanwool.solvent.백색시트' });
-    expect(next.sheets['sh-print']).toBe(7500);
-    expect(next.sheets['sh-cut']).toBe(15000);
+    const p = { ...DEFAULT_PRICES, markup: { all: 1 }, links: { 'sh-print': 'alida:alida.solvent.백색시트', 'sh-cut': 'alida:alida.aqua.유포지' } };
+    const next = applyMarkup({ ...p, sheets: { ...p.sheets, 'sh-print': 5500 } }, { all: 2, direct: ['솔벤시트 출력'] });
+    expect(next.links).toEqual({ 'sh-cut': 'alida:alida.aqua.유포지' });
+    expect(next.sheets['sh-print']).toBe(5500);
+    expect(next.sheets['sh-cut']).toBe(16000);
   });
   it('저장값: direct 는 문자열 목록만', () => {
     expect(mergePrices({ markup: { all: 1.2, direct: ['UV', 3] } }).markup).toEqual({ all: 1.2, direct: ['UV'] });

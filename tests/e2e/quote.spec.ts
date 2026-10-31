@@ -120,41 +120,42 @@ test('견적서 인쇄 화면', async ({ page, request }) => {
   await expect(page.getByTestId('quote-sheet')).toHaveCount(0);
 });
 
-test('공급 단가표(한울): 내 단가 항목을 연결하면 단가를 가져오고 꼬리표가 붙고, 직접 고치면 풀린다', async ({ page, request }) => {
-  // 2026-10-16 사용자: "한울 단가표이다. 해당 단가는 한울 꼬리표가 있어야 한다… 지금은 개발중으로 둘다 구성하고 추후 업로드나 api로… 사용자가 입력가능하게"
+test('공급 단가표(알리다): 내 단가 항목을 연결하면 단가를 가져오고 꼬리표가 붙고, 직접 고치면 풀린다', async ({ page, request }) => {
+  // 2026-10-16 사용자: "해당 단가는 공급사 꼬리표가 있어야 한다… 지금은 개발중으로 둘다 구성하고 추후 업로드나 api로… 사용자가 입력가능하게"
   await openOwnedProject(page, request);
   await makeSign(page);
   await page.getByTestId('view-list').click();
   await page.getByTestId('open-prices').click();
   // 공급 단가표(읽기 전용)는 [자재 원가] 탭에서 펼쳐 본다 (2026-10-26 탭 나눔)
   await page.getByTestId('prices-tab-cost').click();
-  await page.getByTestId('supplier-toggle-hanwool').click();
-  await expect(page.getByTestId('supplier-list-hanwool')).toContainText('2026-03-27');
-  await expect(page.getByTestId('supplier-item').filter({ hasText: '백색시트' }).first()).toContainText('7,500원/회배');
+  await page.getByTestId('supplier-toggle-alida').click();
+  await expect(page.getByTestId('supplier-list-alida')).toContainText('2025-03-01');
+  await page.getByTestId('supplier-search').fill('유포지');
+  await expect(page.getByTestId('supplier-item').filter({ hasText: '유포지' }).first()).toContainText('8,000원/회배');
   await page.getByTestId('prices-tab-sale').click();
-  // 알루미늄 복합판 ㎡ 단가 ← 한울 솔벤 백색시트(예시 연결. UV 실사는 직접 출력이라 연결 목록에 없다)
-  await expect(page.getByTestId('price-link-board-acp').locator('option[value="hanwool:hanwool.uv.백색시트"]')).toHaveCount(0);
-  await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.solvent.백색시트');
-  await expect(page.getByTestId('price-board-acp')).toHaveValue('7500');
-  await expect(page.getByTestId('price-tag-board-acp')).toHaveText('한울');
+  // 알루미늄 복합판 ㎡ 단가 ← 알리다 수성미디어 유포지(예시 연결. 솔벤 시트 출력은 직접 출력이라 연결 목록에 없다)
+  await expect(page.getByTestId('price-link-board-acp').locator('option[value="alida:alida.solvent.백색시트"]')).toHaveCount(0);
+  await page.getByTestId('price-link-board-acp').selectOption('alida:alida.aqua.유포지');
+  await expect(page.getByTestId('price-board-acp')).toHaveValue('8000');
+  await expect(page.getByTestId('price-tag-board-acp')).toHaveText('알리다');
   await page.getByTestId('close-prices').click();
-  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).toContainText('한울 단가');
+  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).toContainText('알리다 단가');
   // 직접 입력하면 연결·꼬리표가 풀린다
   await page.getByTestId('open-prices').click();
   await page.getByTestId('price-board-acp').fill('90000');
   await expect(page.getByTestId('price-tag-board-acp')).toHaveCount(0);
   await expect(page.getByTestId('price-link-board-acp')).toHaveValue('');
   await page.getByTestId('close-prices').click();
-  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).not.toContainText('한울');
+  await expect(page.locator('.line').filter({ hasText: '알루미늄 복합판' })).not.toContainText('알리다');
 });
 
 test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)로 다시 계산된다', async ({ page, request }) => {
-  // 2026-10-16 사용자: "한울 가격을 몇배로 할지 조정해봐" → "단가는 사용가 설정할거고"
+  // 2026-10-16 사용자: "공급 가격을 몇배로 할지 조정해봐" → "단가는 사용가 설정할거고"
   await openOwnedProject(page, request);
   await page.getByTestId('view-list').click();
   await page.getByTestId('open-prices').click();
-  await page.getByTestId('price-link-sh-print').selectOption('hanwool:hanwool.solvent.백색시트');
-  await expect(page.getByTestId('price-sh-print')).toHaveValue('7500');
+  await page.getByTestId('price-link-sh-print').selectOption('alida:alida.aqua.유포지');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('8000');
   const cost = () => page.getByTestId('prices-tab-cost').click(), sale = () => page.getByTestId('prices-tab-sale').click(); // 배수·공급 단가표는 [자재 원가] 탭 (2026-10-26)
   // 원가 배수는 전체 적용 — 바꿀 때마다 확인 창 (2026-10-26 "원가는 전체 변경이다. 항상 대화창으로 확인")
   const asked: string[] = [];
@@ -163,28 +164,27 @@ test('배수: 연결한 항목은 공급 단가 × 배수(분류 배수 우선)�
   await page.getByTestId('markup-all').fill('2');
   await page.getByTestId('markup-all').press('Enter');
   await sale();
-  await expect(page.getByTestId('price-sh-print')).toHaveValue('15000');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('16000');
   expect(asked[0]).toContain('×1 → ×2');
   expect(asked[0]).toContain('전체 적용');
   await cost();
-  await page.getByTestId('supplier-toggle-hanwool').click(); // 분류 배수·직접 출력은 공급업체를 펼쳐서
-  await page.getByTestId('markup-솔벤').fill('1.3');
-  await page.getByTestId('markup-솔벤').press('Enter');
+  await page.getByTestId('supplier-toggle-alida').click(); // 분류 배수·직접 출력은 공급업체를 펼쳐서
+  await page.getByTestId('markup-수성미디어 출력').fill('1.3');
+  await page.getByTestId('markup-수성미디어 출력').press('Enter');
   await sale();
-  await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('10400');
   await expect(page.getByTestId('price-sh-cut')).toHaveValue('35000'); // 연결 안 한 항목은 그대로
   await cost();
-  // 직접 출력 (2026-10-16 "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수"): 샘플 기본은 UV·플렉스 직접 출력, 배수 칸 없음
-  await expect(page.getByTestId('direct-UV')).toBeChecked();
-  await expect(page.getByTestId('markup-UV')).toHaveCount(0);
-  // 솔벤을 직접 출력으로 바꾸면 연결이 풀리고 단가는 남는다
-  await page.getByTestId('direct-솔벤').check();
+  // 직접 출력 (2026-10-16 "직접출력은 시트 후렉스 uv실사출력이고 나머지는 기존배수"): 샘플 기본은 후렉스·시트 출력 직접 출력, 배수 칸 없음
+  await expect(page.getByTestId('direct-UV 후렉스 출력')).toBeChecked();
+  await expect(page.getByTestId('markup-UV 후렉스 출력')).toHaveCount(0);
+  // 수성미디어를 직접 출력으로 바꾸면 연결이 풀리고 단가는 남는다
+  await page.getByTestId('direct-수성미디어 출력').check();
   await sale();
   await expect(page.getByTestId('price-tag-sh-print')).toHaveCount(0);
-  await expect(page.getByTestId('price-sh-print')).toHaveValue('9800');
+  await expect(page.getByTestId('price-sh-print')).toHaveValue('10400');
   await cost();
-  // 알리다(2026-10-16 "간판제작사에 제공하는 단가"): 펼쳐 찾기, 꼬리표로 연결
-  await page.getByTestId('supplier-toggle-alida').click();
+  // 알리다(2026-10-16 "간판제작사에 제공하는 단가"): 찾기, 꼬리표로 연결 (목록은 위에서 펼쳐 둔 채)
   await page.getByTestId('supplier-search').fill('광확산PC 80cm');
   await expect(page.getByTestId('supplier-item').first()).toContainText('42,000원/자');
   await expect(page.getByTestId('direct-UV 후렉스 출력')).toHaveCount(0); // 찾기에 안 맞는 분류는 숨김
@@ -242,23 +242,23 @@ test('견적 줄 금액: 새 프로젝트는 직접 입력, [자동]으로 계�
   const line = page.getByTestId('quote-line').first();
   await expect(line.getByTestId('line-amount')).toHaveValue('');
   await expect(page.getByTestId('quote-needs-input')).toContainText('1건');
-  // 원가: 알루미늄 복합판 단가를 한울 솔벤 백색시트(7,500원/회배)에 연결 → 2㎡ 원가 15,000
+  // 원가: 알루미늄 복합판 단가를 알리다 유포지(8,000원/회배)에 연결 → 2㎡ 원가 16,000
   await page.getByTestId('open-prices').click();
-  await page.getByTestId('price-link-board-acp').selectOption('hanwool:hanwool.solvent.백색시트');
+  await page.getByTestId('price-link-board-acp').selectOption('alida:alida.aqua.유포지');
   await page.getByTestId('close-prices').click();
   await line.getByTestId('line-amount').fill('100000');
   await line.getByTestId('line-amount').press('Enter');
   await expect(page.getByTestId('quote-needs-input')).toHaveCount(0);
-  await expect(line.getByTestId('line-margin')).toContainText('원가 15,000원');
-  await expect(line.getByTestId('line-margin')).toContainText('이익율 85%');
-  await expect(page.getByTestId('quote-margin')).toContainText('이익 85,000원');
+  await expect(line.getByTestId('line-margin')).toContainText('원가 16,000원');
+  await expect(line.getByTestId('line-margin')).toContainText('이익율 84%');
+  await expect(page.getByTestId('quote-margin')).toContainText('이익 84,000원');
   // 줄을 누르면 구성품·단가 연결·공급사 금액
   await line.getByTestId('line-open').click();
-  await expect(page.getByTestId('line-parts')).toContainText('한울');
-  await expect(page.getByTestId('line-parts')).toContainText('15,000원');
-  // [자동] → 단가표 금액(연결 단가 7,500 × 2㎡ = 15,000)
+  await expect(page.getByTestId('line-parts')).toContainText('알리다');
+  await expect(page.getByTestId('line-parts')).toContainText('16,000원');
+  // [자동] → 단가표 금액(연결 단가 8,000 × 2㎡ = 16,000)
   await line.getByTestId('line-auto').click();
-  await expect(line.getByTestId('line-amount')).toHaveValue('15000');
+  await expect(line.getByTestId('line-amount')).toHaveValue('16000');
   await expect(line.getByTestId('line-is-auto')).toBeVisible();
   // 손해: 원가보다 낮게
   await line.getByTestId('line-amount').fill('10000');
