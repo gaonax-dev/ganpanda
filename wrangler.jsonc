@@ -12,9 +12,11 @@
     "binding": "ASSETS",
     // 모든 경로를 index.html 로 (?room= 같은 쿼리 포함 단일 페이지 앱)
     "not_found_handling": "single-page-application",
-    // 이 경로만 워커를 먼저 거친다 — 나머지는 에셋 서비스가 바로 낸다
-    "run_worker_first": ["/assets/*", "/env/*"]
+    // 모든 경로가 워커를 먼저 거친다 — 서비스 차단(SERVICE_BLOCKED)을 모든 페이지에 걸기 위해 (2026-10-31; 전에는 /assets·/env 만)
+    "run_worker_first": ["/*"]
   },
+  // 서비스 차단 (2026-10-31 법적 문제): "1" 이면 모든 페이지에 안내만(503). 해제 = "" 로 바꿔 배포
+  "vars": { "SERVICE_BLOCKED": "1" },
   "routes": [
     { "pattern": "ganpanda.co.kr", "custom_domain": true },
     { "pattern": "www.ganpanda.co.kr", "custom_domain": true }
