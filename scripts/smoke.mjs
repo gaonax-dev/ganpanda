@@ -8,7 +8,7 @@ const get = async (url, ua) => { try { const r = await fetch(url, { headers: { '
 // 서비스 차단 중인가 (2026-10-31 법적 문제 — docs/server/deploy.md): 브라우저로는 안내만(503), 앱 UA 로는 그대로
 const probe = await get(`${APP}/?smoke=${Date.now()}`);
 const blocked = !!probe.r && probe.r.status === 503;
-if (blocked) check('서비스 차단 중 — 브라우저는 안내만(503)', probe.text.includes('일시 중단') && probe.r.headers.get('cache-control') === 'no-store', probe.r.headers.get('cache-control') ?? '');
+if (blocked) check('서비스 차단 중 — 브라우저는 빈 503(정보 없음)', !/간판다|support@|중단/.test(probe.text) && probe.r.headers.get('cache-control') === 'no-store', probe.r.headers.get('cache-control') ?? '');
 
 const home = blocked ? await get(`${APP}/?smoke=${Date.now()}`, APP_UA) : probe;
 check(blocked ? '앱(UA 토큰)으로는 첫 화면 200 + 번들 링크' : '앱 첫 화면 200 + 번들 링크', !!home.r && home.r.status === 200 && /\/assets\/index-[A-Za-z0-9_-]+\.js/.test(home.text), home.r ? String(home.r.status) : home.text);

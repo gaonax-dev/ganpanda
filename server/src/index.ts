@@ -274,7 +274,7 @@ export default {
     // 서비스 차단 (2026-10-31 "법적문제가 있다. 웹에서 접근을 차단한다."): 헬스만 빼고 전부 503 — WebSocket 업그레이드도 여기로 오므로 함께 막힌다. 데이터는 그대로
     // 2026-10-31 "모든 접근을 차단할게" → "앱만 열어줘": 설치한 앱(Tauri)은 User-Agent 에 Ganpanda-App/ 을 붙인다(src-tauri) — 그 요청만 통과, 브라우저는 503
     if (env.SERVICE_BLOCKED === '1' && pathname !== '/api/health' && !isAppRequest(req)) {
-      return new Response('서비스 이용이 일시 중단되었습니다. 문의: support@ganpanda.co.kr', { status: 503, headers: { ...CORS, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '3600' } });
+      return new Response(null, { status: 503, headers: { ...CORS, 'cache-control': 'no-store', 'retry-after': '3600' } }); // 본문 없음 — 정보를 주지 않는다 ("모든 정보를 못보게 해")
     }
 
     if (pathname === '/api/health') { // 메일 DNS 가 위험하면 503 — 외부 모니터가 알린다 (2026-10-22)

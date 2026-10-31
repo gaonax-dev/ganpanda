@@ -16,7 +16,7 @@ describe('서비스 차단', () => {
     const me = await get('/api/me', s);
     expect(me.status).toBe(503);
     expect(me.headers.get('cache-control')).toBe('no-store');
-    expect(await me.text()).toContain('일시 중단');
+    expect(await me.text()).toBe(''); // 아무 정보도 없다 ("모든 정보를 못보게 해")
     expect((await get('/api/projects', s)).status).toBe(503);
     expect((await api('/api/auth/email', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'x@example.com' }) })).status).toBe(503);
     expect((await api('/api/health')).status).not.toBe(503);
