@@ -327,7 +327,9 @@
   $effect(() => crashLog.event('단계 ' + app.stage));
   // 장면: 가운데 사진이 바뀌거나 그 사진의 내용(키)이 바뀌면 — 기억한 장면이면 바로 얹는다
   $effect(() => {
-    if (app.stage !== '3d' || !live || !liveHost || liveLost) { if (app.stage !== '3d') { liveStage?.dispose(); liveStage = null; liveBuilt = null; liveLost = false; } return; }
+    // 휴대폰: 사인물 설정이 열려 있으면 실시간 3D 를 내린다 — 설정의 3D 뷰어와 그래픽 화면이 둘이 되지 않게 (2026-10-31, 아이폰 메모리)
+    const settingsHold = isPhone() && app.objectSettingsOpen;
+    if (app.stage !== '3d' || !live || !liveHost || liveLost || settingsHold) { if (app.stage !== '3d' || settingsHold) { liveStage?.dispose(); liveStage = null; liveBuilt = null; if (!settingsHold) liveLost = false; } return; }
     const id = live.id, key = app.stageKey(id);
     if (liveBuilt?.id === id && liveBuilt.key === key) return;
     const p = app.photos.find((x) => x.id === id);

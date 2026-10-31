@@ -29,6 +29,7 @@ const typeLabel = (type: string) => CHANNEL_OPTIONS.find((c) => c.id === type)?.
 
 export const channel: Component = {
   kind: 'channel', label: '채널', color: '#ff6b5e', types: CHANNEL_OPTIONS,
+  colorRoles: [['face', '앞면'], ['body', '몸통'], ['cap', '캡']],
   termKey: 'product',
   takesItems: true,
   hasSpec: false, sits: false, layer: 100, itemWidth: false, extrude: true,

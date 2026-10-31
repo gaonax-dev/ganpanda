@@ -21,7 +21,8 @@ test('컬러셋: 메인 칸에 앰버·시트 코드 → 사인물에 연결 →
   expect(pc.sets[0].slots[0]).toMatchObject({ hex: '#ffbf00', label: '앰버', uses: { sheet: 'LX C3940' } });
   // 사인물 몸통에 메인 칸 연결 (간판 속성 화면이 하는 일)
   const id = await page.evaluate(async (slot) => {
-    const { colorPatch } = await import(/* @vite-ignore */ '/src/lib/core/projectColors.ts');
+    const path = '/src/lib/core/projectColors.ts';
+    const { colorPatch } = await import(/* @vite-ignore */ path);
     const a = (window as unknown as G).__ganpanda;
     return a.project.addObject({ photoId: a.project.allPhotos()[0].id, name: '간판', shape: 'rect', quad: [[100, 100], [600, 100], [600, 300], [100, 300]], sheetIds: [], options: colorPatch('body', a.projectColors, slot, 'sheet') });
   }, slotId);
