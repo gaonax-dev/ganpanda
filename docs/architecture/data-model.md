@@ -38,6 +38,7 @@
 | `polygon?` | `shape = polygon`일 때 윤곽 (사진 px) |
 | `corner?` | 사각형 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5, 0.5 = 원·알약). 원형 도구가 0.5 로 만듦. 규격 필드(연결 시 원본 것) |
 | `turn?` | 벽에서 돌려 세움 `{deg 0~90, hinge left\|right}` (사진마다의 배치, quad 는 그 투영) |
+| `blocks?` | 치수 블록(2026-11-03): 이 사인물과 같은 크기의 사각들 `Pt[][]`(각 TL,TR,BR,BL, 사진 px). 원근 풀이의 축 선, 견적 제외. 위치 필드 → [../features/size-blocks.md](../features/size-blocks.md) |
 | `widthMm?`, `heightMm?` | 사용자가 입력한 실제 치수 |
 | `productId?` | 간판 종류 (`catalog.ts`의 보드·채널) |
 | `sheetIds` | 시트 종류 (복수) |

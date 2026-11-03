@@ -7,6 +7,7 @@ import type { Calibration, Gray } from './calibration';
 import { measureQuad, snapEdge } from './calibration';
 import { analyzeLines, horizontalityOf, pickSeparated, pointsTo, upscaleSeg, type LineAnalysis, type Segment } from './lines';
 import { applyHomography, DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
+import { blockLines } from './blocks';
 
 export interface Line { a: Pt; b: Pt }
 export type Axis = 'x' | 'y' | 'z';
@@ -32,6 +33,8 @@ export interface CameraSetup {
   focal?: number;
   /** 자동으로 잡은 설정 (사진 등록 때 AI, 사인물 치수로 길이 반영 — 2026-10-19). 원근 창에서 사람이 적용하면 지워지고, 그때부터는 자동이 손대지 않는다 */
   auto?: boolean;
+  /** 축 선 더하기 (치수 블록, 2026-11-03 — core/blocks.ts): 같은 축의 선이 셋 이상이면 소실점을 최소제곱으로 푼다. 사인물 + 블록들의 변 */
+  extra?: { x?: Line[]; y?: Line[] };
 }
 export type AxisDir = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 /** 월드 축 색 (fSpy 와 같이 X 빨강 · Y 초록 · Z 파랑). 축 선 쌍·원점 축·3D 뷰 모두 같은 색 */
@@ -116,6 +119,47 @@ const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const lineH = (l: Line): V3 => cross([l.a[0], l.a[1], 1], [l.b[0], l.b[1], 1]);
 /** 두 선의 교점(동차). 평행하면 w ≈ 0 (무한원점) */
 const meet = (l1: Line, l2: Line): V3 => { const v = cross(lineH(l1), lineH(l2)); const n = norm(v) || 1; return [v[0] / n, v[1] / n, v[2] / n]; };
+/**
+ * 선 여러 개의 소실점 (치수 블록, 2026-11-03): 둘이면 교점, 셋 이상이면 최소제곱 — 사진 중앙·장변으로 정규화한 좌표에서 Σ(lᵢ·v)² 를 최소로 하는 v (|v|=1, 산포 행렬의
+ * 최소 고유벡터, Hartley 정규화) → 되돌림. 평행에 가까운 선 묶음도 무한원점 근처의 v 로 자연스럽게 풀린다
+ */
+function meetAll(lines: Line[], imgW: number, imgH: number): V3 {
+  if (lines.length <= 2) return meet(lines[0], lines[1]);
+  const s = 2 / Math.max(imgW, imgH), cx = imgW / 2, cy = imgH / 2;
+  const T = (p: Pt): Pt => [(p[0] - cx) * s, (p[1] - cy) * s];
+  const M = new Array(9).fill(0);
+  for (const L of lines) {
+    const l = lineH({ a: T(L.a), b: T(L.b) });
+    const n = Math.hypot(l[0], l[1]) || 1;
+    const u = [l[0] / n, l[1] / n, l[2] / n];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[i * 3 + j] += u[i] * u[j];
+  }
+  const v = smallestEigenvector(M);
+  const out: V3 = [v[0] / s + cx * v[2], v[1] / s + cy * v[2], v[2]];
+  const n = norm(out) || 1;
+  return [out[0] / n, out[1] / n, out[2] / n];
+}
+/** 대칭 3×3 의 최소 고유값 고유벡터 (야코비 회전) */
+function smallestEigenvector(M: number[]): V3 {
+  const A = [...M], V = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  for (let sweep = 0; sweep < 60; sweep++) {
+    const off = A[1] * A[1] + A[2] * A[2] + A[5] * A[5];
+    if (off < 1e-30) break;
+    for (const [p, q] of [[0, 1], [0, 2], [1, 2]] as const) {
+      const apq = A[p * 3 + q];
+      if (Math.abs(apq) < 1e-300) continue;
+      const theta = (A[q * 3 + q] - A[p * 3 + p]) / (2 * apq);
+      const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), sn = t * c;
+      for (let k = 0; k < 3; k++) { const akp = A[k * 3 + p], akq = A[k * 3 + q]; A[k * 3 + p] = c * akp - sn * akq; A[k * 3 + q] = sn * akp + c * akq; }
+      for (let k = 0; k < 3; k++) { const apk = A[p * 3 + k], aqk = A[q * 3 + k]; A[p * 3 + k] = c * apk - sn * aqk; A[q * 3 + k] = sn * apk + c * aqk; }
+      for (let k = 0; k < 3; k++) { const vkp = V[k * 3 + p], vkq = V[k * 3 + q]; V[k * 3 + p] = c * vkp - sn * vkq; V[k * 3 + q] = sn * vkp + c * vkq; }
+    }
+  }
+  let i = 0;
+  for (let k = 1; k < 3; k++) if (A[k * 3 + k] < A[i * 3 + i]) i = k;
+  return [V[i], V[3 + i], V[6 + i]];
+}
 const dir = (l: Line): Pt => { const d: Pt = [l.b[0] - l.a[0], l.b[1] - l.a[1]]; const n = Math.hypot(d[0], d[1]) || 1; return [d[0] / n, d[1] / n]; };
 /** 선 쌍이 거의 평행한가 (fSpy 와 같은 기준 0.99995 는 너무 엄격해 0.9999 사용) */
 const nearlyParallel = (p: [Line, Line]) => { const a = dir(p[0]), b = dir(p[1]); return Math.abs(a[0] * b[0] + a[1] * b[1]) > 0.9999; };
@@ -141,7 +185,7 @@ function orthocenter(a: Pt, b: Pt, c: Pt): Pt | null {
 
 export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): CameraSolution | null {
   const warnings: string[] = [];
-  const vx = meet(setup.x[0], setup.x[1]), vy = meet(setup.y[0], setup.y[1]);
+  const vx = meetAll([...setup.x, ...(setup.extra?.x ?? [])], imgW, imgH), vy = meetAll([...setup.y, ...(setup.extra?.y ?? [])], imgW, imgH); // 치수 블록의 변이 있으면 함께 (2026-11-03)
   const vz = setup.z ? meet(setup.z[0], setup.z[1]) : undefined;
   if (nearlyParallel(setup.x)) warnings.push('가로 축 선 두 개가 거의 평행합니다. 멀리 떨어진 두 선을 고르세요.');
   if (nearlyParallel(setup.y)) warnings.push('세로 축 선 두 개가 거의 평행합니다. 멀리 떨어진 두 선을 고르세요.');
@@ -271,8 +315,9 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
  * 원근에 맞게 그린 사각 사인물(quad = 왼쪽 위·오른쪽 위·오른쪽 아래·왼쪽 아래)과 그 가로 mm 로 설정을 만든다 —
  * 위·아래 변 = 가로(X) 축 선, 좌·우 변 = 높이(Z) 축 선, 원점 = 왼쪽 아래 코너, 기준 길이 = 왼쪽 아래 → 오른쪽 아래 (가로 mm)
  */
-export function signCameraSetup(quad: Pt[], widthMm: number): CameraSetup {
+export function signCameraSetup(quad: Pt[], widthMm: number, blocks?: Pt[][]): CameraSetup {
   const [tl, tr, br, bl] = quad;
+  const extra = blocks?.length ? blockLines(blocks) : null;
   return {
     x: [{ a: tl, b: tr }, { a: bl, b: br }],
     y: [{ a: bl, b: tl }, { a: br, b: tr }],
@@ -280,6 +325,7 @@ export function signCameraSetup(quad: Pt[], widthMm: number): CameraSetup {
     origin: bl,
     ref: { axis: 'x', from: bl, to: br, mm: widthMm },
     principal: 'center',
+    ...(extra && extra.x.length ? { extra } : {}), // 치수 블록의 변도 축 선으로 (2026-11-03)
   };
 }
 
@@ -321,8 +367,8 @@ export function signLengthSetup(setup: CameraSetup, quad: Pt[], widthMm: number,
  * 소실점으로 구한 화각(또는 좌우 변이 거의 평행해 쓴 기본 화각)으로 잰 가로세로 비율이 입력과 맞지 않으면 — 크기를 아는 사각형은 화각도 알려 주므로 —
  * 비율이 맞는 초점거리를 찾아 고정한다(focal, 장변의 0.25~5배). 그래도 안 맞으면 화각 고정 없이
  */
-export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number): CameraSetup | null {
-  const base: CameraSetup = { ...signCameraSetup(quad, widthMm), auto: true };
+export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number, blocks?: Pt[][]): CameraSetup | null {
+  const base: CameraSetup = { ...signCameraSetup(quad, widthMm, blocks), auto: true };
   const sol = solveCamera(base, imgW, imgH);
   if (!sol) return null;
   if (signMatches(sol, quad, widthMm, heightMm) || !(heightMm > 0)) return base;
@@ -343,10 +389,11 @@ export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, img
   return fs && signMatches(fs, quad, widthMm, heightMm) ? fitted : base;
 }
 
-export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number): CameraSetup | null {
-  const fromSign = (): CameraSetup | null => signCameraFit(quad, widthMm, heightMm, imgW, imgH);
+export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number, blocks?: Pt[][]): CameraSetup | null {
+  const fromSign = (): CameraSetup | null => signCameraFit(quad, widthMm, heightMm, imgW, imgH, blocks);
   if (!setup) return fromSign();
   if (!setup.auto) return null;
+  if (blocks?.length) return fromSign(); // 치수 블록이 있는 사인물은 그 사인물 + 블록으로 원근을 잡는다 (2026-11-03 — 정밀도를 올리려는 뜻이 분명하므로 AI 축보다 우선)
   const fit = signLengthSetup(setup, quad, widthMm, heightMm, imgW, imgH);
   if (fit) return fit;
   const sol = solveCamera(setup, imgW, imgH);

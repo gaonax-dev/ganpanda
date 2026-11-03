@@ -20,6 +20,7 @@ import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { loadRoomView } from './core/roomView';
+import { blockFits, predictBlock, snapStart } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -63,7 +64,7 @@ import type { Pt } from './core/homography';
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
-export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone';
+export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone' | 'block';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
@@ -368,7 +369,11 @@ class AppState {
       const cal = calib?.metric ? wallPlaneOf([], calib) : null;
       // 자동 원근 사진은 정확도를 경고하지 않는다 (2026-10-19 사용자: "정확도를 경고하지 마라")
       const quiet = !!p.camera?.auto;
-      for (const [id, r] of measurePhoto(this.objects.filter((o) => o.photoId === p.id), p.w, p.h, calib, cal ? (o) => faceSizeOf(o, cal) : undefined)) out.set(id, quiet ? { ...r, warnings: [] } : r);
+      const objs = this.objects.filter((o) => o.photoId === p.id);
+      // 치수 블록(2026-11-03)은 치수 없는 영역으로 함께 재서 지금 원근으로 본 크기를 얻는다 — 사인물 치수와 맞는지(보라) 보기 위해. 축척 보정(치수 입력 영역)에는 넣지 않는다
+      const blocks = objs.flatMap((o) => (o.blocks ?? []).map((b, i): SignObject => ({ ...o, id: this.blockIdOf(o.id, i), quad: b, widthMm: undefined, heightMm: undefined, turn: undefined, blocks: undefined, sameAs: undefined })));
+      const face = cal ? (o: SignObject) => (o.id.includes('#b') ? undefined : faceSizeOf(o, cal)) : undefined; // 블록은 늘 벽면
+      for (const [id, r] of measurePhoto([...objs, ...blocks], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
   });
@@ -845,7 +850,7 @@ class AppState {
     // 사람이 둘째 축을 깊이(Y)로 바꿔 두었으면 사인물(좌우 변 = Z) 대신 AI 로 그 축의 선을 찾는다 (2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면")
     const sign = p.camera?.axes?.second[1] === 'y' ? null : this.matchSignOf(photoId);
     if (sign) {
-      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h); // 가로세로 비율로 화각까지 (2026-10-20)
+      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, sign.o.blocks?.map((b) => b.map((q) => [q[0], q[1]] as [number, number]))); // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
       if (setup) {
         this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
@@ -900,7 +905,7 @@ class AppState {
   private lengthQueue = new Set<string>();
   private lengthTimer: ReturnType<typeof setTimeout> | undefined;
   private watchSizes() {
-    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}` : ''; };
+    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}|${JSON.stringify(o.blocks ?? [])}` : ''; }; // 치수 블록이 바뀌어도 (2026-11-03)
     this.project.doc.on('afterTransaction', (tr: { local: boolean; origin: unknown; changedParentTypes: Map<unknown, unknown> }) => {
       if (![...tr.changedParentTypes.keys()].some((t) => t === this.project.objects || (t as { parent?: unknown }).parent === this.project.objects)) return;
       const mine = tr.local && tr.origin === null; // Project 메서드는 origin 없이 — 동기화·IndexedDB·되돌리기는 origin 이 있다
@@ -929,7 +934,7 @@ class AppState {
         const sz = this.sizeOf(x);
         return sz && !sz.estimated ? [{ quad: x.quad.map((q) => [q[0], q[1]] as [number, number]), w: sz.w, h: sz.h }] : [];
       });
-      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h);
+      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, o.blocks?.map((b) => b.map((q) => [q[0], q[1]] as [number, number]))); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
       if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
       this.updateCamera(p.id, { camera: next }); // 조용히 — 완성(3)이 될 때만 화면 안내 (2026-10-20)
     }
@@ -1955,6 +1960,63 @@ class AppState {
     if (o.widthMm && o.heightMm) return { w: o.widthMm, h: o.heightMm, estimated: false };
     const e = this.measures.get(o.id)?.estimate;
     return e ? { w: o.widthMm ?? e.widthMm, h: o.heightMm ?? e.heightMm, estimated: true } : null;
+  }
+
+  // ---------- 치수 블록 (2026-11-03 사용자: "같은 크기 사각형으로 … 모서리 대각으로 같은크기 블록", "설정이 하나인 사각이 두개", "치수블록은 핫핑크라인", "정확도가 향상된면 보라") ----------
+  /** 블록을 붙일 사인물 = 고른 사인물이 사진 위 사각·원형이고 치수(추정 아님)가 있을 때. 없으면 [블록] 도구가 꺼진다 */
+  blockTarget = $derived.by(() => {
+    const o = this.selected;
+    if (!o || !o.photoId || o.shape === 'polygon' || o.quad.length !== 4) return null;
+    const s = this.sizeOf(o);
+    return s && !s.estimated ? o : null;
+  });
+  /** 블록의 판독 결과 키 (measures) */
+  blockIdOf = (id: string, i: number) => `${id}#b${i}`;
+  /** 지금 원근으로 잰 블록 크기 */
+  blockEstimate(o: SignObject, i: number) { return this.measures.get(this.blockIdOf(o.id, i))?.estimate; }
+  /** 블록이 사인물 치수와 맞는가(허용 오차 안) = 정확도를 올린 블록 → 보라 */
+  blockFitOf(o: SignObject, i: number): boolean {
+    const s = this.sizeOf(o);
+    return !!s && !s.estimated && blockFits(this.blockEstimate(o, i), s);
+  }
+  /**
+   * 블록 그리기: 사진 위에 사인물처럼 네모를 끌어 그리면 고른 사인물(blockTarget)의 블록이 된다 — 새 사인물이 아니다.
+   * 시작점이 그 사인물·블록의 꼭짓점 가까이(r px)이고 원근이 있으면 **대각 예측**: 그 꼭짓점에 모서리를 맞댄 같은 크기 블록을 끌어간 방향으로 놓는다(core/blocks.ts predictBlock)
+   */
+  addBlock(photoId: string, quad: Pt[], start: Pt, end: Pt, r: number): boolean {
+    const o = this.blockTarget;
+    if (!o || !this.canEdit) return false;
+    if (o.photoId !== photoId) { this.notice = '치수 블록은 고른 사인물이 있는 사진에 그립니다.'; return false; }
+    let q = quad;
+    const sol = this.cameras.get(photoId);
+    if (sol) {
+      const bases = [o.quad, ...(o.blocks ?? [])];
+      const snap = snapStart(start, bases.flat(), r);
+      if (snap) {
+        const predicted = predictBlock(sol, bases[Math.floor(snap.index / 4)], snap.index % 4, end);
+        if (predicted) q = predicted;
+      }
+    }
+    const blocks = [...(o.blocks ?? []), q.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt)];
+    this.editBoundary();
+    this.project.updateObject(o.id, { blocks });
+    this.editBoundary();
+    return true;
+  }
+  updateBlock(id: string, i: number, quad: Pt[]) {
+    const o = this.objects.find((x) => x.id === id);
+    if (!o || !this.canEdit || !o.blocks?.[i]) return;
+    const blocks = o.blocks.map((b, k) => (k === i ? quad.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt) : b));
+    this.project.updateObject(id, { blocks });
+    this.editBoundary();
+  }
+  removeBlock(id: string, i: number) {
+    const o = this.objects.find((x) => x.id === id);
+    if (!o || !this.canEdit || !o.blocks?.[i]) return;
+    const blocks = o.blocks.filter((_, k) => k !== i);
+    this.editBoundary();
+    this.project.updateObject(id, { blocks: blocks.length ? blocks : undefined });
+    this.editBoundary();
   }
 }
 

@@ -7,6 +7,7 @@
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
+  import { BLOCK_COLOR, BLOCK_FIT_COLOR } from '../core/blocks';
   import type { MeasureResult } from '../core/measure';
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import BakedDesign from '../ui/BakedDesign.svelte';
@@ -39,7 +40,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onblock, onblockquad, onblockremove, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -86,6 +87,10 @@
     tool: Tool;
     toPhoto: (cx: number, cy: number) => Pt;
     oncreate: (shape: ShapeKind, quad: Pt[], polygon?: Pt[]) => void;
+    /** 치수 블록 (2026-11-03): 블록 도구로 그린 네모(사진 px), 시작·끝점, 꼭짓점 붙이기 반경(사진 px) */
+    onblock?: (quad: Pt[], start: Pt, end: Pt, r: number) => void;
+    onblockquad?: (id: string, i: number, quad: Pt[]) => void;
+    onblockremove?: (id: string, i: number) => void;
     /** add = Shift+클릭 (다중 선택에 더하기, 2026-10-17) */
     onselect: (id: string | null, add?: boolean) => void;
     /** 사인물 말풍선을 눌렀을 때 (그 사인물의 대화 열기) — 2026-10-17 말풍선 = 소통 창구 */
@@ -215,6 +220,17 @@
   });
 
   let draft: { start: Pt; end: Pt } | null = $state(null);
+  /** 편집 중인 치수 블록 (꼭짓점 끌기·통째로 옮기기, pointerup 에 문서 반영) */
+  let blockEdit: { id: string; i: number; quad: Pt[]; orig: Pt[]; from: Pt; mode: number | 'move' } | null = $state(null);
+  const blockQuadOf = (o: SignObject, i: number, b: Pt[]) => (blockEdit && blockEdit.id === o.id && blockEdit.i === i ? blockEdit.quad : b);
+  function blockDown(e: PointerEvent, o: SignObject, i: number, mode: number | 'move') {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onselect(o.id);
+    if (!editable || tool !== 'select' || !o.blocks?.[i]) return;
+    blockEdit = { id: o.id, i, quad: o.blocks[i], orig: o.blocks[i], from: toPhoto(e.clientX, e.clientY), mode };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
   let editing: { id: string; quad: Pt[]; mode: number | 'move' | 'edge' | GizmoMode; /** mode = 'edge' 일 때 변 번호 (i, i+1 꼭짓점) */ edge?: number; from: Pt; orig: Pt[]; plane?: RefPlane; frame0?: Frame; wall0?: Pt; sx?: number; sy?: number; axis?: 'x' | 'y' | 'z'; face3?: PosedPlane; c3?: V3; box0?: V3; box?: V3;
     /** 면 막대 끌기(bdepth): 3D 방향, 막대 길이(mm·사진 px), 막대의 사진 방향, 짧게 누르면 바꿀 축(동그라미), 움직였나 */
@@ -495,6 +511,12 @@
   function move(e: PointerEvent) {
     if (zoneDraft) { zoneDraft = { ...zoneDraft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
+    if (blockEdit) {
+      const [x, y] = toPhoto(e.clientX, e.clientY);
+      const dx = x - blockEdit.from[0], dy = y - blockEdit.from[1];
+      blockEdit.quad = blockEdit.mode === 'move' ? blockEdit.orig.map(([a, b]) => [a + dx, b + dy] as Pt) : blockEdit.orig.map((p, k) => (k === blockEdit!.mode ? clamp([p[0] + dx, p[1] + dy]) : p));
+      return;
+    }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
     if (editing.mode === 'bdepth' && editing.depth && editing.face3 && calib?.pose) {
@@ -529,7 +551,7 @@
   }
 
   /** 두 번째 손가락이 닿거나(두 손가락 화면 조작이 먼저 — 2026-10-20) 브라우저가 취소하면: 진행 중인 편집을 저장하지 않고 되돌린다 */
-  function cancelEdit() { editing = null; draft = null; zoneDraft = null; }
+  function cancelEdit() { editing = null; draft = null; zoneDraft = null; blockEdit = null; }
 
   function up() {
     if (zoneDraft) {
@@ -539,8 +561,15 @@
     }
     if (draft) {
       const q = quadFromDrag(draft.start, draft.end);
-      if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) oncreate(drawShape, q);
+      if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) {
+        if (tool === 'block') onblock?.(q, draft.start, draft.end, 14 * u); // 치수 블록 — 고른 사인물의 같은 크기 사각 (2026-11-03)
+        else oncreate(drawShape, q);
+      }
       draft = null;
+    }
+    if (blockEdit) {
+      if (blockEdit.quad !== blockEdit.orig) onblockquad?.(blockEdit.id, blockEdit.i, blockEdit.quad);
+      blockEdit = null;
     }
     if (editing) {
       if (editing.mode === 'brot') { if (editing.box && onbox) onbox(editing.id, { boxDir: editing.box, faceAxis: undefined }); }
@@ -765,7 +794,7 @@
         {@const selected = zoneSel?.zone === zi}
         <polygon class="zone" class:sel={selected} data-testid="zone-shape" points={zone.map((p) => p.join(',')).join(' ')}
           stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" role="button" tabindex="-1"
-          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' ? 'none' : 'auto'} onpointerdown={(e) => zoneDown(e, zi)} onpointermove={move} onpointerup={up} />
+          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'} onpointerdown={(e) => zoneDown(e, zi)} onpointermove={move} onpointerup={up} />
         <text class="zone-label" x={zone[0][0]} y={zone[0][1] - 8 * u} font-size={12 * u} stroke-width={3 * u}>작업 존{zones.length > 1 ? ` ${zi + 1}` : ''}</text>
         {#if selected && editable}
           {#each midpoints(zone) as m, i (i)}
@@ -842,7 +871,7 @@
           stroke-width={2 * u}
           role="button"
           tabindex="-1"
-          pointer-events={tool === 'magic' || tool === 'pin' ? 'none' : 'auto'}
+          pointer-events={tool === 'magic' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         {#if !hideInfo || sel || multiSel}
@@ -866,6 +895,30 @@
             ondragend={() => onpinmoveend?.()} />
         {/if}
       </g>
+      <!-- 치수 블록 (2026-11-03 "설정이 하나인 사각이 두개", "핫핑크라인", "정확도가 향상된면 보라색"): 사인물과 같은 크기의 사각들. 선 = 핫핑크, 지금 원근으로 잰 크기 글자 = 빨강(≈), 사인물 치수와 맞으면 선·글자 보라.
+           고른 사인물의 블록에는 꼭짓점 손잡이(끌어 맞추기)·✕(지우기). 블록 안을 끌면 통째로 옮긴다 -->
+      {#if o.blocks?.length && !overlay}
+        {#each o.blocks as b0, bi (bi)}
+          {@const b = blockQuadOf(o, bi, b0)}
+          {@const fit = app.blockFitOf(o, bi)}
+          {@const est = app.blockEstimate(o, bi)}
+          {@const bc = centerOf(b)}
+          {@const col = fit ? BLOCK_FIT_COLOR : BLOCK_COLOR}
+          <g class="block" class:fit class:ghost={hideLines && !sel && !multiSel} data-testid="size-block" data-id={o.id} data-index={bi} data-fit={fit ? '1' : undefined}>
+            <polygon points={b.map((p) => p.join(',')).join(' ')} style:stroke={col} stroke-width={2 * u} role="button" tabindex="-1" pointer-events={tool === 'select' ? 'auto' : 'none'} onpointerdown={(e) => blockDown(e, o, bi, 'move')} />
+            {#if (!hideInfo || sel || multiSel) && est}
+              <text class="bsize" data-testid="block-size" x={bc[0]} y={bc[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle" style:fill={fit ? BLOCK_FIT_COLOR : undefined}>≈{fmt(est.widthMm)}×{fmt(est.heightMm)}</text>
+            {/if}
+            {#if sel && editable && tool === 'select'}
+              {#each b as p, i (i)}
+                <circle class="hit" cx={p[0]} cy={p[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => blockDown(e, o, bi, i)} />
+                <circle class="handle" data-testid="block-handle" cx={p[0]} cy={p[1]} r={5 * u} stroke-width={2 * u} style:stroke={col} role="button" tabindex="-1" onpointerdown={(e) => blockDown(e, o, bi, i)} />
+              {/each}
+              {@render iconBtn([Math.max(...b.map((p) => p[0])) + 12 * gu, Math.min(...b.map((p) => p[1])) - 12 * gu], '✕', '치수 블록 지우기', 'size-block-remove', () => onblockremove?.(o.id, bi), '#fff')}
+            {/if}
+          </g>
+        {/each}
+      {/if}
     {/each}
     <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
     {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
@@ -998,7 +1051,7 @@
       <text class="status" data-testid="photo-ai-status" x={photo.w / 2} y={photo.h / 2} font-size={18 * u} text-anchor="middle" stroke-width={4 * u}>AI 가 사진을 분석하는 중…</text>
     {/if}
     {#if draft}
-      <polygon class="draft" points={outline(drawShape === 'ellipse' ? 'ellipse' : 'rect', quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
+      <polygon class="draft" class:block={tool === 'block'} style:stroke={tool === 'block' ? BLOCK_COLOR : undefined} points={outline(drawShape === 'ellipse' && tool !== 'block' ? 'ellipse' : 'rect', quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
     <!-- 다각형 그리기: 사진 전체를 덮는 투명 층이 누르기를 받는다(기존 사인물 위에도 점을 찍게) -->
     {#if polyMode}
@@ -1074,6 +1127,14 @@
   /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
   .sign polygon.touch-outline, .sign.sel polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
+  /* 치수 블록 (2026-11-03): 선은 style 로(핫핑크 / 맞으면 보라), 크기 글자는 빨강 (맞으면 보라) */
+  .block polygon { fill: rgba(255, 105, 180, 0.08); cursor: pointer; }
+  .block.fit polygon { fill: rgba(168, 85, 247, 0.08); }
+  .block text.bsize { fill: #ef4444; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
+  .block.ghost polygon { fill: transparent; stroke: transparent !important; }
+  .block.ghost text { display: none; }
+  .block .handle { fill: #fff; cursor: grab; }
+  .draft.block { fill: rgba(255, 105, 180, 0.1); }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }

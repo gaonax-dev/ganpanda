@@ -417,6 +417,7 @@
   // [다중]은 선택 도구에서만 — 다른 도구를 고르면 꺼진다 (2026-10-22 "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘")
   $effect(() => { if (app.tool !== 'select' && untrack(() => app.multiMode)) app.setMultiMode(false); });
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
+  $effect(() => { if (app.tool === 'block' && !app.blockTarget) app.tool = 'select'; }); // 블록 도구는 치수 넣은 사인물을 고른 동안만 (2026-11-03)
   // 다른 도구를 고르면 연속 그리기 리셋 (2026-10-24)
   $effect(() => { if (app.tool !== 'rect' && app.tool !== 'ellipse') app.drawContinuous = false; });
   /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
@@ -676,6 +677,9 @@
         onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
+        onblock={(quad, start, end, r) => app.addBlock(p.id, quad, start, end, r)}
+        onblockquad={(id, i, quad) => app.updateBlock(id, i, quad)}
+        onblockremove={(id, i) => app.removeBlock(id, i)}
         onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}
@@ -801,6 +805,8 @@
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
           <!-- 사각 아이콘 = 정사각, 다른 아이콘과 같은 선 두께 (2026-10-24) -->
           <button class="file" bind:this={rectBtn} data-testid="tool-rect" class:on={app.tool === 'rect' || app.tool === 'ellipse'} disabled={no3d} title="사각 영역 ({hint('toolRect')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'rect')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5" /></svg><span class="lbl"> 사각</span></button>
+          <!-- 치수 블록 (2026-11-03): 치수를 넣은 사인물을 고른 때만. 그린 네모는 그 사인물과 같은 크기의 블록 — 변이 원근 축 선이 되어 멀리 있는 영역 추정이 정밀해진다. 모서리를 이어 가는 작업이라 그린 뒤에도 도구가 유지된다(Esc·선택으로 끝) -->
+          <button class="file" data-testid="tool-block" class:on={app.tool === 'block'} disabled={no3d || !app.blockTarget} title={app.blockTarget ? '치수 블록 — 고른 사인물과 같은 크기의 네모를 더 그려 원근을 정밀하게. 사인물·블록의 꼭짓점에서 대각으로 끌면 모서리를 맞대고 놓입니다' : '치수 블록 — 가로·세로를 넣은 사인물을 먼저 고르세요'} onclick={() => (app.tool = 'block')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="12" width="9" height="9" rx="1" /><rect x="12" y="3" width="9" height="9" rx="1" /></svg><span class="lbl"> 블록</span></button>
           <button class="file" data-testid="tool-photo" title="사진 추가" onclick={addPhotoTap}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></svg><span class="lbl"> 사진</span></button>
           {#if photoMenu}
             <ActionSheet testid="photo-add-sheet" onclose={() => (photoMenu = false)} items={[
