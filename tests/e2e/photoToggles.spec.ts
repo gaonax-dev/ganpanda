@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { openOwnedProject, uploadPhoto } from './helpers';
 
-test('[정보]를 끄면 사인물 이름·치수 글자와 실측 점이, [구별선]을 끄면 외곽선이 사라진다 — 고른 사인물은 그대로 보이고, 끈 상태는 이 기기에 남는다', async ({ page, request }) => {
+test('[정보]를 끄면 사인물 이름·치수 글자가, [구별선]을 끄면 외곽선이 사라진다 — 고른 사인물은 그대로 보이고, 끈 상태는 이 기기에 남는다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   const [a, b] = await page.evaluate(() => {
@@ -16,7 +16,6 @@ test('[정보]를 끄면 사인물 이름·치수 글자와 실측 점이, [구�
   await info.click();
   await expect(info).toHaveAttribute('aria-pressed', 'false');
   await expect(label).toHaveCount(0);
-  await expect(page.getByTestId('sign-unmeasured')).toHaveCount(0);
   const stroke = (id: string) => page.locator(`[data-testid="sign-shape"][data-id="${id}"]`).evaluate((e) => getComputedStyle(e).strokeOpacity);
   expect(await stroke(a)).not.toBe('0');
   await lines.click();

@@ -827,12 +827,15 @@
           </g>
         {/if}
       {/if}
-      <g class="sign" class:sel={sel || multiSel} class:same class:warn class:ghost={hideLines && !sel && !multiSel} data-multi={multiSel || undefined}>
+      {@const unmeasured = !overlay && q.length > 0 && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}
+      <!-- 실측 없음 = 외곽선·채움이 반투명 빨강 (2026-11-03 "길이정보 입력안된 사인물 빨강 인디케이터를 사인물 외각선 반투명 빨강으로") — 예상 치수(≈)만 있어도 실측은 아니다. 2026-10-24 가운데 빨간 점은 대체됨 -->
+      <g class="sign" class:sel={sel || multiSel} class:same class:warn class:unmeasured class:ghost={hideLines && !sel && !multiSel} data-multi={multiSel || undefined}>
         <polygon
           data-testid="sign-shape"
           data-id={o.id}
           data-shape={o.shape}
           data-selected={sel || undefined}
+          data-unmeasured={unmeasured ? '1' : undefined}
           data-same={(!sel && sameIds.includes(o.id)) || undefined}
           points={outline(o.shape, q, o.polygon, o.corner)}
           data-corner={o.shape === 'rect' ? (o.corner ?? 0) : undefined}
@@ -844,14 +847,11 @@
         />
         {#if !hideInfo || sel || multiSel}
         {@const c = centerOf(q)}
-        {@const dot = !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}
-        <!-- 정보 글자는 사인물 가운데, 실측 없음 점이 있으면 점 아래로 (2026-10-25 "사인물 정보 사인물 센터로 … 겹치지 않게") -->
-        <text data-testid="sign-label" x={c[0]} y={dot ? c[1] + 12 * u : c[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle">
+        <!-- 정보 글자는 사인물 가운데 (2026-10-25 "사인물 정보 사인물 센터로") -->
+        <text data-testid="sign-label" x={c[0]} y={c[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle">
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
         {/if}
-        <!-- 실측 없음 = 외곽선 왼쪽 위 빨간 점 (2026-10-24 "실측 없으면 사인물 왼쪽상단에 빨강 인디케이터 점") — 예상 치수(≈)만 있어도 실측은 아니다 -->
-        {#if (!hideInfo || sel || multiSel) && !overlay && q.length && !(app.sizeOf(o) && !app.sizeOf(o)!.estimated)}<circle class="unmeasured" data-testid="sign-unmeasured" data-id={o.id} cx={centerOf(q)[0]} cy={centerOf(q)[1] - 6 * u} r={5 * u} stroke-width={1.5 * u} pointer-events="none" />{/if}
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
           {@const H = solveHomography(UNIT_RECT, q)}
@@ -1066,6 +1066,7 @@
   .header .x { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
   .header .x ~ .x { margin-left: 6px; }
   .sign polygon { fill: rgba(47, 139, 255, 0.12); stroke: var(--blue); cursor: pointer; }
+  .sign.unmeasured polygon { stroke: rgba(239, 68, 68, 0.7); fill: rgba(239, 68, 68, 0.14); } /* 실측 없음 = 반투명 빨강 (2026-11-03) — 고르면 강조색이 이긴다 */
   .sign.warn polygon { stroke: var(--warn); fill: rgba(255, 170, 0, 0.12); }
   .sign.sel polygon { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); }
   .sign.ghost polygon { fill: transparent; stroke-opacity: 0; } /* [구별선] 끔 (2026-10-24) — 눌러서 고를 수는 있다 */
@@ -1133,7 +1134,6 @@
   svg.ghost .sign.sel polygon:not(.touch-outline) { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") — 휴대폰 터치 띠는 빼고 (같은 날 "3d에서 사인물 선택하면 선택상태가 이상": 굵은 노란 띠) */
   svg.ghost .sign > text, svg.ghost .zone, svg.ghost .zone-label, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
-  .unmeasured { fill: #ef4444; stroke: #fff; }
   .poly-catch { fill: transparent; cursor: crosshair; }
   .poly-draft polyline { fill: none; stroke: var(--accent); }
   .poly-draft circle { fill: #fff; stroke: var(--accent); }

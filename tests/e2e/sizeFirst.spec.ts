@@ -30,8 +30,8 @@ test('치수가 없으면 속성 맨 위에 치수 칸 + 강조색 테두리, �
   await expect(panel.getByTestId('panel-height')).toBeFocused();
 });
 
-test('실측 없는 사인물은 사진 위 외곽선 왼쪽 위에 빨간 점 — 예상만 있어도 점, 치수를 넣으면 사라진다 (2026-10-24 "실측 없으면 사인물 왼쪽상단에 빨강 인디케이터 점")', async ({ page, request }) => {
-  await openOwnedProject(page, request, '빨간 점');
+test('실측 없는 사인물은 외곽선이 반투명 빨강 — 예상만 있어도, 치수를 넣으면 보통 색으로 (2026-11-03 "길이정보 입력안된 사인물 빨강 인디케이터를 사인물 외각선 반투명 빨강으로")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '빨간 외곽선');
   await uploadPhoto(page);
   const [a, b] = await page.evaluate(() => {
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
@@ -39,26 +39,25 @@ test('실측 없는 사인물은 사진 위 외곽선 왼쪽 위에 빨간 점 �
     const b = app.project.addObject({ photoId: app.photos[0].id, name: '모름', shape: 'rect', quad: [[600, 100], [800, 100], [800, 200], [600, 200]], sheetIds: [] });
     return [a, b];
   });
-  const dots = page.getByTestId('sign-unmeasured');
-  await expect(dots).toHaveCount(1); // 예상(≈)만 있는 '모름' 에만
-  await expect(dots).toHaveAttribute('data-id', b);
-  const fill = await dots.evaluate((e) => getComputedStyle(e).fill);
-  expect(fill).toBe('rgb(239, 68, 68)');
-  // 점 = 사인물 가운데, 정보 글자도 가운데 — 점이 있으면 글자는 점 아래로 겹치지 않게 (2026-10-25 "인디케이터를 센터로", "사인물 정보 사인물 센터로 … 겹치지 않게")
-  const [cx, cy] = await dots.evaluate((e) => [Number(e.getAttribute('cx')), Number(e.getAttribute('cy'))]);
-  expect(cx).toBe(700);
-  expect(cy).toBeGreaterThan(110); expect(cy).toBeLessThan(150);
+  const shapeOf = (id: string) => page.locator(`[data-testid="sign-shape"][data-id="${id}"]`);
+  // 예상(≈)만 있는 '모름' 만 빨강 — 선·채움 모두 반투명 빨강(239,68,68). 옛 빨간 점(sign-unmeasured)은 없다
+  await expect(shapeOf(b)).toHaveAttribute('data-unmeasured', '1');
+  await expect(shapeOf(a)).not.toHaveAttribute('data-unmeasured', '1');
+  await expect(page.getByTestId('sign-unmeasured')).toHaveCount(0);
+  const paint = (id: string) => shapeOf(id).evaluate((e) => { const cs = getComputedStyle(e); return { stroke: cs.stroke, fill: cs.fill }; });
+  const pb = await paint(b);
+  expect(pb.stroke).toMatch(/^rgba\(239, 68, 68, 0\.\d+\)$/);
+  expect(pb.fill).toMatch(/^rgba\(239, 68, 68, 0\.\d+\)$/);
+  const pa = await paint(a);
+  expect(pa.stroke).not.toMatch(/239, 68, 68/);
+  // 정보 글자는 사인물 가운데 (점이 없어졌으니 글자도 가운데 그대로)
   const label = page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${b}"]) [data-testid="sign-label"]`);
   const lb = await label.evaluate((e) => ({ x: Number(e.getAttribute('x')), y: Number(e.getAttribute('y')), anchor: getComputedStyle(e).textAnchor }));
   expect(lb.x).toBe(700); expect(lb.anchor).toBe('middle');
-  const r = Number(await dots.getAttribute('r'));
-  expect(lb.y - Number(await label.evaluate((e) => parseFloat(e.getAttribute('font-size')!)))).toBeGreaterThanOrEqual(cy + r - 0.01); // 글자 위쪽이 점 아래
-  // 치수가 있는 사인물의 글자는 가운데
-  const la = page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${a}"]) [data-testid="sign-label"]`);
-  expect(Number(await la.getAttribute('x'))).toBe(300);
+  expect(lb.y).toBeGreaterThan(150); expect(lb.y).toBeLessThan(160);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 2000, heightMm: 500 }), b);
-  await expect(dots).toHaveCount(0);
-  expect(a).toBeTruthy();
+  await expect(shapeOf(b)).not.toHaveAttribute('data-unmeasured', '1');
+  expect((await paint(b)).stroke).not.toMatch(/239, 68, 68/);
 });
 
 test('예상 길이가 있으면 회색으로 — 같은 사진의 다른 사인물 치수로 추정', async ({ page, request }) => {
