@@ -10,6 +10,7 @@
   const ro = $derived(!app.canEdit);
   const block = $derived(app.blockAt(photoId, index));
   const ax = $derived(app.blockAxisOf(photoId, index));
+  const bad = $derived(app.blockMismatchOf(photoId, index));
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)) || undefined);
   /** 칸을 떠날 때(엔터·바깥 누르기) 한 번 반영 — 글자마다 저장하면 블록을 매번 다시 써서 입력이 끊겼다 (2026-11-04 "입력 후 엔터나 화면밖 클릭에 포커스해제와 입력이 안된다") */
   function commit(k: 'w' | 'h', v: string) {
@@ -34,6 +35,7 @@
     <label>세로<input data-testid="block-height" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} onchange={(e) => commit('h', e.currentTarget.value)} onkeydown={enterBlur} /></label>
     <small>mm</small>
   </div>
+  {#if bad}<p class="bad" data-testid="block-mismatch">⚠ 원근과 안 맞음 — 넣은 가로·세로 비율이 원근으로 잰 비율과 30% 넘게 달라 치수 기준에서 뺐습니다. 치수(가로·세로 바뀜?)·축·원근을 확인하세요.</p>{/if}
   <div class="row axes" role="radiogroup" aria-label="축" data-testid="block-axis">
     <span class="lbl">축</span>
     {#each AXES as a (a.id)}
@@ -50,6 +52,7 @@
   .sizes label { display: flex; flex-direction: row; align-items: center; gap: 4px; flex: 1; margin: 0; white-space: nowrap; } /* 라벨 왼쪽·칸 오른쪽 한 줄 (conventions) */
   .sizes input { flex: 1; width: 100%; min-width: 0; }
   .sizes input.need { outline: 2px solid #39ff14; outline-offset: 1px; } /* 치수 입력 전 */
+  .bad { margin: 8px 12px 0; font-size: 12px; line-height: 1.4; color: #fb923c; }
   .axes .lbl { margin-right: 2px; }
   .axes button { flex: 1; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 6px 4px; font: inherit; font-size: 12px; cursor: pointer; }
   .axes button.on { background: #39ff14; color: #0b1a06; border-color: #39ff14; font-weight: 700; }

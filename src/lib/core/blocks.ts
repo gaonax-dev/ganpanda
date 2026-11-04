@@ -147,7 +147,26 @@ export function alignBlock(pl: BlockPlane, q: Pt[]): Pt[] | null {
   // 그린 모양과 너무 다르면(이 면이 그 자리에 맞지 않음) 맞추지 않는다: 꼭짓점이 대각선의 35% 넘게 움직이면 그대로
   const diag = Math.max(Math.hypot(q[2][0] - q[0][0], q[2][1] - q[0][1]), Math.hypot(q[3][0] - q[1][0], q[3][1] - q[1][1]));
   if (out.some((p, i) => Math.hypot(p[0] - q[i][0], p[1] - q[i][1]) > ALIGN_MAX_SHIFT * diag)) return null;
+  // 변 방향이 ALIGN_MAX_TURN 넘게 돌면 맞추지 않는다 (2026-11-05 안전장치: 원근이 그 자리와 안 맞으면 블록이 크게 돌아가 버렸다)
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], c = out[i], d = out[(i + 1) % 4];
+    let t = Math.abs(Math.atan2(d[1] - c[1], d[0] - c[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]));
+    if (t > Math.PI) t = 2 * Math.PI - t;
+    if ((t * 180) / Math.PI > ALIGN_MAX_TURN) return null;
+  }
   return out;
+}
+/** 원근에 맞출 때 블록 변이 돌 수 있는 한도 (°) — 넘으면 그린 그대로 (2026-11-05 사용자: "두 가지 안전장치 모두 적용해줘") */
+export const ALIGN_MAX_TURN = 30;
+/** 원근과 안 맞음 판정 허용치 — 입력한 가로÷세로와 원근으로 펼친 가로÷세로가 이 비율(30%) 넘게 다르면 */
+export const BLOCK_MISMATCH_TOL = 0.3;
+/**
+ * 블록이 지금 원근과 안 맞는가 (2026-11-05 안전장치): 가로·세로를 모두 넣은 블록만 — 펼친 비율(raw)과 입력 비율이 30% 넘게 다르면
+ * 원근이 그 자리와 맞지 않거나 치수를 바꿔 넣은 것. 이런 블록은 치수 추정의 기준에서 빠지고(measureByBlocks), 화면에 "원근과 안 맞음"
+ */
+export function blockMismatch(raw: { widthMm: number; heightMm: number } | null | undefined, w: number | undefined, h: number | undefined, tol = BLOCK_MISMATCH_TOL): boolean {
+  if (!raw || !(raw.widthMm > 0) || !(raw.heightMm > 0) || !(w && w > 0) || !(h && h > 0)) return false;
+  return Math.abs(Math.log((w / h) / (raw.widthMm / raw.heightMm))) > Math.log(1 + tol);
 }
 /**
  * 블록 길이 그리드 (2026-11-04 "이 길이를 해당 축에 그리드로 넣고 이걸로 사인물 길이를 추론한다" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다 …
@@ -215,6 +234,7 @@ export function measureByBlocks(
   const scales: { axis: BlockAxis; sx: number; sy: number; at?: Pt }[] = [];
   for (const b of blocks) {
     if (!b.raw || !(b.raw.widthMm > 0) || !(b.raw.heightMm > 0)) continue;
+    if (blockMismatch(b.raw, b.w, b.h)) continue; // 원근과 안 맞는 블록은 기준에서 뺀다 (2026-11-05)
     const sx = b.w && b.w > 0 ? b.w / b.raw.widthMm : undefined, sy = b.h && b.h > 0 ? b.h / b.raw.heightMm : undefined;
     if (sx === undefined && sy === undefined) continue;
     scales.push({ axis: b.axis ?? 'y', sx: sx ?? sy!, sy: sy ?? sx!, at: b.at });

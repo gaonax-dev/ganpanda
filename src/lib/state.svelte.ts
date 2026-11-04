@@ -22,7 +22,7 @@ import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import { measureQuad, type Calibration } from './core/calibration';
 import { applyHomography } from './core/homography';
 import { loadRoomView } from './core/roomView';
-import { alignBlock, blockFits, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
+import { alignBlock, blockFits, blockMismatch, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -376,7 +376,9 @@ class AppState {
       // 치수 블록 (2026-11-04 "블록은 원근의 구도를 따른다. 블록은 길이만 제시한다" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론"):
       // 치수 있는 블록이 있으면 예상 크기는 블록이 기준 — 원근은 그대로 두고, 블록·사인물을 각자의 축 면에 펼친 길이로 축 면마다의 축척(core/blocks.ts measureByBlocks). 사인물 입력 치수는 기준에서 빠진다
       const pbs = this.photoBlocks.get(p.id) ?? [];
-      if (pbs.some(isSized) && calib?.metric && cal) {
+      // 원근과 안 맞는 블록(입력 비율 ≠ 펼친 비율 30% 넘게)은 기준에서 뺀다 (2026-11-05 "두 가지 안전장치 모두 적용해줘")
+      const bad = new Set(pbs.map((_, i) => i).filter((i) => this.blockMismatchOf(p.id, i)));
+      if (pbs.some((b, i) => isSized(b) && !bad.has(i)) && calib?.metric && cal) {
         const wallRaw = (q: Pt[]) => (isValidQuad(q) ? measureQuad(calib, q) : null);
         // 벽면 자리(벽 좌표의 가운데) — 블록마다 축척이 다르게 나오면 자리에 따라 이어 쓴다 (2026-11-04 "블록 길이와 위치에대한 계산없이 … 유추하고 있다")
         const wallAt = (q: Pt[]): Pt | undefined => { if (!isValidQuad(q)) return undefined; const w = q.map((pt) => applyHomography(calib.H, pt)); return [w.reduce((a, x) => a + x[0], 0) / 4, w.reduce((a, x) => a + x[1], 0) / 4]; };
@@ -388,7 +390,7 @@ class AppState {
         continue;
       }
       // 원근이 없는 사진: 첫 치수 있는 블록이 기준 영역(같은 평면). 길이 하나만 준 블록은 사진 위 비율로 나머지를 채운다
-      const byBlocks = pbs.some(isSized);
+      const byBlocks = pbs.some((b, i) => isSized(b) && !bad.has(i));
       const blocks = pbs.map((b, i): SignObject => {
         const pw = Math.hypot(b.q[1][0] - b.q[0][0], b.q[1][1] - b.q[0][1]), ph = Math.hypot(b.q[3][0] - b.q[0][0], b.q[3][1] - b.q[0][1]);
         const w = b.w ?? (b.h && ph ? (b.h * pw) / ph : undefined), h = b.h ?? (b.w && pw ? (b.w * ph) / pw : undefined);
@@ -397,7 +399,7 @@ class AppState {
       const signsIn = byBlocks ? objs.map((o) => ({ ...o, widthMm: undefined, heightMm: undefined })) : objs;
       // 어느 면에도 딱 맞지 않는 외곽선은 벽면에서 잰다 — 추정이 사라지지 않게 (2026-11-04 "사이즈 나오지 않는다")
       const face = cal ? (o: SignObject) => faceSizeOf(o, cal) ?? undefined : undefined;
-      for (const [id, r] of measurePhoto([...(byBlocks ? blocks : []), ...signsIn], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
+      for (const [id, r] of measurePhoto([...(byBlocks ? blocks.filter((_, i) => !bad.has(i)) : []), ...signsIn], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
   });
@@ -2064,6 +2066,15 @@ class AppState {
   /** 블록을 마지막으로 고친 사진 — 여러 사진에 쓰인 사인물의 예상 크기는 이 사진의 블록 기준을 따른다 ("현재 조정하는 사진의 블록 변경을 따른다") */
   lastBlockPhotoId = $state<string | null>(null);
   /** 블록이 지금 원근과 맞는가(입력 치수와 10% 안) → 보라. 숫자(추정)는 보이지 않는다 */
+  /** 블록이 지금 원근과 안 맞는가 — 가로·세로를 모두 넣었고, 원근으로 그 축 면에 펼친 비율과 30% 넘게 다르면 (core/blocks.ts blockMismatch, 2026-11-05). 원근 없으면 false */
+  blockMismatchOf(photoId: string, i: number): boolean {
+    const b = this.blockAt(photoId, i), calib = this.calibrations.get(photoId);
+    if (!b || !b.w || !b.h || !calib?.metric || !isValidQuad(b.q)) return false;
+    const cal = wallPlaneOf([], calib);
+    const side = b.axis && b.axis !== 'y';
+    const raw = (side && cal ? faceSizeOnAxis(b.q, cal, b.axis as 'x' | 'z') : undefined) ?? measureQuad(calib, b.q);
+    return blockMismatch(raw, b.w, b.h);
+  }
   blockFitOf(photoId: string, i: number): boolean {
     const b = this.blockAt(photoId, i);
     const e = this.measures.get(this.blockIdOf(photoId, i))?.estimate;

@@ -280,3 +280,31 @@ describe('그리드는 원근의 지평선을 넘지 않는다 (2026-11-04 "치�
     }
   });
 });
+
+describe('안전장치 (2026-11-05 사용자: "두 가지 안전장치 모두 적용해줘")', async () => {
+  const { alignBlock, ALIGN_MAX_TURN, blockMismatch, BLOCK_MISMATCH_TOL, measureByBlocks } = await import('../../src/lib/core/blocks');
+  // 면 = 사진을 deg 만큼 돌린 평면 (면 → 사진: 회전). 그린 네모는 사진 축에 반듯 → 맞추면 deg 만큼 돈다
+  const rot = (deg: number) => { const t = (deg * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t); return { H: [c, -s, 1000, s, c, 1000, 0, 0, 1], Hinv: [c, s, -1000 * c - 1000 * s, -s, c, 1000 * s - 1000 * c, 0, 0, 1] }; };
+  const q: Pt[] = [[1000, 1000], [1400, 1000], [1400, 1100], [1000, 1100]]; // 납작한 네모 (가운데로 돌려도 꼭짓점이 대각선의 35% 안에서 움직이는 각도까지)
+  it(`원근에 맞추면 ${30}° 넘게 도는 블록은 맞추지 않는다 — 그린 그대로 (null)`, () => {
+    expect(ALIGN_MAX_TURN).toBe(30);
+    expect(alignBlock(rot(10), q)).not.toBeNull();
+    expect(alignBlock(rot(-20), q)).not.toBeNull();
+    expect(alignBlock(rot(40), q)).toBeNull();
+  });
+  it('가로·세로를 모두 넣은 블록의 비율이 원근으로 펼친 비율과 30% 넘게 다르면 "원근과 안 맞음" — 길이 하나만이면 판단하지 않음', () => {
+    expect(BLOCK_MISMATCH_TOL).toBe(0.3);
+    expect(blockMismatch({ widthMm: 665, heightMm: 406 }, 400, 650)).toBe(true); // 씽크대 블록 0 (가로·세로가 뒤바뀐 듯)
+    expect(blockMismatch({ widthMm: 397, heightMm: 679 }, 450, 650)).toBe(false); // 씽크대 블록 1 (18%)
+    expect(blockMismatch({ widthMm: 665, heightMm: 406 }, 400, undefined)).toBe(false);
+    expect(blockMismatch(undefined, 400, 650)).toBe(false);
+  });
+  it('원근과 안 맞는 블록은 치수 추정의 기준에서 빠진다', () => {
+    const r = measureByBlocks([
+      { raw: { widthMm: 100, heightMm: 100 }, w: 200, h: 200 }, // 맞음: 축척 2
+      { raw: { widthMm: 100, heightMm: 100 }, w: 1000, h: 300 }, // 비율 3.3배 — 안 맞음
+    ], [{ id: 's', raw: { widthMm: 50, heightMm: 50 } }]);
+    expect(r.get('s')!.widthMm).toBeCloseTo(100, 6);
+    expect(r.get('s')!.heightMm).toBeCloseTo(100, 6);
+  });
+});

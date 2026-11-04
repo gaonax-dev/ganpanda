@@ -10,7 +10,7 @@
   let { viewport, screenW, screenH }: { viewport: { x: number; y: number; zoom: number }; screenW: number; screenH: number } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const M = 300; // 화면 밖 여유 (px)
-  type Label = { hide?: boolean; key: string; kind: 'sign' | 'zone' | 'block'; x: number; y: number; id?: string; index?: number; o?: (typeof app.objects)[number]; text?: string; need?: boolean; fit?: boolean };
+  type Label = { hide?: boolean; key: string; kind: 'sign' | 'zone' | 'block'; x: number; y: number; id?: string; index?: number; o?: (typeof app.objects)[number]; text?: string; need?: boolean; fit?: boolean; bad?: boolean };
   const labels = $derived.by((): Label[] => {
     if (app.stage === '3d') return []; // 3D 합성 위에는 정보 글자 없음 (전과 같게)
     const out: Label[] = [];
@@ -34,8 +34,10 @@
         if (hideInfo && !bsel) return;
         const c = b.q.reduce((acc, q) => [acc[0] + q[0] / 4, acc[1] + q[1] / 4] as Pt, [0, 0] as Pt);
         const a = at(c);
-        if (inView(a) || hide) out.push({ hide, key: `b${p.id}${i}`, kind: 'block', ...a, index: i, need: !b.w && !b.h, fit: app.blockFitOf(p.id, i),
-          text: b.w && b.h ? `${fmt(b.w)}×${fmt(b.h)}` : b.w ? `가로 ${fmt(b.w)}` : b.h ? `세로 ${fmt(b.h)}` : '치수 입력' });
+        const bad = app.blockMismatchOf(p.id, i); // 원근과 안 맞음 (2026-11-05) — 기준에서 빠진 블록
+        const size = b.w && b.h ? `${fmt(b.w)}×${fmt(b.h)}` : b.w ? `가로 ${fmt(b.w)}` : b.h ? `세로 ${fmt(b.h)}` : '치수 입력';
+        if (inView(a) || hide) out.push({ hide, key: `b${p.id}${i}`, kind: 'block', ...a, index: i, need: !b.w && !b.h, fit: !bad && app.blockFitOf(p.id, i), bad,
+          text: bad ? `⚠ ${size} · 원근과 안 맞음` : size });
       });
     }
     return out;
@@ -52,7 +54,7 @@
     {:else if l.kind === 'zone'}
       <span class="hl zl" class:hide={l.hide} data-testid="zone-label" style:left="{l.x}px" style:top="{l.y}px">{l.text}</span>
     {:else}
-      <span class="hl bl" class:hide={l.hide} class:need={l.need} class:fit={l.fit} data-testid="block-size" data-index={l.index} style:left="{l.x}px" style:top="{l.y}px">{l.text}</span>
+      <span class="hl bl" class:hide={l.hide} class:need={l.need} class:fit={l.fit} class:bad={l.bad} data-testid="block-size" data-index={l.index} data-mismatch={l.bad ? '1' : undefined} style:left="{l.x}px" style:top="{l.y}px">{l.text}</span>
     {/if}
   {/each}
 </div>
@@ -65,5 +67,5 @@
   .hl .w { color: var(--warn); } .hl .u { color: var(--accent); } .hl .l { color: var(--blue); }
   .hl.zl { color: #7ef0a0; transform: translateY(calc(-100% - 8px)); }
   .hl.bl { color: #39ff14; transform: translate(-50%, -50%); }
-  .hl.bl.need { color: #ef4444; } .hl.bl.fit { color: #a855f7; }
+  .hl.bl.need { color: #ef4444; } .hl.bl.fit { color: #a855f7; } .hl.bl.bad { color: #fb923c; }
 </style>
