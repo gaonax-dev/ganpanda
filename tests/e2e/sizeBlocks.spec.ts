@@ -125,3 +125,30 @@ test('블록을 고르면 속성은 사이즈·축만 바로(휴대폰도) — �
   await expect(panel).toBeVisible();
   await expect(page.getByTestId('quick-size')).toHaveCount(0);
 });
+
+test('원근이 잡힌 사진에서 조금 비뚤게 그린 블록도 크기(≈)가 나온다 — 축을 안 정하면 벽면에서 잰다 (2026-11-04 "블록 사이즈 입력했는데 사이즈 나오지 않는다")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 크기 표시');
+  await uploadPhoto(page);
+  const a = await page.evaluate(() => {
+    const g = (window as unknown as { __ganpanda: Hook & { selectObject(id: string): void } }).__ganpanda;
+    const a = g.project.addObject({ photoId: g.photos[0].id, name: '기준', shape: 'rect', quad: [[100, 100], [500, 100], [500, 200], [100, 200]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
+    g.selectObject(a);
+    return a;
+  });
+  await page.getByTestId('camera-auto').click();
+  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3');
+  // 손으로 그린 듯 꼭짓점이 몇십 px 어긋난 블록
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { blocks: [[[600, 300], [1010, 290], [1000, 420], [590, 400]]] }), a);
+  await expect(page.getByTestId('block-size')).toHaveCount(1);
+  await expect(page.getByTestId('block-size')).toHaveText(/≈\s?[\d,]+\s?×\s?[\d,]+/);
+  // 비뚤게 그린 블록으로 원근을 다시 잡아도 같은 사진의 치수 없는 사인물 추정은 사라지지 않는다 (어느 면에도 딱 맞지 않으면 벽면에서 잰다)
+  const u = await page.evaluate(() => { const g = (window as unknown as { __ganpanda: Hook }).__ganpanda; return g.project.addObject({ photoId: g.photos[0].id, name: '모름', shape: 'rect', quad: [[1100, 100], [1400, 100], [1400, 200], [1100, 200]], sheetIds: [] }); });
+  await page.getByTestId('camera-auto').click();
+  await expect.poll(() => page.evaluate(() => !!(window as unknown as { __ganpanda: { photos: { camera?: { extra?: unknown } }[] } }).__ganpanda.photos[0].camera?.extra)).toBe(true);
+  await expect.poll(() => page.evaluate((u) => (window as unknown as { __ganpanda: { measures: Map<string, { estimate?: { widthMm: number } }> } }).__ganpanda.measures.get(u)?.estimate?.widthMm ?? 0, u)).toBeGreaterThan(2000);
+  // 블록 패널에서 사이즈를 넣어도 크기는 계속 나온다
+  await page.evaluate((id) => (window as unknown as { __ganpanda: { selectBlock(id: string, i: number): void } }).__ganpanda.selectBlock(id, 0), a);
+  await page.getByTestId('block-width').fill('5000');
+  await expect(page.getByTestId('block-size')).toHaveCount(1);
+  await expect(page.getByTestId('block-panel-est')).toBeVisible();
+});

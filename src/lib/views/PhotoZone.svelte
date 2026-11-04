@@ -867,9 +867,8 @@
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         {#if !hideInfo || sel || multiSel}
-        {@const c = centerOf(q)}
-        <!-- 정보 글자는 사인물 가운데 (2026-10-25 "사인물 정보 사인물 센터로") -->
-        <text data-testid="sign-label" x={c[0]} y={c[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle">
+        <!-- 정보 글자는 외곽선 왼쪽 위 꼭짓점 바로 위 바깥 (2026-11-04 "사진보드의 사인물 정보표시 이전 위치로 이동해줘 좌상외곽으로" — 2026-10-25 가운데는 대체됨) -->
+        <text data-testid="sign-label" x={q[0][0]} y={q[0][1] - 6 * u} font-size={12 * u} stroke-width={3 * u}>
           {#if warn}<tspan data-testid="sign-warning-icon" class="w">⚠ </tspan>{/if}{#if unread[o.sameAs ?? o.id]}<tspan data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </tspan>{/if}{#if o.sameAs}<tspan data-testid="sign-linked" class="l">⇄ </tspan>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}
         </text>
         {/if}

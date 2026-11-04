@@ -38,7 +38,7 @@ import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { maskProfanity } from './core/profanity';
-import { faceOf, faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
+import { faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -383,7 +383,7 @@ class AppState {
         });
       });
       const axisOf = new Map(blockRefs.map((r) => [r.o.id, r.axis]));
-      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal); const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) : faceSizeOf(o, cal); } : undefined;
+      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal) ?? undefined; /* 어느 면에도 딱 맞지 않는 외곽선은 벽면에서 잰다 — 추정이 사라지지 않게 (2026-11-04 "사이즈 나오지 않는다": 비뚤게 그린 블록으로 원근이 조금 바뀌면 반듯한 사인물도 면 판정에서 빠졌다) */ const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) ?? undefined : undefined; } : undefined; // 블록: 축 없음 = 벽면, 정한 면에서 못 재면 벽면 — 손으로 조금 비뚤게 그린 블록이 자동 면 판정에서 빠져 크기가 안 나오던 것 (2026-11-04)
       for (const [id, r] of measurePhoto([...objs, ...blocks], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
@@ -2037,14 +2037,10 @@ class AppState {
     this.project.updateObject(id, { blockAxes: axes });
     this.editBoundary();
   }
-  /** 블록의 축: 정한 것, 없으면 외곽선으로 판정한 면(원근이 없으면 벽면) */
+  /** 블록의 축: 정한 것, 없으면 벽면 */
   blockAxisOf(o: SignObject, i: number): { axis: BlockAxis; auto: boolean } {
     const set = o.blockAxes?.[i];
-    if (set) return { axis: set, auto: false };
-    const calib = this.calibrations.get(o.photoId), b = o.blocks?.[i];
-    const cal = calib?.metric ? wallPlaneOf([], calib) : null;
-    const f = b && cal ? faceOf({ ...o, quad: b, turn: undefined }, cal) : null;
-    return { axis: f?.axis ?? 'y', auto: true };
+    return set ? { axis: set, auto: false } : { axis: 'y', auto: true }; // 정하지 않으면 벽면 (재는 것과 같게)
   }
   removeBlock(id: string, i: number) {
     const o = this.objects.find((x) => x.id === id);
