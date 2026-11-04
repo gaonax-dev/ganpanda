@@ -124,7 +124,7 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const cx = (c: (typeof mine)[number]) => ((c.box.x0 + c.box.x1) / 2) * sx, cy = (c: (typeof mine)[number]) => ((c.box.y0 + c.box.y1) / 2) * sy;
     if (mine.some((c) => c.grid)) {
       // 이름 줄은 펼친 면의 자리를 바꾸지 않는다 — 보드 px 고정이라 작은 축척에선 수백 mm 가 되어 줄이 어긋났다 (2026-11-05 "상하 좌우의 배치가 어긋난다"). 간격만
-      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, 0).map((r) => ({ ...r, h: r.h + labelMm })));
+      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, 0, 0).map((r) => ({ ...r, h: r.h + labelMm })));
       continue;
     }
     // 넓히기 (2026-10-26): 실제 크기 카드가 사진 속 간격보다 커서 겹치면, 사진 속 가운데 간격을 같은 배율로 넓혀 구성을 그대로 둔다(최대 SPREAD_MAX).
@@ -173,12 +173,12 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
  * ② 세로: 위부터, 같은 열(가로로 겹침)의 앞 카드 + 이름 줄 + 간격이 모자라면 이 카드와, 이 카드의 처음 아래 끝보다 아래에서 시작한 카드들을 민다.
  * 펼친 면의 줄·열이 그대로 남고, 벌어지는 곳은 겹친 곳 뒤쪽뿐(옆 열의 카드는 안 밀림). 결과 h 는 이름 줄 포함
  */
-function sweepApart(rs: (Rect & { id: string })[], gap: number, labelMm: number): (Rect & { id: string })[] {
+function sweepApart(rs: (Rect & { id: string })[], gap: number, labelMm: number, gapY = gap): (Rect & { id: string })[] {
   const EPS = 0.5;
   const out = rs.map((r) => ({ ...r }));
   const pass = (key: 'x' | 'y') => {
     const len = key === 'x' ? 'w' : 'h', ok = key === 'x' ? 'y' : 'x', olen = key === 'x' ? 'h' : 'w';
-    const need = key === 'x' ? gap : labelMm + gap;
+    const need = key === 'x' ? gap : labelMm + gapY;
     const order = [...out].sort((a, b) => a[key] - b[key] || a[ok] - b[ok]);
     const done: typeof out = [];
     const pushes: { from: number; by: number }[] = []; // 밀린 카드의 처음 끝선 — 그보다 뒤(아래·오른쪽)에서 시작한 카드만 같이 민다
@@ -332,7 +332,8 @@ export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: num
  *     카드 크기 ÷ 펼친 크기(가로·세로)가 비슷한 것끼리(10%) 한 층, 층마다 그 비율로 **카메라 발**(카메라 바로 앞의 면 위 점)을 중심으로 키운다.
  *     카메라에서 면으로 비친 것을 제 깊이로 되돌리는 것이라 위 찬장이 아래 서랍 열 위에 바로 선다. 치수 없는 카드는 가장 큰 층.
  *  3. **카드는 왼쪽 위 꼭짓점에** — 위끝·왼끝이 같은 선이면 카드도 같은 선(가운데에 두면 크기가 다른 카드의 끝선이 어긋났다).
- *  4. **맞닿은 곳에만 간격**: 한 카드의 끝선이 다른 카드의 시작선이면(30mm 안 = 같은 선) 그 선 뒤를 간격만큼(세로는 이름 줄 + 간격) 민다 — 선 단위라 같은 선의 카드는 함께.
+ *  4. **가로로 맞닿은 곳에만 간격**: 한 카드의 오른끝이 다른 카드의 왼끝이면(30mm 안 = 같은 선) 그 선 뒤를 간격만큼 민다 — 선 단위라 같은 선의 카드는 함께.
+ *     세로는 펼친 그대로(간격 없음) — 위끝·아래끝이 사진과 같은 선 (2026-11-05 "세로 위치가 다른데 섞여있다").
  *  방향(축마다 ±)은 사진 속 자리와의 공분산, 무게중심은 사진 속 무게중심, 사진 px 로는 ÷ mmPerPx.
  *  크기를 아는 카드가 없거나 mmPerPx 가 없으면 한 배율 최소제곱으로 사진 px 에 맞춘다(가운데). 면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
 export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 펼친 외곽선 범위 [a0, a1, b0, b1] (면 mm) */ rect?: [number, number, number, number]; /** 카드 크기 (mm) */ card?: [number, number]; /** 카드 크기가 실제 치수(입력·추정)인가 — 아니면 임시 크기 */ real?: boolean } }
@@ -407,6 +408,7 @@ function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: numbe
     return (v: number) => lines.reduce((t, c) => (c - LINE_TOL <= v ? t + add : t), 0);
   };
   const sx = shiftOf(rects.map((r) => r.x), rects.map((r) => r.x + r.w), gap);
-  const sy = shiftOf(rects.map((r) => r.y), rects.map((r) => r.y + r.h), gap + labelMm);
-  return new Map(rects.map((r) => [r.id, [r.x + sx(r.x) + r.w / 2, r.y + sy(r.y) + r.h / 2] as [number, number]]));
+  // 세로는 펼친 그대로 — 간격을 넣으면 쌓인 서랍 열만 길어져 옆 문들과 아래끝(바닥선)이 갈렸다 (2026-11-05 "재정렬에 세로 위치가 다른데 섞여있다")
+  void labelMm;
+  return new Map(rects.map((r) => [r.id, [r.x + sx(r.x) + r.w / 2, r.y + r.h / 2] as [number, number]]));
 }

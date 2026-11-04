@@ -79,9 +79,13 @@ describe('unfoldCenters — 포토샵 원근 펴기처럼 (2026-11-05 "상하 �
     expect(Math.abs(box('s11').t - box('s1').t)).toBeLessThan(15);
     expect(box('s11').l).toBeCloseTo(box('s9').l, 6); expect(box('s9').l).toBeCloseTo(box('s10').l, 6);
   });
-  it('맞닿은 곳에만 간격 — 세로로 맞닿으면 이름 줄 + 간격, 가로로 맞닿으면 간격. 겹침 없음', () => {
-    expect(box('s9').t - box('s11').b).toBeGreaterThanOrEqual(L + G - 1);
-    expect(box('s10').t - box('s9').b).toBeGreaterThanOrEqual(L + G - 1);
+  it('세로는 펼친 그대로 — 맞닿아 쌓인 서랍도 간격 없이, 그래서 아래끝이 문들과 같은 바닥선 (2026-11-05 "재정렬에 세로 위치가 다른데 섞여있다": 세로 간격을 넣어 서랍 열·5·문의 아래끝이 세 높이로 갈렸다)', () => {
+    expect(Math.abs(box('s10').b - box('s1').b)).toBeLessThan(15);
+    expect(Math.abs(box('s5').b - box('s1').b)).toBeLessThan(15);
+    expect(box('s9').t).toBeGreaterThanOrEqual(box('s11').b - 1); // 겹치지는 않는다
+    expect(box('s10').t).toBeGreaterThanOrEqual(box('s9').b - 1);
+  });
+  it('가로로 맞닿은 곳에만 간격 — 겹침 없음', () => {
     expect(box('s5').l - box('s10').r).toBeGreaterThanOrEqual(G - 1);
     const ids = Object.keys(K);
     for (const i of ids) for (const j of ids) if (i < j) {
