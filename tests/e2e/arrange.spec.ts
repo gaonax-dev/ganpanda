@@ -169,3 +169,23 @@ test('축척을 키워 둔 채 재정렬: 카드 크기는 그대로, 카드 사
   expect(m.cardGap / m.signGap).toBeLessThan(1.55);
   expect(m.cardTop - m.photoBottom).toBeLessThan(m.photoH * 0.35); // 사진 바로 아래 (사진 속 높이만큼 내려가지 않음)
 });
+
+test('원근이 있는 카드는 축 면에 감싸 펴서 재정렬 — 벽의 같은 높이는 같은 줄, 같은 간격은 같은 간격 (원근으로 기울고 좁아진 것이 펴짐, 원근 없는 카드는 그대로 = core 시험) (2026-11-04)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await loadSample(page);
+  await setCamera(page);
+  const qs = await Promise.all([0, 3000, 6000].map((x) => rectOnWall(page, x, 3000, 1000, 1000)));
+  const skew = Math.abs((qs[0][0][1] + qs[0][2][1]) / 2 - (qs[2][0][1] + qs[2][2][1]) / 2);
+  expect(skew).toBeGreaterThan(5); // 사진 속에선 같은 높이가 기울어 보인다 (시험이 의미 있도록)
+  await page.evaluate((qs) => {
+    const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    qs.forEach((q, i) => a.project.addObject({ photoId: a.photos[0].id, name: `s${i}`, shape: 'rect', quad: q, sheetIds: [], widthMm: 1000, heightMm: 1000 }));
+  }, qs);
+  await expect(page.getByTestId('board-card')).toHaveCount(3);
+  await page.evaluate(() => (window as unknown as { __ganpanda: { arrangeFlatCards(): void } }).__ganpanda.arrangeFlatCards());
+  const l = await listOf(page);
+  expect(Math.abs(l.s0[1]! - l.s1[1]!)).toBeLessThanOrEqual(1);
+  expect(Math.abs(l.s1[1]! - l.s2[1]!)).toBeLessThanOrEqual(1);
+  expect(Math.abs((l.s1[0]! - l.s0[0]!) - (l.s2[0]! - l.s1[0]!))).toBeLessThanOrEqual(2);
+  expect(l.s1[0]!).toBeGreaterThan(l.s0[0]!);
+});

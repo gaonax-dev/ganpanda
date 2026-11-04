@@ -10,7 +10,8 @@ import { Project } from './core/project';
 import { isValidQuad, measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
-import { arrangeLikePhotos, homeOf } from './core/arrange';
+import { arrangeLikePhotos, homeOf, unfoldCenters, type UnfoldItem } from './core/arrange';
+import { anchorOf } from './core/boxGizmo';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type Markup, type PriceTable } from './core/pricing';
@@ -39,7 +40,7 @@ import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { maskProfanity } from './core/profanity';
-import { blockFacePlane, faceOf, faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
+import { blockFacePlane, faceOf, faceSizeOf, faceSizeOnAxis, sideWallOf, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -1514,8 +1515,32 @@ class AppState {
       const home = inst.length ? homeOf(inst as (SignObject & { quad: [number, number][] })[]) : null;
       if (!home) return { id: o.id, w, h, photo: null, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
       const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
-      return { id: o.id, w, h, photo: idx.get(home.photoId)!, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, home, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
+    // 원근이 있는 카드는 축 면에 감싸 펴서 자리를 잡는다 — 같은 면(사진·축·옆면 좌우)끼리 실제 거리 그대로 한 축척으로 펴, 원근으로 기울고 좁아진 줄이 곧게 (2026-11-04
+    // "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)"). 원근 없는 카드는 사진 속 자리 그대로 → 펼친 카드 사이사이에
+    const items: UnfoldItem[] = cards.map((c) => {
+      const px: [number, number] = [(c.box.x0 + c.box.x1) / 2, (c.box.y0 + c.box.y1) / 2];
+      const home = 'home' in c ? c.home : null;
+      if (!home) return { id: c.id, px };
+      const calib = this.calibrations.get(home.photoId);
+      const cal = calib?.metric ? wallPlaneOf([], calib) : null;
+      const f = cal ? faceOf(home, cal) : null;
+      const a = f && cal ? anchorOf(cal as Parameters<typeof anchorOf>[0], f.plane as Parameters<typeof anchorOf>[1], home.quad) : null;
+      if (!f || !a) return { id: c.id, px };
+      const [X, Y, Z] = a.c3;
+      const face = f.axis === 'y' ? { key: `${home.photoId}:y`, a: X, b: Z }
+        : f.axis === 'x' ? { key: `${home.photoId}:x:${sideWallOf(home, cal)}`, a: Y, b: Z }
+        : { key: `${home.photoId}:z`, a: X, b: Y };
+      return { id: c.id, px, face };
+    });
+    const centers = unfoldCenters(items);
+    for (const c of cards) {
+      const m = centers.get(c.id);
+      if (!m || c.photo === null) continue;
+      const dx = m[0] - (c.box.x0 + c.box.x1) / 2, dy = m[1] - (c.box.y0 + c.box.y1) / 2;
+      c.box = { x0: c.box.x0 + dx, y0: c.box.y0 + dy, x1: c.box.x1 + dx, y1: c.box.y1 + dy };
+    }
     const at = arrangeLikePhotos(cards, photos, gap, 100 / k);
     this.editBoundary();
     this.project.batch(() => { for (const [id, p] of at) this.project.updateObject(id, { listX: Math.round(p.x), listY: Math.round(p.y) }); });

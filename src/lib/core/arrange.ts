@@ -286,3 +286,25 @@ export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: num
   for (const c of cards.filter((i) => i.photo === null || !photos[i.photo])) { out.set(c.id, { x, y }); x += c.w + gap; }
   return out;
 }
+
+/** 재정렬에서 카드의 사진 속 자리 — 원근 면 좌표(face, mm: a 가로·b 위로 +)가 있으면 그 면을 펴서 놓는다.
+ *  (2026-11-04 사용자: "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)")
+ *  같은 면(key)끼리 한 배율 s·축별 방향·한 이동으로 면 좌표 → 사진 px (최소제곱, 무게중심 일치). 면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
+export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number } }
+export function unfoldCenters(items: UnfoldItem[]): Map<string, [number, number]> {
+  const out = new Map<string, [number, number]>(items.map((it) => [it.id, [it.px[0], it.px[1]]]));
+  const groups = new Map<string, UnfoldItem[]>();
+  for (const it of items) if (it.face) groups.set(it.face.key, [...(groups.get(it.face.key) ?? []), it]);
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const n = g.length, mean = (f: (t: UnfoldItem) => number) => g.reduce((s, t) => s + f(t), 0) / n;
+    const ma = mean((t) => t.face!.a), mb = mean((t) => t.face!.b), mx = mean((t) => t.px[0]), my = mean((t) => t.px[1]);
+    let caa = 0, cbb = 0, cax = 0, cby = 0;
+    for (const t of g) { const da = t.face!.a - ma, db = t.face!.b - mb; caa += da * da; cbb += db * db; cax += da * (t.px[0] - mx); cby += db * (t.px[1] - my); }
+    const sa = cax < 0 ? -1 : 1, sb = cby > 0 ? 1 : -1; // 높이는 위가 + → 사진(아래 +)에선 보통 뒤집힘
+    const s = (sa * cax + sb * cby) / (caa + cbb);
+    if (!(s > 0) || !Number.isFinite(s)) continue;
+    for (const t of g) out.set(t.id, [mx + sa * s * (t.face!.a - ma), my + sb * s * (t.face!.b - mb)]);
+  }
+  return out;
+}
