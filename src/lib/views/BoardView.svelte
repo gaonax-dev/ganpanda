@@ -10,6 +10,7 @@
   import { parseBlockId } from '../core/blocks';
   import { svgClip } from '../core/svgClip';
   import BoardLabels from './BoardLabels.svelte';
+  import { useScreenControls } from '../core/screenControls';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import FlatBar from '../ui/FlatBar.svelte';
   import ActionSheet from '../ui/ActionSheet.svelte';
@@ -42,6 +43,9 @@
   const remembered = app.room ? loadRoomView(app.room).viewport : undefined;
   let viewport: Viewport = $state(remembered ?? { x: 80, y: 80, zoom: 0.5 });
   /** 화면 크기 — 크게 확대하면 사진의 편집 층(SVG)은 보이는 부분만 그린다 (2026-11-04 core/svgClip.ts) */
+  /** 맥 WebKit: 편집 층(외곽선·손잡이)을 보드 밖 화면 층에 (2026-11-04 core/screenControls.ts) */
+  const screenCtl = useScreenControls(navigator.userAgent, navigator.maxTouchPoints ?? 0, (() => { try { return localStorage.getItem('ganpanda.screenCtl'); } catch { return null; } })());
+  let ctlLayer: HTMLElement | null = $state(null);
   let screenW = $state(typeof innerWidth === 'number' ? innerWidth : 1400), screenH = $state(typeof innerHeight === 'number' ? innerHeight : 900);
   let canvas: InfiniteCanvas;
   let urls: Record<string, string> = $state({});
@@ -647,6 +651,8 @@
     {#each app.photos as p (p.id)}
       <PhotoZone
         photo={p}
+        portal={screenCtl ? ctlLayer : null}
+        screenRect={screenCtl ? { x: p.x * viewport.zoom + viewport.x, y: p.y * viewport.zoom + viewport.y, w: p.width * viewport.zoom, h: ((p.width * p.h) / p.w) * viewport.zoom } : null}
         clip={svgClip({ x: p.x, y: p.y, width: p.width, height: (p.width * p.h) / p.w }, { w: p.w, h: p.h }, viewport, { w: screenW, h: screenH }, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)}
         url={urls[p.assetId]}
         zoom={viewport.zoom}
@@ -744,6 +750,7 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      {#if screenCtl}<div class="ctl-layer" data-testid="screen-controls" bind:this={ctlLayer}></div>{/if}
       <BoardLabels {viewport} {screenW} {screenH} />
       <!-- 휴대폰 조작 안내 (2026-10-24) — 터치 기기에서 처음 한 번, [다시 보지 않기] -->
       {#if app.ready}<TouchHelp />{/if}
@@ -840,6 +847,9 @@
 </div>
 
 <style>
+  /* 맥 WebKit: 사진 칸의 편집 층(SVG)을 옮겨 오는 화면 층 — 누르기는 각 SVG 가 받는다 (2026-11-04) */
+  .ctl-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; } /* 자기 쌓임 맥락 — 도구 막대·패널 아래 */
+  .ctl-layer > :global(svg) { pointer-events: auto; }
   .board { position: absolute; inset: 0; }
   .cursor { position: absolute; transform-origin: 0 0; pointer-events: none; display: flex; align-items: flex-start; gap: 2px; z-index: 3; }
   .cursor span { background: var(--c); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; margin-top: 10px; }

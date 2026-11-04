@@ -40,7 +40,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    clip = null, toPhoto, oncreate, onblock, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
+    clip = null, screenRect = null, portal = null, toPhoto, oncreate, onblock, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -88,6 +88,9 @@
     toPhoto: (cx: number, cy: number) => Pt;
     /** 편집 층(SVG)을 이 부분(사진 px)만 그린다 — 크게 확대하면 WebKit 층 상한을 넘어 흐려지던 것 (2026-11-04 core/svgClip.ts). null = 전체 */
     clip?: { x: number; y: number; w: number; h: number } | null;
+    /** 맥 WebKit: 편집 층(SVG)을 이 화면 층(보드 밖)으로 옮겨 그린다 — 확대되는 보드 층이 낮은 해상도로 그려져 선·손잡이가 흐려지던 것 (2026-11-04 core/screenControls.ts). screenRect = 이 사진의 화면 자리(보드 화면 기준 px) */
+    portal?: HTMLElement | null;
+    screenRect?: { x: number; y: number; w: number; h: number } | null;
     oncreate: (shape: ShapeKind, quad: Pt[], polygon?: Pt[]) => void;
     /** 치수 블록 (2026-11-03): 블록 도구로 그린 네모(사진 px), 시작·끝점, 꼭짓점 붙이기 반경(사진 px) */
     onblock?: (quad: Pt[], start: Pt, end: Pt, r: number) => void;
@@ -218,6 +221,19 @@
     flattenOverlay(key, layers, W, H, max).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
   });
 
+  /** 요소를 다른 부모(화면 층)로 옮긴다 — 맥 WebKit 에서 편집 층을 보드 밖에 그리기 (2026-11-04). 같은 사진 칸이 살아 있는 동안 대상은 바뀌지 않는다 */
+  function portalTo(node: Element, target: HTMLElement | null) {
+    const home = node.parentNode, anchor = node.nextSibling; // 제자리 (사진 메뉴가 열리면 돌아온다)
+    let cur: HTMLElement | null = null;
+    const move = (t: HTMLElement | null) => {
+      if (t === cur) return;
+      cur = t;
+      if (t) t.appendChild(node);
+      else if (home) home.insertBefore(node, anchor && anchor.parentNode === home ? anchor : null);
+    };
+    move(target);
+    return { update: move, destroy() { if (cur) node.remove(); } };
+  }
   let draft: { start: Pt; end: Pt } | null = $state(null);
   /**
    * 치수 블록은 조작할 때 **가짜 사인물**(id = `<사인물>#b<번호>`, quad = 블록)로 다뤄 사인물과 같은 손잡이(변·꼭짓점·원근 매니퓰레이터·원근에 맞추기)를 그대로 쓴다
@@ -573,6 +589,8 @@
   // 헤더(사진 이름 바) 드래그로 사진 구역 이동
   let confirmsOpen = $state(false);
   let menuOpen = $state(false); // 사진 설정 메뉴 (2026-10-21)
+  /** 편집 층을 화면 층에 그리는 중 — 사진 메뉴·완료 목록이 열리면 사진 칸으로 돌아온다(메뉴를 덮지 않게) */
+  const onScreen = $derived(!!(portal && screenRect) && !menuOpen && !confirmsOpen);
   /** 휴대폰 시트의 사진 설정 항목 — 데스크톱 목록과 같은 순서·같은 시험 id */
   function menuItems(): SheetItem[] {
     const out: SheetItem[] = [];
@@ -769,10 +787,12 @@
     data-clip={clip ? `${Math.round(clip.x)},${Math.round(clip.y)},${Math.round(clip.w)},${Math.round(clip.h)}` : undefined}
     viewBox={clip ? `${clip.x} ${clip.y} ${Math.max(1, clip.w)} ${Math.max(1, clip.h)}` : `0 0 ${photo.w} ${photo.h}`}
     preserveAspectRatio="none"
-    style:left={clip ? `${(clip.x / photo.w) * 100}%` : undefined}
-    style:top={clip ? `${(clip.y / photo.h) * 100}%` : undefined}
-    style:width={clip ? `${(Math.max(1, clip.w) / photo.w) * 100}%` : undefined}
-    style:height={clip ? `${(Math.max(1, clip.h) / photo.h) * 100}%` : undefined}
+    use:portalTo={onScreen ? portal : null}
+    class:screen={onScreen}
+    style:left={onScreen && screenRect ? `${screenRect.x + (clip ? (clip.x / photo.w) * screenRect.w : 0)}px` : clip ? `${(clip.x / photo.w) * 100}%` : undefined}
+    style:top={onScreen && screenRect ? `${screenRect.y + (clip ? (clip.y / photo.h) * screenRect.h : 0)}px` : clip ? `${(clip.y / photo.h) * 100}%` : undefined}
+    style:width={onScreen && screenRect ? `${((clip ? Math.max(1, clip.w) : photo.w) / photo.w) * screenRect.w}px` : clip ? `${(Math.max(1, clip.w) / photo.w) * 100}%` : undefined}
+    style:height={onScreen && screenRect ? `${((clip ? Math.max(1, clip.h) : photo.h) / photo.h) * screenRect.h}px` : clip ? `${(Math.max(1, clip.h) / photo.h) * 100}%` : undefined}
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
     class:magicking={tool === 'magic'}
@@ -1087,6 +1107,7 @@
   @keyframes photo-spin { to { transform: rotate(360deg); } }
   svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   svg.clipped { right: auto; bottom: auto; overflow: hidden; } /* 보이는 부분만 — 밖으로 그리면 층이 다시 커진다 */
+  svg.screen { right: auto; bottom: auto; } /* 화면 층으로 옮긴 편집 층: 자리·크기는 화면 px (style) */
   .designs { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
   .flat-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
   .pbox { position: relative; }

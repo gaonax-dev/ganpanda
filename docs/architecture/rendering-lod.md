@@ -135,3 +135,10 @@
 - 고침(`views/BoardLabels.svelte`, `BoardView` 의 화면 층 `overlay`): 정보 글자를 **보드(확대되는 층) 밖 화면 층**에 HTML 로 — 자리는 보드 변환(`screen = world × zoom + (x, y)`)으로 직접 계산, 늘 화면 12px. 실제 맥 앱에서 388% 로 선명함을 확인. 사인물 이름표는 외곽선 왼쪽 위 꼭짓점 바로 위(6px), 존 이름은 첫 꼭짓점 위, 블록 치수는 가운데. 화면 밖(여유 300px)은 그리지 않고, 사진이 아주 작으면 숨김, 3D 단계는 없음(전과 같게). `data-testid` 그대로(`sign-label[data-id]`, `zone-label`, `block-size[data-index]`, `sign-warning-icon`·`sign-unread`·`sign-linked`).
 - 남은 것: 외곽선을 끄는 동안 글자는 놓을 때 따라온다(끄는 중의 임시 외곽선은 사진 칸 안에만 있다). 2D 화면의 SVG 선(외곽선·손잡이)이 조금 흐려지는 것은 그대로.
 - 테스트: `tests/e2e/zoomClip.spec.ts` "정보 글자 … 화면 층".
+
+## 맥 WebKit: 편집 층(외곽선·손잡이)도 화면 층에 (2026-11-04)
+- 사용자: "외곽선 손잡이 선도 선명하게해줘". 정보 글자와 같은 원인 — 맥 앱에서 사진이 여럿인 보드를 확대하면 확대되는 보드 층이 낮은 해상도로 그려져 외곽선·손잡이·매니퓰레이터 선이 흐려졌다(실제 맥 앱 433% 에서 재현). SVG 에 `will-change` 로 자기 층을 줘도 그대로였다.
+- 고침: 맥 WebKit(앱·사파리, 터치 기기 제외 — `core/screenControls.ts useScreenControls`, 시험·진단은 localStorage `ganpanda.screenCtl` '1'/'0')에서만 사진 칸의 편집 SVG 노드를 **보드 밖 화면 층**(`BoardView` 의 `.ctl-layer`, `data-testid="screen-controls"`)으로 옮긴다(`PhotoZone` `portalTo`). 자리·크기는 그 사진의 화면 자리(`screenRect` = 보드 변환으로 계산)를 px 로, 크게 확대하면 위의 "보이는 부분만"(`svgClip`)도 그대로. 좌표·이벤트·끌기는 사진 px 그대로라 동작은 같다. 실제 맥 앱 433% 에서 외곽선·손잡이 선명 확인.
+- 사진 ⚙ 메뉴·완료 목록이 열리면 편집 층은 사진 칸으로 돌아온다(메뉴를 덮지 않게). 화면 층은 도구 막대·패널 아래(`z-index: 0`).
+- 화면을 움직이는 동안 매번 다시 그리므로 휴대 기기·크롬에는 쓰지 않는다(그쪽은 보드 층이 선명).
+- 테스트: `tests/unit/screenControls.test.ts`, `tests/e2e/zoomClip.spec.ts` "맥 WebKit 모드".

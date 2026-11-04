@@ -58,7 +58,7 @@
 </div>
 
 <style>
-  .labels { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+  .labels { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; } /* 도구 막대·패널 아래 */
   .hl { position: absolute; white-space: nowrap; font-size: 12px; line-height: 1.2; font-weight: 600; color: #fff; -webkit-text-stroke: 3px rgba(0, 0, 0, 0.75); paint-order: stroke fill; transform: translateY(calc(-100% - 6px)); }
   .hl.hide { display: none; }
   .hl b { font-weight: inherit; }
