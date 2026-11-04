@@ -9,6 +9,7 @@
   import { nextPhotoName } from '../core/photoName';
   import { parseBlockId } from '../core/blocks';
   import { svgClip } from '../core/svgClip';
+  import BoardLabels from './BoardLabels.svelte';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import FlatBar from '../ui/FlatBar.svelte';
   import ActionSheet from '../ui/ActionSheet.svelte';
@@ -743,6 +744,7 @@
       {/each}
     {/each}
     {#snippet overlay()}
+      <BoardLabels {viewport} {screenW} {screenH} />
       <!-- 휴대폰 조작 안내 (2026-10-24) — 터치 기기에서 처음 한 번, [다시 보지 않기] -->
       {#if app.ready}<TouchHelp />{/if}
       {#if app.stage === '3d' && app.stageBusy}

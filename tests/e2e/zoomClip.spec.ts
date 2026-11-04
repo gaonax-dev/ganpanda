@@ -40,7 +40,7 @@ test('1200% 에서 편집 층은 화면 몇 장 크기로 잘리고, 손잡이�
   await expect(page.getByTestId('sign-label').first()).toBeVisible();
 });
 
-test('정보 글자(사인물 이름표·존 이름·블록 치수)는 SVG 글자가 아니라 HTML 글자 — 확대해도 화면 12px, 외곽선 왼쪽 위 꼭짓점 바로 위 (2026-11-04 맥 앱: 확대하면 SVG 글자를 작게 그려 늘려 뭉개졌다)', async ({ page, request }) => {
+test('정보 글자(사인물 이름표·존 이름·블록 치수)는 확대되는 보드 밖 화면 층의 HTML 글자 — 확대해도 화면 12px, 외곽선 왼쪽 위 꼭짓점 바로 위 (2026-11-04 맥 앱: 확대하면 보드 층 글자가 뭉개졌다)', async ({ page, request }) => {
   await page.setViewportSize({ width: 1200, height: 800 });
   await openOwnedProject(page, request, '글자 선명');
   await uploadPhoto(page);
@@ -59,11 +59,12 @@ test('정보 글자(사인물 이름표·존 이름·블록 치수)는 SVG 글�
     await expect(label).toContainText(/정면간판\s?·\s?3,600×600/);
     const info = await label.evaluate((e) => ({ inSvg: !!e.closest('svg'), fs: getComputedStyle(e).fontSize, r: e.getBoundingClientRect() }));
     expect(info.inSvg).toBe(false);
+    expect(await label.evaluate((e) => !e.closest('[data-testid="photo-zone"]'))).toBe(true); // 확대되는 보드 층 밖
     expect(info.fs).toBe('12px');
     expect(info.r.height).toBeGreaterThan(10); expect(info.r.height).toBeLessThan(24); // 확대와 상관없이 화면에서 같은 크기
     const cv = (await page.getByTestId('board-canvas').boundingBox())!;
     expect(Math.abs(info.r.left - (cv.x + 600))).toBeLessThan(3); // 왼쪽 = 꼭짓점
     expect(info.r.bottom).toBeLessThanOrEqual(cv.y + 400); expect(info.r.bottom).toBeGreaterThan(cv.y + 400 - 12); // 꼭짓점 바로 위
-    for (const id of ['zone-label', 'block-size']) expect(await page.getByTestId(id).first().evaluate((e) => !e.closest('svg'))).toBe(true);
+    if (Z === 1) for (const id of ['zone-label', 'block-size']) expect(await page.getByTestId(id).first().evaluate((e) => !e.closest('svg') && !e.closest('[data-testid="photo-zone"]'))).toBe(true); // 보드 밖 화면 층 (1200% 에선 화면 밖이라 그리지 않음)
   }
 });

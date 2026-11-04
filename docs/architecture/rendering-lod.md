@@ -130,8 +130,8 @@
 - 사진 자체의 흐림은 원본 해상도 한계라 그대로다.
 - 테스트: `tests/unit/svgClip.test.ts`, `tests/e2e/zoomClip.spec.ts`(1200% 에서 층이 화면 세 장 이내, 손잡이 제자리·끌기 정확).
 
-## 정보 글자는 HTML 글자로 (2026-11-04)
-- 실제 맥 앱(Tauri `cargo tauri dev`, 앞 창)에서 재현: 사진이 여럿이고 원근·2D 층이 있는 프로젝트(핀볼 사본)에서 확대하면 **SVG 정보 글자**(사인물 이름·치수, 존 이름, 블록 치수)가 작은 글꼴을 늘린 것처럼 뭉개졌다(400% 대). 같은 화면의 HTML 글자(사진 이름 막대)는 선명. `text-rendering: geometricPrecision` 은 효과 없음. 위의 "보이는 부분만 그리기"도 이 증상은 못 고쳤다(배포된 앱에서도 재현).
-- 고침: 정보 글자를 SVG 밖 **HTML 글자 층**(`PhotoZone` `.labels`, z-index 3, 누르기 통과)으로 — 자리는 사진 px 의 %, 크기는 사진 이름 막대와 같이 `scale(1/zoom)` 으로 화면에서 늘 12px. 사인물 이름표는 외곽선 왼쪽 위 꼭짓점 바로 위(6px), 존 이름은 첫 꼭짓점 위, 블록 치수는 가운데. `data-testid` 는 그대로(`sign-label[data-id]`, `zone-label`, `block-size[data-index]`), 사진이 아주 작으면 숨김.
-- 2D 화면에서 SVG 선(외곽선·손잡이)도 조금 흐려지는 것은 남아 있다(원근 그림 층과 함께 합성될 때) — 실측 화면에서는 선명.
-- 테스트: `tests/e2e/zoomClip.spec.ts` "정보 글자 … HTML 글자".
+## 정보 글자는 보드 밖 화면 층에 (2026-11-04)
+- 실제 맥 앱(Tauri `cargo tauri dev`, 앞 창, 핀볼 사본 합친 프로젝트)에서 재현: 사진이 여럿인 보드를 400% 대로 확대하면 **확대되는 보드 층 안의 작은 글자**(사인물 이름·치수, 존 이름, 블록 치수)가 작은 글꼴을 늘린 것처럼 뭉개졌다. SVG 글자든, 보드 안 HTML 글자(scale(1/zoom))든 같았다 — 맥 WebKit 이 큰 합성 층을 낮은 해상도로 그리는 것으로 본다(사진 하나뿐인 보드는 987% 에서도 선명, 아이폰은 괜찮음). `text-rendering: geometricPrecision`·위의 "보이는 부분만 그리기"로는 안 고쳐졌다.
+- 고침(`views/BoardLabels.svelte`, `BoardView` 의 화면 층 `overlay`): 정보 글자를 **보드(확대되는 층) 밖 화면 층**에 HTML 로 — 자리는 보드 변환(`screen = world × zoom + (x, y)`)으로 직접 계산, 늘 화면 12px. 실제 맥 앱에서 388% 로 선명함을 확인. 사인물 이름표는 외곽선 왼쪽 위 꼭짓점 바로 위(6px), 존 이름은 첫 꼭짓점 위, 블록 치수는 가운데. 화면 밖(여유 300px)은 그리지 않고, 사진이 아주 작으면 숨김, 3D 단계는 없음(전과 같게). `data-testid` 그대로(`sign-label[data-id]`, `zone-label`, `block-size[data-index]`, `sign-warning-icon`·`sign-unread`·`sign-linked`).
+- 남은 것: 외곽선을 끄는 동안 글자는 놓을 때 따라온다(끄는 중의 임시 외곽선은 사진 칸 안에만 있다). 2D 화면의 SVG 선(외곽선·손잡이)이 조금 흐려지는 것은 그대로.
+- 테스트: `tests/e2e/zoomClip.spec.ts` "정보 글자 … 화면 층".

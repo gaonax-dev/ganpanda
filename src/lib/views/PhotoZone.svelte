@@ -149,7 +149,6 @@
   /** 조절점 터치 영역 반지름(화면 px): 터치 기기는 넓게 (2026-10-24 "컨트롤 포인트의 터치 영역을 조금 넓게 … 원근 컨트롤러도") — 보이는 크기는 그대로 */
   const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   /** 외곽선 가운데 (꼭짓점 평균) — 정보 글자·실측 없음 점 자리 (2026-10-25) */
-  const centerOf = (pts: Pt[]): Pt => pts.length ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : [0, 0];
   const HIT = COARSE ? 24 : 12;
   /** 누름으로 볼 이동 범위(화면 px): 손가락은 누르는 동안 흔들려 4px 이면 끌기가 되어 정면 축 바꾸기가 안 먹었다 (2026-10-24 "정면 설정 컨트롤러도 잘 터치되지 않는다") */
   const TAP = COARSE ? 12 : 4;
@@ -416,7 +415,6 @@
     shape === 'ellipse' ? ellipseInQuad(quad) : shape === 'polygon' && poly ? poly : corner ? roundedInQuad(quad, corner) : quad;
   const outline = (shape: ShapeKind, quad: Pt[], poly?: Pt[], corner?: number) => outlinePts(shape, quad, poly, corner).map((p) => p.join(',')).join(' ');
   const clamp = ([x, y]: Pt): Pt => [Math.max(0, Math.min(photo.w, x)), Math.max(0, Math.min(photo.h, y))];
-  const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
 
   // ---- 작업 존 (여러 개) ----
@@ -873,7 +871,7 @@
           pointer-events={tool === 'magic' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'}
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
-        <!-- 정보 글자(이름·치수)는 아래 HTML 글자 층(.labels)에 — SVG 글자는 맥 앱(WebKit)에서 확대하면 작게 그려 늘려 뭉개졌다 (2026-11-04) -->
+        <!-- 정보 글자(이름·치수)는 보드 밖 화면 층(views/BoardLabels.svelte) — 맥 앱(WebKit)에서 확대하면 보드 층 글자가 뭉개졌다 (2026-11-04) -->
         <!-- 사인물 말풍선 (2026-10-17 "말풍선이 해당 게시물 또는 영역을 지정해서 소통하는 창구"; 2026-10-18 모양·끌기): 대화가 있는 사인물에. 꼭지·몸통 자리는 사인물 좌표로 저장되어 사인물과 함께 움직이고 정면도 카드에도 같은 자리. 누르면 대화 열기 -->
         {#if lastMsg && q.length === 4 && !overlay}
           {@const H = solveHomography(UNIT_RECT, q)}
@@ -1065,35 +1063,7 @@
       {/if}
     {/if}
   </svg>
-  <!-- 정보 글자 층 (2026-11-04 사용자: "맥 앱에서 줌인을 많이 들어가면 컨트롤로와 글자 해상도가 깨진다"): 사인물 이름·치수, 존 이름, 블록 치수를 SVG 글자가 아닌 HTML 글자로.
-       WebKit(맥·아이폰 앱)은 확대된 층 안의 SVG 글자를 확대 배율을 빼고 작은 글꼴로 그린 뒤 늘려 뭉개졌다(실제 맥 앱에서 재현). 자리는 사진 px 의 %, 크기는 사진 이름 막대처럼 scale(1/zoom) 으로 화면에서 늘 12px -->
-  {#if !overlay}
-    <div class="labels" class:tiny aria-hidden="true" style:--iz={1 / zoom}><!-- 사진이 화면에서 아주 작으면 숨김(전의 svg.tiny text 와 같게) -->
-      {#each zones as zone, zi (zi)}
-        <span class="hl zl" data-testid="zone-label" style:left="{(zone[0][0] / photo.w) * 100}%" style:top="{(zone[0][1] / photo.h) * 100}%">작업 존{zones.length > 1 ? ` ${zi + 1}` : ''}</span>
-      {/each}
-      {#each objects as o (o.id)}
-        {@const q = quadOf(o)}
-        {@const sel = o.id === selectedId}
-        {@const multiSel = !sel && multiIds.includes(o.id)}
-        {@const m = measures.get(o.id)}
-        {@const warn = showWarnings && (m?.warnings.length ?? 0) > 0}
-        {#if q.length && (!hideInfo || sel || multiSel)}
-          <!-- 정보 글자는 외곽선 왼쪽 위 꼭짓점 바로 위 바깥 (2026-11-04 "좌상외곽으로") -->
-          <span class="hl sl" data-testid="sign-label" data-id={o.id} style:left="{(q[0][0] / photo.w) * 100}%" style:top="{(q[0][1] / photo.h) * 100}%">{#if warn}<b data-testid="sign-warning-icon" class="w">⚠ </b>{/if}{#if unread[o.sameAs ?? o.id]}<b data-testid="sign-unread" class="u">💬 {unread[o.sameAs ?? o.id]} </b>{/if}{#if o.sameAs}<b data-testid="sign-linked" class="l">⇄ </b>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}</span>
-        {/if}
-      {/each}
-      {#each blocks as b0, bi (bi)}
-        {@const b = quadOf(blockSign(bi, b0))}
-        {@const bsel = app.selectedBlock?.photoId === photo.id && app.selectedBlock.i === bi}
-        {@const fit = app.blockFitOf(photo.id, bi)}
-        {@const bc = centerOf(b)}
-        {#if !hideInfo || bsel}
-          <span class="hl bl" class:need={!b0.w && !b0.h} class:fit data-testid="block-size" data-index={bi} style:left="{(bc[0] / photo.w) * 100}%" style:top="{(bc[1] / photo.h) * 100}%">{b0.w && b0.h ? `${fmt(b0.w)}×${fmt(b0.h)}` : b0.w ? `가로 ${fmt(b0.w)}` : b0.h ? `세로 ${fmt(b0.h)}` : '치수 입력'}</span>
-        {/if}
-      {/each}
-    </div>
-  {/if}
+  <!-- 정보 글자(사인물 이름·치수, 존 이름, 블록 치수)는 보드 밖 화면 층 — views/BoardLabels.svelte (2026-11-04 맥 앱 확대 시 뭉개짐) -->
   {#if fx}
     {#key fx.seq}
       <div class="fx {fx.kind}" data-testid="camera-fx" data-kind={fx.kind} aria-live="polite">
@@ -1157,15 +1127,6 @@
   /* 휴대폰 터치 띠는 보이지 않아야 한다 — 위 .sign polygon 규칙(노란 채움·선)이 덮어쓰던 것 (2026-10-18 캡처: 굵은 노란 띠) */
   .sign polygon.touch-outline, .sign.sel polygon.touch-outline { fill: none; stroke: transparent; stroke-dasharray: none; pointer-events: stroke; cursor: move; }
   .sign text { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
-  /* 정보 글자 층 (HTML, 2026-11-04): 화면 12px — 사진 이름 막대처럼 1/zoom 으로 되돌린다. 왼쪽 위 꼭짓점 바로 위(6px), 블록 치수는 가운데 */
-  .labels { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-  .labels.tiny { display: none; }
-  .hl { position: absolute; white-space: nowrap; font-size: 12px; line-height: 1.2; font-weight: 600; color: #fff; -webkit-text-stroke: 3px rgba(0, 0, 0, 0.75); paint-order: stroke fill; transform-origin: 0 0; transform: scale(var(--iz)) translateY(calc(-100% - 6px)); }
-  .hl b { font-weight: inherit; }
-  .hl .w { color: var(--warn); } .hl .u { color: var(--accent); } .hl .l { color: var(--blue); }
-  .hl.zl { color: #7ef0a0; transform: scale(var(--iz)) translateY(calc(-100% - 8px)); }
-  .hl.bl { color: #39ff14; transform: scale(var(--iz)) translate(-50%, -50%); }
-  .hl.bl.need { color: #ef4444; } .hl.bl.fit { color: #a855f7; }
   /* 치수 블록 (2026-11-03): 선은 style 로(핫핑크 / 맞으면 보라), 크기 글자는 빨강 (맞으면 보라) */
   .block polygon { fill: rgba(57, 255, 20, 0.08); cursor: pointer; }
   .block.fit polygon { fill: rgba(168, 85, 247, 0.08); }
