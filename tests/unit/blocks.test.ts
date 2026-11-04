@@ -1,7 +1,7 @@
 // 치수 블록 (2026-11-03 사용자: "같은 크기 사각형으로 나머지 사인물 대략 크기를 정확도 높게 … 모서리 대각으로 같은크기 블록을 넣는거야",
 // "설정이 하나인 사각이 두개가 되고", "치수블록은 핫핑크라인으로", "정확도가 향상된면 보라색으로")
 import { describe, expect, it } from 'vitest';
-import { BLOCK_COLOR, BLOCK_FIT_COLOR, BLOCK_FIT_TOL, blockFits, blockLines, predictBlock, snapStart } from '../../src/lib/core/blocks';
+import { BLOCK_COLOR, BLOCK_FIT_COLOR, BLOCK_FIT_TOL, blockFits, blockIdOf, blockLines, parseBlockId, predictBlock, snapStart } from '../../src/lib/core/blocks';
 import { calibrationOf, signCameraFit, signCameraSetup, solveCamera } from '../../src/lib/core/camera';
 import { measureQuad } from '../../src/lib/core/calibration';
 import { projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
@@ -33,9 +33,17 @@ describe('치수 블록 = 기준 사인물과 같은 크기의 사각 (설정 �
     expect(l.y).toEqual([{ a: b[3], b: b[0] }, { a: b[2], b: b[1] }]);
   });
 
-  it('색: 블록은 핫핑크 선, 정확도를 올린 블록은 보라', () => {
-    expect(BLOCK_COLOR).toBe('#ff69b4');
+  it('색: 블록은 형광 초록 선(2026-11-04 "형광색으로"; 처음엔 핫핑크), 정확도를 올린 블록은 보라', () => {
+    expect(BLOCK_COLOR).toBe('#39ff14');
     expect(BLOCK_FIT_COLOR).toBe('#a855f7');
+  });
+
+  it('블록 id = 사인물 id#b번호 — 조작 손잡이의 가짜 사인물·판독 키. 사인물 id 에 # 이 있어도 마지막 #b 로 푼다', () => {
+    expect(blockIdOf('abc', 2)).toBe('abc#b2');
+    expect(parseBlockId('abc#b2')).toEqual({ id: 'abc', i: 2 });
+    expect(parseBlockId('a#b1#b12')).toEqual({ id: 'a#b1', i: 12 });
+    expect(parseBlockId('abc')).toBeNull();
+    expect(parseBlockId(null)).toBeNull();
   });
 
   it('맞음 판정: 지금 원근으로 잰 블록 크기가 사인물 치수와 허용 오차 안이면 맞음 (가로·세로 모두)', () => {

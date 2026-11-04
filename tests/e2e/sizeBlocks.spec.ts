@@ -4,7 +4,7 @@ import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
 type Hook = { photos: { id: string }[]; project: { addObject(o: unknown): string; object(id: string): { blocks?: number[][][] } | undefined }; selectObject(id: string | null): void; signs: unknown[]; tool: string; selectedId: string | null };
 
-test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그린 네모는 새 사인물이 아니라 그 사인물의 치수 블록(핫핑크) — 크기가 맞으면 보라, 아니면 빨간 크기 글자, ✕ 로 지움', async ({ page, request }) => {
+test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그린 네모는 새 사인물이 아니라 그 사인물의 치수 블록(형광) — 크기가 맞으면 보라, 아니면 빨간 크기 글자. 블록을 누르면 사인물과 같은 손잡이, ✕ 로 지움', async ({ page, request }) => {
   await openOwnedProject(page, request, '치수 블록');
   await uploadPhoto(page);
   const [sized, unsized] = await page.evaluate(() => {
@@ -34,26 +34,46 @@ test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그�
   const stroke = (i: number) => page.getByTestId('size-block').nth(i).locator('polygon').first().evaluate((e) => getComputedStyle(e).stroke);
   expect(await stroke(0)).toBe('rgb(168, 85, 247)');
   await expect(page.getByTestId('block-size').first()).toHaveText(/≈\s?4,000\s?×\s?1,000/);
-  // 도구는 그대로 블록 — 연속으로 더 그린다 (모서리를 이어 가는 작업). 이번엔 절반 크기 → 사인물 치수와 안 맞아 핫핑크, 크기 글자 빨강
+  // 도구는 그대로 블록 — 연속으로 더 그린다 (모서리를 이어 가는 작업). 이번엔 절반 크기 → 사인물 치수와 안 맞아 형광 초록, 크기 글자 빨강
   await expect(toolBlock).toHaveClass(/on/);
   await dragOnPhoto(page, [600, 500], [800, 600]);
   await expect(blocks).toHaveCount(2);
   await expect(blocks.nth(1)).not.toHaveAttribute('data-fit', '1');
-  expect(await stroke(1)).toBe('rgb(255, 105, 180)');
+  expect(await stroke(1)).toBe('rgb(57, 255, 20)');
   const sizeText = page.getByTestId('block-size').nth(1);
   await expect(sizeText).toHaveText(/≈\s?2,000\s?×\s?1,000/);
   expect(await sizeText.evaluate((e) => getComputedStyle(e).fill)).toBe('rgb(239, 68, 68)');
   // 원근은 사인물 + 블록으로 자동으로 잡혔다 (치수 입력과 같은 흐름)
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { camera?: { extra?: { x?: unknown[] } } }[] } }).__ganpanda.photos[0].camera?.extra?.x?.length)).toBe(4);
-  // 선택 도구로 돌아가면 고른 사인물의 블록에 꼭짓점 손잡이와 ✕ — ✕ 로 두 번째 블록을 지운다
+  // 선택 도구로 돌아가 블록을 누르면 블록이 선택되고(사인물도 그대로 선택) 사인물과 같은 조작 손잡이가 블록에 붙는다 — 꼭짓점 4개·변 4개·원근 매니퓰레이터(2026-11-04 "사인물과 같이 컨트롤러가 있어야")
   await page.keyboard.press('Escape');
   await expect(toolBlock).not.toHaveClass(/on/);
-  await expect(page.getByTestId('block-handle')).toHaveCount(8);
-  await page.getByTestId('size-block-remove').nth(1).dispatchEvent('pointerdown');
+  await expect(page.getByTestId('sign-controls')).not.toHaveAttribute('data-block', /\d/);
+  await blocks.nth(1).locator('polygon').first().dispatchEvent('pointerdown', { button: 0, pointerId: 1, isPrimary: true, pointerType: 'mouse', bubbles: true, clientX: 0, clientY: 0 });
+  await page.mouse.up();
+  const controls = page.getByTestId('sign-controls');
+  await expect(controls).toHaveAttribute('data-block', '1');
+  await expect(controls.getByTestId('sign-handle')).toHaveCount(4);
+  await expect(controls.locator('[data-testid^="edge-handle-"]')).toHaveCount(4);
+  await expect(controls.getByTestId('gizmo')).toHaveCount(1);
+  await expect(blocks.nth(1)).toHaveAttribute('data-selected', 'true');
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: Hook }).__ganpanda.selectedId)).toBe(sized);
+  // 꼭짓점 손잡이를 끌면 블록만 바뀐다 (사인물 외곽선은 그대로)
+  const h = controls.getByTestId('sign-handle').nth(2);
+  const hb = (await h.boundingBox())!;
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + hb.width / 2 + 30, hb.y + hb.height / 2 + 20, { steps: 5 });
+  await page.mouse.up();
+  const after = await page.evaluate((id) => { const g = (window as unknown as { __ganpanda: Hook & { project: { object(id: string): { quad: number[][]; blocks?: number[][][] } } } }).__ganpanda; const o = g.project.object(id); return { quad: o.quad, block: o.blocks![1] }; }, sized);
+  expect(after.quad).toEqual([[100, 100], [500, 100], [500, 200], [100, 200]]);
+  expect(after.block[2][0]).toBeGreaterThan(800);
+  // ✕ 로 두 번째 블록을 지운다
+  await page.getByTestId('size-block-remove').dispatchEvent('pointerdown');
   await expect(blocks).toHaveCount(1);
   expect(await page.evaluate((id) => (window as unknown as { __ganpanda: Hook }).__ganpanda.project.object(id)?.blocks?.length, sized)).toBe(1);
-  // 다른 사인물을 고르면 블록 손잡이는 사라지지만 블록은 그대로 보인다
+  // 다른 사인물을 고르면 손잡이는 그 사인물로 가고 블록은 그대로 보인다
   await page.evaluate((id) => (window as unknown as { __ganpanda: Hook }).__ganpanda.selectObject(id), unsized);
-  await expect(page.getByTestId('block-handle')).toHaveCount(0);
+  await expect(page.getByTestId('sign-controls')).not.toHaveAttribute('data-block', /\d/);
   await expect(blocks).toHaveCount(1);
 });

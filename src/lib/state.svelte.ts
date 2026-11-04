@@ -20,7 +20,7 @@ import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { loadRoomView } from './core/roomView';
-import { blockFits, predictBlock, snapStart } from './core/blocks';
+import { blockFits, blockIdOf, predictBlock, snapStart } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -1651,6 +1651,7 @@ class AppState {
   }
 
   selectObject(id: string | null, kind: 'shape' | 'card' = 'shape') {
+    this.selectedBlock = null; // 사인물(또는 다른 것)을 고르면 블록 선택은 풀린다 (2026-11-04)
     if (id) this.talkPickObject(id); // 톡이 열려 있으면 고른 사인물이 대화 링크로 (2026-10-22)
     // 다중 선택 중에는 다른 길로 골라도(손잡이 잡기·대화 열기·새로 그리기) 풀리지 않고 그것을 주 선택으로 더한다 (2026-10-22 "다중선택 중간에 해제되는 경우도 알아봐줘") — 끝내기는 null(✕·정리)·[다중] 끄기
     if (this.multiMode && id && (!this.selectedId || kind === this.selectionKind)) {
@@ -1970,8 +1971,14 @@ class AppState {
     const s = this.sizeOf(o);
     return s && !s.estimated ? o : null;
   });
-  /** 블록의 판독 결과 키 (measures) */
-  blockIdOf = (id: string, i: number) => `${id}#b${i}`;
+  /** 블록의 판독 결과 키 (measures) · 조작 손잡이용 가짜 사인물 id (core/blocks.ts) */
+  blockIdOf = blockIdOf;
+  /** 고른 블록 (2026-11-04 "사인물과 같이 컨트롤러가 있어야"): 블록을 누르면 그 사인물이 선택되고 조작 손잡이(변·꼭짓점·원근 매니퓰레이터)는 블록에 붙는다. 사인물을 다시 고르면 풀린다 */
+  selectedBlock = $state<{ id: string; i: number } | null>(null);
+  selectBlock(id: string, i: number) {
+    if (this.selectedId !== id) this.selectObject(id);
+    this.selectedBlock = { id, i };
+  }
   /** 지금 원근으로 잰 블록 크기 */
   blockEstimate(o: SignObject, i: number) { return this.measures.get(this.blockIdOf(o.id, i))?.estimate; }
   /** 블록이 사인물 치수와 맞는가(허용 오차 안) = 정확도를 올린 블록 → 보라 */
@@ -2013,6 +2020,7 @@ class AppState {
   removeBlock(id: string, i: number) {
     const o = this.objects.find((x) => x.id === id);
     if (!o || !this.canEdit || !o.blocks?.[i]) return;
+    if (this.selectedBlock?.id === id) this.selectedBlock = null;
     const blocks = o.blocks.filter((_, k) => k !== i);
     this.editBoundary();
     this.project.updateObject(id, { blocks: blocks.length ? blocks : undefined });

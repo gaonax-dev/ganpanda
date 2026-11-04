@@ -6,12 +6,19 @@
 import { applyHomography, type Pt } from './homography';
 import type { CameraSolution, Line } from './camera';
 
-/** 블록 선 색 — 핫핑크 */
-export const BLOCK_COLOR = '#ff69b4';
+/** 블록 선 색 — 형광 초록 (2026-11-04 "형광색으로 블록을 변경해주고"; 처음엔 핫핑크) */
+export const BLOCK_COLOR = '#39ff14';
 /** 정확도를 올린(사인물 치수와 맞는) 블록 — 보라 */
 export const BLOCK_FIT_COLOR = '#a855f7';
 /** 맞음 판정 허용 오차 (가로·세로 각각) */
 export const BLOCK_FIT_TOL = 0.1;
+
+/** 블록의 임시 id (판독 결과 키, 조작 손잡이의 가짜 사인물 id): `<사인물 id>#b<번호>` */
+export const blockIdOf = (id: string, i: number) => `${id}#b${i}`;
+export function parseBlockId(id: string | null | undefined): { id: string; i: number } | null {
+  const m = id ? /^(.+)#b(\d+)$/.exec(id) : null;
+  return m ? { id: m[1], i: Number(m[2]) } : null;
+}
 
 /** 블록(TL,TR,BR,BL)들의 변 → 가로 축 선(위·아래 변)과 높이 축 선(좌·우 변) */
 export function blockLines(blocks: Pt[][]): { x: Line[]; y: Line[] } {

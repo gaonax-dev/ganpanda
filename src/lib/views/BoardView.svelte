@@ -7,6 +7,7 @@
   import MultiLast from '../ui/MultiLast.svelte';
   import { untrack } from 'svelte';
   import { nextPhotoName } from '../core/photoName';
+  import { parseBlockId } from '../core/blocks';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import FlatBar from '../ui/FlatBar.svelte';
   import ActionSheet from '../ui/ActionSheet.svelte';
@@ -220,6 +221,7 @@
     if (no3d && (action === 'toolMagic' || action === 'toolZone' || action === 'toolRect' || action === 'toolEllipse')) return; // 3D 단계에서는 그리기 도구 없음
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
+    if (action === 'deleteSelection' && app.selectedBlock) { e.preventDefault(); app.removeBlock(app.selectedBlock.id, app.selectedBlock.i); return; } // 고른 치수 블록 지우기 (2026-11-04)
     if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
     if (action === 'gizmoMove') { app.tool = 'select'; app.gizmoMode = 'none'; return; } // W = 기본(면 직각 막대) — 이동 매니퓰레이터는 없앰 (2026-10-19)
     if (action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoRotate' ? 'rotate' : 'scale'; return; } // 단추는 숨겼지만 단축키로는
@@ -651,7 +653,7 @@
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         twoD={(app.stage === '2d' || (app.stage === '3d' && flatPhoto(p.id))) && !app.safeMode}
-        onduplicate={(id) => { app.selectObject(id); return app.duplicateInPlace(); }}
+        onduplicate={(id) => { if (parseBlockId(id)) return null; app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
         editable={app.canEdit}
@@ -678,15 +680,14 @@
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
         onblock={(quad, start, end, r) => app.addBlock(p.id, quad, start, end, r)}
-        onblockquad={(id, i, quad) => app.updateBlock(id, i, quad)}
         onblockremove={(id, i) => app.removeBlock(id, i)}
-        onselect={(id, add) => (add && id ? app.toggleSelect(id) : app.selectObject(id))}
+        onselect={(id, add) => { const b = parseBlockId(id); if (b) app.selectBlock(b.id, b.i); else if (add && id) app.toggleSelect(id); else app.selectObject(id); }}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}
         moving={app.movingPhotoId === p.id}
         onpick={() => { app.movingPhotoId = app.movingPhotoId === p.id ? null : p.id; if (app.movingPhotoId) { app.selectObject(null); app.selectPin(null); } }}
-        onbox={(id, patch) => { app.project.updateObject(id, patch); app.editBoundary(); }}
-        onquad={(id, quad) => { app.project.updateObject(id, { quad }); app.editBoundary(); }}
+        onbox={(id, patch) => { if (parseBlockId(id)) return; app.project.updateObject(id, patch); app.editBoundary(); }}
+        onquad={(id, quad) => { const b = parseBlockId(id); if (b) { app.updateBlock(b.id, b.i, quad); return; } app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}
         oncamera={() => app.openCamera(p.id)}
