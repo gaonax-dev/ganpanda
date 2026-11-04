@@ -124,11 +124,11 @@ describe('arrangeLikePhotos — 펼친 카드(grid)가 있는 사진은 축마�
     expect(p('a').y).toBe(p('b').y); // 같은 줄
     expect(p('a').x).toBeLessThan(p('b').x); expect(p('b').x).toBeLessThan(p('c').x);
     expect(p('top1').y + 300).toBe(p('top2').y + 150); // 같은 줄 (가운데 높이 같음)
-    // 겹침 없음 (이름 줄 포함)
+    // 몸통 겹침 없음 — 이름 줄은 펼친 면의 자리를 바꾸지 않는다 (2026-11-05 "상하 좌우의 배치가 어긋난다": 보드 px 고정 이름 줄이 작은 축척에선 수백 mm 라 줄을 어긋나게 했다)
     const ids = Object.keys(H);
     for (const i of ids) for (const j of ids) if (i < j) {
       const A = p(i), B = p(j);
-      const sep = A.x + W[i] <= B.x || B.x + W[j] <= A.x || A.y + H[i] + L <= B.y || B.y + H[j] + L <= A.y;
+      const sep = A.x + W[i] <= B.x || B.x + W[j] <= A.x || A.y + H[i] <= B.y || B.y + H[j] <= A.y;
       expect(sep, `${i}·${j}`).toBe(true);
     }
     // 균일 확대 금지: 위 찬장 줄 ~ 아래 줄 사이 = 사진 속 간격 (1400) + 필요한 만큼 이내

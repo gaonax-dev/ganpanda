@@ -1519,6 +1519,7 @@ class AppState {
     });
     // 원근이 있는 카드는 축 면에 감싸 펴서 자리를 잡는다 — 같은 면(사진·축·옆면 좌우)끼리 실제 거리 그대로 한 축척으로 펴, 원근으로 기울고 좁아진 줄이 곧게 (2026-11-04
     // "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)"). 원근 없는 카드는 사진 속 자리 그대로 → 펼친 카드 사이사이에
+    const feet = new Map<string, [number, number]>();
     const items: UnfoldItem[] = cards.map((c) => {
       const px: [number, number] = [(c.box.x0 + c.box.x1) / 2, (c.box.y0 + c.box.y1) / 2];
       const home = 'home' in c ? c.home : null;
@@ -1532,14 +1533,19 @@ class AppState {
       // 면의 두 축: 벽면 Y = (가로, 위), 옆면 X = (벽 밖, 위), 수평 Z = (가로, 벽 밖)
       const ax = f.axis === 'y' ? ([0, 1] as const) : f.axis === 'x' ? ([2, 1] as const) : ([0, 2] as const);
       const key = f.axis === 'x' ? `${home.photoId}:x:${sideWallOf(home, cal)}` : `${home.photoId}:${f.axis}`;
+      // 펼친 외곽선 범위 (포토샵 원근 펴기와 같은 면 mm) · 카메라 발(카메라 자리 = -Rᵀt 의 그 면 두 축) — core/arrange.ts unfoldCenters (2026-11-05)
       const pts = outlinePoints3(cal as Parameters<typeof outlinePoints3>[0], f.plane as Parameters<typeof outlinePoints3>[1], home.quad);
-      const span = (k: number) => (pts ? Math.max(...pts.map((p) => p[k])) - Math.min(...pts.map((p) => p[k])) : 0);
+      if (!pts) return { id: c.id, px };
+      const lo = (k: number) => Math.min(...pts.map((p) => p[k])), hi = (k: number) => Math.max(...pts.map((p) => p[k]));
+      const { R, t } = cal!.pose!;
+      const cam = [0, 1, 2].map((i) => -(R[i] * t[0] + R[3 + i] * t[1] + R[6 + i] * t[2]));
+      feet.set(key, [cam[ax[0]], cam[ax[1]]]);
       const real = 'placeholder' in c && !c.placeholder;
-      return { id: c.id, px, face: { key, a: a.c3[ax[0]], b: a.c3[ax[1]], ext: [span(ax[0]), span(ax[1])] as [number, number], size: real ? ([c.w, c.h] as [number, number]) : undefined } };
+      return { id: c.id, px, face: { key, a: a.c3[ax[0]], b: a.c3[ax[1]], rect: [lo(ax[0]), hi(ax[0]), lo(ax[1]), hi(ax[1])] as [number, number, number, number], card: [c.w, c.h] as [number, number], real } };
     });
     // 카드와 같은 축척: 사진 px 하나 = (보드 px ÷ 사진 px) × (1 / 축척) mm — arrangeLikePhotos 가 자리를 mm 로 옮기는 것과 같은 값
     const pxMm = new Map(this.photos.map((p) => [p.id, (p.width / p.w) * s]));
-    const centers = unfoldCenters(items, (key) => pxMm.get(key.split(':')[0]));
+    const centers = unfoldCenters(items, { mmPerPx: (key) => pxMm.get(key.split(':')[0]), foot: (key) => feet.get(key), gap });
     const faceCount = new Map<string, number>();
     for (const it of items) if (it.face) faceCount.set(it.face.key, (faceCount.get(it.face.key) ?? 0) + 1);
     const unfolded = new Set(items.filter((it) => it.face && faceCount.get(it.face.key)! >= 2).map((it) => it.id));

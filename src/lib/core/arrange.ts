@@ -123,7 +123,8 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const mine = cards.filter((c) => c.photo === p);
     const cx = (c: (typeof mine)[number]) => ((c.box.x0 + c.box.x1) / 2) * sx, cy = (c: (typeof mine)[number]) => ((c.box.y0 + c.box.y1) / 2) * sy;
     if (mine.some((c) => c.grid)) {
-      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, labelMm));
+      // 이름 줄은 펼친 면의 자리를 바꾸지 않는다 — 보드 px 고정이라 작은 축척에선 수백 mm 가 되어 줄이 어긋났다 (2026-11-05 "상하 좌우의 배치가 어긋난다"). 간격만
+      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, 0).map((r) => ({ ...r, h: r.h + labelMm })));
       continue;
     }
     // 넓히기 (2026-10-26): 실제 크기 카드가 사진 속 간격보다 커서 겹치면, 사진 속 가운데 간격을 같은 배율로 넓혀 구성을 그대로 둔다(최대 SPREAD_MAX).
@@ -323,15 +324,23 @@ export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: num
 
 /** 재정렬에서 카드의 사진 속 자리 — 원근 면 좌표(face, mm: a 가로·b 위로 +)가 있으면 그 면을 펴서 놓는다.
  *  (2026-11-04 사용자: "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)" →
- *  "모든 방향이 일치하고 해당 그리드에 사인물을 랩핑해서 그리드를 다시 평면으로 펼쳤다면 상당히 완성도가 높은 사인물카드 정렬이 나올텐데")
- *  - 같은 면(key)끼리 한 변환. 방향(축마다 ±)은 사진 속 자리와의 공분산으로, 무게중심은 사진 속 무게중심.
- *  - **카드 크기를 알면(size·ext, mmPerPx) 카드와 같은 축척** — 가로 축척 = 카드 가로 mm ÷ 펼친 가로(중앙값), 세로도 따로, 사진 px 로는 ÷ mmPerPx.
- *    펼친 면의 실제 거리 그대로라 카드끼리 겹치지 않고(실제로 안 겹치면) 줄·열이 맞는다. 원근의 가로·세로 축척이 틀려도(바닥 축 원근 등) 카드 크기로 바로잡힌다.
- *  - 모르면 한 배율 최소제곱으로 사진 px 에 맞춘다.
- *  면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
-export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 펼친 외곽선 크기 (면 mm) */ ext?: [number, number]; /** 카드 크기 (mm, 실제) */ size?: [number, number] } }
+ *  "모든 방향이 일치하고 해당 그리드에 사인물을 랩핑해서 그리드를 다시 평면으로 펼쳤다면 상당히 완성도가 높은 사인물카드 정렬이 나올텐데" →
+ *  2026-11-05 "상하 좌우의 배치가 어긋난다. 사진에서 축면에 사인물 맵핑해 포토샵에서 변형으로 펼치듯 펼치면 되는데 이걸 좌표에서 사용해 달라")
+ *  같은 면(key)끼리:
+ *  1. **펼친 외곽선 그대로**(rect: 면 mm 의 가로·세로 범위) — 포토샵 원근 펴기와 같다.
+ *  2. **깊이 층**: 면보다 안쪽·바깥에 있는 것(씽크대: 문 면보다 깊은 위 찬장)은 펼친 크기가 실제와 일정한 비율로 다르다 →
+ *     카드 크기 ÷ 펼친 크기(가로·세로)가 비슷한 것끼리(10%) 한 층, 층마다 그 비율로 **카메라 발**(카메라 바로 앞의 면 위 점)을 중심으로 키운다.
+ *     카메라에서 면으로 비친 것을 제 깊이로 되돌리는 것이라 위 찬장이 아래 서랍 열 위에 바로 선다. 치수 없는 카드는 가장 큰 층.
+ *  3. **카드는 왼쪽 위 꼭짓점에** — 위끝·왼끝이 같은 선이면 카드도 같은 선(가운데에 두면 크기가 다른 카드의 끝선이 어긋났다).
+ *  4. **맞닿은 곳에만 간격**: 한 카드의 끝선이 다른 카드의 시작선이면(30mm 안 = 같은 선) 그 선 뒤를 간격만큼(세로는 이름 줄 + 간격) 민다 — 선 단위라 같은 선의 카드는 함께.
+ *  방향(축마다 ±)은 사진 속 자리와의 공분산, 무게중심은 사진 속 무게중심, 사진 px 로는 ÷ mmPerPx.
+ *  크기를 아는 카드가 없거나 mmPerPx 가 없으면 한 배율 최소제곱으로 사진 px 에 맞춘다(가운데). 면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
+export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 펼친 외곽선 범위 [a0, a1, b0, b1] (면 mm) */ rect?: [number, number, number, number]; /** 카드 크기 (mm) */ card?: [number, number]; /** 카드 크기가 실제 치수(입력·추정)인가 — 아니면 임시 크기 */ real?: boolean } }
+export interface UnfoldOpts { mmPerPx?: (key: string) => number | undefined; /** 카메라 발 (면 좌표) */ foot?: (key: string) => [number, number] | undefined; gap?: number; labelMm?: number }
 const median = (v: number[]) => { const s = [...v].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
-export function unfoldCenters(items: UnfoldItem[], mmPerPx?: (key: string) => number | undefined): Map<string, [number, number]> {
+const LINE_TOL = 30; // mm — 이만큼 가까운 끝선은 같은 선
+const LAYER_TOL = 1.1; // 깊이 층: 비율이 10% 넘게 다르면 다른 층
+export function unfoldCenters(items: UnfoldItem[], opts: UnfoldOpts = {}): Map<string, [number, number]> {
   const out = new Map<string, [number, number]>(items.map((it) => [it.id, [it.px[0], it.px[1]]]));
   const groups = new Map<string, UnfoldItem[]>();
   for (const it of items) if (it.face) groups.set(it.face.key, [...(groups.get(it.face.key) ?? []), it]);
@@ -342,18 +351,62 @@ export function unfoldCenters(items: UnfoldItem[], mmPerPx?: (key: string) => nu
     let caa = 0, cbb = 0, cax = 0, cby = 0;
     for (const t of g) { const da = t.face!.a - ma, db = t.face!.b - mb; caa += da * da; cbb += db * db; cax += da * (t.px[0] - mx); cby += db * (t.px[1] - my); }
     const sa = cax < 0 ? -1 : 1, sb = cby > 0 ? 1 : -1; // 높이는 위가 + → 사진(아래 +)에선 보통 뒤집힘
-    let ka: number, kb: number;
-    const mpp = mmPerPx?.(key);
-    const ra = g.filter((t) => t.face!.size && t.face!.ext && t.face!.ext[0] > 0 && t.face!.size[0] > 0).map((t) => t.face!.size![0] / t.face!.ext![0]);
-    const rb = g.filter((t) => t.face!.size && t.face!.ext && t.face!.ext[1] > 0 && t.face!.size[1] > 0).map((t) => t.face!.size![1] / t.face!.ext![1]);
-    if (mpp && mpp > 0 && (ra.length || rb.length)) {
-      const fa = ra.length ? median(ra) : median(rb), fb = rb.length ? median(rb) : fa;
-      ka = fa / mpp; kb = fb / mpp;
-    } else {
-      ka = kb = (sa * cax + sb * cby) / (caa + cbb);
+    const mpp = opts.mmPerPx?.(key);
+    const sized = g.filter((t) => t.face!.real && t.face!.rect && t.face!.card && t.face!.rect[1] > t.face!.rect[0] && t.face!.rect[3] > t.face!.rect[2]);
+    if (mpp && mpp > 0 && sized.length && g.every((t) => t.face!.rect && t.face!.card)) {
+      const mm = unfoldExact(g, sized, sa, sb, opts.foot?.(key) ?? [ma, mb], opts.gap ?? 0, opts.labelMm ?? 0);
+      // 무게중심 = 사진 속 무게중심
+      const cx = mean((t) => mm.get(t.id)![0] / mpp), cy = mean((t) => mm.get(t.id)![1] / mpp);
+      for (const t of g) { const c = mm.get(t.id)!; out.set(t.id, [c[0] / mpp - cx + mx, c[1] / mpp - cy + my]); }
+      continue;
     }
-    if (!(ka > 0 && kb > 0) || !Number.isFinite(ka) || !Number.isFinite(kb)) continue;
-    for (const t of g) out.set(t.id, [mx + sa * ka * (t.face!.a - ma), my + sb * kb * (t.face!.b - mb)]);
+    const k = (sa * cax + sb * cby) / (caa + cbb);
+    if (!(k > 0) || !Number.isFinite(k)) continue;
+    for (const t of g) out.set(t.id, [mx + sa * k * (t.face!.a - ma), my + sb * k * (t.face!.b - mb)]);
   }
   return out;
+}
+/** 한 면의 카드 가운데 (mm, 가로 오른쪽 +·세로 아래 +) — unfoldCenters 의 1~4 */
+function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: number, foot: [number, number], gap: number, labelMm: number): Map<string, [number, number]> {
+  // 2. 깊이 층 (카드 크기 ÷ 펼친 크기)
+  const ratio = (t: UnfoldItem) => { const f = t.face!, r = f.rect!; return [f.card![0] / (r[1] - r[0]), f.card![1] / (r[3] - r[2])] as [number, number]; };
+  const geo = (r: [number, number]) => Math.sqrt(r[0] * r[1]);
+  const rs = sized.map((t) => ({ t, r: ratio(t) })).sort((x, y) => geo(x.r) - geo(y.r));
+  const layers: { members: UnfoldItem[]; ra: number; rb: number }[] = [];
+  let cur: typeof rs = [];
+  const flush = () => { if (cur.length) layers.push({ members: cur.map((x) => x.t), ra: median(cur.map((x) => x.r[0])), rb: median(cur.map((x) => x.r[1])) }); cur = []; };
+  for (const x of rs) { if (cur.length && geo(x.r) > geo(cur[0].r) * LAYER_TOL) flush(); cur.push(x); }
+  flush();
+  const main = layers.reduce((a, b) => (b.members.length > a.members.length ? b : a));
+  const layerOf = new Map<string, { ra: number; rb: number }>();
+  for (const l of layers) for (const m of l.members) layerOf.set(m.id, l);
+  // 1·2. 펼친 외곽선 → 제 깊이로 (카메라 발 중심) → 왼쪽 위 꼭짓점 (가로 오른쪽 +, 세로 아래 +)
+  const rects = g.map((t) => {
+    const f = t.face!, r = f.rect!, l = layerOf.get(t.id) ?? main;
+    const A = [foot[0] + (r[0] - foot[0]) * l.ra, foot[0] + (r[1] - foot[0]) * l.ra].map((v) => v * sa);
+    const B = [foot[1] + (r[2] - foot[1]) * l.rb, foot[1] + (r[3] - foot[1]) * l.rb].map((v) => v * sb);
+    return { id: t.id, x: Math.min(...A), y: Math.min(...B), w: f.card![0], h: f.card![1] };
+  });
+  // 3. 가까운 시작선(30mm 안)은 한 선으로 — 펼친 외곽선의 1~2mm 차이로 열·줄이 어긋나 보이지 않게
+  const snap = (k: 'x' | 'y') => {
+    const order = [...rects].sort((a, b) => a[k] - b[k]);
+    for (let i = 0; i < order.length; ) {
+      let j = i + 1;
+      while (j < order.length && order[j][k] - order[i][k] <= LINE_TOL) j++;
+      const m = order.slice(i, j).reduce((t, r) => t + r[k], 0) / (j - i);
+      for (let q = i; q < j; q++) order[q][k] = m;
+      i = j;
+    }
+  };
+  snap('x'); snap('y');
+  // 4. 맞닿은 선(끝선 = 다른 카드의 시작선) 뒤에 간격 — 그 선에서 시작하는 카드부터 민다
+  const shiftOf = (starts: number[], ends: number[], add: number) => {
+    const cuts = ends.filter((e) => starts.some((s) => Math.abs(s - e) <= LINE_TOL)).sort((a, b) => a - b);
+    const lines: number[] = [];
+    for (const c of cuts) if (!lines.length || c - lines[lines.length - 1] > LINE_TOL) lines.push(c);
+    return (v: number) => lines.reduce((t, c) => (c - LINE_TOL <= v ? t + add : t), 0);
+  };
+  const sx = shiftOf(rects.map((r) => r.x), rects.map((r) => r.x + r.w), gap);
+  const sy = shiftOf(rects.map((r) => r.y), rects.map((r) => r.y + r.h), gap + labelMm);
+  return new Map(rects.map((r) => [r.id, [r.x + sx(r.x) + r.w / 2, r.y + sy(r.y) + r.h / 2] as [number, number]]));
 }
