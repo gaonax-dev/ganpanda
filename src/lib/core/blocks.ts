@@ -20,13 +20,29 @@ export function parseBlockId(id: string | null | undefined): { id: string; i: nu
   return m ? { id: m[1], i: Number(m[2]) } : null;
 }
 
-/** 블록(TL,TR,BR,BL)들의 변 → 가로 축 선(위·아래 변)과 높이 축 선(좌·우 변) */
-export function blockLines(blocks: Pt[][]): { x: Line[]; y: Line[] } {
+/**
+ * 블록 축 (2026-11-04 "블록은 여러 축에 사용되고"): 블록이 놓인 면 — y 벽면, x 벽에 직각인 세로면(옆면), z 수평면. 사인물의 정면 축(faceAxis)과 같은 이름.
+ * 없으면 자동(외곽선으로 면 판정, wallPlane.faceOf)
+ */
+export type BlockAxis = 'x' | 'y' | 'z';
+export interface SizeBlock { q: Pt[]; axis?: BlockAxis }
+/** 사인물의 blocks(사각)·blockAxes(축)를 묶어 읽는다 */
+export function asBlocks(blocks: Pt[][] | undefined, axes: (BlockAxis | null)[] | undefined): SizeBlock[] {
+  return (blocks ?? []).map((q, i) => ({ q, axis: axes?.[i] ?? undefined }));
+}
+const toBlock = (b: Pt[] | SizeBlock): SizeBlock => (Array.isArray(b) ? { q: b } : b);
+
+/**
+ * 블록들의 변 → 원근 풀이의 축 선: 가로(X) 축 선 x, 높이(Z) 축 선 y.
+ * 벽면(y)·자동 블록은 위·아래 변 = X, 좌·우 변 = Z. 옆면(x) 블록은 좌·우 변(수직)만 Z — 위·아래 변은 깊이 방향. 수평(z) 블록은 넣지 않는다
+ */
+export function blockLines(blocks: (Pt[] | SizeBlock)[]): { x: Line[]; y: Line[] } {
   const x: Line[] = [], y: Line[] = [];
-  for (const b of blocks) {
-    if (b.length !== 4) continue;
+  for (const raw of blocks) {
+    const { q: b, axis } = toBlock(raw);
+    if (b.length !== 4 || axis === 'z') continue;
     const [tl, tr, br, bl] = b;
-    x.push({ a: tl, b: tr }, { a: bl, b: br });
+    if (axis !== 'x') x.push({ a: tl, b: tr }, { a: bl, b: br });
     y.push({ a: bl, b: tl }, { a: br, b: tr });
   }
   return { x, y };

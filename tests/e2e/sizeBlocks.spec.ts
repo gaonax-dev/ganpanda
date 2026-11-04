@@ -1,6 +1,6 @@
 // 치수 블록 (2026-11-03 사용자: "일반 사인물처럼 네모를 그리면 설정이 하나인 사각이 두개가 되고 … 치수블록은 핫핑크라인으로 … 정확도가 향상된면 보라색으로")
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
+import { clearAutoCamera, dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
 type Hook = { photos: { id: string }[]; project: { addObject(o: unknown): string; object(id: string): { quad: number[][]; blocks?: number[][][] } | undefined }; selectObject(id: string | null): void; signs: unknown[]; tool: string; selectedId: string | null };
 
@@ -80,4 +80,48 @@ test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그�
   await page.evaluate((id) => (window as unknown as { __ganpanda: Hook }).__ganpanda.selectObject(id), unsized);
   await expect(page.getByTestId('sign-controls')).not.toHaveAttribute('data-block', /\d/);
   await expect(blocks).toHaveCount(1);
+});
+
+test('블록을 고르면 속성은 사이즈·축만 바로(휴대폰도) — 사이즈를 바꾸면 사인물 치수가 바뀌어 다른 사인물 추정과 다른 사진의 같은 사인물도 따르고, 축을 정하면 저장 (2026-11-04 "블록은 속성이 사이즈와 축설정만 … 다른 사인물의 길이가 조정된다 … 다른 사진에도 사용되었다면 현재 조정하는 사진의 블록 변경을 따른다")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 속성');
+  await uploadPhoto(page);
+  await uploadPhoto(page);
+  await page.waitForTimeout(1500); // 등록 즉시 자동 원근(AI)이 끝나기를 기다렸다가 끈다 — 이 시험은 원근 없는 축척(기준 영역)으로
+  await clearAutoCamera(page);
+  type H2 = Hook & { photos: { id: string }[]; project: Hook['project'] & { updateObject(id: string, p: unknown): void; linkObject(id: string, m: string): void }; selectBlock(id: string, i: number): void; measures: Map<string, { estimate?: { widthMm: number } }>; objects: { id: string; widthMm?: number; blockAxes?: (string | null)[] }[] };
+  const ids = await page.evaluate(() => {
+    const g = (window as unknown as { __ganpanda: H2 }).__ganpanda;
+    const [p1, p2] = g.photos.map((p) => p.id);
+    const a = g.project.addObject({ photoId: p1, name: '기준', shape: 'rect', quad: [[100, 100], [500, 100], [500, 200], [100, 200]], sheetIds: [], widthMm: 4000, heightMm: 1000, blocks: [[[600, 300], [1000, 300], [1000, 400], [600, 400]]] });
+    const u = g.project.addObject({ photoId: p1, name: '모름', shape: 'rect', quad: [[1200, 100], [1400, 100], [1400, 200], [1200, 200]], sheetIds: [] });
+    const a2 = g.project.addObject({ photoId: p2, name: '기준', shape: 'rect', quad: [[100, 100], [500, 100], [500, 200], [100, 200]], sheetIds: [] });
+    g.project.linkObject(a2, a);
+    const u2 = g.project.addObject({ photoId: p2, name: '모름2', shape: 'rect', quad: [[1200, 100], [1400, 100], [1400, 200], [1200, 200]], sheetIds: [] });
+    g.selectBlock(a, 0);
+    return { a, u, a2, u2 };
+  });
+  const panel = page.getByTestId('block-panel');
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId('object-panel')).toHaveCount(0);
+  await expect(panel.locator('input')).toHaveCount(2); // 가로·세로뿐
+  await expect(panel.getByTestId('block-width')).toHaveValue('4000');
+  await expect(panel.locator('[data-testid^="block-axis-"]')).toHaveCount(3);
+  await expect(panel.getByTestId('block-axis-y')).toHaveAttribute('aria-checked', 'true'); // 정면 사진의 블록 = 벽면(자동)
+  const est = (id: string) => page.evaluate((id) => (window as unknown as { __ganpanda: H2 }).__ganpanda.measures.get(id)?.estimate?.widthMm ?? 0, id);
+  await expect.poll(() => est(ids.u)).toBeGreaterThan(1900);
+  expect(await est(ids.u)).toBeLessThan(2100); // 200px = 2000mm
+  // 블록 사이즈를 8000 으로 → 사인물 치수 8000, 같은 사진 '모름' 은 두 배, 다른 사진의 같은 사인물도 8000 → 그 사진 '모름2' 도 따른다
+  await panel.getByTestId('block-width').fill('8000');
+  await expect.poll(() => page.evaluate((id) => (window as unknown as { __ganpanda: H2 }).__ganpanda.objects.find((o) => o.id === id)?.widthMm, ids.a2)).toBe(8000);
+  await expect.poll(() => est(ids.u)).toBeGreaterThan(3500);
+  await expect.poll(() => est(ids.u2)).toBeGreaterThan(3500);
+  // 축 정하기 → 저장
+  await panel.getByTestId('block-axis-x').click();
+  await expect.poll(() => page.evaluate((id) => (window as unknown as { __ganpanda: H2 }).__ganpanda.objects.find((o) => o.id === id)?.blockAxes, ids.a)).toEqual(['x']);
+  await panel.getByTestId('block-axis-y').click();
+  await expect(panel.getByTestId('block-axis-y')).toHaveAttribute('aria-checked', 'true');
+  // 휴대폰 폭에서도 블록을 고르면 빠른 막대 대신 이 패널
+  await page.setViewportSize({ width: 390, height: 800 });
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId('quick-size')).toHaveCount(0);
 });

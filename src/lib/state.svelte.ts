@@ -20,7 +20,7 @@ import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { loadRoomView } from './core/roomView';
-import { blockFits, blockIdOf, predictBlock, snapStart } from './core/blocks';
+import { asBlocks, blockFits, blockIdOf, predictBlock, snapStart, type BlockAxis } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -38,7 +38,7 @@ import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { maskProfanity } from './core/profanity';
-import { faceSizeOf, wallPlaneOf } from './core/wallPlane';
+import { faceOf, faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -371,8 +371,19 @@ class AppState {
       const quiet = !!p.camera?.auto;
       const objs = this.objects.filter((o) => o.photoId === p.id);
       // 치수 블록(2026-11-03)은 치수 없는 영역으로 함께 재서 지금 원근으로 본 크기를 얻는다 — 사인물 치수와 맞는지(보라) 보기 위해. 축척 보정(치수 입력 영역)에는 넣지 않는다
-      const blocks = objs.flatMap((o) => (o.blocks ?? []).map((b, i): SignObject => ({ ...o, id: this.blockIdOf(o.id, i), quad: b, widthMm: undefined, heightMm: undefined, turn: undefined, blocks: undefined, sameAs: undefined })));
-      const face = cal ? (o: SignObject) => (o.id.includes('#b') ? undefined : faceSizeOf(o, cal)) : undefined; // 블록은 늘 벽면
+      // 치수 블록(2026-11-03)도 함께 잰다 — 블록은 사인물과 같은 크기를 아는 영역이므로 **기준 영역**으로 들어가 축척을 맞추고(다른 사인물 추정이 바로 조정됨, 2026-11-04
+      // "해당 블록의 길이와 방향이 설정되면 그와 동시에 다른 사인물의 길이가 조정된다"), 정한 축(면)에서 잰다. 사인물 치수가 없으면 치수 없는 영역(보라 판정만)
+      const blockRefs: { o: SignObject; axis?: 'x' | 'y' | 'z' }[] = [];
+      const blocks = objs.flatMap((o) => {
+        const sz = o.widthMm && o.heightMm ? { widthMm: o.widthMm, heightMm: o.heightMm } : { widthMm: undefined, heightMm: undefined };
+        return asBlocks(o.blocks, o.blockAxes).map((b, i): SignObject => {
+          const pb: SignObject = { ...o, id: this.blockIdOf(o.id, i), quad: b.q, ...sz, turn: undefined, blocks: undefined, blockAxes: undefined, sameAs: undefined, faceAxis: undefined, boxDir: undefined };
+          blockRefs.push({ o: pb, axis: b.axis });
+          return pb;
+        });
+      });
+      const axisOf = new Map(blockRefs.map((r) => [r.o.id, r.axis]));
+      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal); const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) : faceSizeOf(o, cal); } : undefined;
       for (const [id, r] of measurePhoto([...objs, ...blocks], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
@@ -850,7 +861,7 @@ class AppState {
     // 사람이 둘째 축을 깊이(Y)로 바꿔 두었으면 사인물(좌우 변 = Z) 대신 AI 로 그 축의 선을 찾는다 (2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면")
     const sign = p.camera?.axes?.second[1] === 'y' ? null : this.matchSignOf(photoId);
     if (sign) {
-      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, sign.o.blocks?.map((b) => b.map((q) => [q[0], q[1]] as [number, number]))); // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
+      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, asBlocks(sign.o.blocks, sign.o.blockAxes)); // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
       if (setup) {
         this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
@@ -905,7 +916,7 @@ class AppState {
   private lengthQueue = new Set<string>();
   private lengthTimer: ReturnType<typeof setTimeout> | undefined;
   private watchSizes() {
-    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}|${JSON.stringify(o.blocks ?? [])}` : ''; }; // 치수 블록이 바뀌어도 (2026-11-03)
+    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}|${JSON.stringify(o.blocks ?? [])}${JSON.stringify(o.blockAxes ?? [])}` : ''; }; // 치수 블록이 바뀌어도 (2026-11-03)
     this.project.doc.on('afterTransaction', (tr: { local: boolean; origin: unknown; changedParentTypes: Map<unknown, unknown> }) => {
       if (![...tr.changedParentTypes.keys()].some((t) => t === this.project.objects || (t as { parent?: unknown }).parent === this.project.objects)) return;
       const mine = tr.local && tr.origin === null; // Project 메서드는 origin 없이 — 동기화·IndexedDB·되돌리기는 origin 이 있다
@@ -934,7 +945,7 @@ class AppState {
         const sz = this.sizeOf(x);
         return sz && !sz.estimated ? [{ quad: x.quad.map((q) => [q[0], q[1]] as [number, number]), w: sz.w, h: sz.h }] : [];
       });
-      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, o.blocks?.map((b) => b.map((q) => [q[0], q[1]] as [number, number]))); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
+      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, asBlocks(o.blocks, o.blockAxes)); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
       if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
       this.updateCamera(p.id, { camera: next }); // 조용히 — 완성(3)이 될 때만 화면 안내 (2026-10-20)
     }
@@ -1997,7 +2008,7 @@ class AppState {
     let q = quad;
     const sol = this.cameras.get(photoId);
     if (sol) {
-      const bases = [o.quad, ...(o.blocks ?? [])];
+      const bases = [o.quad, ...asBlocks(o.blocks, o.blockAxes).filter((b) => !b.axis || b.axis === 'y').map((b) => b.q)]; // 대각 예측은 벽면 위에서만
       const snap = snapStart(start, bases.flat(), r);
       if (snap) {
         const predicted = predictBlock(sol, bases[Math.floor(snap.index / 4)], snap.index % 4, end);
@@ -2006,7 +2017,7 @@ class AppState {
     }
     const blocks = [...(o.blocks ?? []), q.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt)];
     this.editBoundary();
-    this.project.updateObject(o.id, { blocks });
+    this.project.updateObject(o.id, { blocks, ...(o.blockAxes ? { blockAxes: [...o.blockAxes, null] } : {}) });
     this.editBoundary();
     return true;
   }
@@ -2017,13 +2028,32 @@ class AppState {
     this.project.updateObject(id, { blocks });
     this.editBoundary();
   }
+  /** 블록 축(면) 정하기 — 그 면에서 재어 기준이 되고 다른 사인물 추정이 바로 바뀐다 (2026-11-04) */
+  setBlockAxis(id: string, i: number, axis: BlockAxis) {
+    const o = this.objects.find((x) => x.id === id);
+    if (!o || !this.canEdit || !o.blocks?.[i]) return;
+    const axes = o.blocks.map((_, k) => (k === i ? axis : o.blockAxes?.[k] ?? null));
+    this.editBoundary();
+    this.project.updateObject(id, { blockAxes: axes });
+    this.editBoundary();
+  }
+  /** 블록의 축: 정한 것, 없으면 외곽선으로 판정한 면(원근이 없으면 벽면) */
+  blockAxisOf(o: SignObject, i: number): { axis: BlockAxis; auto: boolean } {
+    const set = o.blockAxes?.[i];
+    if (set) return { axis: set, auto: false };
+    const calib = this.calibrations.get(o.photoId), b = o.blocks?.[i];
+    const cal = calib?.metric ? wallPlaneOf([], calib) : null;
+    const f = b && cal ? faceOf({ ...o, quad: b, turn: undefined }, cal) : null;
+    return { axis: f?.axis ?? 'y', auto: true };
+  }
   removeBlock(id: string, i: number) {
     const o = this.objects.find((x) => x.id === id);
     if (!o || !this.canEdit || !o.blocks?.[i]) return;
     if (this.selectedBlock?.id === id) this.selectedBlock = null;
     const blocks = o.blocks.filter((_, k) => k !== i);
+    const axes = o.blockAxes?.filter((_, k) => k !== i);
     this.editBoundary();
-    this.project.updateObject(id, { blocks: blocks.length ? blocks : undefined });
+    this.project.updateObject(id, { blocks: blocks.length ? blocks : undefined, blockAxes: blocks.length && axes?.some((a) => a) ? axes : undefined });
     this.editBoundary();
   }
 }

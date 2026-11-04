@@ -248,6 +248,19 @@ export function sizedAt(o: SignObject, at: Placement, cal: WallPlane | null): Pl
   return cs ? { ...at, w: cs.w, h: cs.h } : at;
 }
 
+/**
+ * 정한 면(축)에서 잰 외곽선 크기 (치수 블록의 축 설정, 2026-11-04 "블록은 여러 축에 사용되고"): y = 벽면(undefined — 벽면 측정 그대로),
+ * x = 벽에 직각인 세로면, z = 수평면. 원근이 없거나 그 면의 사진일 수 없으면 null
+ */
+export function faceSizeOnAxis(quad: Pt[], cal: WallPlane | null, axis: FaceAxis): { widthMm: number; heightMm: number } | null | undefined {
+  if (!(cal?.source === 'calibration' && cal.pose && isValidQuad(quad))) return null;
+  if (axis === 'y') return undefined;
+  const ff = faceFrameOf(cal, quad, axis);
+  if (!ff) return null;
+  const at = placeOnWall({ H: ff.H, Hinv: ff.Hinv, source: 'calibration', pose: ff.pose }, { quad });
+  return { widthMm: at.w, heightMm: at.h };
+}
+
 /** 벽면(y)이 아닌 면에 놓인 사인물의 크기(mm, 그 면에서 잰 값). 벽면이면 undefined(벽면 측정 그대로), 어느 면도 아니면 null(측정 없음) */
 export function faceSizeOf(o: SignObject, cal: WallPlane | null): { widthMm: number; heightMm: number } | null | undefined {
   const f = faceOf(o, cal);

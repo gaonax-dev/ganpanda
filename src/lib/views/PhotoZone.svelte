@@ -222,7 +222,7 @@
    * 치수 블록은 조작할 때 **가짜 사인물**(id = `<사인물>#b<번호>`, quad = 블록)로 다뤄 사인물과 같은 손잡이(변·꼭짓점·원근 매니퓰레이터·원근에 맞추기)를 그대로 쓴다
    * (2026-11-04 사용자: "사인물과 같이 컨트롤로가 있어야 하지 않나? 그래야 퍼스팩트브에 맞게 위치를 잡고 기준이 되지"). onselect/onquad 는 BoardView 가 블록 id 를 풀어 블록으로 보낸다
    */
-  const blockSign = (o: SignObject, i: number, b: Pt[]): SignObject => ({ ...o, id: blockIdOf(o.id, i), quad: b, blocks: undefined, turn: undefined, faceAxis: undefined, boxDir: undefined, sameAs: undefined });
+  const blockSign = (o: SignObject, i: number, b: Pt[]): SignObject => ({ ...o, id: blockIdOf(o.id, i), quad: b, blocks: undefined, blockAxes: undefined, turn: undefined, faceAxis: o.blockAxes?.[i] ?? undefined, boxDir: undefined, sameAs: undefined }); // 벽축 핸들 = 블록 축 (끝 동그라미로 바꾸면 setBlockAxis)
   /** 조작 손잡이를 붙일 대상: 고른 블록이 이 사진에 있으면 그 블록(가짜 사인물), 아니면 고른 사인물 */
   const controlTargets = $derived.by((): SignObject[] => {
     const sb = app.selectedBlock;

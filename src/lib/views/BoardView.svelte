@@ -685,7 +685,7 @@
         multiIds={app.photoHighlightIds}
         moving={app.movingPhotoId === p.id}
         onpick={() => { app.movingPhotoId = app.movingPhotoId === p.id ? null : p.id; if (app.movingPhotoId) { app.selectObject(null); app.selectPin(null); } }}
-        onbox={(id, patch) => { if (parseBlockId(id)) return; app.project.updateObject(id, patch); app.editBoundary(); }}
+        onbox={(id, patch) => { const b = parseBlockId(id); if (b) { if (patch.faceAxis) app.setBlockAxis(b.id, b.i, patch.faceAxis); return; } app.project.updateObject(id, patch); app.editBoundary(); }}
         onquad={(id, quad) => { const b = parseBlockId(id); if (b) { app.updateBlock(b.id, b.i, quad); return; } app.project.updateObject(id, { quad }); app.editBoundary(); }}
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}

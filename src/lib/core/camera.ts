@@ -7,7 +7,7 @@ import type { Calibration, Gray } from './calibration';
 import { measureQuad, snapEdge } from './calibration';
 import { analyzeLines, horizontalityOf, pickSeparated, pointsTo, upscaleSeg, type LineAnalysis, type Segment } from './lines';
 import { applyHomography, DEFAULT_FOCAL_RATIO, type CameraPose, type Pt } from './homography';
-import { blockLines } from './blocks';
+import { blockLines, type SizeBlock } from './blocks';
 
 export interface Line { a: Pt; b: Pt }
 export type Axis = 'x' | 'y' | 'z';
@@ -315,7 +315,7 @@ export function solveCamera(setup: CameraSetup, imgW: number, imgH: number): Cam
  * 원근에 맞게 그린 사각 사인물(quad = 왼쪽 위·오른쪽 위·오른쪽 아래·왼쪽 아래)과 그 가로 mm 로 설정을 만든다 —
  * 위·아래 변 = 가로(X) 축 선, 좌·우 변 = 높이(Z) 축 선, 원점 = 왼쪽 아래 코너, 기준 길이 = 왼쪽 아래 → 오른쪽 아래 (가로 mm)
  */
-export function signCameraSetup(quad: Pt[], widthMm: number, blocks?: Pt[][]): CameraSetup {
+export function signCameraSetup(quad: Pt[], widthMm: number, blocks?: (Pt[] | SizeBlock)[]): CameraSetup {
   const [tl, tr, br, bl] = quad;
   const extra = blocks?.length ? blockLines(blocks) : null;
   return {
@@ -325,7 +325,7 @@ export function signCameraSetup(quad: Pt[], widthMm: number, blocks?: Pt[][]): C
     origin: bl,
     ref: { axis: 'x', from: bl, to: br, mm: widthMm },
     principal: 'center',
-    ...(extra && extra.x.length ? { extra } : {}), // 치수 블록의 변도 축 선으로 (2026-11-03)
+    ...(extra && (extra.x.length || extra.y.length) ? { extra } : {}), // 치수 블록의 변도 축 선으로 (2026-11-03, 축별 2026-11-04)
   };
 }
 
@@ -367,7 +367,7 @@ export function signLengthSetup(setup: CameraSetup, quad: Pt[], widthMm: number,
  * 소실점으로 구한 화각(또는 좌우 변이 거의 평행해 쓴 기본 화각)으로 잰 가로세로 비율이 입력과 맞지 않으면 — 크기를 아는 사각형은 화각도 알려 주므로 —
  * 비율이 맞는 초점거리를 찾아 고정한다(focal, 장변의 0.25~5배). 그래도 안 맞으면 화각 고정 없이
  */
-export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number, blocks?: Pt[][]): CameraSetup | null {
+export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, imgW: number, imgH: number, blocks?: (Pt[] | SizeBlock)[]): CameraSetup | null {
   const base: CameraSetup = { ...signCameraSetup(quad, widthMm, blocks), auto: true };
   const sol = solveCamera(base, imgW, imgH);
   if (!sol) return null;
@@ -389,7 +389,7 @@ export function signCameraFit(quad: Pt[], widthMm: number, heightMm: number, img
   return fs && signMatches(fs, quad, widthMm, heightMm) ? fitted : base;
 }
 
-export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number, blocks?: Pt[][]): CameraSetup | null {
+export function autoCameraFrom(setup: CameraSetup | undefined, quad: Pt[], widthMm: number, heightMm: number, others: { quad: Pt[]; w: number; h: number }[], imgW: number, imgH: number, blocks?: (Pt[] | SizeBlock)[]): CameraSetup | null {
   const fromSign = (): CameraSetup | null => signCameraFit(quad, widthMm, heightMm, imgW, imgH, blocks);
   if (!setup) return fromSign();
   if (!setup.auto) return null;

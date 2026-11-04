@@ -106,3 +106,25 @@ describe('블록의 변을 원근 풀이에 더하면 멀리(2층) 있는 영역
     for (const b of blocks) expect(blockFits(measureQuad(calibrationOf(withBlocks), b), { w: 1000, h: 600 })).toBe(true);
   });
 });
+
+describe('블록 축 (2026-11-04 "블록은 속성이 사이즈와 축설정만 … 블록은 여러 축에 사용되고")', async () => {
+  const { asBlocks, blockLines: lines } = await import('../../src/lib/core/blocks');
+  const b = rect(2000, 1000, 1000, 600);
+  it('축 정보: 블록 배열과 축 배열을 묶어 읽는다 (축 없음 = 자동)', () => {
+    expect(asBlocks([b, b], ['x'])).toEqual([{ q: b, axis: 'x' }, { q: b, axis: undefined }]);
+    expect(asBlocks(undefined, undefined)).toEqual([]);
+  });
+  it('벽면(Y)·자동 블록은 위·아래 변 = 가로 축 선, 좌·우 변 = 높이 축 선', () => {
+    expect(lines([{ q: b, axis: 'y' }]).x).toHaveLength(2);
+    expect(lines([{ q: b, axis: 'y' }]).y).toHaveLength(2);
+  });
+  it('옆면(X) 블록은 좌·우 변(수직)만 높이 축 선 — 위·아래 변은 깊이 방향이라 가로 축이 아니다', () => {
+    const l = lines([{ q: b, axis: 'x' }]);
+    expect(l.x).toHaveLength(0);
+    expect(l.y).toEqual([{ a: b[3], b: b[0] }, { a: b[2], b: b[1] }]);
+  });
+  it('수평(Z) 블록은 벽 축 선에 넣지 않는다', () => {
+    const l = lines([{ q: b, axis: 'z' }]);
+    expect(l.x).toHaveLength(0); expect(l.y).toHaveLength(0);
+  });
+});
