@@ -581,7 +581,7 @@
     if (editing) {
       if (editing.mode === 'brot') { if (editing.box && onbox) onbox(editing.id, { boxDir: editing.box, faceAxis: undefined }); }
       else if (editing.mode === 'bdepth' && !editing.depth?.moved) { if (editing.depth?.tap && onbox) onbox(editing.id, { faceAxis: editing.depth.tap, boxDir: undefined }); }
-      else if (editing.quad !== editing.orig) onquad(editing.id, editing.quad);
+      else if (editing.quad !== editing.orig && editing.quad.some((p, i) => p[0] !== editing!.orig[i]?.[0] || p[1] !== editing!.orig[i]?.[1])) onquad(editing.id, editing.quad); // 실제로 움직였을 때만 (누르기만 한 것은 저장하지 않는다, 2026-11-04)
       editing = null;
     }
   }

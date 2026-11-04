@@ -73,3 +73,29 @@ test('선택(터치): 안 고른 블록을 끌면 움직이지 않고, 탭으로
   await tdrag(page, c, 60);
   await expect.poll(x0).toBeGreaterThan(520);
 });
+
+test('원근이 강한 곳의 블록을 눌러도 사라지지 않는다 (2026-11-04 "블록이 클릭하면 갑자기 사라진다" — 씽크대 블록테스트의 자동 원근)', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 클릭');
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const g = (window as any).__ganpanda, p = g.photos[0];
+    g.project.updatePhoto(p.id, { w: 3200, h: 2400, camera: { x: [{ a: [1216.4, 3.2], b: [2369.5, 533.5] }, { a: [1305.4, 2399.8], b: [2326.2, 1695.2] }], y: [{ a: [2292.6, 634], b: [3192.7, 406.9] }, { a: [2564.2, 1966.2], b: [3197.2, 2256.7] }], origin: [800, 1680], principal: 'center', axes: { first: '+x', second: '+y' }, auto: true } });
+  });
+  // 아래쪽(원근이 강한 곳)에 블록 — 그리기와 같은 길(addBlock: 원근에 맞추기 포함)
+  await page.evaluate(() => { const g = (window as any).__ganpanda, p = g.photos[0]; g.addBlock(p.id, [[1600, 2000], [1900, 2000], [1900, 2200], [1600, 2200]], [1600, 2000], [1900, 2200], 1); g.selectObject(null); });
+  await expect.poll(async () => (await blocks(page)).length).toBe(1);
+  const area = (q: number[][]) => Math.abs(q.reduce((a, p, i) => a + p[0] * q[(i + 1) % 4][1] - q[(i + 1) % 4][0] * p[1], 0) / 2);
+  const before = (await blocks(page))[0].q;
+  expect(area(before)).toBeGreaterThan(1000);
+  // 누르기 = 아주 작은 끌기 (트랙패드 클릭처럼 1px 흔들림) 를 몇 번
+  for (let k = 0; k < 3; k++) {
+    const b = (await page.locator('[data-testid="size-block"][data-index="0"] polygon').boundingBox())!;
+    const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    await page.mouse.move(c.x, c.y); await page.mouse.down(); await page.mouse.move(c.x + 1, c.y, { steps: 1 }); await page.mouse.up();
+  }
+  // 클릭이 결국 하는 일: 같은 외곽선으로 블록 고치기(원근에 다시 맞추기) — 여러 번 해도 그대로여야
+  for (let k = 0; k < 3; k++) await page.evaluate(() => { const g = (window as any).__ganpanda, p = g.photos[0]; g.updateBlock(p.id, 0, g.photos[0].blocks[0].q); });
+  const after = (await blocks(page))[0].q;
+  expect(area(after)).toBeGreaterThan(area(before) * 0.8); // 한 점으로 접히지 않는다
+  await expect(page.locator('[data-testid="size-block"][data-index="0"] polygon')).toBeVisible();
+});

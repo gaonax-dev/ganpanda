@@ -232,3 +232,26 @@ describe('블록의 길이와 위치로 축척 (2026-11-04 "두 블록의 가로
     expect(r.get('s')!.widthMm).toBeCloseTo(250, 0);
   });
 });
+
+describe('원근에 맞추기는 꼭짓점 자리를 지킨다 (2026-11-04 사용자: "블록이 클릭하면 갑자기 사라진다")', async () => {
+  const { alignBlock } = await import('../../src/lib/core/blocks');
+  const { wallPlaneOf } = await import('../../src/lib/core/wallPlane');
+  // 실제 프로젝트(씽크대 블록테스트)의 자동 원근: 가로 X + 깊이 Y 로 잡힌 사진 → 벽면은 X·Z 로 만든 면, 아래쪽은 원근이 매우 강하다
+  const cam = { x: [{ a: [1216.4, 3.2], b: [2369.5, 533.5] }, { a: [1305.4, 2399.8], b: [2326.2, 1695.2] }], y: [{ a: [2292.6, 634], b: [3192.7, 406.9] }, { a: [2564.2, 1966.2], b: [3197.2, 2256.7] }], origin: [800, 1680], principal: 'center', axes: { first: '+x', second: '+y' }, auto: true } as unknown as Parameters<typeof solveCamera>[0];
+  const s = solveCamera(cam, 3200, 2400)!;
+  const cal = wallPlaneOf([], calibrationOf(s))!;
+  const pl = { H: cal.H, Hinv: cal.Hinv };
+  const convex = (q: Pt[]) => { let sign = 0; for (let i = 0; i < 4; i++) { const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4]; const z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]); if (Math.abs(z) < 1e-6) return false; if (sign && Math.sign(z) !== sign) return false; sign = Math.sign(z); } return true; };
+  it('어디에 그려도 맞춘 결과는 볼록한 사각형이고, 한 번 더 맞춰도 그대로 (클릭 = 아주 작은 끌기 = 다시 맞추기)', () => {
+    for (const [x, y] of [[800, 600], [1600, 1200], [2400, 1800], [1600, 2000], [600, 2100]] as Pt[]) {
+      const q: Pt[] = [[x, y], [x + 300, y], [x + 300, y + 200], [x, y + 200]];
+      const a1 = alignBlock(pl, q);
+      if (!a1) continue; // 맞출 수 없으면 그대로 둔다
+      expect(convex(a1), `@${x},${y}`).toBe(true);
+      const a2 = alignBlock(pl, a1)!;
+      for (let i = 0; i < 4; i++) expect(Math.hypot(a2[i][0] - a1[i][0], a2[i][1] - a1[i][1]), `@${x},${y}#${i}`).toBeLessThan(1);
+      const area = (v: Pt[]) => v.reduce((a, p, i) => a + p[0] * v[(i + 1) % 4][1] - v[(i + 1) % 4][0] * p[1], 0);
+      expect(Math.sign(area(a1)), `@${x},${y} 감기는 방향`).toBe(Math.sign(area(q))); // 꼭짓점 순서(왼쪽 위→오른쪽 위→…)가 뒤집히지 않는다
+    }
+  });
+});

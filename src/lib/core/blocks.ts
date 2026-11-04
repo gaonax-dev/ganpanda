@@ -106,29 +106,48 @@ export function predictBlock(sol: CameraSolution, base: Pt[], cornerIndex: numbe
 /** 원근 면(사진 px ↔ 면 좌표 mm) */
 export interface BlockPlane { H: number[]; Hinv: number[] }
 const proj = (H: number[], p: Pt) => applyHomography(H, p);
-/** 면 좌표 사각 [u0,u1]×[v0,v1](v 위가 +) → 사진 외곽선 TL,TR,BR,BL */
-function rectToImage(pl: BlockPlane, u0: number, u1: number, v0: number, v1: number): Pt[] | null {
-  const img = ([[u0, v1], [u1, v1], [u1, v0], [u0, v0]] as Pt[]).map((p) => proj(pl.H, p));
-  if (img.some((p) => !isFinite(p[0]) || !isFinite(p[1]))) return null;
-  const byY = [...img].sort((a, b) => a[1] - b[1]);
-  const top = byY.slice(0, 2).sort((a, b) => a[0] - b[0]), bottom = byY.slice(2).sort((a, b) => a[0] - b[0]);
-  return [top[0], top[1], bottom[1], bottom[0]];
-}
-/** 블록의 면 좌표 사각 (꼭짓점 평균 변) */
-function blockRect(pl: BlockPlane, q: Pt[]): { u0: number; u1: number; v0: number; v1: number } | null {
+/** 블록 네 변의 면 좌표 (꼭짓점 평균): 왼쪽 변 u·오른쪽 변 u·위 변 v·아래 변 v — 꼭짓점 자리(왼쪽 위·오른쪽 위·오른쪽 아래·왼쪽 아래)를 그대로 따른다 */
+function blockSides(pl: BlockPlane, q: Pt[]): { uL: number; uR: number; vT: number; vB: number } | null {
   if (q.length !== 4) return null;
   const [tl, tr, br, bl] = q.map((p) => proj(pl.Hinv, p));
   if ([tl, tr, br, bl].some((p) => !isFinite(p[0]) || !isFinite(p[1]))) return null;
-  const a = (tl[0] + bl[0]) / 2, b = (tr[0] + br[0]) / 2, c = (bl[1] + br[1]) / 2, d = (tl[1] + tr[1]) / 2;
-  const u0 = Math.min(a, b), u1 = Math.max(a, b), v0 = Math.min(c, d), v1 = Math.max(c, d);
+  return { uL: (tl[0] + bl[0]) / 2, uR: (tr[0] + br[0]) / 2, vT: (tl[1] + tr[1]) / 2, vB: (bl[1] + br[1]) / 2 };
+}
+/** 블록의 면 좌표 사각 (작은 값·큰 값) */
+function blockRect(pl: BlockPlane, q: Pt[]): { u0: number; u1: number; v0: number; v1: number } | null {
+  const s = blockSides(pl, q);
+  if (!s) return null;
+  const u0 = Math.min(s.uL, s.uR), u1 = Math.max(s.uL, s.uR), v0 = Math.min(s.vT, s.vB), v1 = Math.max(s.vT, s.vB);
   return u1 - u0 > 0 && v1 - v0 > 0 ? { u0, u1, v0, v1 } : null;
 }
+/** 볼록한 사각형인가 (꼭짓점 순서대로 같은 방향으로 꺾임) */
+function isConvexQuad(q: Pt[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], c = q[(i + 2) % 4];
+    const z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+    if (!isFinite(z) || Math.abs(z) < 1e-9) return false;
+    if (sign && Math.sign(z) !== sign) return false;
+    sign = Math.sign(z);
+  }
+  return true;
+}
 /**
- * 블록은 원근을 따른다 (2026-11-04 "블록은 원근의 구도를 따른다"): 손으로 그린 네모를 그 축 면의 직사각형으로 맞춘다 — 왼·오른 변(꼭짓점 평균)과 위·아래 변으로. 못 맞추면 null
+ * 블록은 원근을 따른다 (2026-11-04 "블록은 원근의 구도를 따른다"): 손으로 그린 네모를 그 축 면의 직사각형으로 맞춘다 — 각 꼭짓점은 제 자리(왼쪽 위는 왼쪽 위)를 지킨다
+ * (같은 날 "블록이 클릭하면 갑자기 사라진다": 사진 위 높이로 꼭짓점을 다시 정하던 방식이 원근이 강한 곳에서 꼭짓점을 뒤섞었고, 클릭 = 아주 작은 끌기 = 다시 맞추기에서 한 점으로 접혔다).
+ * 맞춘 결과가 볼록한 사각형이 아니면(지평선 너머 등) null — 호출자는 그린 그대로 둔다
  */
+/** 원근에 맞출 때 꼭짓점이 움직일 수 있는 한도 (대각선 대비) — 넘으면 그 면이 그 자리에 맞지 않는 것으로 보고 그린 그대로 */
+export const ALIGN_MAX_SHIFT = 0.35;
 export function alignBlock(pl: BlockPlane, q: Pt[]): Pt[] | null {
-  const r = blockRect(pl, q);
-  return r ? rectToImage(pl, r.u0, r.u1, r.v0, r.v1) : null;
+  const s = blockSides(pl, q);
+  if (!s || Math.abs(s.uR - s.uL) < 1e-6 || Math.abs(s.vT - s.vB) < 1e-6) return null;
+  const out = ([[s.uL, s.vT], [s.uR, s.vT], [s.uR, s.vB], [s.uL, s.vB]] as Pt[]).map((p) => proj(pl.H, p));
+  if (out.some((p) => !isFinite(p[0]) || !isFinite(p[1])) || !isConvexQuad(out)) return null;
+  // 그린 모양과 너무 다르면(이 면이 그 자리에 맞지 않음) 맞추지 않는다: 꼭짓점이 대각선의 35% 넘게 움직이면 그대로
+  const diag = Math.max(Math.hypot(q[2][0] - q[0][0], q[2][1] - q[0][1]), Math.hypot(q[3][0] - q[1][0], q[3][1] - q[1][1]));
+  if (out.some((p, i) => Math.hypot(p[0] - q[i][0], p[1] - q[i][1]) > ALIGN_MAX_SHIFT * diag)) return null;
+  return out;
 }
 /**
  * 블록 길이 그리드 (2026-11-04 "이 길이를 해당 축에 그리드로 넣고 이걸로 사인물 길이를 추론한다" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다 …
