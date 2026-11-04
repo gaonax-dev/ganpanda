@@ -98,4 +98,37 @@ test('원근이 강한 곳의 블록을 눌러도 사라지지 않는다 (2026-1
   const after = (await blocks(page))[0].q;
   expect(area(after)).toBeGreaterThan(area(before) * 0.8); // 한 점으로 접히지 않는다
   await expect(page.locator('[data-testid="size-block"][data-index="0"] polygon')).toBeVisible();
+  // 골랐을 때 그리드가 지평선을 넘어 사진 밖 멀리 튀지 않는다 (2026-11-04 "치수 블록 1 선택하면 그리드 에러")
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.selectBlock(g.photos[0].id, 0); });
+  const grid = page.getByTestId('block-grid');
+  await expect(grid).toBeVisible();
+  const ph = (await page.getByTestId('photo-img').boundingBox())!;
+  const gb = await grid.evaluate((e) => { const b = (e as SVGGraphicsElement).getBBox(); return { width: b.width, height: b.height }; });
+  const k = ph.width / 3200; // 사진 px → 화면
+  expect(gb.width * k).toBeLessThan(ph.width * 4);
+  expect(gb.height * k).toBeLessThan(ph.height * 4);
+});
+
+test('블록 패널: 치수를 넣고 엔터 → 입력 반영·포커스 해제, 화면 빈 곳을 눌러도 포커스 해제·반영 (2026-11-04 "입력 후 엔터나 화면밖 클릭에 포스해제와 입력이 안된다")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 입력');
+  await uploadPhoto(page);
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.project.updatePhoto(g.photos[0].id, { blocks: [{ q: [[200, 200], [400, 200], [400, 300], [200, 300]] }, { q: [[600, 200], [800, 200], [800, 300], [600, 300]] }] }); g.selectBlock(g.photos[0].id, 0); });
+  const w = page.getByTestId('block-width');
+  await w.click();
+  await page.keyboard.type('3000');
+  await page.keyboard.press('Enter');
+  await expect(w).not.toBeFocused();
+  await expect.poll(async () => (await blocks(page))[0].w).toBe(3000);
+  // 세로를 넣고 화면(보드 빈 곳)을 누르면
+  const h = page.getByTestId('block-height');
+  await h.click();
+  await page.keyboard.type('600');
+  const cv = (await page.getByTestId('board-canvas').boundingBox())!;
+  await page.mouse.click(cv.x + 30, cv.y + cv.height - 120);
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe('INPUT'); // 포커스 해제 (빈 곳을 누르면 선택도 풀려 패널이 닫힌다)
+  await expect.poll(async () => (await blocks(page))[0].h).toBe(600);
+  // 다른 블록(2번)을 골라도 1번 값은 그대로, 2번 칸은 비어 있다
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.selectBlock(g.photos[0].id, 1); });
+  await expect(page.getByTestId('block-width')).toHaveValue('');
+  expect((await blocks(page))[0]).toMatchObject({ w: 3000, h: 600 });
 });

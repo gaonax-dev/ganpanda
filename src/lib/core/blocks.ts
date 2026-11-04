@@ -161,14 +161,43 @@ export function blockGrid(pl: BlockPlane, q: Pt[], n = 6, others: Pt[][] = []): 
   const all = [r, ...others.map((o) => blockRect(pl, o)).filter((x): x is NonNullable<typeof x> => !!x)];
   const U0 = Math.min(...all.map((a) => a.u0)) - n * du, U1 = Math.max(...all.map((a) => a.u1)) + n * du;
   const V0 = Math.min(...all.map((a) => a.v0)) - n * dv, V1 = Math.max(...all.map((a) => a.v1)) + n * dv;
-  const seg = (a: Pt, b: Pt): Line | null => { const A = proj(pl.H, a), B = proj(pl.H, b); return [A, B].every((p) => isFinite(p[0]) && isFinite(p[1])) ? { a: A, b: B } : null; };
+  // 지평선 자르기 (2026-11-04 "치수 블록 1 선택하면 그리드 에러"): 면 → 사진의 동차 좌표 w 가 블록 쪽과 같은 부호이고 블록 가운데 값의 GRID_HORIZON 배 이상인 곳만 —
+  // 원근이 강한 사진에서 그리드가 지평선을 넘으면 선이 사진 반대쪽·수십만 px 밖으로 튀었다
+  const H = pl.H, wOf = (p: Pt) => H[6] * p[0] + H[7] * p[1] + H[8];
+  const wc = wOf([(r.u0 + r.u1) / 2, (r.v0 + r.v1) / 2]);
+  if (!(Math.abs(wc) > 0)) return null;
+  const minW = Math.abs(wc) * GRID_HORIZON, sgn = Math.sign(wc);
+  const ok = (p: Pt) => sgn * wOf(p) >= minW;
+  /** 면 좌표 선분 a→b 에서 앞쪽(ok)만 남긴다 (w 는 선을 따라 1차라 한 번만 자른다) */
+  const clipSeg = (a: Pt, b: Pt): [Pt, Pt] | null => {
+    const wa = sgn * wOf(a) - minW, wb = sgn * wOf(b) - minW;
+    if (wa < 0 && wb < 0) return null;
+    if (wa >= 0 && wb >= 0) return [a, b];
+    const t = wa / (wa - wb), m: Pt = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    return wa >= 0 ? [a, m] : [m, b];
+  };
+  const seg = (a: Pt, b: Pt): Line | null => {
+    const c = clipSeg(a, b);
+    if (!c) return null;
+    const A = proj(pl.H, c[0]), B = proj(pl.H, c[1]);
+    return [A, B].every((p) => isFinite(p[0]) && isFinite(p[1])) ? { a: A, b: B } : null;
+  };
   const u: Line[] = [], v: Line[] = [];
   const eps = 1e-6;
   for (let k = Math.ceil((U0 - r.u0) / du - eps); r.u0 + k * du <= U1 + eps; k++) { const x = r.u0 + k * du, s = seg([x, V0], [x, V1]); if (s) u.push(s); }
   for (let k = Math.ceil((V0 - r.v0) / dv - eps); r.v0 + k * dv <= V1 + eps; k++) { const y = r.v0 + k * dv, s = seg([U0, y], [U1, y]); if (s) v.push(s); }
-  const face = ([[U0, V1], [U1, V1], [U1, V0], [U0, V0]] as Pt[]).map((p) => proj(pl.H, p));
+  // 면 외곽선도 같은 반평면으로 자른다 (Sutherland–Hodgman, 변 하나)
+  const poly = [[U0, V1], [U1, V1], [U1, V0], [U0, V0]] as Pt[], clipped: Pt[] = [];
+  for (let k = 0; k < poly.length; k++) {
+    const a = poly[k], b = poly[(k + 1) % poly.length];
+    if (ok(a)) clipped.push(a);
+    if (ok(a) !== ok(b)) { const c = clipSeg(a, b); if (c) clipped.push(ok(a) ? c[1] : c[0]); }
+  }
+  const face = clipped.map((p) => proj(pl.H, p));
   return { u, v, face };
 }
+/** 그리드를 지평선 쪽으로 얼마나 그릴지 — 면→사진 동차 w 가 블록 가운데 값의 이 배 이상인 곳까지 (작을수록 멀리, 0 이면 지평선까지) */
+export const GRID_HORIZON = 0.25;
 
 /**
  * 축 면 랩핑 (2026-11-04 사용자: "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론하다. 커다란 블록이 하나면 이걸로 그리드를 만들고 랩핑하는 거야"

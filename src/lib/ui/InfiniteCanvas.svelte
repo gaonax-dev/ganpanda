@@ -175,6 +175,11 @@
     };
   });
 
+  /** 보드를 누르면 패널의 입력 칸에서 나온다 — 보드는 이동을 위해 기본 동작을 막아(preventDefault) 브라우저가 포커스를 옮기지 않았다 (2026-11-04 "화면밖 클릭에 포커스 해제와 입력이 안된다") */
+  function blurOutside() {
+    const a = document.activeElement;
+    if (a instanceof HTMLElement && a !== document.body && !el.contains(a) && a.matches('input, textarea, select, [contenteditable="true"]')) a.blur();
+  }
   function down(e: PointerEvent) {
     const bg = e.target === el || (e.target as HTMLElement).dataset.bg !== undefined;
     const forcePan = e.button === 1 || (e.button === 0 && panKey !== null) || (e.button === 0 && isPanThrough(e)); // 사인물·카드·존 위 한 손가락 = 팬 (2026-10-24)
@@ -218,7 +223,7 @@
   style:cursor={drag ? 'grabbing' : panKey ? 'grab' : cursor}
   style:background-size="{gridStep}px {gridStep}px"
   style:background-position="{viewport.x}px {viewport.y}px"
-  onpointerdowncapture={(e) => { touchDown(e); if (pinching) return; if (e.button === 1 || (e.button === 0 && panKey)) down(e); }}
+  onpointerdowncapture={(e) => { blurOutside(); touchDown(e); if (pinching) return; if (e.button === 1 || (e.button === 0 && panKey)) down(e); }}
   onpointermovecapture={touchMove}
   onpointerupcapture={touchUp}
   onpointercancelcapture={touchUp}

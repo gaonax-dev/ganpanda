@@ -11,6 +11,14 @@
   const block = $derived(app.blockAt(photoId, index));
   const ax = $derived(app.blockAxisOf(photoId, index));
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)) || undefined);
+  /** 칸을 떠날 때(엔터·바깥 누르기) 한 번 반영 — 글자마다 저장하면 블록을 매번 다시 써서 입력이 끊겼다 (2026-11-04 "입력 후 엔터나 화면밖 클릭에 포커스해제와 입력이 안된다") */
+  function commit(k: 'w' | 'h', v: string) {
+    const n = num(v);
+    if (n === block?.[k]) return;
+    app.setBlockSize(photoId, index, { [k]: n });
+  }
+  /** 엔터 = 입력 끝 (포커스 해제 → change 로 반영) */
+  const enterBlur = (e: KeyboardEvent) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); };
   const AXES: { id: BlockAxis; label: string; title: string }[] = [
     { id: 'y', label: '벽면 Y', title: '정면 벽 위의 블록' },
     { id: 'x', label: '옆면 X', title: '벽에 직각인 세로면(옆 벽·돌출 간판 면) 위의 블록' },
@@ -21,9 +29,9 @@
 <aside class="panel" data-testid="block-panel" data-index={index}>
   <header><b>치수 블록</b><span class="of">{index + 1}</span></header>
   <div class="row sizes" data-testid="block-panel-size">
-    <label>가로<input data-testid="block-width" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.w ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { w: num(e.currentTarget.value) })} /></label>
+    <label>가로<input data-testid="block-width" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.w ?? ''} disabled={ro} onchange={(e) => commit('w', e.currentTarget.value)} onkeydown={enterBlur} /></label>
     <span>×</span>
-    <label>세로<input data-testid="block-height" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { h: num(e.currentTarget.value) })} /></label>
+    <label>세로<input data-testid="block-height" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} onchange={(e) => commit('h', e.currentTarget.value)} onkeydown={enterBlur} /></label>
     <small>mm</small>
   </div>
   <div class="row axes" role="radiogroup" aria-label="축" data-testid="block-axis">

@@ -255,3 +255,28 @@ describe('원근에 맞추기는 꼭짓점 자리를 지킨다 (2026-11-04 사�
     }
   });
 });
+
+describe('그리드는 원근의 지평선을 넘지 않는다 (2026-11-04 "치수 블록 1 선택하면 그리드 에러")', async () => {
+  const { blockGrid } = await import('../../src/lib/core/blocks');
+  const { wallPlaneOf } = await import('../../src/lib/core/wallPlane');
+  const cam = { x: [{ a: [1216.4, 3.2], b: [2369.5, 533.5] }, { a: [1305.4, 2399.8], b: [2326.2, 1695.2] }], y: [{ a: [2292.6, 634], b: [3192.7, 406.9] }, { a: [2564.2, 1966.2], b: [3197.2, 2256.7] }], origin: [800, 1680], principal: 'center', axes: { first: '+x', second: '+y' }, auto: true } as unknown as Parameters<typeof solveCamera>[0];
+  const s = solveCamera(cam, 3200, 2400)!;
+  const cal = wallPlaneOf([], calibrationOf(s))!;
+  const pl = { H: cal.H, Hinv: cal.Hinv };
+  it('모든 선의 양 끝이 카메라 앞(지평선 이쪽) — 선을 따라 찍은 점이 이어진다(사진 밖으로 튀거나 뒤집히지 않음)', () => {
+    for (const [x, y] of [[800, 600], [1600, 1200], [1600, 400], [2200, 1500]] as Pt[]) {
+      const g = blockGrid(pl, [[x, y], [x + 300, y], [x + 300, y + 200], [x, y + 200]], 3);
+      if (!g) continue;
+      for (const l of [...g.u, ...g.v]) {
+        // 선분 위의 점들이 사진 좌표로 단조롭게 이어져야(지평선을 넘으면 중간에서 반대쪽으로 뒤집힌다)
+        const pts = [0, 0.25, 0.5, 0.75, 1].map((t) => [l.a[0] + (l.b[0] - l.a[0]) * t, l.a[1] + (l.b[1] - l.a[1]) * t] as Pt);
+        for (const p of pts) { const w = applyHomography(pl.Hinv, p); expect(isFinite(w[0]) && isFinite(w[1])).toBe(true); }
+        for (const p of [l.a, l.b]) expect(Math.hypot(p[0] - 1600, p[1] - 1200), `@${x},${y}`).toBeLessThan(40000);
+        // 끝점을 면으로 되돌려 같은 선 위(u 또는 v 가 일정)인지 — 지평선 너머는 다른 쪽으로 간다
+        const A = applyHomography(pl.Hinv, l.a), B = applyHomography(pl.Hinv, l.b), M = applyHomography(pl.Hinv, [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2]);
+        const between = (m: number, a: number, b: number) => m >= Math.min(a, b) - 1 && m <= Math.max(a, b) + 1;
+        expect(between(M[0], A[0], B[0]) && between(M[1], A[1], B[1]), `@${x},${y} 선이 지평선을 넘음`).toBe(true);
+      }
+    }
+  });
+});
