@@ -4,7 +4,7 @@ import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
 type Hook = { photos: { id: string }[]; project: { addObject(o: unknown): string; object(id: string): { quad: number[][]; blocks?: number[][][] } | undefined }; selectObject(id: string | null): void; signs: unknown[]; tool: string; selectedId: string | null };
 
-test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그린 네모는 새 사인물이 아니라 그 사인물의 치수 블록(형광) — 크기가 맞으면 보라, 아니면 빨간 크기 글자. 블록을 누르면 사인물과 같은 손잡이, ✕ 로 지움', async ({ page, request }) => {
+test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그린 네모는 새 사인물이 아니라 그 사인물의 치수 블록(형광) — 크기가 맞으면 보라, 아니면 빨간 크기 글자. 블록을 누르면 사인물과 같은 손잡이(벽축 핸들 포함), Delete 로 지움', async ({ page, request }) => {
   await openOwnedProject(page, request, '치수 블록');
   await uploadPhoto(page);
   const [sized, unsized] = await page.evaluate(() => {
@@ -68,10 +68,14 @@ test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그�
   const after = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: Hook }).__ganpanda.project.object(id)!; return { quad: o.quad, block: o.blocks![1] }; }, sized);
   expect(after.quad).toEqual([[100, 100], [500, 100], [500, 200], [100, 200]]);
   expect(after.block[2][0]).toBeGreaterThan(800);
-  // ✕ 로 두 번째 블록을 지운다
-  await page.getByTestId('size-block-remove').dispatchEvent('pointerdown');
+  // 벽축 핸들(면 막대·끝 동그라미)도 사인물과 같다. ✕ 는 없다 — Delete 키로 두 번째 블록을 지운다 (2026-11-04)
+  await expect(controls.getByTestId('face-bar')).toHaveCount(1);
+  await expect(controls.getByTestId('face-cycle')).toHaveCount(1);
+  await expect(page.getByTestId('size-block-remove')).toHaveCount(0);
+  await page.keyboard.press('Delete');
   await expect(blocks).toHaveCount(1);
   expect(await page.evaluate((id) => (window as unknown as { __ganpanda: Hook }).__ganpanda.project.object(id)?.blocks?.length, sized)).toBe(1);
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: Hook }).__ganpanda.signs.length)).toBe(2); // 사인물은 지워지지 않는다
   // 다른 사인물을 고르면 손잡이는 그 사인물로 가고 블록은 그대로 보인다
   await page.evaluate((id) => (window as unknown as { __ganpanda: Hook }).__ganpanda.selectObject(id), unsized);
   await expect(page.getByTestId('sign-controls')).not.toHaveAttribute('data-block', /\d/);

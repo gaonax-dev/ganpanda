@@ -680,7 +680,6 @@
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
         onblock={(quad, start, end, r) => app.addBlock(p.id, quad, start, end, r)}
-        onblockremove={(id, i) => app.removeBlock(id, i)}
         onselect={(id, add) => { const b = parseBlockId(id); if (b) app.selectBlock(b.id, b.i); else if (add && id) app.toggleSelect(id); else app.selectObject(id); }}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}

@@ -40,7 +40,7 @@
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
     zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
-    toPhoto, oncreate, onblock, onblockremove, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
+    toPhoto, oncreate, onblock, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
     pins?: Pin[];
     selectedPinId?: string | null;
@@ -89,7 +89,6 @@
     oncreate: (shape: ShapeKind, quad: Pt[], polygon?: Pt[]) => void;
     /** 치수 블록 (2026-11-03): 블록 도구로 그린 네모(사진 px), 시작·끝점, 꼭짓점 붙이기 반경(사진 px) */
     onblock?: (quad: Pt[], start: Pt, end: Pt, r: number) => void;
-    onblockremove?: (id: string, i: number) => void;
     /** add = Shift+클릭 (다중 선택에 더하기, 2026-10-17) */
     onselect: (id: string | null, add?: boolean) => void;
     /** 사인물 말풍선을 눌렀을 때 (그 사인물의 대화 열기) — 2026-10-17 말풍선 = 소통 창구 */
@@ -927,10 +926,7 @@
       {@const turned = !!o.turn}
       {@const blk = app.selectedBlock && o.id === blockIdOf(app.selectedBlock.id, app.selectedBlock.i) ? app.selectedBlock : null}
       <g class="sign sel ctl" data-testid="sign-controls" data-block={blk ? blk.i : undefined}>
-        {#if blk && editable && tool === 'select'}
-          <!-- 고른 치수 블록: 오른쪽 위 ✕ 로 지우기 (Delete 키도) -->
-          {@render iconBtn([Math.max(...q.map((p) => p[0])) + 12 * gu, Math.min(...q.map((p) => p[1])) - 12 * gu], '✕', '치수 블록 지우기', 'size-block-remove', () => onblockremove?.(blk.id, blk.i), '#fff')}
-        {/if}
+        <!-- 고른 치수 블록도 사인물과 똑같은 손잡이만 — ✕ 없음, 지우기는 Delete 키 (2026-11-04 "x마크는 제거 … 사인물과 같은 컨트롤로가 되어야 이질감이 없다") -->
         <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘", "선만 움직여야지"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 그 변(양 끝 꼭짓점)만 옮긴다. 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 — 누른 자리에서 가장 가까운 변 -->
         {#if sel && editable && tool === 'select' && !turned}
           {#if app.compact}
