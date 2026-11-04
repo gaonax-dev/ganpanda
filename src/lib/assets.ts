@@ -66,6 +66,8 @@ async function localGet(id: string): Promise<Blob | undefined> {
 const urls = new Map<string, string>();
 /** 서버에 아직 못 올린 에셋 (뒤에서 올리는 중·실패 후 재시도) */
 const pending = new Map<string, Blob>();
+/** 저장 용량 한도로 막힌 에셋 — 자동 재시도는 하지 않고 retryBlockedUploads(요금제가 바뀌었을 때·프로젝트를 열 때)로 다시 올린다 */
+const blocked = new Map<string, { blob: Blob; project: string }>();
 /** 올릴 목록 기억 (기기, 프로젝트별): 업로드 전에 앱을 닫아도 다음에 그 프로젝트를 열면 이어서 올린다 */
 const PENDING_KEY = 'ganpanda.pendingAssets';
 type PendingRec = { id: string; project: string };
@@ -187,12 +189,44 @@ export async function flushPendingUploads() {
       try {
         if (await upload(id, blob)) { pending.delete(id); forgetPending(id); }
       } catch (e) {
-        pending.delete(id); forgetPending(id); // 한도 초과·서버가 받지 않는 형식 — 다시 올려도 같다 (기기에는 남는다)
-        if (e instanceof StorageLimitError) for (const f of limitHandlers) f(e);
+        pending.delete(id);
+        if (e instanceof StorageLimitError) {
+          // 한도 초과는 버리지 않는다 — 올릴 목록에 남겨 두고(기기에 기억), 요금제가 바뀌거나 프로젝트를 다시 열면 다시 올린다 (2026-11-04 "유료로 전환했을때 누락 업로드를 서버로 다시 업로드")
+          if (scope) blocked.set(id, { blob, project: scope.project });
+          for (const f of limitHandlers) f(e);
+        } else forgetPending(id); // 서버가 받지 않는 형식 — 다시 올려도 같다 (기기에는 남는다)
       }
     }
   } finally { flushing = false; }
   if (pending.size) schedulePendingFlush();
+}
+
+/** 한도로 막혔던 에셋을 다시 올린다 (요금제가 바뀌어 계정 정보를 다시 받았을 때) */
+export function retryBlockedUploads() {
+  if (!blocked.size || !scope) return;
+  let n = 0;
+  for (const [id, b] of blocked) if (b.project === scope.project) { pending.set(id, b.blob); blocked.delete(id); n++; } // 다른 프로젝트 것은 그 프로젝트를 열 때(올릴 목록 기억)
+  if (n) void flushPendingUploads();
+}
+/**
+ * 기기에 있고 서버에 없는 에셋을 찾아 올린다 (2026-11-04): 예전 코드는 한도에 막히면 올릴 목록에서 지웠다 — 프로젝트를 열 때(편집 권한) 그 프로젝트가 쓰는 에셋 중
+ * 이 기기에 있는 것만 서버에 있는지(HEAD) 보고, 없으면 올릴 목록에 넣는다. 다른 기기에서 받은 파일은 서버에 있으므로 올리지 않는다
+ */
+export async function repairMissingUploads(ids: string[]): Promise<number> {
+  if (!scope || localOnly) return 0;
+  let n = 0;
+  for (const id of ids) {
+    if (pending.has(id) || blocked.has(id)) continue;
+    const b = await localGet(id);
+    if (!b) continue;
+    try {
+      const r = await fetch(serverPath(id), { method: 'HEAD' });
+      if (r.status !== 404) continue; // 있음 또는 확인 불가(권한·네트워크) — 건드리지 않는다
+    } catch { continue; }
+    pending.set(id, b); rememberPending(id, scope?.project); n++;
+  }
+  if (n) void flushPendingUploads();
+  return n;
 }
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));

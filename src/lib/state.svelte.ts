@@ -46,7 +46,8 @@ import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 export type SettingsTab = 'account' | 'team' | 'rules' | 'requests' | 'display' | 'keys';
 import { isMacPlatform } from './core/wheel';
 import { SERVER_URL, SyncClient, type SyncStatus } from './sync';
-import { flushPendingUploads, onAssetsRecovered, onStorageLimit, retryMissingAssets, setAssetScope } from './assets';
+import { flushPendingUploads, onAssetsRecovered, onStorageLimit, repairMissingUploads, retryBlockedUploads, retryMissingAssets, setAssetScope } from './assets';
+import { projectAssetIds } from './core/projectAssets';
 import type { Cursor, Peer } from './core/presence';
 import { AuthError, PLAN_LABEL, convertToShop, deleteAccount, describeAuthError, fetchMe, loadSession, logout as apiLogout, logoutOthers as apiLogoutOthers, safeNext, saveSession, teamInviteInfo, sendPresence, updateName, verifyLink, type Account, type Usage, saveColors, saveSets, savePrices } from './auth';
 import { addBlock, listBlocks, postReport, removeBlock, type BlockedUser, type ReportReason } from './projects';
@@ -756,6 +757,7 @@ class AppState {
 
   private applyMe(me: Awaited<ReturnType<typeof fetchMe>>) {
     this.applyAccount(me?.account ?? null);
+    if (me?.account) retryBlockedUploads(); // 요금제가 바뀌었을 수 있다 — 한도로 막혔던 파일을 다시 올린다 (2026-11-04)
     if (me?.account) { this.startPresence(); void this.beatPresence(); }
     this.usage = me ? { limits: me.limits, usage: me.usage } : null;
     this.accountPrices = me?.prices ?? null;
@@ -1240,7 +1242,12 @@ class AppState {
     this.persist = persist;
     persist.whenSynced.then(() => (this.ready = true));
     this.client = new SyncClient(room, this.project.doc, (s) => (this.sync = s), (p) => (this.peers = p), params);
-    this.client.whenSynced(() => (this.synced = true));
+    this.client.whenSynced(() => {
+      this.synced = true;
+      // 기기에만 있고 서버에 없는 파일을 찾아 올린다 — 예전에 저장 용량 한도로 못 올린 사진 등 (2026-11-04 "유료로 전환했을때 누락 업로드를 서버로 다시 업로드")
+      const r = room;
+      setTimeout(() => { if (this.room === r && this.canEdit) void repairMissingUploads(projectAssetIds({ photos: this.project.allPhotos(), sources: this.project.allSources(), objects: this.project.allObjects(), messages: this.project.allMessages() })); }, 1500);
+    });
     setTimeout(() => (this.syncWaited = true), 4000);
     this.client.whenOnline(flushPendingUploads);
     this.client.whenOnline(() => void retryMissingAssets()); // 못 받은 에셋 다시 (2026-10-17)
