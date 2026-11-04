@@ -634,7 +634,7 @@
   <!-- 아이콘 버튼 (뜻은 마우스를 올리면 나오는 설명으로) -->
   <g class="ibtn" role="button" tabindex="-1" data-testid={testid} onpointerdown={(e) => { e.stopPropagation(); act(); }}>
     <title>{title}</title>
-    <circle cx={at[0]} cy={at[1]} r={10 * gu} style:fill={color} /><text x={at[0]} y={at[1] + 4.5 * gu} font-size={13 * gu} text-anchor="middle">{icon}</text>
+    <circle cx={at[0]} cy={at[1]} r={10 * gu} stroke-width={1.5 * gu} style:fill={color} /><text x={at[0]} y={at[1] + 4.5 * gu} font-size={13 * gu} text-anchor="middle">{icon}</text>
   </g>
 {/snippet}
 
@@ -984,9 +984,9 @@
                   <line class="bar-hit" data-testid="face-bar-hit" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={Math.max(12 * gu, 2 * HIT * u)} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3)}><title>끌면 이 방향으로 깊이 이동</title></line>
                   <line class="halo" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={3 * gu} />
                   <line class="ax" x1={fb.a[0]} y1={fb.a[1]} x2={fb.b[0]} y2={fb.b[1]} stroke-width={1.4 * gu} style:stroke={col} />
-                  <circle class="dot" data-testid="face-bar-origin" cx={fb.a[0]} cy={fb.a[1]} r={2.5 * gu} pointer-events="none" />
+                  <circle class="dot" data-testid="face-bar-origin" cx={fb.a[0]} cy={fb.a[1]} r={2.5 * gu} stroke-width={1 * gu} pointer-events="none" />
                   <circle class="hit" data-testid="hit-face-cycle" cx={fb.b[0]} cy={fb.b[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => barDown(e, o, fb, dirNow, L3, next)} />
-                  <circle class="gh fcyc" data-testid="face-cycle" data-axis={cur} cx={fb.b[0]} cy={fb.b[1]} r={7 * gu} stroke-width={2 * gu} style:fill={col} role="button" tabindex="-1"
+                  <circle class="gh fcyc" data-testid="face-cycle" data-axis={cur} cx={fb.b[0]} cy={fb.b[1]} r={7 * gu} stroke-width={1.5 * gu} style:fill={col} role="button" tabindex="-1"
                     onpointerdown={(e) => barDown(e, o, fb, dirNow, L3, next)}><title>{FACE_TITLE[cur]} — 누르면 {next.toUpperCase()} 축으로, 끌면 깊이 이동</title></circle>
                 </g>
               {:else if gizmoMode === 'rotate'}
@@ -996,7 +996,7 @@
                   <polyline class="halo" points={pts} stroke-width={2.6 * gu} />
                   <polyline class="ring3" data-testid="gizmo-ring-{a}" points={pts} stroke-width={1.2 * gu} style:stroke={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
                   <circle class="hit" data-testid="hit-gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)} />
-                  <circle class="gh rot" data-testid="gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={6 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)}><title>박스를 {a.toUpperCase()} 축 둘레로 돌리기 (외곽선은 그대로)</title></circle>
+                  <circle class="gh rot" data-testid="gizmo-rot-{a}" cx={g3.ringHandles[a][0]} cy={g3.ringHandles[a][1]} r={6 * gu} stroke-width={1.5 * gu} style:fill={AXIS_COLOR[a]} role="button" tabindex="-1" onpointerdown={(e) => boxDown(e, o, 'brot', a)}><title>박스를 {a.toUpperCase()} 축 둘레로 돌리기 (외곽선은 그대로)</title></circle>
                 {/each}
               {:else if gizmoMode === 'scale'}<!-- none 이면 아무것도 없음 (2026-10-18: 크기 손잡이가 기본으로 보이던 버그) -->
                 {@const fr = frameOf(face3, q)}
@@ -1004,7 +1004,7 @@
                   {@const at = applyHomography(face3.H, h.at)}
                   {@const r = (h.sx && h.sy ? 6 : 5) * gu}
                   <circle class="hit" data-testid="hit-gizmo-size-{h.sx}_{h.sy}" cx={at[0]} cy={at[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)} />
-                  <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)}><title>{h.sx && h.sy ? '외곽선 크기 (비율 유지)' : h.sx ? '외곽선 가로' : '외곽선 세로'}</title></rect>
+                  <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} stroke-width={1.5 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy, face3)}><title>{h.sx && h.sy ? '외곽선 크기 (비율 유지)' : h.sx ? '외곽선 가로' : '외곽선 세로'}</title></rect>
                 {/each}
               {/if}
             </g>
@@ -1020,13 +1020,13 @@
                 <polyline class="halo" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={2.6 * gu} />
                 <polyline class="ring" points={g.ring.map((p) => p.join(',')).join(' ')} stroke-width={1.1 * gu} />
                 <circle class="hit" data-testid="hit-gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
-                <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
+                <circle class="gh rot" data-testid="gizmo-rotate" cx={g.ringHandle[0]} cy={g.ringHandle[1]} r={6 * gu} stroke-width={1.5 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'grot')} />
               {:else if gizmoMode === 'scale'}
                 {#each sizeHandlesOf(fr) as h (`${h.sx}_${h.sy}`)}
                   {@const at = applyHomography(plane.H, h.at)}
                   {@const r = (h.sx && h.sy ? 6 : 5) * gu}
                   <circle class="hit" data-testid="hit-gizmo-size-{h.sx}_{h.sy}" cx={at[0]} cy={at[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
-                  <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
+                  <rect class="gh {h.sx && h.sy ? 'uni' : 'size'}" data-testid="gizmo-size-{h.sx}_{h.sy}" x={at[0] - r} y={at[1] - r} width={2 * r} height={2 * r} stroke-width={1.5 * gu} role="button" tabindex="-1" onpointerdown={(e) => gizmoDown(e, o, 'gsize', h.sx, h.sy)} />
                 {/each}
               {/if}
             </g>
@@ -1170,15 +1170,16 @@
   .gizmo .ring-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; } /* 얇은 고리를 잡기 쉽게 넓은 투명 영역 */
   .gizmo .ring3 { fill: none; pointer-events: stroke; cursor: grab; stroke-linecap: round; }
   .gizmo .ax { pointer-events: none; stroke-linecap: round; }
-  .gizmo .gh { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; cursor: grab; }
-  .gizmo .dot { fill: #fff; stroke: rgba(0,0,0,0.7); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+  /* 테두리 두께는 요소의 stroke-width(손잡이 단위 gu)로 — vector-effect: non-scaling-stroke 는 보드의 CSS 확대를 무시해 확대하면 테두리가 손잡이를 덮었다 (2026-11-04) */
+  .gizmo .gh { stroke: #111; cursor: grab; }
+  .gizmo .dot { fill: #fff; stroke: rgba(0,0,0,0.7); }
   .gizmo .gh.rot { fill: var(--accent); }
   /* 면 직각 막대 끝 동그라미 (2026-10-19): 축 색, 어두운 테두리 — 누르면 다음 축 */
   .gizmo .gh.fcyc { stroke: #111; cursor: pointer; }
   .gizmo .bar-hit { fill: none; stroke: transparent; pointer-events: stroke; cursor: grab; stroke-linecap: round; }
   .gizmo .gh.size { fill: #fff; stroke: #333; }
   .ibtn { cursor: pointer; }
-  .ibtn circle { stroke: #111; stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+  .ibtn circle { stroke: #111; }
   .ibtn text { fill: #111; stroke: none; font-weight: 800; pointer-events: none; }
   .gizmo .gh.uni { fill: var(--accent); stroke: #333; }
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */

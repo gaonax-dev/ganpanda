@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clearAutoCamera, openOwnedProject, openSettings } from './helpers';
+import { clearAutoCamera, openOwnedProject, openSettings, uploadPhoto } from './helpers';
 
 type Pt = [number, number];
 async function loadSample(page: Page) {
@@ -414,4 +414,35 @@ test.describe('휴대폰 (2026-10-24 "정면 설정 컨트롤러도 잘 터치�
     await expect(dot).toHaveAttribute('data-axis', 'z');
     await expect.poll(() => fieldOf(page, id, 'faceAxis')).toBe('z');
   });
+});
+
+test('확대해도 매니퓰레이터 손잡이 검정 테두리는 화면에서 얇게 그대로 (2026-11-04 "벽축 컨트롤러의 검정 아웃라인 줌인해서 확인해봐" — non-scaling-stroke 가 보드 CSS 배율을 무시해 확대하면 테두리가 동그라미를 덮었다)', async ({ page, request }) => {
+  await openOwnedProject(page, request, '테두리');
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const g = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
+    const a = g.project.addObject({ photoId: g.photos[0].id, name: '기준', shape: 'rect', quad: [[100, 100], [500, 100], [500, 200], [100, 200]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
+    g.selectObject(a);
+  });
+  await page.getByTestId('camera-auto').click(); // 치수 넣은 사인물로 원근 — 원근 매니퓰레이터가 뜬다
+  const cyc = page.getByTestId('face-cycle');
+  await expect(cyc).toHaveCount(1, { timeout: 10000 });
+  /** 화면에서의 테두리 두께(px) = 사용자 단위 두께 × 화면 배율 (CSS 확대 포함) */
+  const screenStroke = (testid: string) => page.getByTestId(testid).first().evaluate((e) => {
+    const el = e as SVGGraphicsElement, m = el.getScreenCTM()!;
+    return parseFloat(getComputedStyle(el).strokeWidth) * Math.hypot(m.a, m.b);
+  });
+  for (let i = 0; i < 6; i++) {
+    const b = (await cyc.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.keyboard.down('Control'); await page.mouse.wheel(0, -300); await page.keyboard.up('Control');
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(300);
+  for (const t of ['face-cycle', 'face-bar-origin']) {
+    const w = await screenStroke(t);
+    expect(w, t).toBeGreaterThan(0.5);
+    expect(w, t).toBeLessThan(3);
+    expect(await page.getByTestId(t).first().evaluate((e) => getComputedStyle(e).vectorEffect)).not.toBe('non-scaling-stroke');
+  }
 });
