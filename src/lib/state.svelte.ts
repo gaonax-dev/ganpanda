@@ -2099,6 +2099,16 @@ class AppState {
     if (!list?.[i] || !this.canEdit) return;
     this.writeBlocks(photoId, list.map((b, k) => (k === i ? this.aligned(photoId, { ...b, axis }) : b)));
   }
+  /** 블록 복제 (2026-11-04 사인물과 같은 규칙): Alt+끌기 = 제자리 복사본(끌 대상), ⌘D = 조금 옮긴 복사본. 새 블록을 고르고 그 조작용 id 를 돌려준다 */
+  duplicateBlock(photoId: string, i: number, shift: boolean): string | null {
+    const list = this.photoBlocks.get(photoId);
+    const b = list?.[i];
+    if (!b || !list || !this.canEdit) return null;
+    const d = shift ? 24 : 0;
+    this.writeBlocks(photoId, [...list, { ...b, q: b.q.map((p) => [p[0] + d, p[1] + d] as Pt) }]);
+    this.selectBlock(photoId, list.length);
+    return this.blockIdOf(photoId, list.length);
+  }
   removeBlock(photoId: string, i: number) {
     const list = this.photoBlocks.get(photoId);
     if (!list?.[i] || !this.canEdit) return;

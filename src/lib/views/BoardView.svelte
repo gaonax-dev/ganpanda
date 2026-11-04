@@ -225,7 +225,7 @@
     // 복사·붙여넣기·복제 (2026-10-15 사용자: "카피 페이스트 복제등이 필요하다")
     if (action === 'copy') { if (app.copySelected()) e.preventDefault(); return; }
     if (action === 'paste') { if (app.clipboard) { e.preventDefault(); app.pasteClipboard(); } return; }
-    if (action === 'duplicate') { e.preventDefault(); app.duplicateSelected(); return; }
+    if (action === 'duplicate') { e.preventDefault(); if (app.selectedBlock) app.duplicateBlock(app.selectedBlock.photoId, app.selectedBlock.i, true); else app.duplicateSelected(); return; } // 블록도 ⌘D (2026-11-04)
     if (no3d && (action === 'toolMagic' || action === 'toolZone' || action === 'toolRect' || action === 'toolEllipse')) return; // 3D 단계에서는 그리기 도구 없음
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
     if (action === 'toolZone') { app.tool = 'zone'; return; }
@@ -428,7 +428,7 @@
   $effect(() => { if (app.tool !== 'select' && untrack(() => app.multiMode)) app.setMultiMode(false); });
   $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
   // 다른 도구를 고르면 연속 그리기 리셋 (2026-10-24)
-  $effect(() => { if (app.tool !== 'rect' && app.tool !== 'ellipse') app.drawContinuous = false; });
+  $effect(() => { if (app.tool !== 'rect' && app.tool !== 'ellipse' && app.tool !== 'block') app.drawContinuous = false; }); // 치수 블록도 사각과 같은 [연속] (2026-11-04)
   /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
   const no3d = $derived(app.stage === '3d');
   const NO3D = ' — 3D 단계에서는 사용할 수 없습니다 (원본·2D 에서)';
@@ -663,7 +663,7 @@
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
         twoD={(app.stage === '2d' || (app.stage === '3d' && flatPhoto(p.id))) && !app.safeMode}
-        onduplicate={(id) => { if (parseBlockId(id)) return null; app.selectObject(id); return app.duplicateInPlace(); }}
+        onduplicate={(id) => { const b = parseBlockId(id); if (b) return app.duplicateBlock(b.id, b.i, false); app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
         editable={app.canEdit}
@@ -689,7 +689,7 @@
         onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
-        onblock={(quad, start, end, r) => app.addBlock(p.id, quad, start, end, r)}
+        onblock={(quad, start, end, r) => { if (app.addBlock(p.id, quad, start, end, r) && !app.drawContinuous) app.tool = 'select'; }} /* 사각과 같게: 그리면 [선택]으로, [연속]이면 블록 도구 유지 (2026-11-04) */
         onselect={(id, add) => { const b = parseBlockId(id); if (b) app.selectBlock(b.id, b.i); else if (add && id) app.toggleSelect(id); else app.selectObject(id); }}
         onchat={(id) => app.openChat(id)}
         multiIds={app.photoHighlightIds}
@@ -802,7 +802,7 @@
           <!-- 순서 (2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기"): 선택·말풍선(목록에 없어 앞에 둠) | 존·↶·↷·사각·타원·사진·전체 보기. 자동(AI)은 단추를 빼고 단축키 A 만 -->
           <button data-testid="tool-select" class:on={app.tool === 'select'} title="선택 ({hint('toolSelect')})" onclick={() => (app.tool = 'select')}>↖<span class="lbl"> 선택</span></button>
           <!-- 다중 선택은 [선택] 옆 (2026-10-22 "다중선택을 선택옆으로 이동해주고") — 켜 두면 탭할 때마다 더하기/빼기, 끄거나 ✕ 로 끝 -->
-          {#if app.tool === 'rect' || app.tool === 'ellipse'}
+          {#if app.tool === 'rect' || app.tool === 'ellipse' || app.tool === 'block'}
           <!-- 사각 도구에서는 [다중] 자리가 [연속]: 켜면 그린 뒤에도 사각 도구 유지, 다른 도구를 고르면 꺼짐 (2026-10-24 "사각툴을 켜면 다중버튼은 연속으로변경하고 계속 사각툴이 유지되게 그리고 다른 툴이 선택되면 리셋") -->
           <button data-testid="tool-continuous" class:on={app.drawContinuous} title={app.drawContinuous ? '연속 그리기 끄기' : '연속 그리기 — 그린 뒤에도 사각 도구 유지'} onclick={() => (app.drawContinuous = !app.drawContinuous)}>{app.drawContinuous ? '✓ ' : ''}연속</button>
           {:else}
