@@ -2,7 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 
-type Hook = { photos: { id: string }[]; project: { addObject(o: unknown): string; object(id: string): { blocks?: number[][][] } | undefined }; selectObject(id: string | null): void; signs: unknown[]; tool: string; selectedId: string | null };
+type Hook = { photos: { id: string }[]; project: { addObject(o: unknown): string; object(id: string): { quad: number[][]; blocks?: number[][][] } | undefined }; selectObject(id: string | null): void; signs: unknown[]; tool: string; selectedId: string | null };
 
 test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그린 네모는 새 사인물이 아니라 그 사인물의 치수 블록(형광) — 크기가 맞으면 보라, 아니면 빨간 크기 글자. 블록을 누르면 사인물과 같은 손잡이, ✕ 로 지움', async ({ page, request }) => {
   await openOwnedProject(page, request, '치수 블록');
@@ -65,7 +65,7 @@ test('치수를 넣은 사인물을 고르면 [블록] 도구가 열리고, 그�
   await page.mouse.down();
   await page.mouse.move(hb.x + hb.width / 2 + 30, hb.y + hb.height / 2 + 20, { steps: 5 });
   await page.mouse.up();
-  const after = await page.evaluate((id) => { const g = (window as unknown as { __ganpanda: Hook & { project: { object(id: string): { quad: number[][]; blocks?: number[][][] } } } }).__ganpanda; const o = g.project.object(id); return { quad: o.quad, block: o.blocks![1] }; }, sized);
+  const after = await page.evaluate((id) => { const o = (window as unknown as { __ganpanda: Hook }).__ganpanda.project.object(id)!; return { quad: o.quad, block: o.blocks![1] }; }, sized);
   expect(after.quad).toEqual([[100, 100], [500, 100], [500, 200], [100, 200]]);
   expect(after.block[2][0]).toBeGreaterThan(800);
   // ✕ 로 두 번째 블록을 지운다
