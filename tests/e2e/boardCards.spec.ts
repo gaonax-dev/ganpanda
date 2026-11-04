@@ -316,3 +316,24 @@ test('실측 탭의 사인물 카드는 원본 사진만 — 재질(바탕색)·
   await page.getByTestId('stage-2d').click();
   await expect(card.getByTestId('card-fill')).toHaveCount(1); // 2D 는 재질
 });
+
+test('사진에 없는 사인물의 카드는 외곽이 빨강 — 사진 위 외곽선이 원본·연결 복사본 어디에도 없으면 (2026-11-05 "사인물 카드에서 사진에 없는 경우가 있다. 사인물카드 외곽에 빨강으로 표시")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
+    const pid = app.photos[0].id;
+    return {
+      on: app.project.addObject({ photoId: pid, name: '사진 위', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], widthMm: 3000, heightMm: 600 }),
+      board: app.project.addObject({ photoId: '', name: '보드에 그림', shape: 'rect', quad: [], sheetIds: [], widthMm: 1000, heightMm: 500 }),
+      noQuad: app.project.addObject({ photoId: pid, name: '외곽선 없음', shape: 'rect', quad: [], sheetIds: [], widthMm: 800, heightMm: 400 }),
+    };
+  });
+  const card = (id: string) => page.locator(`[data-id="${id}"][data-testid^="board-"]`);
+  await expect(card(ids.on)).toHaveCount(1);
+  await expect(card(ids.on)).not.toHaveAttribute('data-nophoto', '1');
+  for (const id of [ids.board, ids.noQuad]) {
+    await expect(card(id)).toHaveAttribute('data-nophoto', '1');
+    expect(await card(id).locator('.face').evaluate((e) => getComputedStyle(e).outlineColor)).toBe('rgb(239, 68, 68)');
+  }
+});

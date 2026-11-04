@@ -1462,6 +1462,12 @@ class AppState {
   standalone = $derived(this.objects.filter((o) => !o.photoId));
   /** 평면도(전개도) 카드: 치수(입력 또는 추정)가 있는 원본 사인물 — 리스트 뷰와 보드 평면 구역이 같은 목록·같은 배치를 쓴다 */
   /** 평면 카드: 치수(입력·추정)가 있으면 그 크기, 없으면 임시 크기(placeholder — 2026-10-22 "사이즈를 넣지 않으면 카드로 나오지 않는다"). 임시 카드는 견적·PDF·SVG 에 안 들어간다 */
+  /** 사진에 없는 사인물(원본 id) — 원본·연결 복사본(⇄) 어디에도 지금 있는 사진 위 외곽선이 없음. 카드 외곽이 빨강 (2026-11-05 "사인물 카드에서 사진에 없는 경우가 있다. 사인물카드 외곽에 빨강으로 표시") */
+  photolessIds = $derived.by(() => {
+    const photoIds = new Set(this.photos.map((p) => p.id));
+    const onPhoto = new Set(this.objects.filter((x) => photoIds.has(x.photoId) && x.quad.length >= 3).map((x) => x.sameAs ?? x.id));
+    return new Set(this.signs.filter((o) => !onPhoto.has(o.id)).map((o) => o.id));
+  });
   flatCards = $derived.by(() => this.signs.map((o) => { const s = this.sizeOf(o); return s ? { o, ...s, placeholder: false } : { o, ...placeholderSize(o.quad as [number, number][]), estimated: false, placeholder: true }; }));
   /** 보드 평면 구역 축척 (px/mm) — 프로젝트 설정, 모두에게 같음. 설정이 없으면 사진 속 사인물과 같은 크기로 (autoFlatScale, 2026-10-22) */
   flatScale = $derived.by(() => {

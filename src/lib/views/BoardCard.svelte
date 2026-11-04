@@ -16,7 +16,7 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, nophoto = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
@@ -29,6 +29,8 @@
     standalone?: boolean;
     /** 사진의 영역과 연결되어 있음 */
     linked?: boolean;
+    /** 사진에 없음 — 어느 사진에도 외곽선이 없다 → 외곽 빨강 (2026-11-05) */
+    nophoto?: boolean;
     onpointerdown?: (e: PointerEvent) => void;
   } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -54,7 +56,7 @@
   });
 </script>
 
-<div class="card" class:standalone class:sel={selected} class:multi data-multi={multi || undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
+<div class="card" class:standalone class:nophoto class:sel={selected} class:multi data-multi={multi || undefined} data-nophoto={nophoto ? '1' : undefined} title={nophoto ? '사진에 없는 사인물 — 사진 위에 외곽선이 없습니다' : undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
   style:--z={zoom} style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
@@ -88,6 +90,7 @@
   .bubbles :global(.bubble) { pointer-events: auto; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); }
+  .nophoto .face { outline: calc(2px / var(--z, 1)) solid #ef4444; } /* 사진에 없음 (2026-11-05) — 화면 기준 2px */
   .sel .face { outline: 2px solid var(--accent); }
   .multi .face { outline: 2px solid var(--accent); } /* 다중 선택도 진하게 (2026-10-22) */
   /* 고른 카드 테두리는 화면 기준 2.5px — 보드를 축소해도 가늘어지지 않고, 모양으로 잘린 얼굴(clip-path) 밖에 그린다 (2026-10-24 "사인물카드선택시 강조색이 흐리다") */
