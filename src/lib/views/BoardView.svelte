@@ -8,6 +8,7 @@
   import { untrack } from 'svelte';
   import { nextPhotoName } from '../core/photoName';
   import { parseBlockId } from '../core/blocks';
+  import { svgClip } from '../core/svgClip';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import FlatBar from '../ui/FlatBar.svelte';
   import ActionSheet from '../ui/ActionSheet.svelte';
@@ -39,6 +40,8 @@
   // 이 기기에서 마지막에 보던 확대·위치로 시작 (2026-10-25 "뷰도 떠날때 위치로") — 리스트 탭에 갔다 와도, 다시 열어도. 없으면 처음 열 때 전체 보기
   const remembered = app.room ? loadRoomView(app.room).viewport : undefined;
   let viewport: Viewport = $state(remembered ?? { x: 80, y: 80, zoom: 0.5 });
+  /** 화면 크기 — 크게 확대하면 사진의 편집 층(SVG)은 보이는 부분만 그린다 (2026-11-04 core/svgClip.ts) */
+  let screenW = $state(typeof innerWidth === 'number' ? innerWidth : 1400), screenH = $state(typeof innerHeight === 'number' ? innerHeight : 900);
   let canvas: InfiniteCanvas;
   let urls: Record<string, string> = $state({});
   let fitted = !!remembered;
@@ -618,7 +621,7 @@
   const hint = (a: Action) => app.keymap[a].map((c) => formatCombo(c, app.isMac)).join(', ') || '없음';
 </script>
 
-<svelte:window onkeydown={(e) => { shiftDown(e); onkey(e); }} onkeyup={shiftUp} onblur={shiftReset} />
+<svelte:window bind:innerWidth={screenW} bind:innerHeight={screenH} onkeydown={(e) => { shiftDown(e); onkey(e); }} onkeyup={shiftUp} onblur={shiftReset} />
 
 <div
   class="board"
@@ -643,6 +646,7 @@
     {#each app.photos as p (p.id)}
       <PhotoZone
         photo={p}
+        clip={svgClip({ x: p.x, y: p.y, width: p.width, height: (p.width * p.h) / p.w }, { w: p.w, h: p.h }, viewport, { w: screenW, h: screenH }, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)}
         url={urls[p.assetId]}
         zoom={viewport.zoom}
         objects={app.objects.filter((o) => o.photoId === p.id)}
