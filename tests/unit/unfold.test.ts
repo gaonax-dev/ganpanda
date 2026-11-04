@@ -36,4 +36,18 @@ describe('unfoldCenters', () => {
     expect(r.get('n')).toEqual([300, 300]);
     expect(r.get('solo')).toEqual([700, 200]);
   });
+  it('카드 크기(mm)를 알면 면을 카드와 같은 축척으로 편다 — 사진 px 간격이 아니라 실제 거리, 가로·세로 축척은 면마다 카드 크기 ÷ 펼친 크기로 따로 (2026-11-04 씽크대: 카드끼리 겹쳐 밀려났다)', () => {
+    // 면 좌표가 가로는 2배, 세로는 0.5배로 잘못 잰 원근 (바닥 축 원근): 펼친 크기 800×250 = 실제 400×500
+    const mmPerPx = 2; // 사진 px 하나 = 카드 2mm
+    const r = unfoldCenters([
+      { id: 'a', px: [100, 500], face: { key: 'k', a: 0, b: 0, ext: [800, 250], size: [400, 500] } },
+      { id: 'b', px: [300, 480], face: { key: 'k', a: 2000, b: 0, ext: [800, 250], size: [400, 500] } }, // 실제 1000mm 오른쪽
+      { id: 'c', px: [110, 200], face: { key: 'k', a: 0, b: 1000, ext: [800, 250], size: [400, 500] } }, // 실제 2000mm 위
+    ], () => mmPerPx);
+    const [a, b, c] = ['a', 'b', 'c'].map((k) => r.get(k)!);
+    expect((b[0] - a[0]) * mmPerPx).toBeCloseTo(1000, 6);
+    expect((a[1] - c[1]) * mmPerPx).toBeCloseTo(2000, 6);
+    expect(a[1]).toBeCloseTo(b[1], 6);
+    expect(a[0]).toBeCloseTo(c[0], 6);
+  });
 });

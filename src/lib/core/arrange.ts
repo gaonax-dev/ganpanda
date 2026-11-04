@@ -113,7 +113,7 @@ export const SPREAD_MAX = 1.5;
  * 사진 묶음은 사진 자리 그대로(행·열) — 묶음끼리 겹치면 오른쪽·아래로. 결과: x 는 가장 왼쪽 사진 기준, 맨 위 = 0 → ✥(카드 묶음 왼쪽 위)가 기본 자리(호출자가 flatOffset 도 0 으로).
  * 사진 없는 카드는 모두의 아래 한 줄
  */
-export function arrangeLikePhotos(cards: { id: string; w: number; h: number; photo: number | null; box: Box }[], photos: { x: number; y: number; w: number; h: number; imgW: number; imgH: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {
+export function arrangeLikePhotos(cards: { id: string; w: number; h: number; photo: number | null; box: Box; /** 원근 면에 펼친 카드 (unfoldCenters) — 있으면 그 사진은 축마다 벌리기(sweepApart) */ grid?: boolean }[], photos: { x: number; y: number; w: number; h: number; imgW: number; imgH: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
   const used = [...new Set(cards.map((c) => c.photo).filter((p): p is number => p !== null && !!photos[p]))];
   const left0 = used.length ? Math.min(...photos.map((p) => p.x)) : 0;
@@ -122,6 +122,10 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const ph = photos[p], sx = ph.w / ph.imgW, sy = ph.h / ph.imgH;
     const mine = cards.filter((c) => c.photo === p);
     const cx = (c: (typeof mine)[number]) => ((c.box.x0 + c.box.x1) / 2) * sx, cy = (c: (typeof mine)[number]) => ((c.box.y0 + c.box.y1) / 2) * sy;
+    if (mine.some((c) => c.grid)) {
+      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, labelMm));
+      continue;
+    }
     // 넓히기 (2026-10-26): 실제 크기 카드가 사진 속 간격보다 커서 겹치면, 사진 속 가운데 간격을 같은 배율로 넓혀 구성을 그대로 둔다(최대 SPREAD_MAX).
     // 그 배율로도 못 푸는 쌍(안에 든 것·거의 같은 자리)은 배율에 넣지 않고 아래 빈 곳 찾기에 맡긴다
     let f = 1;
@@ -160,6 +164,36 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
   const y = all.length ? Math.max(...all.map((q) => q.y + q.h)) - top + gap * 2 : 0;
   for (const c of cards.filter((i) => i.photo === null || !photos[i.photo])) { out.set(c.id, { x, y }); x += c.w + gap; }
   return out;
+}
+
+/**
+ * 펼친 면 그대로 두고 겹친 곳만 축마다 벌린다 (2026-11-04 씽크대: 맞닿은 서랍 셋이 이름 줄 때문에 겹쳐 옆으로 밀려났다 — 균일 확대(SPREAD_MAX)·빈 곳 찾기는 줄·열을 깼다).
+ * ① 가로: 왼쪽부터, 같은 줄(몸통이 세로로 겹침)의 앞 카드와 간격이 모자라면 모자란 만큼 이 카드와, 이 카드의 처음 오른쪽 끝보다 오른쪽에서 시작한 카드들을 민다.
+ * ② 세로: 위부터, 같은 열(가로로 겹침)의 앞 카드 + 이름 줄 + 간격이 모자라면 이 카드와, 이 카드의 처음 아래 끝보다 아래에서 시작한 카드들을 민다.
+ * 펼친 면의 줄·열이 그대로 남고, 벌어지는 곳은 겹친 곳 뒤쪽뿐(옆 열의 카드는 안 밀림). 결과 h 는 이름 줄 포함
+ */
+function sweepApart(rs: (Rect & { id: string })[], gap: number, labelMm: number): (Rect & { id: string })[] {
+  const EPS = 0.5;
+  const out = rs.map((r) => ({ ...r }));
+  const pass = (key: 'x' | 'y') => {
+    const len = key === 'x' ? 'w' : 'h', ok = key === 'x' ? 'y' : 'x', olen = key === 'x' ? 'h' : 'w';
+    const need = key === 'x' ? gap : labelMm + gap;
+    const order = [...out].sort((a, b) => a[key] - b[key] || a[ok] - b[ok]);
+    const done: typeof out = [];
+    const pushes: { from: number; by: number }[] = []; // 밀린 카드의 처음 끝선 — 그보다 뒤(아래·오른쪽)에서 시작한 카드만 같이 민다
+    for (const r of order) {
+      const base = r[key];
+      r[key] = base + pushes.reduce((t, q) => (q.from <= base + EPS ? t + q.by : t), 0);
+      let req = r[key];
+      for (const d of done) if (d[ok] < r[ok] + r[olen] - EPS && r[ok] < d[ok] + d[olen] - EPS) req = Math.max(req, d[key] + d[len] + need);
+      if (req > r[key]) pushes.push({ from: base + r[len], by: req - r[key] });
+      r[key] = req;
+      done.push(r);
+    }
+  };
+  pass('x');
+  pass('y');
+  return out.map((r) => ({ ...r, h: r.h + labelMm }));
 }
 
 /**
@@ -288,23 +322,38 @@ export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: num
 }
 
 /** 재정렬에서 카드의 사진 속 자리 — 원근 면 좌표(face, mm: a 가로·b 위로 +)가 있으면 그 면을 펴서 놓는다.
- *  (2026-11-04 사용자: "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)")
- *  같은 면(key)끼리 한 배율 s·축별 방향·한 이동으로 면 좌표 → 사진 px (최소제곱, 무게중심 일치). 면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
-export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number } }
-export function unfoldCenters(items: UnfoldItem[]): Map<string, [number, number]> {
+ *  (2026-11-04 사용자: "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)" →
+ *  "모든 방향이 일치하고 해당 그리드에 사인물을 랩핑해서 그리드를 다시 평면으로 펼쳤다면 상당히 완성도가 높은 사인물카드 정렬이 나올텐데")
+ *  - 같은 면(key)끼리 한 변환. 방향(축마다 ±)은 사진 속 자리와의 공분산으로, 무게중심은 사진 속 무게중심.
+ *  - **카드 크기를 알면(size·ext, mmPerPx) 카드와 같은 축척** — 가로 축척 = 카드 가로 mm ÷ 펼친 가로(중앙값), 세로도 따로, 사진 px 로는 ÷ mmPerPx.
+ *    펼친 면의 실제 거리 그대로라 카드끼리 겹치지 않고(실제로 안 겹치면) 줄·열이 맞는다. 원근의 가로·세로 축척이 틀려도(바닥 축 원근 등) 카드 크기로 바로잡힌다.
+ *  - 모르면 한 배율 최소제곱으로 사진 px 에 맞춘다.
+ *  면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
+export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 펼친 외곽선 크기 (면 mm) */ ext?: [number, number]; /** 카드 크기 (mm, 실제) */ size?: [number, number] } }
+const median = (v: number[]) => { const s = [...v].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
+export function unfoldCenters(items: UnfoldItem[], mmPerPx?: (key: string) => number | undefined): Map<string, [number, number]> {
   const out = new Map<string, [number, number]>(items.map((it) => [it.id, [it.px[0], it.px[1]]]));
   const groups = new Map<string, UnfoldItem[]>();
   for (const it of items) if (it.face) groups.set(it.face.key, [...(groups.get(it.face.key) ?? []), it]);
-  for (const g of groups.values()) {
+  for (const [key, g] of groups) {
     if (g.length < 2) continue;
     const n = g.length, mean = (f: (t: UnfoldItem) => number) => g.reduce((s, t) => s + f(t), 0) / n;
     const ma = mean((t) => t.face!.a), mb = mean((t) => t.face!.b), mx = mean((t) => t.px[0]), my = mean((t) => t.px[1]);
     let caa = 0, cbb = 0, cax = 0, cby = 0;
     for (const t of g) { const da = t.face!.a - ma, db = t.face!.b - mb; caa += da * da; cbb += db * db; cax += da * (t.px[0] - mx); cby += db * (t.px[1] - my); }
     const sa = cax < 0 ? -1 : 1, sb = cby > 0 ? 1 : -1; // 높이는 위가 + → 사진(아래 +)에선 보통 뒤집힘
-    const s = (sa * cax + sb * cby) / (caa + cbb);
-    if (!(s > 0) || !Number.isFinite(s)) continue;
-    for (const t of g) out.set(t.id, [mx + sa * s * (t.face!.a - ma), my + sb * s * (t.face!.b - mb)]);
+    let ka: number, kb: number;
+    const mpp = mmPerPx?.(key);
+    const ra = g.filter((t) => t.face!.size && t.face!.ext && t.face!.ext[0] > 0 && t.face!.size[0] > 0).map((t) => t.face!.size![0] / t.face!.ext![0]);
+    const rb = g.filter((t) => t.face!.size && t.face!.ext && t.face!.ext[1] > 0 && t.face!.size[1] > 0).map((t) => t.face!.size![1] / t.face!.ext![1]);
+    if (mpp && mpp > 0 && (ra.length || rb.length)) {
+      const fa = ra.length ? median(ra) : median(rb), fb = rb.length ? median(rb) : fa;
+      ka = fa / mpp; kb = fb / mpp;
+    } else {
+      ka = kb = (sa * cax + sb * cby) / (caa + cbb);
+    }
+    if (!(ka > 0 && kb > 0) || !Number.isFinite(ka) || !Number.isFinite(kb)) continue;
+    for (const t of g) out.set(t.id, [mx + sa * ka * (t.face!.a - ma), my + sb * kb * (t.face!.b - mb)]);
   }
   return out;
 }

@@ -11,7 +11,7 @@ import { isValidQuad, measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
 import { arrangeLikePhotos, homeOf, unfoldCenters, type UnfoldItem } from './core/arrange';
-import { anchorOf } from './core/boxGizmo';
+import { anchorOf, outlinePoints3 } from './core/boxGizmo';
 import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type Markup, type PriceTable } from './core/pricing';
@@ -1509,13 +1509,13 @@ class AppState {
     // 전엔 실제 벽 축척으로 자리를 잡아, 축척을 키우면 카드 사이·사진과 카드 사이가 같이 벌어졌다)
     const s = 1 / k;
     const photos = this.photos.map((p) => ({ x: p.x * s, y: p.y * s, w: p.width * s, h: p.width * (p.h / p.w) * s, imgW: p.w, imgH: p.h }));
-    const cards = this.flatCards.map(({ o, w, h }) => {
+    const cards = this.flatCards.map(({ o, w, h, placeholder }) => {
       // 연결된 사인물(⇄)은 가장 정면에서 찍힌 영역이 카드의 기준 사진·자리 (2026-10-21)
       const inst = [o, ...this.objects.filter((x) => x.sameAs === o.id)].filter((x) => x.quad.length === 4 && idx.has(x.photoId));
       const home = inst.length ? homeOf(inst as (SignObject & { quad: [number, number][] })[]) : null;
       if (!home) return { id: o.id, w, h, photo: null, box: { x0: 0, y0: 0, x1: 0, y1: 0 } };
       const xs = home.quad.map((q) => q[0]), ys = home.quad.map((q) => q[1]);
-      return { id: o.id, w, h, photo: idx.get(home.photoId)!, home, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
+      return { id: o.id, w, h, photo: idx.get(home.photoId)!, home, placeholder, box: { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } };
     });
     // 원근이 있는 카드는 축 면에 감싸 펴서 자리를 잡는다 — 같은 면(사진·축·옆면 좌우)끼리 실제 거리 그대로 한 축척으로 펴, 원근으로 기울고 좁아진 줄이 곧게 (2026-11-04
     // "퍼스팩티브에 맞게 설정된카드는 랩핑으로 펼치기 (여기에서 퍼스팩이 없는 사인물카드는 여기 사이사이에)"). 원근 없는 카드는 사진 속 자리 그대로 → 펼친 카드 사이사이에
@@ -1528,16 +1528,25 @@ class AppState {
       const f = cal ? faceOf(home, cal) : null;
       const a = f && cal ? anchorOf(cal as Parameters<typeof anchorOf>[0], f.plane as Parameters<typeof anchorOf>[1], home.quad) : null;
       if (!f || !a) return { id: c.id, px };
-      const [X, Y, Z] = a.c3;
-      const face = f.axis === 'y' ? { key: `${home.photoId}:y`, a: X, b: Z }
-        : f.axis === 'x' ? { key: `${home.photoId}:x:${sideWallOf(home, cal)}`, a: Y, b: Z }
-        : { key: `${home.photoId}:z`, a: X, b: Y };
-      return { id: c.id, px, face };
+      // 3D 자리(벽 좌표) = [가로, 위, 벽 밖] (core/boxGizmo worldAxes — 벽은 셋째 = 0). 전엔 셋째를 위로 읽어 모든 높이가 0 → 한 줄로 뭉쳤다 (2026-11-04 씽크대 "예상과 전혀 다르다")
+      // 면의 두 축: 벽면 Y = (가로, 위), 옆면 X = (벽 밖, 위), 수평 Z = (가로, 벽 밖)
+      const ax = f.axis === 'y' ? ([0, 1] as const) : f.axis === 'x' ? ([2, 1] as const) : ([0, 2] as const);
+      const key = f.axis === 'x' ? `${home.photoId}:x:${sideWallOf(home, cal)}` : `${home.photoId}:${f.axis}`;
+      const pts = outlinePoints3(cal as Parameters<typeof outlinePoints3>[0], f.plane as Parameters<typeof outlinePoints3>[1], home.quad);
+      const span = (k: number) => (pts ? Math.max(...pts.map((p) => p[k])) - Math.min(...pts.map((p) => p[k])) : 0);
+      const real = 'placeholder' in c && !c.placeholder;
+      return { id: c.id, px, face: { key, a: a.c3[ax[0]], b: a.c3[ax[1]], ext: [span(ax[0]), span(ax[1])] as [number, number], size: real ? ([c.w, c.h] as [number, number]) : undefined } };
     });
-    const centers = unfoldCenters(items);
-    for (const c of cards) {
+    // 카드와 같은 축척: 사진 px 하나 = (보드 px ÷ 사진 px) × (1 / 축척) mm — arrangeLikePhotos 가 자리를 mm 로 옮기는 것과 같은 값
+    const pxMm = new Map(this.photos.map((p) => [p.id, (p.width / p.w) * s]));
+    const centers = unfoldCenters(items, (key) => pxMm.get(key.split(':')[0]));
+    const faceCount = new Map<string, number>();
+    for (const it of items) if (it.face) faceCount.set(it.face.key, (faceCount.get(it.face.key) ?? 0) + 1);
+    const unfolded = new Set(items.filter((it) => it.face && faceCount.get(it.face.key)! >= 2).map((it) => it.id));
+    for (const c of cards as (typeof cards[number] & { grid?: boolean })[]) {
       const m = centers.get(c.id);
       if (!m || c.photo === null) continue;
+      c.grid = unfolded.has(c.id); // 펼친 카드가 있는 사진은 축마다 필요한 만큼만 벌린다 (core/arrange.ts sweepApart)
       const dx = m[0] - (c.box.x0 + c.box.x1) / 2, dy = m[1] - (c.box.y0 + c.box.y1) / 2;
       c.box = { x0: c.box.x0 + dx, y0: c.box.y0 + dy, x1: c.box.x1 + dx, y1: c.box.y1 + dy };
     }

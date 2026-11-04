@@ -103,3 +103,40 @@ describe('arrangeLikePhotos — 겹치면 구성 그대로 같은 배율로 넓�
     expect(out.get('far')!.x - out.get('a')!.x).toBe(5000); // 넓히지 않음 (사진 속 5000mm 그대로)
   });
 });
+
+describe('arrangeLikePhotos — 펼친 카드(grid)가 있는 사진은 축마다 필요한 만큼만 벌린다 (2026-11-04 씽크대: 맞닿은 서랍 셋이 이름 줄 때문에 겹쳐 옆으로 밀려났다)', () => {
+  // 사진 1000×1000 px = 1000×1000 mm (px 하나 = 1mm). 이름 줄 100, 간격 50
+  const photos = [{ x: 0, y: 0, w: 1000, h: 1000, imgW: 1000, imgH: 1000 }];
+  const box = (cx: number, cy: number, w: number, h: number) => ({ x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 });
+  const card = (id: string, cx: number, cy: number, w: number, h: number, grid = true) => ({ id, w, h, photo: 0, box: box(cx, cy, w, h), grid });
+  it('맞닿은 세로 서랍 셋은 같은 열에 순서대로, 맞닿은 가로 문들은 같은 줄에 — 겹침 없음, 위 찬장 줄과의 사이는 필요한 만큼만 (씽크대 비율: 이름 줄 430 > 카드 140~300)', () => {
+    const L = 430, G = 100;
+    const r = arrangeLikePhotos([
+      card('top1', 500, 100, 300, 600), card('top2', 800, 100, 300, 300), // 위 찬장 줄
+      card('d1', 200, 1500, 400, 140), card('d2', 200, 1670, 400, 200), card('d3', 200, 1920, 400, 300), // 맞닿은 서랍 (위→아래)
+      card('a', 550, 1700, 300, 460), card('b', 850, 1700, 300, 460), card('c', 1150, 1600, 300, 650), // 맞닿은 문
+    ], [{ x: 0, y: 0, w: 1400, h: 2200, imgW: 1400, imgH: 2200 }], G, L);
+    const p = (id: string) => r.get(id)!;
+    const H: Record<string, number> = { top1: 600, top2: 300, d1: 140, d2: 200, d3: 300, a: 460, b: 460, c: 650 };
+    const W: Record<string, number> = { top1: 300, top2: 300, d1: 400, d2: 400, d3: 400, a: 300, b: 300, c: 300 };
+    expect(p('d1').x).toBe(p('d2').x); expect(p('d2').x).toBe(p('d3').x); // 같은 열
+    expect(p('d1').y).toBeLessThan(p('d2').y); expect(p('d2').y).toBeLessThan(p('d3').y); // 순서
+    expect(p('a').y).toBe(p('b').y); // 같은 줄
+    expect(p('a').x).toBeLessThan(p('b').x); expect(p('b').x).toBeLessThan(p('c').x);
+    expect(p('top1').y + 300).toBe(p('top2').y + 150); // 같은 줄 (가운데 높이 같음)
+    // 겹침 없음 (이름 줄 포함)
+    const ids = Object.keys(H);
+    for (const i of ids) for (const j of ids) if (i < j) {
+      const A = p(i), B = p(j);
+      const sep = A.x + W[i] <= B.x || B.x + W[j] <= A.x || A.y + H[i] + L <= B.y || B.y + H[j] + L <= A.y;
+      expect(sep, `${i}·${j}`).toBe(true);
+    }
+    // 균일 확대 금지: 위 찬장 줄 ~ 아래 줄 사이 = 사진 속 간격 (1400) + 필요한 만큼 이내
+    expect(p('d1').y - p('top1').y).toBeLessThan(1400 + 2 * (L + G));
+  });
+  it('펼친 카드가 없는 사진은 지금 방식 그대로 (grid 없음 = 같은 결과)', () => {
+    const cs = [card('a', 300, 300, 200, 200, false), card('b', 600, 320, 200, 200, false)];
+    const plain = cs.map(({ grid: _g, ...c }) => c);
+    expect(arrangeLikePhotos(cs, photos, 50, 100)).toEqual(arrangeLikePhotos(plain, photos, 50, 100));
+  });
+});

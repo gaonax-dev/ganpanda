@@ -137,10 +137,11 @@ test('연결된 사인물(⇄)의 카드는 가장 정면에서 찍힌 사진 �
 
 // 2026-10-26 사용자: "재정렬에서 사진과 사진소속 [카드]들의 간격 너무 크다. 그리고 내가 원한건 사진카드 크기 유지인데 단순 대지 크기만 유지 되었다"
 // → 카드는 정해 둔 축척(크기) 그대로, 자리는 화면에서 사진 속 간격 그대로(겹치면 최대 1.5배) — 축척을 키워도 카드 사이·사진과 카드 사이가 같이 벌어지지 않는다
-test('축척을 키워 둔 채 재정렬: 카드 크기는 그대로, 카드 사이는 사진 속 간격, 카드 묶음은 사진 바로 아래에서 시작', async ({ page, request }) => {
+test('축척을 키워 둔 채 재정렬(원근 없는 사진): 카드 크기는 그대로, 카드 사이는 사진 속 간격, 카드 묶음은 사진 바로 아래에서 시작 — 원근이 있으면 펼친 실제 거리(아래 시험)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await loadSample(page);
-  await setCamera(page);
+  await page.waitForTimeout(1500); // 등록 즉시 자동 원근을 끝내고 지운다 — 원근 없는 사진
+  await page.evaluate(() => { const g = (window as unknown as { __ganpanda: { photos: { id: string }[]; clearCamera(id: string): void } }).__ganpanda; g.clearCamera(g.photos[0].id); });
   const L = await rectOnWall(page, 0, 3000, 1000, 1000);
   const R = await rectOnWall(page, 7000, 3000, 1000, 1000);
   await page.evaluate((q) => {
@@ -175,17 +176,22 @@ test('원근이 있는 카드는 축 면에 감싸 펴서 재정렬 — 벽의 �
   await loadSample(page);
   await setCamera(page);
   const qs = await Promise.all([0, 3000, 6000].map((x) => rectOnWall(page, x, 3000, 1000, 1000)));
+  qs.push(await rectOnWall(page, 3000, 500, 1000, 1000)); // s3: s1 바로 아래 (벽 높이 500) — 높이가 다르면 다른 줄 (2026-11-04 씽크대: 모든 높이가 0 으로 한 줄에 뭉쳤다)
   const skew = Math.abs((qs[0][0][1] + qs[0][2][1]) / 2 - (qs[2][0][1] + qs[2][2][1]) / 2);
   expect(skew).toBeGreaterThan(5); // 사진 속에선 같은 높이가 기울어 보인다 (시험이 의미 있도록)
   await page.evaluate((qs) => {
     const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
     qs.forEach((q, i) => a.project.addObject({ photoId: a.photos[0].id, name: `s${i}`, shape: 'rect', quad: q, sheetIds: [], widthMm: 1000, heightMm: 1000 }));
   }, qs);
-  await expect(page.getByTestId('board-card')).toHaveCount(3);
+  await expect(page.getByTestId('board-card')).toHaveCount(4);
   await page.evaluate(() => (window as unknown as { __ganpanda: { arrangeFlatCards(): void } }).__ganpanda.arrangeFlatCards());
   const l = await listOf(page);
+  expect(Math.abs(l.s3[0]! - l.s1[0]!)).toBeLessThan(150); // 같은 가로 자리 = 같은 열 (간격 3000 의 5% — 견본 사진과 거기서 푼 원근이 약 1% 어긋남)
   expect(Math.abs(l.s0[1]! - l.s1[1]!)).toBeLessThanOrEqual(1);
   expect(Math.abs(l.s1[1]! - l.s2[1]!)).toBeLessThanOrEqual(1);
   expect(Math.abs((l.s1[0]! - l.s0[0]!) - (l.s2[0]! - l.s1[0]!))).toBeLessThanOrEqual(2);
+  expect(l.s1[0]! - l.s0[0]!).toBeGreaterThan(3000 * 0.95); // 카드와 같은 축척의 실제 거리 (벽 3000mm) — 사진 px 간격이 아니라 (2026-11-04 씽크대)
+  expect(l.s1[0]! - l.s0[0]!).toBeLessThan(3000 * 1.05);
+  expect(l.s3[1]! - l.s1[1]!).toBeGreaterThan(2500 * 0.95); expect(l.s3[1]! - l.s1[1]!).toBeLessThan(2500 * 1.05);
   expect(l.s1[0]!).toBeGreaterThan(l.s0[0]!);
 });
