@@ -132,3 +132,19 @@ test('블록 패널: 치수를 넣고 엔터 → 입력 반영·포커스 해제
   await expect(page.getByTestId('block-width')).toHaveValue('');
   expect((await blocks(page))[0]).toMatchObject({ w: 3000, h: 600 });
 });
+
+test('블록은 사인물 아래 층 — 겹친 곳을 누르면 사인물이 선택된다, 블록만 있는 곳은 블록 (2026-11-04 "치수카드는 사인물 카드 아래에 클릭하면 사인물 컨트롤러 우선")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 아래 층');
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const g = (window as any).__ganpanda;
+    g.project.updatePhoto(g.photos[0].id, { blocks: [{ q: [[300, 200], [1100, 200], [1100, 700], [300, 700]], w: 2000 }] });
+    g.project.addObject({ photoId: g.photos[0].id, name: '겹친', shape: 'rect', quad: [[600, 350], [800, 350], [800, 500], [600, 500]], sheetIds: [] });
+  });
+  const sign = (await page.locator('polygon[data-testid="sign-shape"]').first().boundingBox())!;
+  await page.mouse.click(sign.x + sign.width / 2, sign.y + sign.height / 2);
+  await expect.poll(() => page.evaluate(() => { const g = (window as any).__ganpanda; return [g.selectedId ? 'sign' : null, g.selectedBlock?.i ?? null]; })).toEqual(['sign', null]);
+  const blk = (await page.locator('[data-testid="size-block"][data-index="0"] polygon').boundingBox())!;
+  await page.mouse.click(blk.x + 30, blk.y + 30);
+  await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.selectedBlock?.i ?? null)).toBe(0);
+});

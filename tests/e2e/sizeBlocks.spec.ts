@@ -25,6 +25,7 @@ test('[블록] 도구는 늘 켜져 있고, 그린 블록은 사진의 것 — �
   await expect(page.getByTestId('block-size')).toHaveText('치수 입력');
   await panel.getByTestId('block-width').fill('4000');
   await panel.getByTestId('block-height').fill('1000');
+  await panel.getByTestId('block-height').press('Enter'); // 칸을 떠나야 반영 (엔터·바깥 누르기, 2026-11-04)
   await expect(page.getByTestId('block-size')).toHaveText('4,000×1,000');
   await expect(page.locator('svg text', { hasText: '≈' })).toHaveCount(0);
   expect((await photoBlocks(page))[0]).toMatchObject({ w: 4000, h: 1000 });
@@ -89,12 +90,14 @@ test('블록이 있으면 사인물들의 예상 크기는 블록이 기준 — 
   await page.evaluate((p2) => (window as any).__ganpanda.selectBlock(p2, 0), ids.p2);
   await page.getByTestId('block-panel').getByTestId('block-width').fill('2000');
   await page.getByTestId('block-panel').getByTestId('block-height').fill('500');
+  await page.getByTestId('block-panel').getByTestId('block-height').press('Enter'); // 칸을 떠나야 반영 (엔터·바깥 누르기, 2026-11-04)
   await expect.poll(() => sizeW(page, ids.u)).toBeLessThan(1100);
   expect(await sizeW(page, ids.u)).toBeGreaterThan(900);
   expect(await sizeW(page, ids.u2)).toBeGreaterThan(900);
   // 사진 1 의 블록을 다시 고치면 다시 사진 1 기준
   await page.evaluate((p1) => (window as any).__ganpanda.selectBlock(p1, 0), ids.p1);
   await page.getByTestId('block-panel').getByTestId('block-width').fill('8001');
+  await page.getByTestId('block-panel').getByTestId('block-width').press('Enter'); // 칸을 떠나야 반영 (엔터·바깥 누르기, 2026-11-04)
   await expect.poll(() => sizeW(page, ids.u2)).toBeGreaterThan(3800);
   // 휴대폰 폭에서도 블록을 고르면 바로 이 패널
   await page.setViewportSize({ width: 390, height: 800 });
@@ -138,6 +141,7 @@ test('원근은 블록에 종속되지 않는다 — 블록을 그리고 고쳐�
   expect(Math.abs(q[0][0] - q[3][0])).toBeLessThan(2); // 왼 변 수직
   // 길이 하나만(가로 8000) → 블록 글자는 그 길이만, '모름'은 블록 축척으로 (블록 폭 ≈ 410px = 8000 → 200px ≈ 3900)
   await page.getByTestId('block-panel').getByTestId('block-width').fill('8000');
+  await page.getByTestId('block-panel').getByTestId('block-width').press('Enter'); // 칸을 떠나야 반영 (엔터·바깥 누르기, 2026-11-04)
   await expect(page.getByTestId('block-size')).toHaveText('가로 8,000');
   await expect.poll(() => est(page, u)).toBeGreaterThan(3600);
   expect(await est(page, u)).toBeLessThan(4200);
