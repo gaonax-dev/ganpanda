@@ -140,3 +140,20 @@ describe('arrangeLikePhotos — 펼친 카드(grid)가 있는 사진은 축마�
     expect(arrangeLikePhotos(cs, photos, 50, 100)).toEqual(arrangeLikePhotos(plain, photos, 50, 100));
   });
 });
+
+describe('arrangeLikePhotos — 임시 크기 카드(치수 없음)는 펼친 카드를 밀지 않는다 (2026-11-05 씽크대: 서랍과 같은 자리의 치수 없는 중복 카드가 옆 열 서랍을 100mm 밀었다)', () => {
+  const photos = [{ x: 0, y: 0, w: 2000, h: 2000, imgW: 2000, imgH: 2000 }];
+  const box = (cx: number, cy: number, w: number, h: number) => ({ x0: cx - w / 2, y0: cy - h / 2, x1: cx + w / 2, y1: cy + h / 2 });
+  it('진짜 카드는 펼친 자리 그대로, 임시 카드만 겹친 카드들 아래로 비킨다', () => {
+    const real = [
+      { id: 'a1', w: 300, h: 150, photo: 0, box: box(300, 300, 300, 150), grid: true }, { id: 'a2', w: 300, h: 150, photo: 0, box: box(300, 450, 300, 150), grid: true },
+      { id: 'b1', w: 300, h: 150, photo: 0, box: box(700, 300, 300, 150), grid: true }, { id: 'b2', w: 300, h: 150, photo: 0, box: box(700, 450, 300, 150), grid: true },
+    ];
+    const soft = { id: 'u', w: 1000, h: 500, photo: 0, box: box(300, 450, 1000, 500), grid: true, soft: true }; // a2 와 같은 자리, 큰 임시 크기
+    const withSoft = arrangeLikePhotos([...real, soft], photos, 100, 0);
+    const without = arrangeLikePhotos(real, photos, 100, 0);
+    for (const c of real) expect(withSoft.get(c.id), c.id).toEqual(without.get(c.id));
+    const u = withSoft.get('u')!;
+    expect(u.y).toBeGreaterThanOrEqual(Math.max(withSoft.get('a2')!.y, withSoft.get('b2')!.y) + 150);
+  });
+});

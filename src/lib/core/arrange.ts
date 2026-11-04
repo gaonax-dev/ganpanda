@@ -113,7 +113,7 @@ export const SPREAD_MAX = 1.5;
  * 사진 묶음은 사진 자리 그대로(행·열) — 묶음끼리 겹치면 오른쪽·아래로. 결과: x 는 가장 왼쪽 사진 기준, 맨 위 = 0 → ✥(카드 묶음 왼쪽 위)가 기본 자리(호출자가 flatOffset 도 0 으로).
  * 사진 없는 카드는 모두의 아래 한 줄
  */
-export function arrangeLikePhotos(cards: { id: string; w: number; h: number; photo: number | null; box: Box; /** 원근 면에 펼친 카드 (unfoldCenters) — 있으면 그 사진은 축마다 벌리기(sweepApart) */ grid?: boolean }[], photos: { x: number; y: number; w: number; h: number; imgW: number; imgH: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {
+export function arrangeLikePhotos(cards: { id: string; w: number; h: number; photo: number | null; box: Box; /** 원근 면에 펼친 카드 (unfoldCenters) — 있으면 그 사진은 축마다 벌리기(sweepApart) */ grid?: boolean; /** 임시 크기(치수 없음) — 겹침을 풀 때 다른 카드를 밀지 않고 저만 비킨다 */ soft?: boolean }[], photos: { x: number; y: number; w: number; h: number; imgW: number; imgH: number }[], gap: number, labelMm: number): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
   const used = [...new Set(cards.map((c) => c.photo).filter((p): p is number => p !== null && !!photos[p]))];
   const left0 = used.length ? Math.min(...photos.map((p) => p.x)) : 0;
@@ -124,7 +124,7 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
     const cx = (c: (typeof mine)[number]) => ((c.box.x0 + c.box.x1) / 2) * sx, cy = (c: (typeof mine)[number]) => ((c.box.y0 + c.box.y1) / 2) * sy;
     if (mine.some((c) => c.grid)) {
       // 이름 줄은 펼친 면의 자리를 바꾸지 않는다 — 보드 px 고정이라 작은 축척에선 수백 mm 가 되어 줄이 어긋났다 (2026-11-05 "상하 좌우의 배치가 어긋난다"). 간격만
-      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h })), gap, 0, 0).map((r) => ({ ...r, h: r.h + labelMm })));
+      groups.set(p, sweepApart(mine.map((c) => ({ id: c.id, x: ph.x - left0 + cx(c) - c.w / 2, y: ph.y + cy(c) - c.h / 2, w: c.w, h: c.h, soft: c.soft })), gap, 0, 0).map((r) => ({ ...r, h: r.h + labelMm })));
       continue;
     }
     // 넓히기 (2026-10-26): 실제 크기 카드가 사진 속 간격보다 커서 겹치면, 사진 속 가운데 간격을 같은 배율로 넓혀 구성을 그대로 둔다(최대 SPREAD_MAX).
@@ -173,13 +173,15 @@ export function arrangeLikePhotos(cards: { id: string; w: number; h: number; pho
  * ② 세로: 위부터, 같은 열(가로로 겹침)의 앞 카드 + 이름 줄 + 간격이 모자라면 이 카드와, 이 카드의 처음 아래 끝보다 아래에서 시작한 카드들을 민다.
  * 펼친 면의 줄·열이 그대로 남고, 벌어지는 곳은 겹친 곳 뒤쪽뿐(옆 열의 카드는 안 밀림). 결과 h 는 이름 줄 포함
  */
-function sweepApart(rs: (Rect & { id: string })[], gap: number, labelMm: number, gapY = gap): (Rect & { id: string })[] {
+function sweepApart(rs: (Rect & { id: string; soft?: boolean })[], gap: number, labelMm: number, gapY = gap): (Rect & { id: string })[] {
   const EPS = 0.5;
   const out = rs.map((r) => ({ ...r }));
+  // 임시 크기 카드(soft)는 가로 밀기에서 빼고, 세로는 맨 나중에 저만 비킨다(다른 카드를 밀지 않음) — 2026-11-05 씽크대: 서랍과 같은 자리의 치수 없는 중복이 옆 열을 밀었다
   const pass = (key: 'x' | 'y') => {
     const len = key === 'x' ? 'w' : 'h', ok = key === 'x' ? 'y' : 'x', olen = key === 'x' ? 'h' : 'w';
     const need = key === 'x' ? gap : labelMm + gapY;
-    const order = [...out].sort((a, b) => a[key] - b[key] || a[ok] - b[ok]);
+    const by = (a: (typeof out)[number], b: (typeof out)[number]) => a[key] - b[key] || a[ok] - b[ok];
+    const order = [...out.filter((r) => !r.soft).sort(by), ...(key === 'y' ? out.filter((r) => r.soft).sort(by) : [])];
     const done: typeof out = [];
     const pushes: { from: number; by: number }[] = []; // 밀린 카드의 처음 끝선 — 그보다 뒤(아래·오른쪽)에서 시작한 카드만 같이 민다
     for (const r of order) {
@@ -187,7 +189,7 @@ function sweepApart(rs: (Rect & { id: string })[], gap: number, labelMm: number,
       r[key] = base + pushes.reduce((t, q) => (q.from <= base + EPS ? t + q.by : t), 0);
       let req = r[key];
       for (const d of done) if (d[ok] < r[ok] + r[olen] - EPS && r[ok] < d[ok] + d[olen] - EPS) req = Math.max(req, d[key] + d[len] + need);
-      if (req > r[key]) pushes.push({ from: base + r[len], by: req - r[key] });
+      if (req > r[key] && !r.soft) pushes.push({ from: base + r[len], by: req - r[key] });
       r[key] = req;
       done.push(r);
     }
@@ -336,56 +338,97 @@ export function arrangeByAxisGrid(cards: GridCard[], photos: { x: number; y: num
  *     세로는 펼친 그대로(간격 없음) — 위끝·아래끝이 사진과 같은 선 (2026-11-05 "세로 위치가 다른데 섞여있다").
  *  방향(축마다 ±)은 사진 속 자리와의 공분산, 무게중심은 사진 속 무게중심, 사진 px 로는 ÷ mmPerPx.
  *  크기를 아는 카드가 없거나 mmPerPx 가 없으면 한 배율 최소제곱으로 사진 px 에 맞춘다(가운데). 면이 없거나 한 장뿐인 면은 사진 속 자리 그대로 */
-export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 펼친 외곽선 범위 [a0, a1, b0, b1] (면 mm) */ rect?: [number, number, number, number]; /** 카드 크기 (mm) */ card?: [number, number]; /** 카드 크기가 실제 치수(입력·추정)인가 — 아니면 임시 크기 */ real?: boolean } }
-export interface UnfoldOpts { mmPerPx?: (key: string) => number | undefined; /** 카메라 발 (면 좌표) */ foot?: (key: string) => [number, number] | undefined; gap?: number; labelMm?: number }
+export interface UnfoldItem { id: string; px: [number, number]; face?: { key: string; a: number; b: number; /** 사인물 면의 깊이(면에 수직인 축의 벽 좌표 — 벽면 Y 는 벽 밖=0, 옆면 X 는 가로, 수평면 Z 는 위) */ depth?: number; /** 펼친 외곽선 범위 [a0, a1, b0, b1] (면 mm) */ rect?: [number, number, number, number]; /** 카드 크기 (mm) */ card?: [number, number]; /** 카드 크기가 실제 치수(입력·추정)인가 — 아니면 임시 크기 */ real?: boolean } }
+export interface UnfoldOpts { mmPerPx?: (key: string) => number | undefined; /** 카메라 자리 (면 좌표 a·b + 깊이 축) */ camera?: (key: string) => [number, number, number] | undefined; gap?: number; labelMm?: number }
 const median = (v: number[]) => { const s = [...v].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; };
 const LINE_TOL = 30; // mm — 이만큼 가까운 끝선은 같은 선
-const LAYER_TOL = 1.1; // 깊이 층: 비율이 10% 넘게 다르면 다른 층
+const LAYER_TOL = 0.1; // 같은 벽(깊이 층): 카메라에서의 거리가 10% 안
+type Placed = { key: string; g: UnfoldItem[]; mm: Map<string, [number, number]>; sa: number; sb: number; mx: number; my: number; mpp: number };
 export function unfoldCenters(items: UnfoldItem[], opts: UnfoldOpts = {}): Map<string, [number, number]> {
   const out = new Map<string, [number, number]>(items.map((it) => [it.id, [it.px[0], it.px[1]]]));
   const groups = new Map<string, UnfoldItem[]>();
   for (const it of items) if (it.face) groups.set(it.face.key, [...(groups.get(it.face.key) ?? []), it]);
-  for (const [key, g] of groups) {
+  // 앞벽(:y)을 먼저 — 옆벽·수평면은 앞벽의 방향·높이를 따른다
+  const keys = [...groups.keys()].sort((a, b) => Number(!a.endsWith(':y')) - Number(!b.endsWith(':y')));
+  const placed = new Map<string, Placed>();
+  for (const key of keys) {
+    const g = groups.get(key)!;
     if (g.length < 2) continue;
     const n = g.length, mean = (f: (t: UnfoldItem) => number) => g.reduce((s, t) => s + f(t), 0) / n;
     const ma = mean((t) => t.face!.a), mb = mean((t) => t.face!.b), mx = mean((t) => t.px[0]), my = mean((t) => t.px[1]);
     let caa = 0, cbb = 0, cax = 0, cby = 0;
     for (const t of g) { const da = t.face!.a - ma, db = t.face!.b - mb; caa += da * da; cbb += db * db; cax += da * (t.px[0] - mx); cby += db * (t.px[1] - my); }
-    const sa = cax < 0 ? -1 : 1, sb = cby > 0 ? 1 : -1; // 높이는 위가 + → 사진(아래 +)에선 보통 뒤집힘
+    let sa = cax < 0 ? -1 : 1, sb = cby > 0 ? 1 : -1; // 높이는 위가 + → 사진(아래 +)에선 보통 뒤집힘
+    const pid = key.split(':')[0], front = placed.get(`${pid}:y`);
+    // 세로(높이)는 원근이 바뀌어도 믿을 만한 기준 (2026-11-05 사용자: "세로는 원근이 바꿔도 기준으로 사용하기 좋아") — 옆벽의 b(위)는 앞벽과 같은 방향
+    if (front && key.includes(':x')) sb = front.sb;
+    if (front && key.endsWith(':z')) sa = front.sa; // 수평면의 a(가로)는 앞벽 가로와 같은 축
     const mpp = opts.mmPerPx?.(key);
     const sized = g.filter((t) => t.face!.real && t.face!.rect && t.face!.card && t.face!.rect[1] > t.face!.rect[0] && t.face!.rect[3] > t.face!.rect[2]);
     if (mpp && mpp > 0 && sized.length && g.every((t) => t.face!.rect && t.face!.card)) {
-      const mm = unfoldExact(g, sized, sa, sb, opts.foot?.(key) ?? [ma, mb], opts.gap ?? 0, opts.labelMm ?? 0);
-      // 무게중심 = 사진 속 무게중심
-      const cx = mean((t) => mm.get(t.id)![0] / mpp), cy = mean((t) => mm.get(t.id)![1] / mpp);
-      for (const t of g) { const c = mm.get(t.id)!; out.set(t.id, [c[0] / mpp - cx + mx, c[1] / mpp - cy + my]); }
+      const cam = opts.camera?.(key) ?? [ma, mb, 1e9]; // 카메라를 모르면 아주 멀리(평행 투영) — 배율은 카드 크기 ÷ 펼친 크기 그대로
+      placed.set(key, { key, g, mm: unfoldExact(g, sized, sa, sb, cam, opts.gap ?? 0), sa, sb, mx, my, mpp });
       continue;
     }
     const k = (sa * cax + sb * cby) / (caa + cbb);
     if (!(k > 0) || !Number.isFinite(k)) continue;
     for (const t of g) out.set(t.id, [mx + sa * k * (t.face!.a - ma), my + sb * k * (t.face!.b - mb)]);
   }
+  // 면 묶음 놓기: 앞벽 = 사진 속 무게중심. 같은 사진의 옆벽은 앞벽 옆(오른쪽 벽은 오른쪽, 왼쪽 벽은 왼쪽, 간격 두 배)에 **같은 높이 기준**으로,
+  // 수평면은 앞벽 아래에 앞벽과 같은 가로 기준으로. 앞벽이 없으면 각자 사진 속 무게중심
+  const gap = opts.gap ?? 0;
+  const ext = (P: Placed) => {
+    let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+    for (const it of P.g) { const c = P.mm.get(it.id)!, [w, h] = it.face!.card!; l = Math.min(l, c[0] - w / 2); r = Math.max(r, c[0] + w / 2); t = Math.min(t, c[1] - h / 2); b = Math.max(b, c[1] + h / 2); }
+    return { l, r, t, b };
+  };
+  const shift = new Map<string, [number, number]>(); // mm → 사진 px 이동 (px = mm / mpp + shift)
+  const centroid = (P: Placed): [number, number] => { const n = P.g.length; const cx = P.g.reduce((s, t) => s + P.mm.get(t.id)![0], 0) / n, cy = P.g.reduce((s, t) => s + P.mm.get(t.id)![1], 0) / n; return [P.mx - cx / P.mpp, P.my - cy / P.mpp]; };
+  for (const P of placed.values()) {
+    const pid = P.key.split(':')[0], F = placed.get(`${pid}:y`);
+    if (!F || F === P) { shift.set(P.key, centroid(P)); continue; }
+    const fs = shift.get(F.key) ?? centroid(F), fe = ext(F), e = ext(P);
+    if (P.key.endsWith(':z')) shift.set(P.key, [fs[0], fs[1] + (fe.b + 2 * gap - e.t) / P.mpp]);
+    else if (P.key.endsWith(':left')) shift.set(P.key, [fs[0] + (fe.l - 2 * gap - e.r) / P.mpp, fs[1]]);
+    else shift.set(P.key, [fs[0] + (fe.r + 2 * gap - e.l) / P.mpp, fs[1]]);
+  }
+  for (const P of placed.values()) { const [tx, ty] = shift.get(P.key)!; for (const t of P.g) { const c = P.mm.get(t.id)!; out.set(t.id, [c[0] / P.mpp + tx, c[1] / P.mpp + ty]); } }
   return out;
 }
-/** 한 면의 카드 가운데 (mm, 가로 오른쪽 +·세로 아래 +) — unfoldCenters 의 1~4 */
-function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: number, foot: [number, number], gap: number, labelMm: number): Map<string, [number, number]> {
-  // 2. 깊이 층 (카드 크기 ÷ 펼친 크기)
+/**
+ * 한 면의 카드 가운데 (mm, 가로 오른쪽 +·세로 아래 +) — unfoldCenters 의 1~4.
+ * 깊이 층 = **같은 벽**: 사인물마다 "카드 크기 ÷ 펼친 크기"(r)로 실제 깊이 T = C + r·(D − C) 를 구하고(D = 사인물 면의 깊이, C = 카메라),
+ * 카메라에서의 거리가 10% 안인 것끼리 한 벽(깊이 = 중앙값). 각 사인물은 제 면에서 그 벽으로 카메라 기하 그대로 옮긴다: 배율 g = (T − C)/(D − C) —
+ * 옆면은 사인물마다 따로 잡힌 면(돌출 간판처럼 앞벽에 붙은 면)이라 같은 옆벽의 서랍도 열마다 비율이 달랐다(씽크대 0.9·0.65·0.37 → 줄이 어긋남).
+ * 가로·세로의 남은 차이(원근 축척 오차)는 벽마다 중앙값으로. 치수 없는 카드는 가장 큰 벽
+ */
+function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: number, cam: [number, number, number], gap: number): Map<string, [number, number]> {
+  const [Fa, Fb, Cd] = cam;
   const ratio = (t: UnfoldItem) => { const f = t.face!, r = f.rect!; return [f.card![0] / (r[1] - r[0]), f.card![1] / (r[3] - r[2])] as [number, number]; };
-  const geo = (r: [number, number]) => Math.sqrt(r[0] * r[1]);
-  const rs = sized.map((t) => ({ t, r: ratio(t) })).sort((x, y) => geo(x.r) - geo(y.r));
-  const layers: { members: UnfoldItem[]; ra: number; rb: number }[] = [];
-  let cur: typeof rs = [];
-  const flush = () => { if (cur.length) layers.push({ members: cur.map((x) => x.t), ra: median(cur.map((x) => x.r[0])), rb: median(cur.map((x) => x.r[1])) }); cur = []; };
-  for (const x of rs) { if (cur.length && geo(x.r) > geo(cur[0].r) * LAYER_TOL) flush(); cur.push(x); }
+  const depthOf = (t: UnfoldItem) => t.face!.depth ?? 0;
+  const est = sized.map((t) => { const r = ratio(t), geo = Math.sqrt(r[0] * r[1]); return { t, r, T: Cd + geo * (depthOf(t) - Cd) }; })
+    .filter((x) => Number.isFinite(x.T)).sort((x, y) => Math.abs(x.T - Cd) - Math.abs(y.T - Cd));
+  const walls: { T: number; qa: number; qb: number; members: UnfoldItem[] }[] = [];
+  let cur: typeof est = [];
+  const flush = () => {
+    if (!cur.length) return;
+    const T = median(cur.map((x) => x.T));
+    const gi = (x: (typeof cur)[number]) => (T - Cd) / (depthOf(x.t) - Cd);
+    walls.push({ T, qa: median(cur.map((x) => x.r[0] / gi(x))), qb: median(cur.map((x) => x.r[1] / gi(x))), members: cur.map((x) => x.t) });
+    cur = [];
+  };
+  // 이어진 것끼리 한 벽: 정렬한 깊이에서 바로 앞 것과의 틈이 10% 넘을 때만 나눈다 (전엔 묶음의 첫 것과 비교해 퍼진 묶음의 끝이 잘려 따로 펴졌다 — 씽크대 서랍 하나가 100mm 처짐, 2026-11-05)
+  for (const x of est) { const prev = cur[cur.length - 1]; if (prev && Math.abs(x.T - prev.T) > LAYER_TOL * Math.abs(prev.T - Cd)) flush(); cur.push(x); }
   flush();
-  const main = layers.reduce((a, b) => (b.members.length > a.members.length ? b : a));
-  const layerOf = new Map<string, { ra: number; rb: number }>();
-  for (const l of layers) for (const m of l.members) layerOf.set(m.id, l);
-  // 1·2. 펼친 외곽선 → 제 깊이로 (카메라 발 중심) → 왼쪽 위 꼭짓점 (가로 오른쪽 +, 세로 아래 +)
+  const main = walls.reduce((a, b) => (b.members.length > a.members.length ? b : a));
+  const wallOf = new Map<string, (typeof walls)[number]>();
+  for (const w of walls) for (const m of w.members) wallOf.set(m.id, w);
   const rects = g.map((t) => {
-    const f = t.face!, r = f.rect!, l = layerOf.get(t.id) ?? main;
-    const A = [foot[0] + (r[0] - foot[0]) * l.ra, foot[0] + (r[1] - foot[0]) * l.ra].map((v) => v * sa);
-    const B = [foot[1] + (r[2] - foot[1]) * l.rb, foot[1] + (r[3] - foot[1]) * l.rb].map((v) => v * sb);
+    const f = t.face!, r = f.rect!, w = wallOf.get(t.id) ?? main;
+    const gi = (w.T - Cd) / (depthOf(t) - Cd);
+    const ka = Number.isFinite(gi) && gi > 0 ? gi * w.qa : w.qa, kb = Number.isFinite(gi) && gi > 0 ? gi * w.qb : w.qb;
+    const A = [Fa + (r[0] - Fa) * ka, Fa + (r[1] - Fa) * ka].map((v) => v * sa);
+    const B = [Fb + (r[2] - Fb) * kb, Fb + (r[3] - Fb) * kb].map((v) => v * sb);
     return { id: t.id, x: Math.min(...A), y: Math.min(...B), w: f.card![0], h: f.card![1] };
   });
   // 3. 가까운 시작선(30mm 안)은 한 선으로 — 펼친 외곽선의 1~2mm 차이로 열·줄이 어긋나 보이지 않게
@@ -400,7 +443,7 @@ function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: numbe
     }
   };
   snap('x'); snap('y');
-  // 4. 맞닿은 선(끝선 = 다른 카드의 시작선) 뒤에 간격 — 그 선에서 시작하는 카드부터 민다
+  // 4. 가로로 맞닿은 선(오른끝 = 다른 카드의 왼끝) 뒤에 간격 — 그 선에서 시작하는 카드부터 민다. 세로는 펼친 그대로
   const shiftOf = (starts: number[], ends: number[], add: number) => {
     const cuts = ends.filter((e) => starts.some((s) => Math.abs(s - e) <= LINE_TOL)).sort((a, b) => a - b);
     const lines: number[] = [];
@@ -408,7 +451,5 @@ function unfoldExact(g: UnfoldItem[], sized: UnfoldItem[], sa: number, sb: numbe
     return (v: number) => lines.reduce((t, c) => (c - LINE_TOL <= v ? t + add : t), 0);
   };
   const sx = shiftOf(rects.map((r) => r.x), rects.map((r) => r.x + r.w), gap);
-  // 세로는 펼친 그대로 — 간격을 넣으면 쌓인 서랍 열만 길어져 옆 문들과 아래끝(바닥선)이 갈렸다 (2026-11-05 "재정렬에 세로 위치가 다른데 섞여있다")
-  void labelMm;
   return new Map(rects.map((r) => [r.id, [r.x + sx(r.x) + r.w / 2, r.y + r.h / 2] as [number, number]]));
 }

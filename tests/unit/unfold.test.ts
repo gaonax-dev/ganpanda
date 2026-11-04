@@ -64,11 +64,11 @@ describe('unfoldCenters — 포토샵 원근 펴기처럼 (2026-11-05 "상하 �
     s5: { rect: [600, 901, -803, -337], card: [300, 460] },
     s1: { rect: [1215, 1509, -796, -140], card: [300, 650] }, // 문
   };
-  const items = Object.entries(K).map(([id, v]) => ({ id, px: [0, 0] as [number, number], face: { key: 'p:y', a: (v.rect[0] + v.rect[1]) / 2, b: (v.rect[2] + v.rect[3]) / 2, rect: v.rect, card: v.card, real: true } }));
+  const items = Object.entries(K).map(([id, v]) => ({ id, px: [0, 0] as [number, number], face: { key: 'p:y', a: (v.rect[0] + v.rect[1]) / 2, b: (v.rect[2] + v.rect[3]) / 2, depth: 0, rect: v.rect, card: v.card, real: true } }));
   // 사진 px 방향: 오른쪽이 +a, 아래가 -b (자리만 방향용)
   items.forEach((it) => (it.px = [it.face.a, -it.face.b]));
   const G = 100, L = 300;
-  const r = unfoldCenters(items, { mmPerPx: () => 1, foot: () => [-13, 511], gap: G, labelMm: L });
+  const r = unfoldCenters(items, { mmPerPx: () => 1, camera: () => [-13, 511, 1137], gap: G, labelMm: L });
   const box = (id: string) => { const c = r.get(id)!, [w, h] = K[id].card; return { l: c[0] - w / 2, t: c[1] - h / 2, r: c[0] + w / 2, b: c[1] + h / 2 }; };
   it('깊이가 다른 층(위 찬장)은 카메라 발을 중심으로 그 층의 배율로 펴서 아래 서랍 열과 같은 열 (왼끝이 40mm 안)', () => {
     expect(Math.abs(box('s12').l - box('s11').l)).toBeLessThan(40);
@@ -94,3 +94,51 @@ describe('unfoldCenters — 포토샵 원근 펴기처럼 (2026-11-05 "상하 �
     }
   });
 });
+
+describe('unfoldCenters — 옆벽은 같은 벽끼리 한 면에 (2026-11-05 "사진의 세로 배열 순서가 바뀌었어": 씽크대 오른쪽 벽 서랍장)', () => {
+  // 벽 좌표 [가로, 위, 벽 밖]. 카메라 C. 오른쪽 옆벽은 가로 = XS 인 면. 옆면은 사인물마다 따로 잡힌 면(가로 = Xi)에 펼쳐져 있다 —
+  // 카메라에서 같은 방향이면 Xi 면 위 좌표 = C + (P − C) · (Xi − Cx)/(XS − Cx)
+  const C = [0, 1500, 3000], XS = 2000, G = 100;
+  const drawer = (id: string, out0: number, up0: number, Xi: number, real = true) => {
+    const t = (Xi - C[0]) / (XS - C[0]);
+    const o = (v: number) => C[2] + (v - C[2]) * t, u = (v: number) => C[1] + (v - C[1]) * t;
+    const rect: [number, number, number, number] = [o(out0), o(out0 + 300), u(up0), u(up0 + 150)];
+    return { id, px: [(rect[0] + rect[1]) / 2, -(rect[2] + rect[3]) / 2] as [number, number], face: { key: 'p:x:right', a: (rect[0] + rect[1]) / 2, b: (rect[2] + rect[3]) / 2, depth: Xi, rect, card: (real ? [300, 150] : [1000, 500]) as [number, number], real } };
+  };
+  // 3열(벽 밖 0·300·600) × 2줄(위 600·750). 열마다 다른 깊이의 면에 그려짐 (실제처럼 열마다 비율이 0.9·0.65·0.37)
+  const cols = [{ o: 0, Xi: 2200 }, { o: 300, Xi: 3100 }, { o: 600, Xi: 5400 }];
+  const items = cols.flatMap((c, j) => [drawer(`c${j}r0`, c.o, 750, c.Xi), drawer(`c${j}r1`, c.o, 600, c.Xi)]);
+  const cam = () => [C[2], C[1], C[0]] as [number, number, number]; // 옆면: (벽 밖, 위) + 깊이 = 가로
+  const box = (r: Map<string, [number, number]>, id: string, w = 300, h = 150) => { const c = r.get(id)!; return { l: c[0] - w / 2, t: c[1] - h / 2, r: c[0] + w / 2, b: c[1] + h / 2 }; };
+  it('열마다 다른 면에 펼쳐졌어도 같은 벽으로 모아 펴면 줄·열이 정확히 맞는다', () => {
+    const r = unfoldCenters(items, { mmPerPx: () => 1, camera: cam, gap: G });
+    for (const j of [0, 1, 2]) expect(box(r, `c${j}r0`).t).toBeCloseTo(box(r, 'c0r0').t, 3); // 위 줄
+    for (const j of [0, 1, 2]) expect(box(r, `c${j}r1`).t).toBeCloseTo(box(r, 'c0r1').t, 3); // 아래 줄
+    for (const j of [0, 1, 2]) expect(box(r, `c${j}r1`).l).toBeCloseTo(box(r, `c${j}r0`).l, 3); // 같은 열
+    expect(box(r, 'c0r1').t - box(r, 'c0r0').t).toBeCloseTo(150, 3); // 위 줄이 위, 맞붙음 (세로 간격 없음)
+    expect(box(r, 'c1r0').l - box(r, 'c0r0').l).toBeCloseTo(300 + G, 3); // 가로로 맞닿음 → 간격
+  });
+  it('깊이 추정이 조금씩 퍼져 있어도(맨 가까운 것과 15% 차이) 이어져 있으면 한 벽 — 넷째 줄 서랍 하나만 따로 묶여 100mm 처지던 것 (씽크대)', () => {
+    // 같은 벽인데 입력·외곽선 오차로 깊이 추정이 0.93·1.0·1.08 배로 퍼짐 (사이 틈은 각 7~8%)
+    const spread = [{ id: 'n', k: 0.93 }, { id: 'm', k: 1.0 }, { id: 'f', k: 1.08 }];
+    const its = spread.map(({ id, k }, j) => { const it = drawer(id, j * 300, 600, 2600); return { ...it, face: { ...it.face, card: [300 * k, 150 * k] as [number, number] } }; });
+    const r = unfoldCenters(its, { mmPerPx: () => 1, camera: cam, gap: 0 });
+    // 한 벽이면 같은 배율로 펴져 위끝이 같은 높이 (카드는 왼쪽 위 꼭짓점 기준)
+    expect(r.get('n')![1] - 150 * 0.93 / 2).toBeCloseTo(r.get('m')![1] - 150 / 2, 0);
+    expect(r.get('f')![1] - 150 * 1.08 / 2).toBeCloseTo(r.get('m')![1] - 150 / 2, 0);
+  });
+  it('치수 없는 카드(임시 크기)도 같은 벽에 — 제 열·제 줄 자리 (가장 큰 묶음)', () => {
+    const r = unfoldCenters([...items, drawer('u', 0, 450, 2200, false)], { mmPerPx: () => 1, camera: cam, gap: G });
+    expect(box(r, 'u', 1000, 500).l).toBeCloseTo(box(r, 'c0r0').l, 3);
+    expect(box(r, 'u', 1000, 500).t).toBeCloseTo(box(r, 'c0r1').t + 150, 3);
+  });
+  it('앞벽이 있으면 오른쪽 옆벽 묶음은 앞벽 묶음의 오른쪽(간격 두 배), 높이는 앞벽과 같은 기준(실제 높이)', () => {
+    // 앞벽 문: 가로 0~300, 위 0~650 (면 = 벽, 깊이 0, 크기 그대로) · 옆벽 서랍 맨 아래 줄 위끝 = 750 → 문 위끝(650)보다 100 위
+    const front = (id: string, x0: number) => ({ id, px: [x0 + 150, -325] as [number, number], face: { key: 'p:y', a: x0 + 150, b: 325, depth: 0, rect: [x0, x0 + 300, 0, 650] as [number, number, number, number], card: [300, 650] as [number, number], real: true } });
+    const r = unfoldCenters([front('f0', 0), front('f1', 400), ...items], { mmPerPx: () => 1, camera: (k) => (k.endsWith(':y') ? [C[0], C[1], C[2]] : cam()), gap: G });
+    const f1 = box(r, 'f1', 300, 650);
+    for (const j of [0, 1, 2]) expect(box(r, `c${j}r0`).l).toBeGreaterThanOrEqual(f1.r + 2 * G - 1);
+    expect(box(r, 'c0r1').t - box(r, 'f0', 300, 650).t).toBeCloseTo(650 - 750, 3); // 옆벽 서랍 아래 줄 위끝(750) 은 문 위끝(650) 보다 100mm 위 → 화면에선 −100
+  });
+});
+
