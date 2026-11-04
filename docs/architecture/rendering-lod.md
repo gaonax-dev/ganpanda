@@ -129,3 +129,9 @@
 - 고침(`core/svgClip.ts` `svgClip`, `BoardView` → `PhotoZone clip`): 층 한 변이 실제 화면 픽셀 **4096**(`SVG_MAX_PX`)을 넘으면 SVG 를 **보이는 부분 + 앞뒤 화면 반 장**(화면 반 장 단위로 맞춰 조금 끄는 동안은 같은 값)만 그린다 — `viewBox` 를 그 부분(사진 px)으로, 자리·크기는 % 로, `overflow: hidden`. 좌표는 사진 px 그대로라 손잡이 자리·끌기·그리기는 같다(`data-clip`).
 - 사진 자체의 흐림은 원본 해상도 한계라 그대로다.
 - 테스트: `tests/unit/svgClip.test.ts`, `tests/e2e/zoomClip.spec.ts`(1200% 에서 층이 화면 세 장 이내, 손잡이 제자리·끌기 정확).
+
+## 정보 글자는 HTML 글자로 (2026-11-04)
+- 실제 맥 앱(Tauri `cargo tauri dev`, 앞 창)에서 재현: 사진이 여럿이고 원근·2D 층이 있는 프로젝트(핀볼 사본)에서 확대하면 **SVG 정보 글자**(사인물 이름·치수, 존 이름, 블록 치수)가 작은 글꼴을 늘린 것처럼 뭉개졌다(400% 대). 같은 화면의 HTML 글자(사진 이름 막대)는 선명. `text-rendering: geometricPrecision` 은 효과 없음. 위의 "보이는 부분만 그리기"도 이 증상은 못 고쳤다(배포된 앱에서도 재현).
+- 고침: 정보 글자를 SVG 밖 **HTML 글자 층**(`PhotoZone` `.labels`, z-index 3, 누르기 통과)으로 — 자리는 사진 px 의 %, 크기는 사진 이름 막대와 같이 `scale(1/zoom)` 으로 화면에서 늘 12px. 사인물 이름표는 외곽선 왼쪽 위 꼭짓점 바로 위(6px), 존 이름은 첫 꼭짓점 위, 블록 치수는 가운데. `data-testid` 는 그대로(`sign-label[data-id]`, `zone-label`, `block-size[data-index]`), 사진이 아주 작으면 숨김.
+- 2D 화면에서 SVG 선(외곽선·손잡이)도 조금 흐려지는 것은 남아 있다(원근 그림 층과 함께 합성될 때) — 실측 화면에서는 선명.
+- 테스트: `tests/e2e/zoomClip.spec.ts` "정보 글자 … HTML 글자".

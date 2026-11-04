@@ -75,11 +75,11 @@ test('블록이 있으면 사인물들의 예상 크기는 블록이 기준 — 
   await page.evaluate((p1) => (window as any).__ganpanda.project.updatePhoto(p1, { blocks: [{ q: [[600, 300], [1000, 300], [1000, 400], [600, 400]], w: 8000, h: 2000 }] }), ids.p1);
   await expect.poll(() => est(page, ids.u)).toBeGreaterThan(3800);
   expect(await est(page, ids.u)).toBeLessThan(4200);
-  await expect(page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${ids.a}"]) [data-testid="sign-label"]`)).toContainText('4,000×1,000');
+  await expect(page.locator(`[data-testid="sign-label"][data-id="${ids.a}"]`)).toContainText('4,000×1,000');
   // 블록마다 다른 치수·축: 두 번째 블록(200px = 4000mm, 같은 축척)
   await page.evaluate((p1) => { const g = (window as any).__ganpanda; g.project.updatePhoto(p1, { blocks: [...g.photos[0].blocks, { q: [[600, 500], [800, 500], [800, 600], [600, 600]], w: 4000, h: 2000, axis: 'y' }] }); }, ids.p1);
   await expect(page.getByTestId('size-block')).toHaveCount(2);
-  await expect(page.getByTestId('size-block').nth(1).getByTestId('block-size')).toHaveText('4,000×2,000');
+  await expect(page.locator('[data-testid="block-size"][data-index="1"]')).toHaveText('4,000×2,000');
   await page.evaluate((p1) => (window as any).__ganpanda.selectBlock(p1, 0), ids.p1);
   await page.getByTestId('block-panel').getByTestId('block-axis-x').click();
   await expect.poll(async () => ((await photoBlocks(page)) as any[]).map((b) => b.axis ?? null)).toEqual(['x', 'y']);

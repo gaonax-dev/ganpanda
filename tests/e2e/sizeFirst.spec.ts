@@ -51,10 +51,11 @@ test('실측 없는 사인물은 외곽선이 반투명 빨강 — 예상만 있
   const pa = await paint(a);
   expect(pa.stroke).not.toMatch(/239, 68, 68/);
   // 정보 글자는 외곽선 왼쪽 위 꼭짓점 바로 위 바깥 (2026-11-04 "사진보드의 사인물 정보표시 이전 위치로 이동해줘 좌상외곽으로" — 2026-10-25 가운데는 대체됨)
-  const label = page.locator(`g.sign:has(> [data-testid="sign-shape"][data-id="${b}"]) [data-testid="sign-label"]`);
-  const lb = await label.evaluate((e) => ({ x: Number(e.getAttribute('x')), y: Number(e.getAttribute('y')), anchor: getComputedStyle(e).textAnchor }));
-  expect(lb.x).toBe(600); expect(lb.anchor).toBe('start');
-  expect(lb.y).toBeLessThan(100); expect(lb.y).toBeGreaterThan(80);
+  const label = page.locator(`[data-testid="sign-label"][data-id="${b}"]`);
+  // 화면 자리로: 글자 왼쪽 = 외곽선 왼쪽 위 꼭짓점, 글자 아래 = 꼭짓점 바로 위 (정보 글자는 HTML 층, 2026-11-04)
+  const lb = (await label.boundingBox())!, sb = (await page.locator(`[data-testid="sign-shape"][data-id="${b}"]`).boundingBox())!;
+  expect(Math.abs(lb.x - sb.x)).toBeLessThan(6); // 외곽선 굵기·글자 테두리만큼
+  expect(lb.y + lb.height).toBeLessThanOrEqual(sb.y + 1); expect(lb.y + lb.height).toBeGreaterThan(sb.y - 12);
   await page.evaluate((id) => (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda.project.updateObject(id, { widthMm: 2000, heightMm: 500 }), b);
   await expect(shapeOf(b)).not.toHaveAttribute('data-unmeasured', '1');
   expect((await paint(b)).stroke).not.toMatch(/239, 68, 68/);

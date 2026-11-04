@@ -39,3 +39,31 @@ test('1200% 에서 편집 층은 화면 몇 장 크기로 잘리고, 손잡이�
   // 정보 글자도 보인다
   await expect(page.getByTestId('sign-label').first()).toBeVisible();
 });
+
+test('정보 글자(사인물 이름표·존 이름·블록 치수)는 SVG 글자가 아니라 HTML 글자 — 확대해도 화면 12px, 외곽선 왼쪽 위 꼭짓점 바로 위 (2026-11-04 맥 앱: 확대하면 SVG 글자를 작게 그려 늘려 뭉개졌다)', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await openOwnedProject(page, request, '글자 선명');
+  await uploadPhoto(page);
+  const ph = await page.evaluate(() => {
+    const g = (window as any).__ganpanda, p = g.photos[0];
+    g.project.addObject({ photoId: p.id, name: '정면간판', shape: 'rect', quad: [[700, 400], [900, 400], [900, 500], [700, 500]], sheetIds: [], widthMm: 3600, heightMm: 600 });
+    g.addZone(p.id, [[600, 300], [1000, 300], [1000, 600], [600, 600]]);
+    g.project.updatePhoto(p.id, { blocks: [{ q: [[100, 600], [300, 600], [300, 700], [100, 700]], w: 2000 }] });
+    return { x: p.x, y: p.y, s: p.width / p.w, room: g.room };
+  });
+  for (const Z of [1, 12]) {
+    const wx = ph.x + 700 * ph.s, wy = ph.y + 400 * ph.s;
+    await page.evaluate(({ room, v }) => localStorage.setItem('ganpanda.roomView.' + room, JSON.stringify({ viewport: v })), { room: ph.room, v: { x: 600 - wx * Z, y: 400 - wy * Z, zoom: Z } });
+    await page.reload();
+    const label = page.getByTestId('sign-label').first();
+    await expect(label).toContainText(/정면간판\s?·\s?3,600×600/);
+    const info = await label.evaluate((e) => ({ inSvg: !!e.closest('svg'), fs: getComputedStyle(e).fontSize, r: e.getBoundingClientRect() }));
+    expect(info.inSvg).toBe(false);
+    expect(info.fs).toBe('12px');
+    expect(info.r.height).toBeGreaterThan(10); expect(info.r.height).toBeLessThan(24); // 확대와 상관없이 화면에서 같은 크기
+    const cv = (await page.getByTestId('board-canvas').boundingBox())!;
+    expect(Math.abs(info.r.left - (cv.x + 600))).toBeLessThan(3); // 왼쪽 = 꼭짓점
+    expect(info.r.bottom).toBeLessThanOrEqual(cv.y + 400); expect(info.r.bottom).toBeGreaterThan(cv.y + 400 - 12); // 꼭짓점 바로 위
+    for (const id of ['zone-label', 'block-size']) expect(await page.getByTestId(id).first().evaluate((e) => !e.closest('svg'))).toBe(true);
+  }
+});
