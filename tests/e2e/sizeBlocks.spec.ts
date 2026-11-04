@@ -164,3 +164,29 @@ test('옛 데이터: 사인물에 붙어 있던 블록은 그 사인물 치수�
   expect((await photoBlocks(page))[0]).toMatchObject({ w: 4000, h: 1000, axis: 'y' });
   await expect(page.getByTestId('size-block')).toHaveCount(1);
 });
+
+test('블록의 길이와 자리가 반영된다 — 두 블록의 축척이 달라도 각 블록은 자기 길이로 맞고(보라), 사인물은 가까운 블록을 따르며 사이는 이어진다 (2026-11-04 "두 블록의 가로 비율이 서로 다르게 나온다")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '블록 자리');
+  await uploadPhoto(page);
+  const ids = await page.evaluate(() => {
+    const g = (window as any).__ganpanda, p = g.photos[0].id;
+    g.project.addObject({ photoId: p, name: '실측', shape: 'rect', quad: [[700, 800], [900, 800], [900, 900], [700, 900]], sheetIds: [], widthMm: 2000, heightMm: 1000 });
+    const left = g.project.addObject({ photoId: p, name: '왼쪽', shape: 'rect', quad: [[100, 400], [300, 400], [300, 500], [100, 500]], sheetIds: [] });
+    const mid = g.project.addObject({ photoId: p, name: '가운데', shape: 'rect', quad: [[700, 400], [900, 400], [900, 500], [700, 500]], sheetIds: [] });
+    const right = g.project.addObject({ photoId: p, name: '오른쪽', shape: 'rect', quad: [[1300, 400], [1500, 400], [1500, 500], [1300, 500]], sheetIds: [] });
+    return { p, left, mid, right };
+  });
+  await page.getByTestId('camera-auto').click();
+  await expect.poll(() => page.evaluate(() => !!(window as any).__ganpanda.photos[0].camera)).toBe(true);
+  // 같은 크기(200px)로 그린 두 블록에 서로 다른 길이 — 원근만으로는 한 축척이라 둘 중 하나는 안 맞는다
+  await page.evaluate((p) => (window as any).__ganpanda.project.updatePhoto(p, { blocks: [{ q: [[100, 200], [300, 200], [300, 300], [100, 300]], w: 2000 }, { q: [[1300, 200], [1500, 200], [1500, 300], [1300, 300]], w: 3000 }] }), ids.p);
+  await expect.poll(() => est(page, ids.left)).toBeGreaterThan(1950);
+  expect(await est(page, ids.left)).toBeLessThan(2050);
+  expect(await est(page, ids.right)).toBeGreaterThan(2950);
+  expect(await est(page, ids.right)).toBeLessThan(3050);
+  const m = await est(page, ids.mid);
+  expect(m).toBeGreaterThan(2400); expect(m).toBeLessThan(2600);
+  // 두 블록 모두 자기 길이로 맞는다 → 보라
+  await expect(page.getByTestId('size-block').nth(0)).toHaveAttribute('data-fit', '1');
+  await expect(page.getByTestId('size-block').nth(1)).toHaveAttribute('data-fit', '1');
+});

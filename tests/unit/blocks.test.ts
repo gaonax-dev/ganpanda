@@ -204,3 +204,31 @@ describe('축 면 랩핑 (2026-11-04 "블록이 여러게 있다면 해당 블�
     expect(measureByBlocks([{ raw: { widthMm: 1, heightMm: 1 } }], [{ id: 's', raw: { widthMm: 1, heightMm: 1 } }]).size).toBe(0);
   });
 });
+
+describe('블록의 길이와 위치로 축척 (2026-11-04 "두 블록의 가로 비율이 서로 다르게 나온다. … 블록 길이와 위치에대한 계산없이 원근의 그리드로 길이를 유추하고 있다")', async () => {
+  const { measureByBlocks } = await import('../../src/lib/core/blocks');
+  // 원근이 조금 틀려 왼쪽 블록은 축척 2, 오른쪽 블록은 축척 3 으로 나오는 벽 (펼친 길이 1000 = 입력 2000 / 3000)
+  const blocks = [
+    { raw: { widthMm: 1000, heightMm: 500 }, w: 2000, h: 1000, at: [0, 0] as Pt },
+    { raw: { widthMm: 1000, heightMm: 500 }, w: 3000, h: 1500, at: [10000, 0] as Pt },
+  ];
+  it('각 블록 자리에서는 그 블록의 축척 — 블록을 다시 재면 입력 길이 그대로', () => {
+    const r = measureByBlocks(blocks, [{ id: 'a', raw: { widthMm: 1000, heightMm: 500 }, at: [0, 0] }, { id: 'b', raw: { widthMm: 1000, heightMm: 500 }, at: [10000, 0] }]);
+    expect(r.get('a')!.widthMm).toBeCloseTo(2000, 0); expect(r.get('a')!.heightMm).toBeCloseTo(1000, 0);
+    expect(r.get('b')!.widthMm).toBeCloseTo(3000, 0); expect(r.get('b')!.heightMm).toBeCloseTo(1500, 0);
+  });
+  it('두 블록 사이는 자리에 따라 이어진다 (가운데 = 2.5배), 가까운 블록을 따른다', () => {
+    const r = measureByBlocks(blocks, [{ id: 'm', raw: { widthMm: 100, heightMm: 100 }, at: [5000, 0] }, { id: 'n', raw: { widthMm: 100, heightMm: 100 }, at: [2000, 0] }]);
+    expect(r.get('m')!.widthMm).toBeCloseTo(250, 0);
+    expect(r.get('n')!.widthMm).toBeCloseTo(220, 0);
+  });
+  it('블록 바깥으로 멀리 가도 블록들의 축척 범위를 넘지 않는다', () => {
+    const r = measureByBlocks(blocks, [{ id: 'far', raw: { widthMm: 100, heightMm: 100 }, at: [80000, 0] }, { id: 'back', raw: { widthMm: 100, heightMm: 100 }, at: [-80000, 0] }]);
+    expect(r.get('far')!.widthMm).toBeCloseTo(300, 0);
+    expect(r.get('back')!.widthMm).toBeCloseTo(200, 0);
+  });
+  it('자리를 모르면(옆면·수평면 등) 예전처럼 중앙값', () => {
+    const r = measureByBlocks(blocks, [{ id: 's', raw: { widthMm: 100, heightMm: 100 } }]);
+    expect(r.get('s')!.widthMm).toBeCloseTo(250, 0);
+  });
+});

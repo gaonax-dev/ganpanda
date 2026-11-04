@@ -19,6 +19,7 @@ import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import { measureQuad, type Calibration } from './core/calibration';
+import { applyHomography } from './core/homography';
 import { loadRoomView } from './core/roomView';
 import { alignBlock, blockFits, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
@@ -375,9 +376,11 @@ class AppState {
       const pbs = this.photoBlocks.get(p.id) ?? [];
       if (pbs.some(isSized) && calib?.metric && cal) {
         const wallRaw = (q: Pt[]) => (isValidQuad(q) ? measureQuad(calib, q) : null);
-        const bIn = pbs.map((b) => ({ raw: (b.axis && b.axis !== 'y' ? faceSizeOnAxis(b.q, cal, b.axis) : undefined) ?? wallRaw(b.q), w: b.w, h: b.h, axis: b.axis }));
-        const signIn = objs.map((o) => { const f = faceOf(o, cal), fs = f && f.plane !== cal ? faceSizeOf(o, cal) : undefined; return { id: o.id, raw: fs ?? wallRaw(o.quad), axis: fs && f ? f.axis : ('y' as const) }; });
-        const est = measureByBlocks(bIn, [...signIn, ...bIn.map((b, i) => ({ id: this.blockIdOf(p.id, i), raw: b.raw, axis: b.axis }))]);
+        // 벽면 자리(벽 좌표의 가운데) — 블록마다 축척이 다르게 나오면 자리에 따라 이어 쓴다 (2026-11-04 "블록 길이와 위치에대한 계산없이 … 유추하고 있다")
+        const wallAt = (q: Pt[]): Pt | undefined => { if (!isValidQuad(q)) return undefined; const w = q.map((pt) => applyHomography(calib.H, pt)); return [w.reduce((a, x) => a + x[0], 0) / 4, w.reduce((a, x) => a + x[1], 0) / 4]; };
+        const bIn = pbs.map((b) => { const side = b.axis && b.axis !== 'y'; return { raw: (side ? faceSizeOnAxis(b.q, cal, b.axis as 'x' | 'z') : undefined) ?? wallRaw(b.q), w: b.w, h: b.h, axis: b.axis, at: side ? undefined : wallAt(b.q) }; });
+        const signIn = objs.map((o) => { const f = faceOf(o, cal), fs = f && f.plane !== cal ? faceSizeOf(o, cal) : undefined; return { id: o.id, raw: fs ?? wallRaw(o.quad), axis: fs && f ? f.axis : ('y' as const), at: fs ? undefined : wallAt(o.quad) }; });
+        const est = measureByBlocks(bIn, [...signIn, ...bIn.map((b, i) => ({ id: this.blockIdOf(p.id, i), raw: b.raw, axis: b.axis, at: b.at }))]);
         for (const o of objs) { const e = est.get(o.id); out.set(o.id, e ? { warnings: [], estimate: e } : { warnings: [] }); }
         pbs.forEach((_, i) => { const id = this.blockIdOf(p.id, i), e = est.get(id); out.set(id, e ? { warnings: [], estimate: e } : { warnings: [] }); });
         continue;

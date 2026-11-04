@@ -152,29 +152,60 @@ export function blockGrid(pl: BlockPlane, q: Pt[], n = 6, others: Pt[][] = []): 
 }
 
 /**
- * 축 면 랩핑 (2026-11-04 사용자: "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론하다. 커다란 블록이 하나면 이걸로 그리드를 만들고 랩핑하는 거야"):
- * 원근(구도)은 그대로 두고, 블록마다 그 축 면에 펼친 길이(raw)와 입력 길이(w·h, 하나만 있으면 그 축척을 둘 다에)로 축척을 얻어 **축 면마다 중앙값** — 그 면에 펼친 사인물 길이 × 축척.
- * 사인물의 면에 블록이 없으면 모든 블록의 중앙값. raw = 원근 면에서 잰 길이(원근의 단위), axis 없음 = 벽면 y
+ * 축 면 랩핑 (2026-11-04 사용자: "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론하다. 커다란 블록이 하나면 이걸로 그리드를 만들고 랩핑하는 거야"
+ * → "두 블록의 가로 비율이 서로 다르게 나온다 … 블록 길이와 위치에대한 계산없이 원근의 그리드로 길이를 유추하고 있다"):
+ * 원근(구도)은 그대로 두고, 블록마다 그 축 면에 펼친 길이(raw)와 입력 길이(w·h, 하나만 있으면 그 축척을 둘 다에)로 축척을 얻는다.
+ * - **벽면(y)에서 자리(at — 벽 좌표)를 아는 블록·사인물**: 축척을 **자리에 따라 변하는 면**(s = a + b·u + c·v, 최소제곱 — 블록 셋까지는 각 블록 자리에서 정확히 그 블록의 축척)으로.
+ *   원근이 조금 틀려 블록마다 축척이 다르게 나와도 가까운 블록을 따르고 사이는 이어진다. 블록 바깥은 블록들의 축척 범위로 막는다
+ * - 그 밖(옆면·수평면, 자리 모름): 그 축 면 블록들의 중앙값, 그 면에 블록이 없으면 모든 블록의 중앙값
+ * raw = 원근 면에서 잰 길이(원근의 단위), axis 없음 = 벽면 y
  */
 export function measureByBlocks(
-  blocks: { raw: { widthMm: number; heightMm: number } | null | undefined; w?: number; h?: number; axis?: BlockAxis }[],
-  signs: { id: string; raw: { widthMm: number; heightMm: number } | null | undefined; axis?: BlockAxis }[],
+  blocks: { raw: { widthMm: number; heightMm: number } | null | undefined; w?: number; h?: number; axis?: BlockAxis; at?: Pt }[],
+  signs: { id: string; raw: { widthMm: number; heightMm: number } | null | undefined; axis?: BlockAxis; at?: Pt }[],
 ): Map<string, { widthMm: number; heightMm: number }> {
-  const scales: { axis: BlockAxis; sx: number; sy: number }[] = [];
+  const scales: { axis: BlockAxis; sx: number; sy: number; at?: Pt }[] = [];
   for (const b of blocks) {
     if (!b.raw || !(b.raw.widthMm > 0) || !(b.raw.heightMm > 0)) continue;
     const sx = b.w && b.w > 0 ? b.w / b.raw.widthMm : undefined, sy = b.h && b.h > 0 ? b.h / b.raw.heightMm : undefined;
     if (sx === undefined && sy === undefined) continue;
-    scales.push({ axis: b.axis ?? 'y', sx: sx ?? sy!, sy: sy ?? sx! });
+    scales.push({ axis: b.axis ?? 'y', sx: sx ?? sy!, sy: sy ?? sx!, at: b.at });
   }
   const out = new Map<string, { widthMm: number; heightMm: number }>();
   if (!scales.length) return out;
   const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
   const scaleOf = (axis: BlockAxis) => { const on = scales.filter((s) => s.axis === axis), use = on.length ? on : scales; return { sx: median(use.map((s) => s.sx)), sy: median(use.map((s) => s.sy)) }; };
+  const wall = scales.filter((s): s is typeof s & { at: Pt } => s.axis === 'y' && !!s.at && isFinite(s.at[0]) && isFinite(s.at[1]));
+  const fx = wall.length ? scaleField(wall.map((s) => ({ at: s.at, v: s.sx }))) : null;
+  const fy = wall.length ? scaleField(wall.map((s) => ({ at: s.at, v: s.sy }))) : null;
   for (const s of signs) {
     if (!s.raw || !(s.raw.widthMm > 0) || !(s.raw.heightMm > 0)) continue;
-    const k = scaleOf(s.axis ?? 'y');
+    const ax = s.axis ?? 'y';
+    const k = ax === 'y' && s.at && fx && fy ? { sx: fx(s.at), sy: fy(s.at) } : scaleOf(ax);
     out.set(s.id, { widthMm: s.raw.widthMm * k.sx, heightMm: s.raw.heightMm * k.sy });
   }
   return out;
+}
+
+/** 자리(벽 좌표)에 따라 변하는 축척 s(u,v) = a + b·u + c·v — 기울기에 아주 작은 능선(ridge)을 두어 블록 하나면 상수, 둘이면 그 방향으로만 기운다. 값은 블록들의 범위로 막는다 */
+function scaleField(pts: { at: Pt; v: number }[]): (p: Pt) => number {
+  const lo = Math.min(...pts.map((p) => p.v)), hi = Math.max(...pts.map((p) => p.v));
+  const cu = pts.reduce((a, p) => a + p.at[0], 0) / pts.length, cv = pts.reduce((a, p) => a + p.at[1], 0) / pts.length;
+  const L = Math.max(1, ...pts.map((p) => Math.hypot(p.at[0] - cu, p.at[1] - cv)));
+  const rows = pts.map((p) => [1, (p.at[0] - cu) / L, (p.at[1] - cv) / L]);
+  const M = [0, 1, 2].map((i) => [0, 1, 2].map((j) => rows.reduce((a, r) => a + r[i] * r[j], 0) + (i === j && i > 0 ? 1e-9 : 0)));
+  const y = [0, 1, 2].map((i) => rows.reduce((a, r, k) => a + r[i] * pts[k].v, 0));
+  const c = solve3(M, y) ?? [pts.reduce((a, p) => a + p.v, 0) / pts.length, 0, 0];
+  return (p) => Math.min(hi, Math.max(lo, c[0] + (c[1] * (p[0] - cu)) / L + (c[2] * (p[1] - cv)) / L));
+}
+function solve3(M: number[][], y: number[]): number[] | null {
+  const A = M.map((r, i) => [...r, y[i]]);
+  for (let c = 0; c < 3; c++) {
+    let p = c;
+    for (let r = c + 1; r < 3; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-15) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < 3; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k]; }
+  }
+  return [0, 1, 2].map((i) => A[i][3] / A[i][i]);
 }
