@@ -7,7 +7,7 @@
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
-  import { BLOCK_COLOR, BLOCK_FIT_COLOR, blockIdOf } from '../core/blocks';
+  import { BLOCK_COLOR, BLOCK_FIT_COLOR, blockIdOf, type PhotoBlock } from '../core/blocks';
   import type { MeasureResult } from '../core/measure';
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import BakedDesign from '../ui/BakedDesign.svelte';
@@ -222,14 +222,13 @@
    * 치수 블록은 조작할 때 **가짜 사인물**(id = `<사인물>#b<번호>`, quad = 블록)로 다뤄 사인물과 같은 손잡이(변·꼭짓점·원근 매니퓰레이터·원근에 맞추기)를 그대로 쓴다
    * (2026-11-04 사용자: "사인물과 같이 컨트롤로가 있어야 하지 않나? 그래야 퍼스팩트브에 맞게 위치를 잡고 기준이 되지"). onselect/onquad 는 BoardView 가 블록 id 를 풀어 블록으로 보낸다
    */
-  const blockSign = (o: SignObject, i: number, b: Pt[]): SignObject => ({ ...o, id: blockIdOf(o.id, i), quad: b, blocks: undefined, blockAxes: undefined, turn: undefined, faceAxis: o.blockAxes?.[i] ?? undefined, boxDir: undefined, sameAs: undefined }); // 벽축 핸들 = 블록 축 (끝 동그라미로 바꾸면 setBlockAxis)
+  const blockSign = (i: number, b: PhotoBlock): SignObject => ({ id: blockIdOf(photo.id, i), photoId: photo.id, name: '', shape: 'rect', quad: b.q, sheetIds: [], createdAt: 0, faceAxis: b.axis }); // 벽축 핸들 = 블록 축 (끝 동그라미로 바꾸면 setBlockAxis)
+  /** 이 사진의 치수 블록 (2026-11-04 사진의 것, 블록마다 입력 치수·축) */
+  const blocks = $derived(app.photoBlocks.get(photo.id) ?? []);
   /** 조작 손잡이를 붙일 대상: 고른 블록이 이 사진에 있으면 그 블록(가짜 사인물), 아니면 고른 사인물 */
   const controlTargets = $derived.by((): SignObject[] => {
     const sb = app.selectedBlock;
-    if (sb) {
-      const o = objects.find((x) => x.id === sb.id), b = o?.blocks?.[sb.i];
-      return o && b ? [blockSign(o, sb.i, b)] : [];
-    }
+    if (sb) return sb.photoId === photo.id && blocks[sb.i] ? [blockSign(sb.i, blocks[sb.i])] : [];
     return objects.filter((x) => x.id === selectedId);
   });
   /** 편집 중인 오브젝트의 임시 사각형 (pointerup 에 문서 반영) */
@@ -886,27 +885,25 @@
             ondragend={() => onpinmoveend?.()} />
         {/if}
       </g>
-      <!-- 치수 블록 (2026-11-03 "설정이 하나인 사각이 두개", "핫핑크라인", "정확도가 향상된면 보라색"): 사인물과 같은 크기의 사각들. 선 = 핫핑크, 지금 원근으로 잰 크기 글자 = 빨강(≈), 사인물 치수와 맞으면 선·글자 보라.
-           고른 사인물의 블록에는 꼭짓점 손잡이(끌어 맞추기)·✕(지우기). 블록 안을 끌면 통째로 옮긴다 -->
-      {#if o.blocks?.length && !overlay}
-        {#each o.blocks as b0, bi (bi)}
-          {@const pb = blockSign(o, bi, b0)}
-          {@const b = quadOf(pb)}
-          {@const bsel = app.selectedBlock?.id === o.id && app.selectedBlock.i === bi}
-          {@const fit = app.blockFitOf(o, bi)}
-          {@const est = app.blockEstimate(o, bi)}
-          {@const bc = centerOf(b)}
-          {@const col = fit ? BLOCK_FIT_COLOR : BLOCK_COLOR}
-          <!-- 누르면 블록이 선택되어(사인물도 함께) 아래 조작 손잡이 층이 이 블록에 붙는다 — 끌면 사인물처럼 통째로 옮김 -->
-          <g class="block" class:fit class:sel={bsel} class:ghost={hideLines && !sel && !multiSel} data-testid="size-block" data-id={o.id} data-index={bi} data-fit={fit ? '1' : undefined} data-selected={bsel || undefined}>
-            <polygon points={b.map((p) => p.join(',')).join(' ')} style:stroke={col} stroke-width={(bsel ? 3 : 2) * u} role="button" tabindex="-1" pointer-events={tool === 'select' ? 'auto' : 'none'} onpointerdown={(e) => shapeDown(e, pb, 'move')} />
-            {#if (!hideInfo || sel || multiSel) && est}
-              <text class="bsize" data-testid="block-size" x={bc[0]} y={bc[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle" style:fill={fit ? BLOCK_FIT_COLOR : undefined}>≈{fmt(est.widthMm)}×{fmt(est.heightMm)}</text>
-            {/if}
-          </g>
-        {/each}
-      {/if}
     {/each}
+    <!-- 치수 블록 (2026-11-04 "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다. 블록은 입력한 값만 나오고 여러 값과 방향을 지원한다"): 사진의 블록들.
+         선 = 형광 초록, 가운데 글자 = **입력한 치수만**(없으면 "치수 입력"), 지금 원근과 맞으면 보라. 누르면 블록이 선택되어 아래 조작 손잡이 층이 붙는다 — 끌면 통째로 옮김 -->
+    {#if !overlay}
+      {#each blocks as b0, bi (bi)}
+        {@const pb = blockSign(bi, b0)}
+        {@const b = quadOf(pb)}
+        {@const bsel = app.selectedBlock?.photoId === photo.id && app.selectedBlock.i === bi}
+        {@const fit = app.blockFitOf(photo.id, bi)}
+        {@const bc = centerOf(b)}
+        {@const col = fit ? BLOCK_FIT_COLOR : BLOCK_COLOR}
+        <g class="block" class:fit class:sel={bsel} class:ghost={hideLines && !bsel} data-testid="size-block" data-id={photo.id} data-index={bi} data-fit={fit ? '1' : undefined} data-selected={bsel || undefined}>
+          <polygon points={b.map((p) => p.join(',')).join(' ')} style:stroke={col} stroke-width={(bsel ? 3 : 2) * u} role="button" tabindex="-1" pointer-events={tool === 'select' ? 'auto' : 'none'} onpointerdown={(e) => shapeDown(e, pb, 'move')} />
+          {#if !hideInfo || bsel}
+            <text class="bsize" class:need={!(b0.w && b0.h)} data-testid="block-size" x={bc[0]} y={bc[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle" style:fill={fit ? BLOCK_FIT_COLOR : undefined}>{b0.w && b0.h ? `${fmt(b0.w)}×${fmt(b0.h)}` : '치수 입력'}</text>
+          {/if}
+        </g>
+      {/each}
+    {/if}
     <!-- 완료한 말풍선은 화면에서 사라진다 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고 화면에서는 말풍선을 제거") — 사진 머리의 ✓ 완료 n 과 사인물 속성의 컨펌 리스트에서 다시 연다 -->
     {#each pins.filter((p) => !p.resolved) as pin (pin.id)}
       {@const tip = [pin.x, pin.y] as Pt}
@@ -923,7 +920,7 @@
       {@const q = quadOf(o)}
       {@const sel = true}
       {@const turned = !!o.turn}
-      {@const blk = app.selectedBlock && o.id === blockIdOf(app.selectedBlock.id, app.selectedBlock.i) ? app.selectedBlock : null}
+      {@const blk = app.selectedBlock && o.id === blockIdOf(app.selectedBlock.photoId, app.selectedBlock.i) ? app.selectedBlock : null}
       <g class="sign sel ctl" data-testid="sign-controls" data-block={blk ? blk.i : undefined}>
         <!-- 고른 치수 블록도 사인물과 똑같은 손잡이만 — ✕ 없음, 지우기는 Delete 키 (2026-11-04 "x마크는 제거 … 사인물과 같은 컨트롤로가 되어야 이질감이 없다") -->
         <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘", "선만 움직여야지"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 그 변(양 끝 꼭짓점)만 옮긴다. 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 — 누른 자리에서 가장 가까운 변 -->
@@ -1121,7 +1118,8 @@
   .block.fit polygon { fill: rgba(168, 85, 247, 0.08); }
   .block.sel polygon { fill: rgba(57, 255, 20, 0.16); }
   .block.fit.sel polygon { fill: rgba(168, 85, 247, 0.16); }
-  .block text.bsize { fill: #ef4444; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
+  .block text.bsize.need { fill: #ef4444; } /* 치수 없는 블록 — "치수 입력" */
+  .block text.bsize { fill: #39ff14; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   .block.ghost polygon { fill: transparent; stroke: transparent !important; }
   .block.ghost text { display: none; }
   .draft.block { fill: rgba(57, 255, 20, 0.1); }

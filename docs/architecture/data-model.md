@@ -29,6 +29,15 @@
 | `camera?` | **카메라 설정** `{x, y, z?, origin, ref?, principal?}` — 축 선 두 쌍·원점·기준 길이 → 벽면 평면 (`core/camera.ts`). 사인물과 무관 → [../features/measurement.md](../features/measurement.md) |
 | `source?` | 이미지 조절(크롭·밝기)의 기준 원본 `{assetId, w, h, crop{x,y,w,h}, brightness}` (2026-10-21, `core/photoEdit.ts`). `assetId` 는 조절을 구운 새 에셋, `source.assetId` 가 원본. 없으면 조절 안 함. 크롭은 원본 px(원본 밖 = 흰 여백) → [../features/photo-board.md](../features/photo-board.md#사진-설정-교체--이미지-조절--삭제-2026-10-21) |
 
+### Photo.blocks (치수 블록, 2026-11-04)
+| 필드 | 설명 |
+|---|---|
+| `q` | 외곽 4점 (TL,TR,BR,BL), 사진 원본 px |
+| `w?`, `h?` | 입력한 가로·세로 mm (없으면 입력 전 — 기준이 아니다) |
+| `axis?` | 놓인 면 `y` 벽면 / `x` 벽에 직각인 세로면 / `z` 수평면 (없음 = 벽면) |
+
+치수 있는 블록이 있으면 그 사진 사인물들의 예상 크기는 블록이 기준 → [../features/size-blocks.md](../features/size-blocks.md)
+
 ### SignObject
 | 필드 | 설명 |
 |---|---|
@@ -38,8 +47,7 @@
 | `polygon?` | `shape = polygon`일 때 윤곽 (사진 px) |
 | `corner?` | 사각형 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5, 0.5 = 원·알약). 원형 도구가 0.5 로 만듦. 규격 필드(연결 시 원본 것) |
 | `turn?` | 벽에서 돌려 세움 `{deg 0~90, hinge left\|right}` (사진마다의 배치, quad 는 그 투영) |
-| `blocks?` | 치수 블록(2026-11-03): 이 사인물과 같은 크기의 사각들 `Pt[][]`(각 TL,TR,BR,BL, 사진 px). 원근 풀이의 축 선, 견적 제외. 위치 필드 → [../features/size-blocks.md](../features/size-blocks.md) |
-| `blockAxes?` | 치수 블록마다의 축 `('x'\|'y'\|'z'\|null)[]` (blocks 와 같은 순서, null = 자동 면, 2026-11-04). 위치 필드 |
+| `blocks?`, `blockAxes?` | **옛 데이터**(2026-11-03~04): 사인물에 붙인 치수 블록. 이제 `Photo.blocks` — 읽을 때 그 사인물 치수의 사진 블록으로 보이고, 고치면 옮겨진다 → [../features/size-blocks.md](../features/size-blocks.md) |
 | `widthMm?`, `heightMm?` | 사용자가 입력한 실제 치수 |
 | `productId?` | 간판 종류 (`catalog.ts`의 보드·채널) |
 | `sheetIds` | 시트 종류 (복수) |

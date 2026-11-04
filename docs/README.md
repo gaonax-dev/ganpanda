@@ -33,7 +33,7 @@
   - [photo-board.md](features/photo-board.md) — 사진 보드, 영역 그리기
   - [shortcuts.md](features/shortcuts.md) — 화면 조작(xlpop과 동일)과 단축키 설정
   - [measurement.md](features/measurement.md) — 카메라 설정(축 선·원점·기준 길이), 실측 판독과 경고 규칙
-  - [size-blocks.md](features/size-blocks.md) — 치수 블록: 치수 넣은 사인물과 같은 크기 사각을 더 그려 원근을 정밀하게 (핫핑크 → 맞으면 보라, 2026-11-03)
+  - [size-blocks.md](features/size-blocks.md) — 치수 블록: 크기를 아는 네모(입력 치수·축)를 사진에 그려 예상 크기·원근의 기준으로 (형광 → 맞으면 보라, 2026-11-04)
   - [sign-list-quote.md](features/sign-list-quote.md) — 사인물 리스트(전개도)와 견적
   - [supplier-prices.md](features/supplier-prices.md) — 공급 단가표(알리다, 공개 자료만)와 내 단가표 연결, 업로드·API 형식
   - [order.md](features/order.md) — 주문 사양 옵션(스키마), 주문 정보, 주문서·JSON

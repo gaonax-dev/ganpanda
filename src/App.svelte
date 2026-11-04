@@ -350,14 +350,14 @@
       {:else if app.selected && (app.view === 'board' || app.boardOnly)}
         <!-- 휴대폰 폭: 빠른 막대(치수 입력)만, [속성]을 누르면 전체 패널 -->
         <!-- 빠른 막대는 key 없이: 사이즈 입력 줄을 연 채 다음 사인물로 넘어갈 수 있게 -->
-        {#if app.selectedBlock && app.selectedBlock.id === app.selected.id && app.selected.blocks?.[app.selectedBlock.i]}
-          <!-- 치수 블록: 사이즈·축만, 휴대폰도 바로 (2026-11-04 "블록은 속성이 사이즈와 축설정만 있다. 항상 바로 보이게") -->
-          {#key `${app.selectedBlock.id}#${app.selectedBlock.i}`}<BlockPanel obj={app.selected} index={app.selectedBlock.i} />{/key}
-        {:else if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
+        {#if app.chatObjectId === app.selected.id}{#key app.selected.id}<ObjectChatPanel obj={app.selected} />{/key}
         {:else if app.compact && !app.panelOpen}
           <!-- 누르는 동안·끌어서 고른 것은 숨김 — 뗄 때(탭) 나온다 (2026-10-22 "터치 업에 속성창나오게"). 지우지 않고 숨겨 사이즈 입력 줄 등 상태는 그대로 -->
           <div class="qb" hidden={app.pressing || app.dragHideId === app.selected.id}><QuickBar obj={app.selected} /></div>
         {:else}{#key app.selected.id}<ObjectPanel obj={app.selected} />{/key}{/if}
+      {:else if app.selectedBlock && (app.view === 'board' || app.boardOnly) && app.blockAt(app.selectedBlock.photoId, app.selectedBlock.i)}
+        <!-- 치수 블록: 치수·축만, 휴대폰도 바로 (2026-11-04 "블록은 속성이 사이즈와 축설정만 있다. 항상 바로 보이게") -->
+        {#key `${app.selectedBlock.photoId}#${app.selectedBlock.i}`}<BlockPanel photoId={app.selectedBlock.photoId} index={app.selectedBlock.i} />{/key}
       {:else if app.selectedPin && app.view === 'board'}
         {#key app.selectedPin.id}<PinPanel pin={app.selectedPin} />{/key}
       {/if}

@@ -20,7 +20,7 @@ import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import type { Calibration } from './core/calibration';
 import { loadRoomView } from './core/roomView';
-import { asBlocks, blockFits, blockIdOf, predictBlock, snapStart, type BlockAxis } from './core/blocks';
+import { blockCameraFit, blockFits, blockIdOf, isSized, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -371,20 +371,20 @@ class AppState {
       const quiet = !!p.camera?.auto;
       const objs = this.objects.filter((o) => o.photoId === p.id);
       // 치수 블록(2026-11-03)은 치수 없는 영역으로 함께 재서 지금 원근으로 본 크기를 얻는다 — 사인물 치수와 맞는지(보라) 보기 위해. 축척 보정(치수 입력 영역)에는 넣지 않는다
-      // 치수 블록(2026-11-03)도 함께 잰다 — 블록은 사인물과 같은 크기를 아는 영역이므로 **기준 영역**으로 들어가 축척을 맞추고(다른 사인물 추정이 바로 조정됨, 2026-11-04
-      // "해당 블록의 길이와 방향이 설정되면 그와 동시에 다른 사인물의 길이가 조정된다"), 정한 축(면)에서 잰다. 사인물 치수가 없으면 치수 없는 영역(보라 판정만)
-      const blockRefs: { o: SignObject; axis?: 'x' | 'y' | 'z' }[] = [];
-      const blocks = objs.flatMap((o) => {
-        const sz = o.widthMm && o.heightMm ? { widthMm: o.widthMm, heightMm: o.heightMm } : { widthMm: undefined, heightMm: undefined };
-        return asBlocks(o.blocks, o.blockAxes).map((b, i): SignObject => {
-          const pb: SignObject = { ...o, id: this.blockIdOf(o.id, i), quad: b.q, ...sz, turn: undefined, blocks: undefined, blockAxes: undefined, sameAs: undefined, faceAxis: undefined, boxDir: undefined };
-          blockRefs.push({ o: pb, axis: b.axis });
-          return pb;
-        });
+      // 치수 블록 (2026-11-04 "블록이 있으면 사인물들의 예상 크기는 블록이 기준이 된다"): 치수 있는 블록이 있으면 축척 기준은 블록만 — 사인물의 입력 치수는 기준에서 빼고(입력값은 그대로 보임) 블록의 입력 치수로.
+      // 블록은 정한 축(면)에서 잰다(없거나 못 재면 벽면). 치수 없는 블록은 재기만(보라 판정 없음)
+      const pbs = this.photoBlocks.get(p.id) ?? [];
+      const byBlocks = pbs.some(isSized);
+      const axisOf = new Map<string, BlockAxis | undefined>();
+      const blocks = pbs.map((b, i): SignObject => {
+        const id = this.blockIdOf(p.id, i);
+        axisOf.set(id, b.axis);
+        return { id, photoId: p.id, name: '', shape: 'rect', quad: b.q, sheetIds: [], createdAt: 0, widthMm: b.w, heightMm: b.h };
       });
-      const axisOf = new Map(blockRefs.map((r) => [r.o.id, r.axis]));
-      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal) ?? undefined; /* 어느 면에도 딱 맞지 않는 외곽선은 벽면에서 잰다 — 추정이 사라지지 않게 (2026-11-04 "사이즈 나오지 않는다": 비뚤게 그린 블록으로 원근이 조금 바뀌면 반듯한 사인물도 면 판정에서 빠졌다) */ const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) ?? undefined : undefined; } : undefined; // 블록: 축 없음 = 벽면, 정한 면에서 못 재면 벽면 — 손으로 조금 비뚤게 그린 블록이 자동 면 판정에서 빠져 크기가 안 나오던 것 (2026-11-04)
-      for (const [id, r] of measurePhoto([...objs, ...blocks], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
+      const signsIn = byBlocks ? objs.map((o) => ({ ...o, widthMm: undefined, heightMm: undefined })) : objs;
+      // 어느 면에도 딱 맞지 않는 외곽선은 벽면에서 잰다 — 추정이 사라지지 않게 (2026-11-04 "사이즈 나오지 않는다")
+      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal) ?? undefined; const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) ?? undefined : undefined; } : undefined;
+      for (const [id, r] of measurePhoto([...blocks, ...signsIn], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
   });
@@ -415,7 +415,8 @@ class AppState {
         const s = this.sizeOf(o);
         return s && !s.estimated ? [{ quad: o.quad.map((q) => [q[0], q[1]] as [number, number]), w: s.w, h: s.h }] : [];
       });
-      out.set(p.id, cameraLevel(p.camera, sized, p.w, p.h));
+      const blocks = (this.photoBlocks.get(p.id) ?? []).filter((b) => isSized(b) && (!b.axis || b.axis === 'y')).map((b) => ({ quad: b.q.map((q) => [q[0], q[1]] as [number, number]), w: b.w!, h: b.h! })); // 치수 블록도 원근을 확인한다 (2026-11-04)
+      out.set(p.id, cameraLevel(p.camera, [...blocks, ...sized], p.w, p.h));
     }
     return out;
   });
@@ -859,9 +860,12 @@ class AppState {
     const p = this.photos.find((x) => x.id === photoId);
     if (!p || !this.canEdit) return false;
     // 사람이 둘째 축을 깊이(Y)로 바꿔 두었으면 사인물(좌우 변 = Z) 대신 AI 로 그 축의 선을 찾는다 (2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면")
+    // 치수 블록이 있으면 블록으로 (2026-11-04 "블록이 있으면 … 블록이 기준")
+    const fromBlocks = p.camera?.axes?.second[1] === 'y' ? null : blockCameraFit(this.photoBlocks.get(p.id) ?? [], p.w, p.h);
+    if (fromBlocks) { this.updateCamera(p.id, { camera: fromBlocks, autoCamera: undefined }); return true; }
     const sign = p.camera?.axes?.second[1] === 'y' ? null : this.matchSignOf(photoId);
     if (sign) {
-      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, asBlocks(sign.o.blocks, sign.o.blockAxes)); // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
+      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, this.photoBlocks.get(p.id)); // 사진의 치수 블록 변도 (2026-11-04) // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
       if (setup) {
         this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
@@ -916,7 +920,7 @@ class AppState {
   private lengthQueue = new Set<string>();
   private lengthTimer: ReturnType<typeof setTimeout> | undefined;
   private watchSizes() {
-    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}|${JSON.stringify(o.blocks ?? [])}${JSON.stringify(o.blockAxes ?? [])}` : ''; }; // 치수 블록이 바뀌어도 (2026-11-03)
+    const keyOf = (o: SignObject) => { const s = this.sizeOf(o); return s && !s.estimated ? `${s.w}x${s.h}|${o.quad.map((q) => q.join(',')).join(';')}|` : ''; }; // 치수 블록이 바뀌어도 (2026-11-03)
     this.project.doc.on('afterTransaction', (tr: { local: boolean; origin: unknown; changedParentTypes: Map<unknown, unknown> }) => {
       if (![...tr.changedParentTypes.keys()].some((t) => t === this.project.objects || (t as { parent?: unknown }).parent === this.project.objects)) return;
       const mine = tr.local && tr.origin === null; // Project 메서드는 origin 없이 — 동기화·IndexedDB·되돌리기는 origin 이 있다
@@ -939,13 +943,14 @@ class AppState {
       if (!o || !p || !size || size.estimated || o.shape === 'polygon' || o.quad.length !== 4) continue;
       const quad = o.quad.map((q) => [q[0], q[1]] as [number, number]);
       if (!p.camera && p.autoCamera === false) continue; // 원근을 지웠으면(자동 끔) 새로 만들지 않는다
+      if (this.photoBlocks.get(p.id)?.some(isSized)) { this.autoCameraFromBlocks(p.id); continue; } // 치수 블록이 있으면 원근도 블록이 기준 (2026-11-04)
       // 같은 사진의 다른 실측 사인물 — 지금 원근을 확인하고 있으면 안 맞는 새 사인물로 갈아엎지 않는다
       const others = this.objects.flatMap((x) => {
         if (x.id === o.id || x.photoId !== p.id || x.shape === 'polygon' || x.quad.length !== 4) return [];
         const sz = this.sizeOf(x);
         return sz && !sz.estimated ? [{ quad: x.quad.map((q) => [q[0], q[1]] as [number, number]), w: sz.w, h: sz.h }] : [];
       });
-      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, asBlocks(o.blocks, o.blockAxes)); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
+      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, this.photoBlocks.get(p.id)); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
       if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
       this.updateCamera(p.id, { camera: next }); // 조용히 — 완성(3)이 될 때만 화면 안내 (2026-10-20)
     }
@@ -1970,87 +1975,113 @@ class AppState {
   estSize = (o: SignObject): { w: number; h: number } | null => { if (o.widthMm && o.heightMm) return null; const s = this.sizeOf(o); return s ? { w: s.w, h: s.h } : null; };
   sizeOf(o: SignObject): { w: number; h: number; estimated: boolean } | null {
     if (o.widthMm && o.heightMm) return { w: o.widthMm, h: o.heightMm, estimated: false };
-    const e = this.measures.get(o.id)?.estimate;
+    const e = this.blockEstimateOf(o) ?? this.measures.get(o.id)?.estimate;
     return e ? { w: o.widthMm ?? e.widthMm, h: o.heightMm ?? e.heightMm, estimated: true } : null;
   }
 
-  // ---------- 치수 블록 (2026-11-03 사용자: "같은 크기 사각형으로 … 모서리 대각으로 같은크기 블록", "설정이 하나인 사각이 두개", "치수블록은 핫핑크라인", "정확도가 향상된면 보라") ----------
-  /** 블록을 붙일 사인물 = 고른 사인물이 사진 위 사각·원형이고 치수(추정 아님)가 있을 때. 없으면 [블록] 도구가 꺼진다 */
-  blockTarget = $derived.by(() => {
-    const o = this.selected;
-    if (!o || !o.photoId || o.shape === 'polygon' || o.quad.length !== 4) return null;
-    const s = this.sizeOf(o);
-    return s && !s.estimated ? o : null;
+  /**
+   * 여러 사진에 쓰인 사인물(연결)의 예상 크기: 치수 블록이 있는 사진의 추정을 따른다 — 마지막으로 블록을 고친 사진 우선, 없으면 자기 사진, 그다음 다른 사진
+   * (2026-11-04 "사인물이 다른 사진에도 사용되었다면 현재 조정하는 사진의 블록 변경을 따른다"). 블록 있는 사진이 없으면 undefined (자기 추정)
+   */
+  private blockEstimateOf(o: SignObject) {
+    const root = o.sameAs ?? o.id;
+    const copies = this.objects.filter((x) => (x.sameAs ?? x.id) === root && this.photoBlocks.get(x.photoId)?.some(isSized));
+    if (!copies.length) return undefined;
+    const pick = copies.find((x) => x.photoId === this.lastBlockPhotoId) ?? copies.find((x) => x.id === o.id) ?? copies[0];
+    return this.measures.get(pick.id)?.estimate;
+  }
+
+  // ---------- 치수 블록 (2026-11-03 "같은 크기 사각형으로 … 모서리 대각으로 같은크기 블록"; 2026-11-04 "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다.
+  //            블록은 입력한 값만 나오고 여러 값과 방향을 지원한다. 블록이 있으면 사인물들의 예상 크기는 블록이 기준이 된다") — 블록은 사진의 것(Photo.blocks), 블록마다 치수·축 ----------
+  /** 사진별 블록 목록 (옛 데이터: 사인물에 붙은 블록을 그 사인물 치수로 함께 읽는다 — 편집하면 사진으로 옮겨 쓴다) */
+  photoBlocks = $derived.by(() => {
+    const out = new Map<string, PhotoBlock[]>();
+    for (const p of this.photos) { const bs = photoBlocksOf(p, this.objects); if (bs.length) out.set(p.id, bs); }
+    return out;
   });
+  blockAt(photoId: string, i: number): PhotoBlock | null { return this.photoBlocks.get(photoId)?.[i] ?? null; }
   /** 블록의 판독 결과 키 (measures) · 조작 손잡이용 가짜 사인물 id (core/blocks.ts) */
   blockIdOf = blockIdOf;
-  /** 고른 블록 (2026-11-04 "사인물과 같이 컨트롤러가 있어야"): 블록을 누르면 그 사인물이 선택되고 조작 손잡이(변·꼭짓점·원근 매니퓰레이터)는 블록에 붙는다. 사인물을 다시 고르면 풀린다 */
-  selectedBlock = $state<{ id: string; i: number } | null>(null);
-  selectBlock(id: string, i: number) {
-    if (this.selectedId !== id) this.selectObject(id);
-    this.selectedBlock = { id, i };
+  /** 고른 블록 (사인물 선택과 배타). 조작 손잡이(변·꼭짓점·원근 매니퓰레이터)는 블록에 붙고 속성은 블록 패널(치수·축) */
+  selectedBlock = $state<{ photoId: string; i: number } | null>(null);
+  selectBlock(photoId: string, i: number) {
+    this.selectObject(null);
+    this.selectedBlock = { photoId, i };
   }
-  /** 지금 원근으로 잰 블록 크기 */
-  blockEstimate(o: SignObject, i: number) { return this.measures.get(this.blockIdOf(o.id, i))?.estimate; }
-  /** 블록이 사인물 치수와 맞는가(허용 오차 안) = 정확도를 올린 블록 → 보라 */
-  blockFitOf(o: SignObject, i: number): boolean {
-    const s = this.sizeOf(o);
-    return !!s && !s.estimated && blockFits(this.blockEstimate(o, i), s);
-  }
-  /**
-   * 블록 그리기: 사진 위에 사인물처럼 네모를 끌어 그리면 고른 사인물(blockTarget)의 블록이 된다 — 새 사인물이 아니다.
-   * 시작점이 그 사인물·블록의 꼭짓점 가까이(r px)이고 원근이 있으면 **대각 예측**: 그 꼭짓점에 모서리를 맞댄 같은 크기 블록을 끌어간 방향으로 놓는다(core/blocks.ts predictBlock)
-   */
-  addBlock(photoId: string, quad: Pt[], start: Pt, end: Pt, r: number): boolean {
-    const o = this.blockTarget;
-    if (!o || !this.canEdit) return false;
-    if (o.photoId !== photoId) { this.notice = '치수 블록은 고른 사인물이 있는 사진에 그립니다.'; return false; }
-    let q = quad;
-    const sol = this.cameras.get(photoId);
-    if (sol) {
-      const bases = [o.quad, ...asBlocks(o.blocks, o.blockAxes).filter((b) => !b.axis || b.axis === 'y').map((b) => b.q)]; // 대각 예측은 벽면 위에서만
-      const snap = snapStart(start, bases.flat(), r);
-      if (snap) {
-        const predicted = predictBlock(sol, bases[Math.floor(snap.index / 4)], snap.index % 4, end);
-        if (predicted) q = predicted;
-      }
-    }
-    const blocks = [...(o.blocks ?? []), q.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt)];
-    this.editBoundary();
-    this.project.updateObject(o.id, { blocks, ...(o.blockAxes ? { blockAxes: [...o.blockAxes, null] } : {}) });
-    this.editBoundary();
-    return true;
-  }
-  updateBlock(id: string, i: number, quad: Pt[]) {
-    const o = this.objects.find((x) => x.id === id);
-    if (!o || !this.canEdit || !o.blocks?.[i]) return;
-    const blocks = o.blocks.map((b, k) => (k === i ? quad.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt) : b));
-    this.project.updateObject(id, { blocks });
-    this.editBoundary();
-  }
-  /** 블록 축(면) 정하기 — 그 면에서 재어 기준이 되고 다른 사인물 추정이 바로 바뀐다 (2026-11-04) */
-  setBlockAxis(id: string, i: number, axis: BlockAxis) {
-    const o = this.objects.find((x) => x.id === id);
-    if (!o || !this.canEdit || !o.blocks?.[i]) return;
-    const axes = o.blocks.map((_, k) => (k === i ? axis : o.blockAxes?.[k] ?? null));
-    this.editBoundary();
-    this.project.updateObject(id, { blockAxes: axes });
-    this.editBoundary();
+  /** 블록을 마지막으로 고친 사진 — 여러 사진에 쓰인 사인물의 예상 크기는 이 사진의 블록 기준을 따른다 ("현재 조정하는 사진의 블록 변경을 따른다") */
+  lastBlockPhotoId = $state<string | null>(null);
+  /** 블록이 지금 원근과 맞는가(입력 치수와 10% 안) → 보라. 숫자(추정)는 보이지 않는다 */
+  blockFitOf(photoId: string, i: number): boolean {
+    const b = this.blockAt(photoId, i);
+    return !!b && isSized(b) && blockFits(this.measures.get(this.blockIdOf(photoId, i))?.estimate, { w: b.w, h: b.h });
   }
   /** 블록의 축: 정한 것, 없으면 벽면 */
-  blockAxisOf(o: SignObject, i: number): { axis: BlockAxis; auto: boolean } {
-    const set = o.blockAxes?.[i];
-    return set ? { axis: set, auto: false } : { axis: 'y', auto: true }; // 정하지 않으면 벽면 (재는 것과 같게)
+  blockAxisOf(photoId: string, i: number): { axis: BlockAxis; auto: boolean } {
+    const set = this.blockAt(photoId, i)?.axis;
+    return set ? { axis: set, auto: false } : { axis: 'y', auto: true };
   }
-  removeBlock(id: string, i: number) {
-    const o = this.objects.find((x) => x.id === id);
-    if (!o || !this.canEdit || !o.blocks?.[i]) return;
-    if (this.selectedBlock?.id === id) this.selectedBlock = null;
-    const blocks = o.blocks.filter((_, k) => k !== i);
-    const axes = o.blockAxes?.filter((_, k) => k !== i);
-    this.editBoundary();
-    this.project.updateObject(id, { blocks: blocks.length ? blocks : undefined, blockAxes: blocks.length && axes?.some((a) => a) ? axes : undefined });
-    this.editBoundary();
+  /** 블록 목록 쓰기: Photo.blocks 로 (옛 데이터는 사인물에서 지워 옮긴다), 그 뒤 블록으로 원근을 다시 잡는다 */
+  private writeBlocks(photoId: string, next: PhotoBlock[], boundary = true) {
+    const clean = next.map((b) => ({ q: b.q.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt), ...(b.w ? { w: b.w } : {}), ...(b.h ? { h: b.h } : {}), ...(b.axis ? { axis: b.axis } : {}) }));
+    if (boundary) this.editBoundary();
+    this.project.batch(() => {
+      this.project.updatePhoto(photoId, { blocks: clean.length ? clean : undefined });
+      for (const o of this.objects) if (o.photoId === photoId && (o.blocks || o.blockAxes)) this.project.updateObject(o.id, { blocks: undefined, blockAxes: undefined });
+    });
+    this.lastBlockPhotoId = photoId;
+    this.autoCameraFromBlocks(photoId);
+    if (boundary) this.editBoundary();
+  }
+  /** 치수 블록으로 원근: 자동 원근(또는 없음)이면 치수 있는 벽면 블록 + 나머지 블록의 변으로 다시 잡는다. 사람이 맞춘 원근·자동 끔은 손대지 않는다 */
+  private autoCameraFromBlocks(photoId: string) {
+    const p = this.photos.find((x) => x.id === photoId);
+    if (!p || (p.camera && !p.camera.auto) || (!p.camera && p.autoCamera === false)) return;
+    const setup = blockCameraFit(this.photoBlocks.get(photoId) ?? [], p.w, p.h);
+    if (setup && JSON.stringify(setup) !== JSON.stringify(p.camera)) this.updateCamera(photoId, { camera: setup });
+  }
+  /**
+   * 블록 그리기: 사진 위에 네모를 끌어 그리면 그 사진의 블록. 치수는 고른 사인물(같은 사진, 치수 입력)이 있으면 그 치수로 시작, 아니면 비워 둔다(패널에서 입력).
+   * 시작점이 고른 사인물·블록의 꼭짓점 가까이(r px)이고 원근이 있으면 **대각 예측**: 그 꼭짓점에 모서리를 맞댄 같은 크기 블록(치수도 그것)을 끌어간 방향으로
+   */
+  addBlock(photoId: string, quad: Pt[], start: Pt, end: Pt, r: number): boolean {
+    if (!this.canEdit) return false;
+    const list = this.photoBlocks.get(photoId) ?? [];
+    const sel = this.selected && this.selected.photoId === photoId && this.selected.quad.length === 4 && this.selected.widthMm && this.selected.heightMm ? this.selected : null;
+    const bases: PhotoBlock[] = [...(sel ? [{ q: sel.quad, w: sel.widthMm, h: sel.heightMm }] : []), ...list.filter((b) => !b.axis || b.axis === 'y')]; // 대각 예측은 벽면 위에서만
+    let nb: PhotoBlock = { q: quad, w: sel?.widthMm, h: sel?.heightMm };
+    const sol = this.cameras.get(photoId);
+    const snap = sol ? snapStart(start, bases.flatMap((b) => b.q), r) : null;
+    if (sol && snap) {
+      const base = bases[Math.floor(snap.index / 4)];
+      const predicted = predictBlock(sol, base.q, snap.index % 4, end);
+      if (predicted) nb = { q: predicted, w: base.w, h: base.h };
+    }
+    this.writeBlocks(photoId, [...list, nb]);
+    this.selectBlock(photoId, list.length);
+    return true;
+  }
+  updateBlock(photoId: string, i: number, quad: Pt[]) {
+    const list = this.photoBlocks.get(photoId);
+    if (!list?.[i] || !this.canEdit) return;
+    this.writeBlocks(photoId, list.map((b, k) => (k === i ? { ...b, q: quad } : b)));
+  }
+  /** 블록 치수(입력값) — 블록마다 다르다 */
+  setBlockSize(photoId: string, i: number, size: { w?: number; h?: number }) {
+    const list = this.photoBlocks.get(photoId);
+    if (!list?.[i] || !this.canEdit) return;
+    this.writeBlocks(photoId, list.map((b, k) => (k === i ? { ...b, ...size } : b)));
+  }
+  /** 블록 축(면) — 그 면에서 재어 기준이 된다 */
+  setBlockAxis(photoId: string, i: number, axis: BlockAxis) {
+    const list = this.photoBlocks.get(photoId);
+    if (!list?.[i] || !this.canEdit) return;
+    this.writeBlocks(photoId, list.map((b, k) => (k === i ? { ...b, axis } : b)));
+  }
+  removeBlock(photoId: string, i: number) {
+    const list = this.photoBlocks.get(photoId);
+    if (!list?.[i] || !this.canEdit) return;
+    if (this.selectedBlock?.photoId === photoId) this.selectedBlock = null;
+    this.writeBlocks(photoId, list.filter((_, k) => k !== i));
   }
 }
 

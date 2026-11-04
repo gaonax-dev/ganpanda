@@ -4,7 +4,8 @@
 // 블록의 변은 그 사인물의 변과 함께 원근 풀이의 축 선이 되어(camera.ts extra) 소실점이 건물 전체로 퍼진 선들로 정해지고,
 // 멀리(2층) 있는 영역의 추정 외삽 오차가 줄어든다. 지금 원근으로 잰 블록 크기가 사인물 치수와 맞으면(허용 오차 안) "정확도 향상" = 보라.
 import { applyHomography, type Pt } from './homography';
-import type { CameraSolution, Line } from './camera';
+import type { CameraSetup, CameraSolution, Line } from './camera';
+import { signCameraFit } from './camera';
 
 /** 블록 선 색 — 형광 초록 (2026-11-04 "형광색으로 블록을 변경해주고"; 처음엔 핫핑크) */
 export const BLOCK_COLOR = '#39ff14';
@@ -26,6 +27,30 @@ export function parseBlockId(id: string | null | undefined): { id: string; i: nu
  */
 export type BlockAxis = 'x' | 'y' | 'z';
 export interface SizeBlock { q: Pt[]; axis?: BlockAxis }
+/**
+ * 사진의 치수 블록 (2026-11-04 사용자: "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다. 블록은 입력한 값만 나오고 여러 값과 방향을 지원한다.
+ * 블록이 있으면 사인물들의 예상 크기는 블록이 기준이 된다"): 외곽선 q(사진 px, TL,TR,BR,BL) + 입력한 가로·세로(mm, 없으면 아직 입력 전) + 축(면).
+ * 사인물과 따로 사진(Photo.blocks)에 둔다 — 블록마다 크기·방향이 다르다
+ */
+export interface PhotoBlock { q: Pt[]; w?: number; h?: number; axis?: BlockAxis }
+/** 사진의 블록 목록 = Photo.blocks + 옛 데이터(2026-11-03~04 사인물에 붙인 블록 — 그 사인물의 치수로). 편집하면 이 목록 그대로 Photo.blocks 로 옮겨 쓴다 */
+export function photoBlocksOf(
+  photo: { id: string; blocks?: PhotoBlock[] },
+  signs: { photoId: string; widthMm?: number; heightMm?: number; blocks?: Pt[][]; blockAxes?: (BlockAxis | null)[] }[],
+): PhotoBlock[] {
+  const legacy = signs.filter((o) => o.photoId === photo.id && o.blocks?.length).flatMap((o) => asBlocks(o.blocks, o.blockAxes).map((b): PhotoBlock => ({ q: b.q, w: o.widthMm, h: o.heightMm, axis: b.axis })));
+  return [...(photo.blocks ?? []).map((b) => ({ ...b })), ...legacy];
+}
+/** 치수 있는 블록 */
+export const isSized = (b: PhotoBlock): b is PhotoBlock & { w: number; h: number } => !!(b.w && b.h && b.w > 0 && b.h > 0);
+/**
+ * 블록으로 원근 잡기: 치수 있는 첫 벽면 블록을 사인물처럼(원점·기준 길이·화각) 쓰고, 나머지 블록의 변을 축 선으로 더한다(signCameraFit). 치수 있는 벽면 블록이 없으면 null
+ */
+export function blockCameraFit(blocks: PhotoBlock[], imgW: number, imgH: number): CameraSetup | null {
+  const base = blocks.find((b) => isSized(b) && (!b.axis || b.axis === 'y') && b.q.length === 4);
+  if (!base || !isSized(base)) return null;
+  return signCameraFit(base.q, base.w, base.h, imgW, imgH, blocks.filter((b) => b !== base).map((b) => ({ q: b.q, axis: b.axis })));
+}
 /** 사인물의 blocks(사각)·blockAxes(축)를 묶어 읽는다 */
 export function asBlocks(blocks: Pt[][] | undefined, axes: (BlockAxis | null)[] | undefined): SizeBlock[] {
   return (blocks ?? []).map((q, i) => ({ q, axis: axes?.[i] ?? undefined }));

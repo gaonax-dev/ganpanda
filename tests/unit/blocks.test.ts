@@ -128,3 +128,26 @@ describe('블록 축 (2026-11-04 "블록은 속성이 사이즈와 축설정만 
     expect(l.x).toHaveLength(0); expect(l.y).toHaveLength(0);
   });
 });
+
+describe('블록은 사진의 것, 치수는 블록마다 입력값 (2026-11-04 "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다 … 여러 값과 방향을 지원")', async () => {
+  const { photoBlocksOf, blockCameraFit } = await import('../../src/lib/core/blocks');
+  const b1 = rect(1500, 2200, 1000, 600), b2 = rect(4500, 4600, 2000, 500);
+  it('사진의 블록 + 옛 데이터(사인물에 붙은 블록 — 그 사인물 치수로)를 한 목록으로', () => {
+    const photo = { id: 'p', blocks: [{ q: b1, w: 1000, h: 600, axis: 'y' as const }] };
+    const signs = [
+      { photoId: 'p', widthMm: 2000, heightMm: 500, blocks: [b2], blockAxes: [null] },
+      { photoId: 'q', widthMm: 1, heightMm: 1, blocks: [b1] },
+    ];
+    expect(photoBlocksOf(photo, signs)).toEqual([{ q: b1, w: 1000, h: 600, axis: 'y' }, { q: b2, w: 2000, h: 500, axis: undefined }]);
+    expect(photoBlocksOf({ id: 'z' }, [])).toEqual([]);
+  });
+  it('치수 있는 벽면 블록들로 원근을 잡는다 — 크기가 서로 다른 블록이어도, 멀리 있는 창문이 참값 근처', () => {
+    const setup = blockCameraFit([{ q: b1, w: 1000, h: 600 }, { q: b2, w: 2000, h: 500 }, { q: rect(2500, 2800, 1000, 600) }], imgW, imgH)!;
+    expect(setup).not.toBeNull();
+    const m = measureQuad(calibrationOf(solveCamera(setup, imgW, imgH)!), rect(5000, 6000, 1500, 1200));
+    near(m.widthMm, 1500, 0.03); near(m.heightMm, 1200, 0.03);
+  });
+  it('치수 있는 벽면 블록이 없으면 null', () => {
+    expect(blockCameraFit([{ q: b1 }, { q: b2, w: 2000, h: 500, axis: 'z' }], imgW, imgH)).toBeNull();
+  });
+});
