@@ -4,8 +4,7 @@
 // 블록의 변은 그 사인물의 변과 함께 원근 풀이의 축 선이 되어(camera.ts extra) 소실점이 건물 전체로 퍼진 선들로 정해지고,
 // 멀리(2층) 있는 영역의 추정 외삽 오차가 줄어든다. 지금 원근으로 잰 블록 크기가 사인물 치수와 맞으면(허용 오차 안) "정확도 향상" = 보라.
 import { applyHomography, type Pt } from './homography';
-import type { CameraSetup, CameraSolution, Line } from './camera';
-import { signCameraFit } from './camera';
+import type { CameraSolution, Line } from './camera';
 
 /** 블록 선 색 — 형광 초록 (2026-11-04 "형광색으로 블록을 변경해주고"; 처음엔 핫핑크) */
 export const BLOCK_COLOR = '#39ff14';
@@ -41,16 +40,8 @@ export function photoBlocksOf(
   const legacy = signs.filter((o) => o.photoId === photo.id && o.blocks?.length).flatMap((o) => asBlocks(o.blocks, o.blockAxes).map((b): PhotoBlock => ({ q: b.q, w: o.widthMm, h: o.heightMm, axis: b.axis })));
   return [...(photo.blocks ?? []).map((b) => ({ ...b })), ...legacy];
 }
-/** 치수 있는 블록 */
-export const isSized = (b: PhotoBlock): b is PhotoBlock & { w: number; h: number } => !!(b.w && b.h && b.w > 0 && b.h > 0);
-/**
- * 블록으로 원근 잡기: 치수 있는 첫 벽면 블록을 사인물처럼(원점·기준 길이·화각) 쓰고, 나머지 블록의 변을 축 선으로 더한다(signCameraFit). 치수 있는 벽면 블록이 없으면 null
- */
-export function blockCameraFit(blocks: PhotoBlock[], imgW: number, imgH: number): CameraSetup | null {
-  const base = blocks.find((b) => isSized(b) && (!b.axis || b.axis === 'y') && b.q.length === 4);
-  if (!base || !isSized(base)) return null;
-  return signCameraFit(base.q, base.w, base.h, imgW, imgH, blocks.filter((b) => b !== base).map((b) => ({ q: b.q, axis: b.axis })));
-}
+/** 치수(길이) 있는 블록 — 가로·세로 중 하나만 있어도 길이를 제시한다 (2026-11-04 "블록은 길이만 제시한다") */
+export const isSized = (b: PhotoBlock): boolean => !!((b.w && b.w > 0) || (b.h && b.h > 0));
 /** 사인물의 blocks(사각)·blockAxes(축)를 묶어 읽는다 */
 export function asBlocks(blocks: Pt[][] | undefined, axes: (BlockAxis | null)[] | undefined): SizeBlock[] {
   return (blocks ?? []).map((q, i) => ({ q, axis: axes?.[i] ?? undefined }));
@@ -110,4 +101,80 @@ export function predictBlock(sol: CameraSolution, base: Pt[], cornerIndex: numbe
   const byY = [...img].sort((a, b) => a[1] - b[1]);
   const top = byY.slice(0, 2).sort((a, b) => a[0] - b[0]), bottom = byY.slice(2).sort((a, b) => a[0] - b[0]);
   return [top[0], top[1], bottom[1], bottom[0]];
+}
+
+/** 원근 면(사진 px ↔ 면 좌표 mm) */
+export interface BlockPlane { H: number[]; Hinv: number[] }
+const proj = (H: number[], p: Pt) => applyHomography(H, p);
+/** 면 좌표 사각 [u0,u1]×[v0,v1](v 위가 +) → 사진 외곽선 TL,TR,BR,BL */
+function rectToImage(pl: BlockPlane, u0: number, u1: number, v0: number, v1: number): Pt[] | null {
+  const img = ([[u0, v1], [u1, v1], [u1, v0], [u0, v0]] as Pt[]).map((p) => proj(pl.H, p));
+  if (img.some((p) => !isFinite(p[0]) || !isFinite(p[1]))) return null;
+  const byY = [...img].sort((a, b) => a[1] - b[1]);
+  const top = byY.slice(0, 2).sort((a, b) => a[0] - b[0]), bottom = byY.slice(2).sort((a, b) => a[0] - b[0]);
+  return [top[0], top[1], bottom[1], bottom[0]];
+}
+/** 블록의 면 좌표 사각 (꼭짓점 평균 변) */
+function blockRect(pl: BlockPlane, q: Pt[]): { u0: number; u1: number; v0: number; v1: number } | null {
+  if (q.length !== 4) return null;
+  const [tl, tr, br, bl] = q.map((p) => proj(pl.Hinv, p));
+  if ([tl, tr, br, bl].some((p) => !isFinite(p[0]) || !isFinite(p[1]))) return null;
+  const a = (tl[0] + bl[0]) / 2, b = (tr[0] + br[0]) / 2, c = (bl[1] + br[1]) / 2, d = (tl[1] + tr[1]) / 2;
+  const u0 = Math.min(a, b), u1 = Math.max(a, b), v0 = Math.min(c, d), v1 = Math.max(c, d);
+  return u1 - u0 > 0 && v1 - v0 > 0 ? { u0, u1, v0, v1 } : null;
+}
+/**
+ * 블록은 원근을 따른다 (2026-11-04 "블록은 원근의 구도를 따른다"): 손으로 그린 네모를 그 축 면의 직사각형으로 맞춘다 — 왼·오른 변(꼭짓점 평균)과 위·아래 변으로. 못 맞추면 null
+ */
+export function alignBlock(pl: BlockPlane, q: Pt[]): Pt[] | null {
+  const r = blockRect(pl, q);
+  return r ? rectToImage(pl, r.u0, r.u1, r.v0, r.v1) : null;
+}
+/**
+ * 블록 길이 그리드 (2026-11-04 "이 길이를 해당 축에 그리드로 넣고 이걸로 사인물 길이를 추론한다" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다 …
+ * 커다란 블록이 하나면 이걸로 그리드를 만들고"): 같은 축의 블록들(q + others)을 모두 덮는 면을 n 칸 넓혀 **축 면**(face, 사진 외곽선)으로 하고,
+ * 그 면에 블록 q 의 폭·높이 간격으로 선을 긋는다. u = 세로선(가로 길이 눈금), v = 가로선(세로 길이 눈금). 사진 px 선분
+ */
+export function blockGrid(pl: BlockPlane, q: Pt[], n = 6, others: Pt[][] = []): { u: Line[]; v: Line[]; face: Pt[] } | null {
+  const r = blockRect(pl, q);
+  if (!r) return null;
+  const du = r.u1 - r.u0, dv = r.v1 - r.v0;
+  const all = [r, ...others.map((o) => blockRect(pl, o)).filter((x): x is NonNullable<typeof x> => !!x)];
+  const U0 = Math.min(...all.map((a) => a.u0)) - n * du, U1 = Math.max(...all.map((a) => a.u1)) + n * du;
+  const V0 = Math.min(...all.map((a) => a.v0)) - n * dv, V1 = Math.max(...all.map((a) => a.v1)) + n * dv;
+  const seg = (a: Pt, b: Pt): Line | null => { const A = proj(pl.H, a), B = proj(pl.H, b); return [A, B].every((p) => isFinite(p[0]) && isFinite(p[1])) ? { a: A, b: B } : null; };
+  const u: Line[] = [], v: Line[] = [];
+  const eps = 1e-6;
+  for (let k = Math.ceil((U0 - r.u0) / du - eps); r.u0 + k * du <= U1 + eps; k++) { const x = r.u0 + k * du, s = seg([x, V0], [x, V1]); if (s) u.push(s); }
+  for (let k = Math.ceil((V0 - r.v0) / dv - eps); r.v0 + k * dv <= V1 + eps; k++) { const y = r.v0 + k * dv, s = seg([U0, y], [U1, y]); if (s) v.push(s); }
+  const face = ([[U0, V1], [U1, V1], [U1, V0], [U0, V0]] as Pt[]).map((p) => proj(pl.H, p));
+  return { u, v, face };
+}
+
+/**
+ * 축 면 랩핑 (2026-11-04 사용자: "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론하다. 커다란 블록이 하나면 이걸로 그리드를 만들고 랩핑하는 거야"):
+ * 원근(구도)은 그대로 두고, 블록마다 그 축 면에 펼친 길이(raw)와 입력 길이(w·h, 하나만 있으면 그 축척을 둘 다에)로 축척을 얻어 **축 면마다 중앙값** — 그 면에 펼친 사인물 길이 × 축척.
+ * 사인물의 면에 블록이 없으면 모든 블록의 중앙값. raw = 원근 면에서 잰 길이(원근의 단위), axis 없음 = 벽면 y
+ */
+export function measureByBlocks(
+  blocks: { raw: { widthMm: number; heightMm: number } | null | undefined; w?: number; h?: number; axis?: BlockAxis }[],
+  signs: { id: string; raw: { widthMm: number; heightMm: number } | null | undefined; axis?: BlockAxis }[],
+): Map<string, { widthMm: number; heightMm: number }> {
+  const scales: { axis: BlockAxis; sx: number; sy: number }[] = [];
+  for (const b of blocks) {
+    if (!b.raw || !(b.raw.widthMm > 0) || !(b.raw.heightMm > 0)) continue;
+    const sx = b.w && b.w > 0 ? b.w / b.raw.widthMm : undefined, sy = b.h && b.h > 0 ? b.h / b.raw.heightMm : undefined;
+    if (sx === undefined && sy === undefined) continue;
+    scales.push({ axis: b.axis ?? 'y', sx: sx ?? sy!, sy: sy ?? sx! });
+  }
+  const out = new Map<string, { widthMm: number; heightMm: number }>();
+  if (!scales.length) return out;
+  const median = (xs: number[]) => { const a = [...xs].sort((p, q) => p - q); return a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
+  const scaleOf = (axis: BlockAxis) => { const on = scales.filter((s) => s.axis === axis), use = on.length ? on : scales; return { sx: median(use.map((s) => s.sx)), sy: median(use.map((s) => s.sy)) }; };
+  for (const s of signs) {
+    if (!s.raw || !(s.raw.widthMm > 0) || !(s.raw.heightMm > 0)) continue;
+    const k = scaleOf(s.axis ?? 'y');
+    out.set(s.id, { widthMm: s.raw.widthMm * k.sx, heightMm: s.raw.heightMm * k.sy });
+  }
+  return out;
 }

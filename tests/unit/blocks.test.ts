@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { BLOCK_COLOR, BLOCK_FIT_COLOR, BLOCK_FIT_TOL, blockFits, blockIdOf, blockLines, parseBlockId, predictBlock, snapStart } from '../../src/lib/core/blocks';
 import { calibrationOf, signCameraFit, signCameraSetup, solveCamera } from '../../src/lib/core/camera';
 import { measureQuad } from '../../src/lib/core/calibration';
-import { projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
+import { applyHomography, projectPoint, type CameraPose, type Pt } from '../../src/lib/core/homography';
 
 // 합성 핀홀 카메라 (camera.test 와 같은 모델)
 const imgW = 4000, imgH = 3000, f = 3000;
@@ -130,7 +130,7 @@ describe('블록 축 (2026-11-04 "블록은 속성이 사이즈와 축설정만 
 });
 
 describe('블록은 사진의 것, 치수는 블록마다 입력값 (2026-11-04 "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다 … 여러 값과 방향을 지원")', async () => {
-  const { photoBlocksOf, blockCameraFit } = await import('../../src/lib/core/blocks');
+  const { photoBlocksOf } = await import('../../src/lib/core/blocks');
   const b1 = rect(1500, 2200, 1000, 600), b2 = rect(4500, 4600, 2000, 500);
   it('사진의 블록 + 옛 데이터(사인물에 붙은 블록 — 그 사인물 치수로)를 한 목록으로', () => {
     const photo = { id: 'p', blocks: [{ q: b1, w: 1000, h: 600, axis: 'y' as const }] };
@@ -141,13 +141,66 @@ describe('블록은 사진의 것, 치수는 블록마다 입력값 (2026-11-04 
     expect(photoBlocksOf(photo, signs)).toEqual([{ q: b1, w: 1000, h: 600, axis: 'y' }, { q: b2, w: 2000, h: 500, axis: undefined }]);
     expect(photoBlocksOf({ id: 'z' }, [])).toEqual([]);
   });
-  it('치수 있는 벽면 블록들로 원근을 잡는다 — 크기가 서로 다른 블록이어도, 멀리 있는 창문이 참값 근처', () => {
-    const setup = blockCameraFit([{ q: b1, w: 1000, h: 600 }, { q: b2, w: 2000, h: 500 }, { q: rect(2500, 2800, 1000, 600) }], imgW, imgH)!;
-    expect(setup).not.toBeNull();
-    const m = measureQuad(calibrationOf(solveCamera(setup, imgW, imgH)!), rect(5000, 6000, 1500, 1200));
-    near(m.widthMm, 1500, 0.03); near(m.heightMm, 1200, 0.03);
+});
+
+describe('블록은 원근을 따른다 — 길이만 제시하고 그 축에 그리드 (2026-11-04 "원근이 블록에 종속되네 그러면 안됨 블록은 원근의 구도를 따른다. 블록은 길이만 제시한다. 이 길이를 해당 축에 그리드로 넣고")', async () => {
+  const { alignBlock, blockGrid } = await import('../../src/lib/core/blocks');
+  const sign = rect(1500, 2200, 2000, 600);
+  const sol = solveCamera(signCameraSetup(sign, 2000), imgW, imgH)!;
+  const plane = { H: sol.H, Hinv: sol.Hinv };
+  it('손으로 비뚤게 그린 네모를 원근의 벽면 직사각형으로 맞춘다 (꼭짓점 평균 변)', () => {
+    const want = rect(4000, 1000, 1000, 500);
+    const jit = want.map((p, i) => [p[0] + [6, -5, 4, -3][i], p[1] + [-4, 6, -5, 3][i]] as Pt);
+    const got = alignBlock(plane, jit)!;
+    for (let i = 0; i < 4; i++) expect(Math.hypot(got[i][0] - want[i][0], got[i][1] - want[i][1])).toBeLessThan(6);
+    const W = got.map((p) => applyHomography(sol.Hinv, p));
+    expect(Math.abs(W[0][1] - W[1][1])).toBeLessThan(1e-6); // 위 변이 벽 가로와 평행
+    expect(Math.abs(W[0][0] - W[3][0])).toBeLessThan(1e-6); // 왼 변이 벽 세로와 평행
   });
-  it('치수 있는 벽면 블록이 없으면 null', () => {
-    expect(blockCameraFit([{ q: b1 }, { q: b2, w: 2000, h: 500, axis: 'z' }], imgW, imgH)).toBeNull();
+  it('그리드: 블록 크기 간격의 선들이 블록 변과 이어지고, 벽 좌표에서 정확히 블록 폭·높이 간격', () => {
+    const b = rect(4000, 1000, 1000, 500);
+    const g = blockGrid(plane, b, 3)!;
+    const us = [...new Set(g.u.map((l) => Math.round(applyHomography(sol.Hinv, l.a)[0])))].sort((x, y) => x - y);
+    const vs = [...new Set(g.v.map((l) => Math.round(applyHomography(sol.Hinv, l.a)[1])))].sort((x, y) => x - y);
+    expect(us).toEqual([1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000].map((x) => x - 1500));
+    expect(vs).toEqual([-500, 0, 500, 1000, 1500, 2000, 2500, 3000].map((y) => y - 2200));
+  });
+  it('블록이 여러 개면 그 축의 면을 크게 — 모든 블록을 덮는 면(+n 칸)에 고른 블록 간격의 그리드, 면 외곽선도', () => {
+    const b = rect(4000, 1000, 1000, 500), far = rect(9000, 5000, 2000, 1000);
+    const g = blockGrid(plane, b, 1, [far])!;
+    const us = g.u.map((l) => Math.round(applyHomography(sol.Hinv, l.a)[0]) + 1500);
+    expect(Math.min(...us)).toBe(3000); expect(Math.max(...us)).toBe(12000); // 4000-1000 … 11000+1000
+    expect(us.every((x) => (x - 4000) % 1000 === 0)).toBe(true);
+    const F = g.face.map((p) => applyHomography(sol.Hinv, p)).map(([x, y]) => [Math.round(x) + 1500, Math.round(y) + 2200]);
+    expect(F).toEqual([[3000, 6500], [12000, 6500], [12000, 500], [3000, 500]]);
+  });
+});
+
+describe('축 면 랩핑 (2026-11-04 "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론하다. 커다란 블록이 하나면 이걸로 그리드")', async () => {
+  const { measureByBlocks } = await import('../../src/lib/core/blocks');
+  it('블록 하나: 그 블록의 길이/펼친 길이 = 축척 → 같은 면 사인물의 펼친 길이 × 축척', () => {
+    const r = measureByBlocks([{ raw: { widthMm: 2000, heightMm: 500 }, w: 4000, h: 1000 }], [{ id: 's', raw: { widthMm: 1000, heightMm: 300 } }]);
+    expect(r.get('s')).toEqual({ widthMm: 2000, heightMm: 600 });
+  });
+  it('길이 하나만 준 블록은 그 축척을 가로·세로 모두에', () => {
+    expect(measureByBlocks([{ raw: { widthMm: 2000, heightMm: 500 }, w: 4000 }], [{ id: 's', raw: { widthMm: 1000, heightMm: 300 } }]).get('s')).toEqual({ widthMm: 2000, heightMm: 600 });
+    expect(measureByBlocks([{ raw: { widthMm: 2000, heightMm: 500 }, h: 1500 }], [{ id: 's', raw: { widthMm: 1000, heightMm: 300 } }]).get('s')).toEqual({ widthMm: 3000, heightMm: 900 });
+  });
+  it('축 면마다: 옆면 사인물은 옆면 블록의 축척, 벽면 사인물은 벽면 블록들(중앙값). 블록 없는 면은 전체 블록', () => {
+    const r = measureByBlocks(
+      [
+        { raw: { widthMm: 1000, heightMm: 1000 }, w: 2000, h: 2000, axis: 'y' },
+        { raw: { widthMm: 1000, heightMm: 1000 }, w: 2200, h: 2200 },
+        { raw: { widthMm: 1000, heightMm: 1000 }, w: 1800, h: 1800, axis: 'y' },
+        { raw: { widthMm: 1000, heightMm: 1000 }, w: 5000, h: 5000, axis: 'x' },
+      ],
+      [{ id: 'wall', raw: { widthMm: 100, heightMm: 100 }, axis: 'y' }, { id: 'side', raw: { widthMm: 100, heightMm: 100 }, axis: 'x' }, { id: 'top', raw: { widthMm: 100, heightMm: 100 }, axis: 'z' }],
+    );
+    expect(r.get('wall')!.widthMm).toBeCloseTo(200);
+    expect(r.get('side')!.widthMm).toBeCloseTo(500);
+    expect(r.get('top')!.widthMm).toBeCloseTo(210); // 전체 중앙값 (2000·2200·1800·5000 → 2100)
+  });
+  it('치수 없는 블록은 축척에 안 들어간다, 기준 블록이 없으면 빈 결과', () => {
+    expect(measureByBlocks([{ raw: { widthMm: 1, heightMm: 1 } }], [{ id: 's', raw: { widthMm: 1, heightMm: 1 } }]).size).toBe(0);
   });
 });

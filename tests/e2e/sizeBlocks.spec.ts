@@ -104,10 +104,9 @@ test('블록이 있으면 사인물들의 예상 크기는 블록이 기준 — 
 test('대각 예측: 블록 꼭짓점에서 대각으로 끌면 모서리를 맞댄 같은 크기·같은 치수 블록 (원근이 있을 때)', async ({ page, request }) => {
   await openOwnedProject(page, request, '대각');
   await uploadPhoto(page);
-  await page.evaluate(() => { const g = (window as any).__ganpanda; g.project.updatePhoto(g.photos[0].id, { blocks: [{ q: [[100, 100], [500, 100], [500, 200], [100, 200]], w: 4000, h: 1000 }] }); });
-  await page.getByTestId('camera-auto').click(); // 블록으로 원근
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.project.addObject({ photoId: g.photos[0].id, name: '실측', shape: 'rect', quad: [[1100, 600], [1500, 600], [1500, 700], [1100, 700]], sheetIds: [], widthMm: 4000, heightMm: 1000 }); g.project.updatePhoto(g.photos[0].id, { blocks: [{ q: [[100, 100], [500, 100], [500, 200], [100, 200]], w: 4000, h: 1000 }] }); });
+  await page.getByTestId('camera-auto').click(); // 원근은 사인물로 (블록은 원근을 따른다)
   await expect.poll(() => page.evaluate(() => !!(window as any).__ganpanda.photos[0].camera)).toBe(true);
-  await expect(page.getByTestId('camera-level')).toHaveAttribute('data-level', '3'); // 치수 블록이 원근을 확인 → 완성
   await page.getByTestId('tool-block').click();
   await dragOnPhoto(page, [502, 202], [700, 280]); // 오른쪽 아래 꼭짓점에서 오른쪽 아래로
   await expect(page.getByTestId('size-block')).toHaveCount(2);
@@ -117,18 +116,39 @@ test('대각 예측: 블록 꼭짓점에서 대각으로 끌면 모서리를 맞
   expect(Math.abs(b.q[2][0] - 900)).toBeLessThan(6); expect(Math.abs(b.q[2][1] - 300)).toBeLessThan(6);
 });
 
-test('원근이 잡힌 사진에서 조금 비뚤게 그린 블록이 있어도 다른 사인물 추정은 사라지지 않는다 (2026-11-04 "사이즈 나오지 않는다")', async ({ page, request }) => {
-  await openOwnedProject(page, request, '비뚤게');
+test('원근은 블록에 종속되지 않는다 — 블록을 그리고 고쳐도 원근 그대로, 블록은 원근의 직사각형으로 맞춰지고, 길이만 준 블록으로 축 면에 펼쳐 사인물 길이 (2026-11-04 "원근이 블록에 종속되네 그러면 안됨 … 블록은 길이만 제시한다")', async ({ page, request }) => {
+  await openOwnedProject(page, request, '원근 독립');
   await uploadPhoto(page);
   const u = await page.evaluate(() => {
     const g = (window as any).__ganpanda, p = g.photos[0].id;
-    g.project.updatePhoto(p, { blocks: [{ q: [[100, 100], [500, 100], [500, 200], [100, 200]], w: 4000, h: 1000 }, { q: [[600, 300], [1010, 290], [1000, 420], [590, 400]], w: 4000, h: 1000 }] });
-    return g.project.addObject({ photoId: p, name: '모름', shape: 'rect', quad: [[1100, 100], [1400, 100], [1400, 200], [1100, 200]], sheetIds: [] });
+    g.project.addObject({ photoId: p, name: '실측', shape: 'rect', quad: [[100, 100], [500, 100], [500, 200], [100, 200]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
+    return g.project.addObject({ photoId: p, name: '모름', shape: 'rect', quad: [[1100, 100], [1300, 100], [1300, 200], [1100, 200]], sheetIds: [] });
   });
   await page.getByTestId('camera-auto').click();
-  await expect.poll(() => page.evaluate(() => !!(window as any).__ganpanda.photos[0].camera?.extra)).toBe(true);
-  await expect.poll(() => est(page, u)).toBeGreaterThan(2000);
-  await expect(page.getByTestId('block-size')).toHaveText(['4,000×1,000', '4,000×1,000']);
+  await expect.poll(() => page.evaluate(() => !!(window as any).__ganpanda.photos[0].camera)).toBe(true);
+  const cam = () => page.evaluate(() => JSON.stringify((window as any).__ganpanda.photos[0].camera));
+  const before = await cam();
+  await expect.poll(() => est(page, u)).toBeGreaterThan(1900); // 사인물 기준 200px ≈ 2000
+  // 비뚤게 그린 블록 → 원근의 직사각형으로 맞춰진다 (정면 사진이라 축 정렬 사각)
+  await page.getByTestId('tool-block').click();
+  await dragOnPhoto(page, [600, 300], [1000, 400]);
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.updateBlock(g.photos[0].id, 0, [[600, 300], [1010, 292], [1000, 412], [590, 400]]); });
+  const q = (await photoBlocks(page))[0].q as number[][];
+  expect(Math.abs(q[0][1] - q[1][1])).toBeLessThan(2); // 위 변 수평
+  expect(Math.abs(q[0][0] - q[3][0])).toBeLessThan(2); // 왼 변 수직
+  // 길이 하나만(가로 8000) → 블록 글자는 그 길이만, '모름'은 블록 축척으로 (블록 폭 ≈ 410px = 8000 → 200px ≈ 3900)
+  await page.getByTestId('block-panel').getByTestId('block-width').fill('8000');
+  await expect(page.getByTestId('block-size')).toHaveText('가로 8,000');
+  await expect.poll(() => est(page, u)).toBeGreaterThan(3600);
+  expect(await est(page, u)).toBeLessThan(4200);
+  expect(await cam()).toBe(before); // 원근은 그대로
+  // 고른 블록의 축 면 그리드 — 블록이 둘이면 면이 둘을 덮는다
+  await expect(page.getByTestId('block-grid')).toBeVisible();
+  const faceW = () => page.getByTestId('block-face').evaluate((e) => (e as SVGGraphicsElement).getBBox().width);
+  const w1 = await faceW();
+  await page.evaluate(() => { const g = (window as any).__ganpanda, p = g.photos[0].id; g.project.updatePhoto(p, { blocks: [...g.photos[0].blocks, { q: [[100, 700], [300, 700], [300, 800], [100, 800]], w: 4000 }] }); g.selectBlock(p, 0); });
+  await expect.poll(faceW).toBeGreaterThan(w1);
+  expect(await cam()).toBe(before);
 });
 
 test('옛 데이터: 사인물에 붙어 있던 블록은 그 사인물 치수의 사진 블록으로 보이고, 고치면 사진으로 옮겨진다', async ({ page, request }) => {

@@ -21,9 +21,9 @@
 <aside class="panel" data-testid="block-panel" data-index={index}>
   <header><b>치수 블록</b><span class="of">{index + 1}</span></header>
   <div class="row sizes" data-testid="block-panel-size">
-    <label>가로<input data-testid="block-width" class:need={!block?.w} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.w ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { w: num(e.currentTarget.value) })} /></label>
+    <label>가로<input data-testid="block-width" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.w ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { w: num(e.currentTarget.value) })} /></label>
     <span>×</span>
-    <label>세로<input data-testid="block-height" class:need={!block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { h: num(e.currentTarget.value) })} /></label>
+    <label>세로<input data-testid="block-height" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} oninput={(e) => app.setBlockSize(photoId, index, { h: num(e.currentTarget.value) })} /></label>
     <small>mm</small>
   </div>
   <div class="row axes" role="radiogroup" aria-label="축" data-testid="block-axis">

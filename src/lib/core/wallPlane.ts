@@ -261,6 +261,13 @@ export function faceSizeOnAxis(quad: Pt[], cal: WallPlane | null, axis: FaceAxis
   return { widthMm: at.w, heightMm: at.h };
 }
 
+/** 치수 블록의 축 면 (옆면 x·수평면 z): 그 블록 자리의 면 — 블록을 그 면의 직사각형으로 맞추고 그리드를 긋는 데 (2026-11-04). 못 만들면 null */
+export function blockFacePlane(quad: Pt[], cal: WallPlane | null, axis: 'x' | 'z'): { H: number[]; Hinv: number[] } | null {
+  if (!(cal?.source === 'calibration' && cal.pose && isValidQuad(quad))) return null;
+  const ff = faceFrameOf(cal, quad, axis);
+  return ff ? { H: ff.H, Hinv: ff.Hinv } : null;
+}
+
 /** 벽면(y)이 아닌 면에 놓인 사인물의 크기(mm, 그 면에서 잰 값). 벽면이면 undefined(벽면 측정 그대로), 어느 면도 아니면 null(측정 없음) */
 export function faceSizeOf(o: SignObject, cal: WallPlane | null): { widthMm: number; heightMm: number } | null | undefined {
   const f = faceOf(o, cal);

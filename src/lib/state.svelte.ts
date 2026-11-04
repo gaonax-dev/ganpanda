@@ -7,7 +7,7 @@ import { loadLocalSets, saveLocalSets, validSetLibrary, type SignSet } from './c
 import { IndexeddbPersistence } from 'y-indexeddb';
 import { dropCachedAccess, dropCachedHome, dropCachedMe, loadCachedAccess, loadCachedMe, saveCachedAccess, saveCachedMe, whoKey } from './localOpen';
 import { Project } from './core/project';
-import { measurePhoto, type MeasureResult } from './core/measure';
+import { isValidQuad, measurePhoto, type MeasureResult } from './core/measure';
 import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl } from './core/version';
 import { layoutList } from './core/layout';
 import { arrangeLikePhotos, homeOf } from './core/arrange';
@@ -18,9 +18,9 @@ import { applyMarkup } from './core/markup';
 import { pushHistory, type DesignRef } from './core/design';
 import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
-import type { Calibration } from './core/calibration';
+import { measureQuad, type Calibration } from './core/calibration';
 import { loadRoomView } from './core/roomView';
-import { blockCameraFit, blockFits, blockIdOf, isSized, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type PhotoBlock } from './core/blocks';
+import { alignBlock, blockFits, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -38,7 +38,7 @@ import { resolveLinks } from './core/link';
 import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { maskProfanity } from './core/profanity';
-import { faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
+import { blockFacePlane, faceOf, faceSizeOf, faceSizeOnAxis, wallPlaneOf } from './core/wallPlane';
 import { describeAttachments } from './core/attachments';
 import { DEFAULT_KEYMAP, mergeKeymap, type Keymap } from './core/keymap';
 /** 설정 창 탭 (Settings.svelte) */
@@ -351,7 +351,7 @@ class AppState {
   /** 사진별 카메라 (사진에 저장된 설정을 풀어서) */
   cameras = $derived.by(() => {
     const out = new Map<string, CameraSolution>();
-    for (const p of this.photos) if (p.camera) { const c = solveCamera(p.camera, p.w, p.h); if (c) out.set(p.id, c); }
+    for (const p of this.photos) if (p.camera) { const c = solveCamera({ ...p.camera, extra: undefined }, p.w, p.h); if (c) out.set(p.id, c); } // 원근은 블록에 종속되지 않는다 — 예전에 블록 변으로 더한 축 선(extra)은 쓰지 않는다 (2026-11-04 "원근이 블록에 종속되네 그러면 안됨")
     return out;
   });
   /** 실측·벽면 코드가 쓰는 보정 (카메라 → 사진 px → 벽 mm) */
@@ -370,21 +370,29 @@ class AppState {
       // 자동 원근 사진은 정확도를 경고하지 않는다 (2026-10-19 사용자: "정확도를 경고하지 마라")
       const quiet = !!p.camera?.auto;
       const objs = this.objects.filter((o) => o.photoId === p.id);
-      // 치수 블록(2026-11-03)은 치수 없는 영역으로 함께 재서 지금 원근으로 본 크기를 얻는다 — 사인물 치수와 맞는지(보라) 보기 위해. 축척 보정(치수 입력 영역)에는 넣지 않는다
-      // 치수 블록 (2026-11-04 "블록이 있으면 사인물들의 예상 크기는 블록이 기준이 된다"): 치수 있는 블록이 있으면 축척 기준은 블록만 — 사인물의 입력 치수는 기준에서 빼고(입력값은 그대로 보임) 블록의 입력 치수로.
-      // 블록은 정한 축(면)에서 잰다(없거나 못 재면 벽면). 치수 없는 블록은 재기만(보라 판정 없음)
+      // 치수 블록 (2026-11-04 "블록은 원근의 구도를 따른다. 블록은 길이만 제시한다" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다. 이걸로 사인물들을 랩핑해 펼쳐 길이를 추론"):
+      // 치수 있는 블록이 있으면 예상 크기는 블록이 기준 — 원근은 그대로 두고, 블록·사인물을 각자의 축 면에 펼친 길이로 축 면마다의 축척(core/blocks.ts measureByBlocks). 사인물 입력 치수는 기준에서 빠진다
       const pbs = this.photoBlocks.get(p.id) ?? [];
+      if (pbs.some(isSized) && calib?.metric && cal) {
+        const wallRaw = (q: Pt[]) => (isValidQuad(q) ? measureQuad(calib, q) : null);
+        const bIn = pbs.map((b) => ({ raw: (b.axis && b.axis !== 'y' ? faceSizeOnAxis(b.q, cal, b.axis) : undefined) ?? wallRaw(b.q), w: b.w, h: b.h, axis: b.axis }));
+        const signIn = objs.map((o) => { const f = faceOf(o, cal), fs = f && f.plane !== cal ? faceSizeOf(o, cal) : undefined; return { id: o.id, raw: fs ?? wallRaw(o.quad), axis: fs && f ? f.axis : ('y' as const) }; });
+        const est = measureByBlocks(bIn, [...signIn, ...bIn.map((b, i) => ({ id: this.blockIdOf(p.id, i), raw: b.raw, axis: b.axis }))]);
+        for (const o of objs) { const e = est.get(o.id); out.set(o.id, e ? { warnings: [], estimate: e } : { warnings: [] }); }
+        pbs.forEach((_, i) => { const id = this.blockIdOf(p.id, i), e = est.get(id); out.set(id, e ? { warnings: [], estimate: e } : { warnings: [] }); });
+        continue;
+      }
+      // 원근이 없는 사진: 첫 치수 있는 블록이 기준 영역(같은 평면). 길이 하나만 준 블록은 사진 위 비율로 나머지를 채운다
       const byBlocks = pbs.some(isSized);
-      const axisOf = new Map<string, BlockAxis | undefined>();
       const blocks = pbs.map((b, i): SignObject => {
-        const id = this.blockIdOf(p.id, i);
-        axisOf.set(id, b.axis);
-        return { id, photoId: p.id, name: '', shape: 'rect', quad: b.q, sheetIds: [], createdAt: 0, widthMm: b.w, heightMm: b.h };
+        const pw = Math.hypot(b.q[1][0] - b.q[0][0], b.q[1][1] - b.q[0][1]), ph = Math.hypot(b.q[3][0] - b.q[0][0], b.q[3][1] - b.q[0][1]);
+        const w = b.w ?? (b.h && ph ? (b.h * pw) / ph : undefined), h = b.h ?? (b.w && pw ? (b.w * ph) / pw : undefined);
+        return { id: this.blockIdOf(p.id, i), photoId: p.id, name: '', shape: 'rect', quad: b.q, sheetIds: [], createdAt: 0, widthMm: w, heightMm: h };
       });
       const signsIn = byBlocks ? objs.map((o) => ({ ...o, widthMm: undefined, heightMm: undefined })) : objs;
       // 어느 면에도 딱 맞지 않는 외곽선은 벽면에서 잰다 — 추정이 사라지지 않게 (2026-11-04 "사이즈 나오지 않는다")
-      const face = cal ? (o: SignObject) => { if (!axisOf.has(o.id)) return faceSizeOf(o, cal) ?? undefined; const ax = axisOf.get(o.id); return ax ? faceSizeOnAxis(o.quad, cal, ax) ?? undefined : undefined; } : undefined;
-      for (const [id, r] of measurePhoto([...blocks, ...signsIn], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
+      const face = cal ? (o: SignObject) => faceSizeOf(o, cal) ?? undefined : undefined;
+      for (const [id, r] of measurePhoto([...(byBlocks ? blocks : []), ...signsIn], p.w, p.h, calib, face)) out.set(id, quiet ? { ...r, warnings: [] } : r);
     }
     return out;
   });
@@ -415,8 +423,7 @@ class AppState {
         const s = this.sizeOf(o);
         return s && !s.estimated ? [{ quad: o.quad.map((q) => [q[0], q[1]] as [number, number]), w: s.w, h: s.h }] : [];
       });
-      const blocks = (this.photoBlocks.get(p.id) ?? []).filter((b) => isSized(b) && (!b.axis || b.axis === 'y')).map((b) => ({ quad: b.q.map((q) => [q[0], q[1]] as [number, number]), w: b.w!, h: b.h! })); // 치수 블록도 원근을 확인한다 (2026-11-04)
-      out.set(p.id, cameraLevel(p.camera, [...blocks, ...sized], p.w, p.h));
+      out.set(p.id, cameraLevel(p.camera, sized, p.w, p.h));
     }
     return out;
   });
@@ -860,12 +867,9 @@ class AppState {
     const p = this.photos.find((x) => x.id === photoId);
     if (!p || !this.canEdit) return false;
     // 사람이 둘째 축을 깊이(Y)로 바꿔 두었으면 사인물(좌우 변 = Z) 대신 AI 로 그 축의 선을 찾는다 (2026-10-21 "사람이 잡은것도 축을 변경했다면 다시 자동버튼이 눌리면")
-    // 치수 블록이 있으면 블록으로 (2026-11-04 "블록이 있으면 … 블록이 기준")
-    const fromBlocks = p.camera?.axes?.second[1] === 'y' ? null : blockCameraFit(this.photoBlocks.get(p.id) ?? [], p.w, p.h);
-    if (fromBlocks) { this.updateCamera(p.id, { camera: fromBlocks, autoCamera: undefined }); return true; }
     const sign = p.camera?.axes?.second[1] === 'y' ? null : this.matchSignOf(photoId);
     if (sign) {
-      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h, this.photoBlocks.get(p.id)); // 사진의 치수 블록 변도 (2026-11-04) // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
+      const setup = signCameraFit(sign.o.quad.map((q) => [q[0], q[1]] as [number, number]), sign.w, this.sizeOf(sign.o)?.h ?? 0, p.w, p.h); // 가로세로 비율로 화각까지 (2026-10-20), 치수 블록의 변도 (2026-11-03)
       if (setup) {
         this.updateCamera(p.id, { camera: setup, autoCamera: undefined });
         return true;
@@ -943,14 +947,13 @@ class AppState {
       if (!o || !p || !size || size.estimated || o.shape === 'polygon' || o.quad.length !== 4) continue;
       const quad = o.quad.map((q) => [q[0], q[1]] as [number, number]);
       if (!p.camera && p.autoCamera === false) continue; // 원근을 지웠으면(자동 끔) 새로 만들지 않는다
-      if (this.photoBlocks.get(p.id)?.some(isSized)) { this.autoCameraFromBlocks(p.id); continue; } // 치수 블록이 있으면 원근도 블록이 기준 (2026-11-04)
       // 같은 사진의 다른 실측 사인물 — 지금 원근을 확인하고 있으면 안 맞는 새 사인물로 갈아엎지 않는다
       const others = this.objects.flatMap((x) => {
         if (x.id === o.id || x.photoId !== p.id || x.shape === 'polygon' || x.quad.length !== 4) return [];
         const sz = this.sizeOf(x);
         return sz && !sz.estimated ? [{ quad: x.quad.map((q) => [q[0], q[1]] as [number, number]), w: sz.w, h: sz.h }] : [];
       });
-      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h, this.photoBlocks.get(p.id)); // 치수 블록이 있으면 사인물 + 블록으로 (2026-11-03)
+      const next = autoCameraFrom(p.camera, quad, size.w, size.h, others, p.w, p.h); // 원근은 블록과 무관 (2026-11-04)
       if (!next || JSON.stringify(next) === JSON.stringify(p.camera)) continue;
       this.updateCamera(p.id, { camera: next }); // 조용히 — 완성(3)이 될 때만 화면 안내 (2026-10-20)
     }
@@ -2013,7 +2016,9 @@ class AppState {
   /** 블록이 지금 원근과 맞는가(입력 치수와 10% 안) → 보라. 숫자(추정)는 보이지 않는다 */
   blockFitOf(photoId: string, i: number): boolean {
     const b = this.blockAt(photoId, i);
-    return !!b && isSized(b) && blockFits(this.measures.get(this.blockIdOf(photoId, i))?.estimate, { w: b.w, h: b.h });
+    const e = this.measures.get(this.blockIdOf(photoId, i))?.estimate;
+    if (!b || !isSized(b) || !e) return false;
+    return blockFits(e, { w: b.w ?? e.widthMm, h: b.h ?? e.heightMm }); // 길이 하나만 준 블록은 그 길이만 본다
   }
   /** 블록의 축: 정한 것, 없으면 벽면 */
   blockAxisOf(photoId: string, i: number): { axis: BlockAxis; auto: boolean } {
@@ -2029,15 +2034,22 @@ class AppState {
       for (const o of this.objects) if (o.photoId === photoId && (o.blocks || o.blockAxes)) this.project.updateObject(o.id, { blocks: undefined, blockAxes: undefined });
     });
     this.lastBlockPhotoId = photoId;
-    this.autoCameraFromBlocks(photoId);
     if (boundary) this.editBoundary();
   }
-  /** 치수 블록으로 원근: 자동 원근(또는 없음)이면 치수 있는 벽면 블록 + 나머지 블록의 변으로 다시 잡는다. 사람이 맞춘 원근·자동 끔은 손대지 않는다 */
-  private autoCameraFromBlocks(photoId: string) {
-    const p = this.photos.find((x) => x.id === photoId);
-    if (!p || (p.camera && !p.camera.auto) || (!p.camera && p.autoCamera === false)) return;
-    const setup = blockCameraFit(this.photoBlocks.get(photoId) ?? [], p.w, p.h);
-    if (setup && JSON.stringify(setup) !== JSON.stringify(p.camera)) this.updateCamera(photoId, { camera: setup });
+  /** 블록이 놓인 축 면 (원근 풀이의 벽면, 옆면·수평면은 그 블록 자리의 면) — 원근이 없으면 null */
+  blockPlane(photoId: string, q: Pt[], axis?: BlockAxis): BlockPlane | null {
+    const calib = this.calibrations.get(photoId);
+    if (!calib?.metric) return null;
+    const cal = wallPlaneOf([], calib);
+    if (!cal) return null;
+    if (!axis || axis === 'y') return { H: cal.H, Hinv: cal.Hinv };
+    return blockFacePlane(q, cal, axis);
+  }
+  /** 블록은 원근을 따른다 — 그 축 면의 직사각형으로 (원근이 없거나 못 맞추면 그대로) */
+  private aligned(photoId: string, b: PhotoBlock): PhotoBlock {
+    const pl = this.blockPlane(photoId, b.q, b.axis);
+    const q = pl ? alignBlock(pl, b.q) : null;
+    return q ? { ...b, q } : b;
   }
   /**
    * 블록 그리기: 사진 위에 네모를 끌어 그리면 그 사진의 블록. 치수는 고른 사인물(같은 사진, 치수 입력)이 있으면 그 치수로 시작, 아니면 비워 둔다(패널에서 입력).
@@ -2056,14 +2068,14 @@ class AppState {
       const predicted = predictBlock(sol, base.q, snap.index % 4, end);
       if (predicted) nb = { q: predicted, w: base.w, h: base.h };
     }
-    this.writeBlocks(photoId, [...list, nb]);
+    this.writeBlocks(photoId, [...list, this.aligned(photoId, nb)]);
     this.selectBlock(photoId, list.length);
     return true;
   }
   updateBlock(photoId: string, i: number, quad: Pt[]) {
     const list = this.photoBlocks.get(photoId);
     if (!list?.[i] || !this.canEdit) return;
-    this.writeBlocks(photoId, list.map((b, k) => (k === i ? { ...b, q: quad } : b)));
+    this.writeBlocks(photoId, list.map((b, k) => (k === i ? this.aligned(photoId, { ...b, q: quad }) : b)));
   }
   /** 블록 치수(입력값) — 블록마다 다르다 */
   setBlockSize(photoId: string, i: number, size: { w?: number; h?: number }) {
@@ -2075,7 +2087,7 @@ class AppState {
   setBlockAxis(photoId: string, i: number, axis: BlockAxis) {
     const list = this.photoBlocks.get(photoId);
     if (!list?.[i] || !this.canEdit) return;
-    this.writeBlocks(photoId, list.map((b, k) => (k === i ? { ...b, axis } : b)));
+    this.writeBlocks(photoId, list.map((b, k) => (k === i ? this.aligned(photoId, { ...b, axis }) : b)));
   }
   removeBlock(photoId: string, i: number) {
     const list = this.photoBlocks.get(photoId);

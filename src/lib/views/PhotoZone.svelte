@@ -7,7 +7,7 @@
   import { colorFor } from '../core/presence';
   import { midpoints, zonesOf } from '../core/zone';
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
-  import { BLOCK_COLOR, BLOCK_FIT_COLOR, blockIdOf, type PhotoBlock } from '../core/blocks';
+  import { BLOCK_COLOR, BLOCK_FIT_COLOR, blockGrid, blockIdOf, type PhotoBlock } from '../core/blocks';
   import type { MeasureResult } from '../core/measure';
   import { capBox, cssMatrix3d, ellipseInQuad, quadFromDrag, rectToQuad, roundedInQuad } from '../core/perspective';
   import BakedDesign from '../ui/BakedDesign.svelte';
@@ -888,6 +888,21 @@
     {/each}
     <!-- 치수 블록 (2026-11-04 "블록 치수는 사용자가 입력한 값을 사용하고 추정치는 여기에 없다. 블록은 입력한 값만 나오고 여러 값과 방향을 지원한다"): 사진의 블록들.
          선 = 형광 초록, 가운데 글자 = **입력한 치수만**(없으면 "치수 입력"), 지금 원근과 맞으면 보라. 누르면 블록이 선택되어 아래 조작 손잡이 층이 붙는다 — 끌면 통째로 옮김 -->
+    {#if !overlay && app.selectedBlock?.photoId === photo.id && blocks[app.selectedBlock.i]}
+      <!-- 고른 블록의 축 면 그리드 (2026-11-04 "블록은 길이만 제시한다. 이 길이를 해당 축에 그리드로 넣고 이걸로 사인물 길이를 추론" → "블록이 여러게 있다면 해당 블록으로 축의 면을 크게 만든다"):
+           같은 축의 블록을 모두 덮는 면(원근을 따른다)에 고른 블록 간격의 선 — 사인물은 이 면에 펼쳐 길이를 잰다 -->
+      {@const sb = blocks[app.selectedBlock.i]}
+      {@const ax = sb.axis ?? 'y'}
+      {@const pl = app.blockPlane(photo.id, sb.q, sb.axis)}
+      {@const grid = pl ? blockGrid(pl, sb.q, 3, blocks.filter((x, k) => k !== app.selectedBlock!.i && (x.axis ?? 'y') === ax).map((x) => x.q)) : null}
+      {#if grid}
+        <clipPath id="bgrid-clip-{photo.id}"><rect x="0" y="0" width={photo.w} height={photo.h} /></clipPath>
+        <g class="bgrid" data-testid="block-grid" data-axis={ax} pointer-events="none" clip-path="url(#bgrid-clip-{photo.id})"><!-- 사진 밖으로 나가지 않게 -->
+          <polygon class="bface" data-testid="block-face" points={grid.face.map((p) => p.join(',')).join(' ')} stroke-width={1.5 * u} stroke-dasharray="{6 * u} {4 * u}" />
+          {#each [...grid.u, ...grid.v] as l, k (k)}<line x1={l.a[0]} y1={l.a[1]} x2={l.b[0]} y2={l.b[1]} stroke-width={1 * u} />{/each}
+        </g>
+      {/if}
+    {/if}
     {#if !overlay}
       {#each blocks as b0, bi (bi)}
         {@const pb = blockSign(bi, b0)}
@@ -899,7 +914,7 @@
         <g class="block" class:fit class:sel={bsel} class:ghost={hideLines && !bsel} data-testid="size-block" data-id={photo.id} data-index={bi} data-fit={fit ? '1' : undefined} data-selected={bsel || undefined}>
           <polygon points={b.map((p) => p.join(',')).join(' ')} style:stroke={col} stroke-width={(bsel ? 3 : 2) * u} role="button" tabindex="-1" pointer-events={tool === 'select' ? 'auto' : 'none'} onpointerdown={(e) => shapeDown(e, pb, 'move')} />
           {#if !hideInfo || bsel}
-            <text class="bsize" class:need={!(b0.w && b0.h)} data-testid="block-size" x={bc[0]} y={bc[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle" style:fill={fit ? BLOCK_FIT_COLOR : undefined}>{b0.w && b0.h ? `${fmt(b0.w)}×${fmt(b0.h)}` : '치수 입력'}</text>
+            <text class="bsize" class:need={!b0.w && !b0.h} data-testid="block-size" x={bc[0]} y={bc[1] + 4 * u} font-size={12 * u} stroke-width={3 * u} text-anchor="middle" style:fill={fit ? BLOCK_FIT_COLOR : undefined}>{b0.w && b0.h ? `${fmt(b0.w)}×${fmt(b0.h)}` : b0.w ? `가로 ${fmt(b0.w)}` : b0.h ? `세로 ${fmt(b0.h)}` : '치수 입력'}</text>
           {/if}
         </g>
       {/each}
@@ -1123,6 +1138,8 @@
   .block.ghost polygon { fill: transparent; stroke: transparent !important; }
   .block.ghost text { display: none; }
   .draft.block { fill: rgba(57, 255, 20, 0.1); }
+  .bgrid line { stroke: rgba(57, 255, 20, 0.45); }
+  .bgrid .bface { fill: rgba(57, 255, 20, 0.05); stroke: rgba(57, 255, 20, 0.8); }
   .sign text .w { fill: var(--warn); }
   .sign text .u { fill: var(--accent); }
   .sign text .l { fill: var(--blue); }
