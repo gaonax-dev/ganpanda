@@ -30,7 +30,7 @@ export async function exportIllustrator(): Promise<boolean> {
     const parts: NonNullable<IllustratorCardIn['parts']> = partsOf(o).flatMap((pt): NonNullable<IllustratorCardIn['parts']> => componentOf(pt.kind).extrude ? [{ id: pt.id, label: `${partLabel(pt)} (입체)`, mode: 'vector' }] : componentOf(pt.kind).takesItems ? [{ id: pt.id, label: `${partLabel(pt)} (인쇄)`, mode: 'print' }] : []);
     const card: IllustratorCardIn = { id: o.id, name: o.name, x: p.x, y: p.y, w, h, ...(parts.length ? { parts } : {}) };
     const ph = app.photos.find((x) => x.id === o.photoId);
-    if (ph && o.quad.length === 4) { const f = await faceUrl(ph.assetId, ph.w, o.quad, w, h, 640); if (f) card.face = f.startsWith('data:') ? f : await toDataUrl(f); }
+    if (ph && o.quad.length === 4) { const f = await faceUrl(ph.assetId, ph.w, o.quad, w, h, 480); if (f) card.face = f.startsWith('data:') ? f : await toDataUrl(f); }
     if (o.design) {
       const src = app.sources.find((s) => s.id === o.design!.sourceId), page = src?.pages[o.design.page];
       if (src && page) {

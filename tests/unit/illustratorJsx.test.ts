@@ -131,3 +131,33 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기)', () => {
     expect(f.log.some((l) => l.startsWith('alert:') && l.includes('.ganpanda'))).toBe(true);
   });
 });
+
+describe('ganpanda.jsx — 그림 해독 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다")', () => {
+  it('카드 사진 base64 를 바이트 그대로 파일로 — 길이가 3의 배수가 아니어도(= 채움)', () => {
+    const bytes = [10, 11, 12, 300].map((n, k) => Buffer.from(Array.from({ length: n }, (_, i) => (i * 37 + k * 11) % 256)));
+    const pkg = illustratorPackage({ project: 'p', cards: bytes.map((b, i) => ({ id: `c${i}`, name: `n${i}`, x: i * 100, y: 0, w: 50, h: 50, face: `data:image/jpeg;base64,${b.toString('base64')}` })) });
+    const f = fakeIllustrator();
+    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
+    const files = Object.keys(f.written).filter((k) => /ganpanda-\d+\.jpg$/.test(k)).sort((a, b) => Number(/(\d+)\.jpg/.exec(a)![1]) - Number(/(\d+)\.jpg/.exec(b)![1]));
+    expect(files).toHaveLength(4);
+    files.forEach((k, i) => expect(Buffer.from(f.written[k], 'latin1').equals(bytes[i]), k).toBe(true));
+  });
+});
+
+describe('ganpanda.jsx — 카드 사진은 물어보고 (2026-11-05 "많은 시간이 걸린다")', () => {
+  const pkg = illustratorPackage({ project: 'p', cards: [{ id: 'a', name: 'a', x: 0, y: 0, w: 50, h: 50, face: PNG }, { id: 'b', name: 'b', x: 100, y: 0, w: 50, h: 50, face: PNG }] });
+  it('[아니요] → 사진을 풀지도 넣지도 않는다 (대지·레이어는 그대로)', () => {
+    const f = fakeIllustrator({ confirm: false });
+    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
+    const doc = f.docs[0];
+    expect(doc.artboards).toHaveLength(2);
+    expect(doc.layers.find((l: Rec) => l.name === '간판다 사진').placedItems).toHaveLength(0);
+    expect(Object.keys(f.written).some((k) => /ganpanda-\d+\.(png|jpg)$/.test(k))).toBe(false);
+    expect(f.log.some((l) => l.startsWith('confirm:') && l.includes('사진'))).toBe(true);
+  });
+  it('사진이 없는 데이터면 묻지 않는다', () => {
+    const f = fakeIllustrator();
+    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [{ id: 'a', name: 'a', x: 0, y: 0, w: 50, h: 50 }] })), f.ctx);
+    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
+  });
+});

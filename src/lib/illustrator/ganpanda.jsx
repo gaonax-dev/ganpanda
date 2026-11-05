@@ -25,16 +25,25 @@
 
   // ---------- base64 → 파일 ----------
   var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  // 빠른 해독 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다"): ExtendScript 는 느리다 — 글자마다 indexOf·바이트마다 push 하던 것을
+  // 미리 만든 표 + 4글자 → 3바이트 한 번에 + 덩어리로 모아 붙이기로
+  var B64T = {};
+  (function () { for (var t = 0; t < 64; t++) B64T[B64.charAt(t)] = t; })();
   function b64decode(s) {
-    var out = [], buf = 0, bits = 0, i, c, v;
-    for (i = 0; i < s.length; i++) {
-      c = s.charAt(i);
-      if (c === '=') break;
-      v = B64.indexOf(c);
-      if (v < 0) continue;
-      buf = (buf << 6) | v; bits += 6;
-      if (bits >= 8) { bits -= 8; out.push(String.fromCharCode((buf >> bits) & 255)); }
+    s = String(s).replace(/[^A-Za-z0-9+\/]/g, '');
+    var n = s.length, out = [], chunk = [], i, a, b, c, d;
+    for (i = 0; i + 3 < n; i += 4) {
+      a = B64T[s.charAt(i)]; b = B64T[s.charAt(i + 1)]; c = B64T[s.charAt(i + 2)]; d = B64T[s.charAt(i + 3)];
+      chunk.push(String.fromCharCode((a << 2) | (b >> 4), ((b & 15) << 4) | (c >> 2), ((c & 3) << 6) | d));
+      if (chunk.length >= 4096) { out.push(chunk.join('')); chunk = []; }
     }
+    var r = n - i;
+    if (r >= 2) {
+      a = B64T[s.charAt(i)]; b = B64T[s.charAt(i + 1)];
+      if (r === 2) chunk.push(String.fromCharCode((a << 2) | (b >> 4)));
+      else { c = B64T[s.charAt(i + 2)]; chunk.push(String.fromCharCode((a << 2) | (b >> 4), ((b & 15) << 4) | (c >> 2))); }
+    }
+    out.push(chunk.join(''));
     return out.join('');
   }
   var tmpCount = 0;
@@ -131,6 +140,10 @@
     var W = Math.max(1, data.width * k), H = Math.max(1, data.height * k);
     var doc = app.documents.add(DocumentColorSpace.RGB, W, H);
     try { app.coordinateSystem = CoordinateSystem.DOCUMENTCOORDINATESYSTEM; } catch (e) {}
+    // 카드 사진(참고 레이어)은 물어본다 — 사진을 풀고 묻는 것이 가장 오래 걸린다 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다")
+    var hasFace = false, fi;
+    for (fi = 0; fi < data.cards.length; fi++) if (data.cards[fi].face) { hasFace = true; break; }
+    var withPhotos = hasFace && confirm('카드 사진을 참고 레이어(간판다 사진)로 넣을까요?\n사진이 많으면 시간이 걸립니다. [아니요]를 누르면 대지·레이어만 빠르게 만듭니다.');
     var photo = doc.layers[0]; // 맨 아래 — 사인물 레이어는 그 위에 쌓인다
     photo.name = '간판다 사진';
     var ids = [], i, j;
@@ -140,7 +153,7 @@
       var ab = doc.artboards.add([left, top, left + w, top - h]);
       ab.name = c.name + ' #' + c.id;
       ids.push(c.id);
-      if (c.face) place(photo, c.face, left, top, w, h);
+      if (withPhotos && c.face) place(photo, c.face, left, top, w, h);
       // 사인물 레이어 > 바탕(인쇄) + 구성 요소 하위 레이어 (나중에 만든 것이 위 — 바탕이 맨 아래)
       var signLayer = doc.layers.add();
       signLayer.name = c.name + ' #' + c.id;
