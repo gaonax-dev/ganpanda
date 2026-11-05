@@ -52,7 +52,7 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   const ids = await twoSigns(page);
   // 단추는 디자인 탭 막대에 (2026-11-05 "견적탭에서 디자인으로 이동해줘") — 견적 탭에는 없다
   await page.getByTestId('view-list').click();
-  await expect(page.getByTestId('export-svg')).toBeVisible();
+  await expect(page.getByTestId('export-pdf')).toBeVisible();
   await expect(page.getByTestId('export-illustrator')).toHaveCount(0);
   await page.getByTestId('view-design').click();
   const dl = page.waitForEvent('download');

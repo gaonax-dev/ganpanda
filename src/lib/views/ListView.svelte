@@ -3,13 +3,7 @@
   import { itemDetail } from '../core/priceFormat';
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
-  import { assetUrl } from '../assets';
   import { faceUrl } from '../photoDisplay';
-  import { listSvg, type SvgCard, type SvgSheet } from '../core/listSvg';
-  import { outlineRenderer } from '../core/svgText';
-  import { loadFont } from '../core/textShapes';
-  import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
-  import { describeOptions } from '../core/options';
   import { faceBadge, faceClip } from '../core/cardFace';
   import { bodyLook } from '../core/render';
   import { lastStateOf } from '../core/bubbles';
@@ -24,12 +18,10 @@
   import type { ExtraItem } from '../core/model';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
-  import { layoutParts } from '../core/partsLayout';
-  import { imageDataUrl } from '../core/imageData';
-  import { itemAssetId } from '../render/itemImages';
   import { fitRect, type Viewport } from '../core/viewport';
   import QuoteChange from '../ui/QuoteChange.svelte';
   import { askConfirm } from '../ui/ask.svelte';
+  import { buildListSvg } from '../listSvgExport';
   /** 원가 수정 (2026-10-26): 펼친 줄(이름을 누름)과 수정 중인 줄 */
   let openLine = $state<string | null>(null);
   let editLine = $state<string | null>(null);
@@ -151,78 +143,13 @@
 
   /** 전개도 SVG (디자인 이미지는 data URL 로 묻어 인쇄 창이 따로 불러오지 않게) */
   /** SVG 내려받기 옵션 (일러스트레이터용, 2026-10-17 사용자: "비율, 윤곽선은 옵션으로"): 비율 = A4 맞춤 / 실물 1:1 / 1:10, 글자 윤곽선 */
-  let svgPanel = $state(false);
-  let svgScale = $state<'a4' | '1' | '0.1'>('1');
-  let svgOutline = $state(true);
-  let svgBusy = $state(false);
-  async function exportSvg() {
-    if (svgBusy) return;
-    svgBusy = true;
-    try {
-      const opts: Partial<SvgSheet> = { artboards: true }; // 대지 레이어 (일러스트레이터에서 대지로 변환, 2026-10-18)
-      if (svgScale !== 'a4') opts.scale = Number(svgScale);
-      if (svgOutline) opts.text = outlineRenderer(await loadFont(fontUrl));
-      const svg = await buildSvg(opts);
-      app.lastSvg = svg;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      a.download = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 전개도${svgScale === 'a4' ? '' : svgScale === '1' ? ' 1-1' : ' 1-10'}.svg`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-      svgPanel = false;
-    } catch (e) { app.notice = `SVG 를 만들지 못했습니다: ${e instanceof Error ? e.message : e}`; }
-    finally { svgBusy = false; }
-  }
-  export async function buildSvg(opts: Partial<SvgSheet> = {}): Promise<string> {
-    // 그림은 그림 MIME 의 data URL 로만 묻는다. 못 만들면(받기 실패·그림 아님) 빼고 알린다 — 외부 주소를 남기면 일러스트레이터가 "연결 파일 누락"이라 한다 (2026-10-18)
-    let skipped = 0;
-    const toDataUrl = async (u: string): Promise<string | undefined> => { try { const d = await imageDataUrl(await (await fetch(u)).blob()); if (!d) skipped++; return d; } catch { skipped++; return undefined; } };
-    const cards: SvgCard[] = [];
-    for (const { o, w, h, estimated } of exportable) {
-      const p = placed.get(o.id)!;
-      const parts = signParts(o);
-      const prod = productById(parts.bodyId), chan = CHANNEL_OPTIONS.find((c) => c.id === parts.channelId)?.label;
-      const amount = quoteObject({ ...o, widthMm: w, heightMm: h }, app.prices).reduce((a, l) => a + l.amount, 0);
-      const lines = [[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정', ...describeOptions(o), ...(o.text ? [`“${o.text}”`] : []), ...(o.depthMm ? [`두께 ${fmt(o.depthMm)}mm`] : [])];
-      let image: SvgCard['image'];
-      if (o.design) {
-        const page = app.sources.find((s) => s.id === o.design!.sourceId)?.pages[o.design.page];
-        const u = page && (await assetUrl(page.assetId));
-        const href = page && u ? await toDataUrl(u) : undefined;
-        if (page && href) image = { href, pageW: page.w, pageH: page.h, crop: o.design.crop };
-      }
-      // 조합형 객체 (4단계): 정면도 배치 그대로, 그림은 data URL 로 묻는다
-      const items = layoutParts(o, w, h, w, h);
-      const itemHrefs: Record<string, string> = {};
-      for (const l of items) {
-        const id = l.image ? itemAssetId(l.image, app.sources) : undefined;
-        const u = id && (await assetUrl(id));
-        const href = u ? await toDataUrl(u) : undefined;
-        if (href) itemHrefs[l.id] = href;
-      }
-      cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, estimated, lines, amount: amount ? won(amount) : undefined, image, corner: o.shape === 'ellipse' ? 0.5 : o.corner, items, itemHrefs });
-    }
-    if (skipped) app.notice = `그림 ${skipped}개를 SVG 에 묻지 못해 뺐습니다 (받지 못했거나 그림 파일이 아님).`;
-    const title = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 사인물 전개도`;
-    return listSvg({ title, subtitle: `${new Date().toLocaleDateString('ko-KR')} · 합계 ${won(quote.total)}`, cards, ...opts });
-  }
   /** SVG 를 인쇄 창에 띄운다 → 브라우저의 "PDF 로 저장" (A4 가로) */
   async function exportPdf() {
-    const svg = await buildSvg();
+    const svg = await buildListSvg({}, { amounts: true }); // 견적 탭 PDF = 금액·합계 포함
     app.lastSvg = svg;
     const w = window.open('', '_blank');
     if (!w) { app.notice = '팝업이 막혀 PDF 창을 열 수 없습니다. 팝업을 허용해 주세요.'; return; }
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>
-  .quote h2 .ref { font-size: 11px; font-weight: 400; color: var(--warn); margin-left: 6px; }
-  .svgwrap { position: static; }
-  .svgopts { position: absolute; left: 12px; right: 12px; top: 100%; margin-top: 2px; z-index: 5; width: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
-  .svgopts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-  .svgopts .choices { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-  .svgopts .choices .lbl { color: var(--muted); }
-  .svgopts small { color: var(--muted); }
-  .svgopts .tip { display: block; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); }
-  .svgopts .tip b { color: var(--text); }
-  .svgopts .btn { align-self: flex-end; margin-top: 4px; }@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>사인물 전개도</title><style>@page{size:A4 landscape;margin:0}html,body{margin:0;background:#fff}svg{width:297mm;height:210mm;display:block}</style></head><body>${svg}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),300));<\/script></body></html>`);
     w.document.close();
   }
 
@@ -343,24 +270,6 @@
         <button class="btn small" data-testid="open-quote-sheet" onclick={() => (app.quoteSheetOpen = true)}>주문서·견적서</button>
         {/if}
         <button class="btn small" data-testid="export-pdf" title="전개도를 SVG 로 그려 PDF 로 저장 (인쇄 창)" disabled={!exportable.length} onclick={exportPdf}>PDF</button>
-        <span class="svgwrap">
-          <button class="btn small" data-testid="export-svg" title="일러스트레이터용 SVG 내려받기 (비율·윤곽선 옵션)" disabled={!exportable.length} onclick={() => (svgPanel = !svgPanel)}>SVG</button>
-          {#if svgPanel}
-            <div class="svgopts" data-testid="svg-options">
-              <b>SVG 내려받기 <small>(일러스트레이터)</small></b>
-              <!-- 선택지는 한 줄로 (2026-10-18 사용자: "체크박스와 라벨 입력필드가 세로배치된것이 많은데 자리도 많이 차지하고 헷갈려") -->
-              <div class="choices" role="radiogroup" aria-label="비율">
-                <span class="lbl">비율</span>
-                <label title="제작 도면, mm 그대로"><input type="radio" name="svgscale" value="1" bind:group={svgScale} data-testid="svg-scale-1" /> 실물 1:1</label>
-                <label title="큰 간판 · 아트보드 한계 5.8m"><input type="radio" name="svgscale" value="0.1" bind:group={svgScale} data-testid="svg-scale-10" /> 1:10</label>
-                <label title="PDF 와 같은 모양"><input type="radio" name="svgscale" value="a4" bind:group={svgScale} data-testid="svg-scale-a4" /> A4 맞춤</label>
-                <label title="폰트 없어도 같은 모양, 글자 편집 불가"><input type="checkbox" bind:checked={svgOutline} data-testid="svg-outline" /> 글자 윤곽선</label>
-              </div>
-              <small class="tip" data-testid="svg-artboards-tip">대지: 사인물마다 같은 자리에 "대지" 레이어의 사각형이 들어 있습니다. 일러스트레이터에서 레이어 <b>대지</b>를 선택 → <b>오브젝트 › 대지 › 선택 오브젝트를 대지로 변환</b> 하면 지금 배치 그대로 사인물마다 대지가 되어 대지별 내보내기를 쓸 수 있습니다.</small>
-              <button class="btn small primary" data-testid="svg-download" disabled={svgBusy} onclick={exportSvg}>{svgBusy ? '만드는 중…' : '내려받기'}</button>
-            </div>
-          {/if}
-        </span>
         <button class="icon" title="전개도 맞춤" onclick={fit}>⤢</button>
       </span>
     </header>
@@ -495,6 +404,7 @@
 </div>
 
 <style>
+  .quote h2 .ref { font-size: 11px; font-weight: 400; color: var(--warn); margin-left: 6px; }
   .list-view { position: absolute; inset: 0; }
   .item { position: absolute; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #333; cursor: grab; outline: 1px solid rgba(255,255,255,0.25); }
