@@ -10,9 +10,9 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; existing?: { names: string[]; layers?: { name: string; subs: { name: string; items: number }[] }[] } } = {}) {
+function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs: { name: string; items: number }[] }[] } } = {}) {
   const log: string[] = [];
-  const written: Record<string, string> = {};
+  const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
     const arr: Rec[] = [];
     return Object.assign(arr, {
@@ -52,7 +52,7 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; existing
     }
     docs.push(d);
   }
-  class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
+  class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName) && (!this.fsName.endsWith('.json') || this.fsName in written); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
   class XMPMeta { props: Record<string, string> = {}; constructor(_s: string) {} static registerNamespace() {} setProperty(_ns: string, k: string, v: string) { this.props[k] = v; } serialize() { const [k, v] = Object.entries(this.props)[0]; return `<x:xmpmeta><ganpanda:${k}>${v}</ganpanda:${k}></x:xmpmeta>`; } }
   const ctx: Rec = {
     app: { documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0], coordinateSystem: null },
@@ -60,7 +60,7 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; existing
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
     ExportOptionsSVG: function (this: Rec) { this.fontType = null; }, ExportOptionsPNG24: function (this: Rec) { this.transparency = false; },
     ExportType: { SVG: 'SVG', PNG24: 'PNG24' }, SVGFontType: { OUTLINEFONT: 'outline' }, SaveOptions: { DONOTSAVECHANGES: 'no' }, ElementPlacement: { PLACEATEND: 'end', PLACEATBEGINNING: 'begin' },
-    ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' } }, $: { fileName: '/tmp/pkg/ganpanda.jsx' },
+    ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' }, selectDialog: (m: string) => { log.push('pick:' + m); return opts.pick ? { fsName: opts.pick } : null; } }, $: { fileName: (opts.scriptDir ?? '/tmp/pkg') + '/ganpanda.jsx' },
     alert: (m: string) => log.push('alert:' + m), confirm: (m: string) => { log.push('confirm:' + m); return opts.confirm ?? true; },
     String, Math, Number, parseInt, isNaN,
   };
@@ -187,6 +187,33 @@ describe('ganpanda.jsx — 그림은 폴더의 파일을 연결 (2026-11-05 "5�
     vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
     expect(f.docs[0].layers.find((l: Rec) => l.name === '간판다 사진').placedItems).toHaveLength(1);
     expect(f.log.some((l) => l.startsWith('alert:') && l.includes('찾지 못했습니다'))).toBe(true);
+  });
+});
+
+describe('간판다.jsx 설치형 — 데이터 없이 실행하면 폴더를 골라 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건")', () => {
+  const data = illustratorPackage({ project: '매장', cards: [{ id: 'a1', name: '정면', x: 0, y: 0, w: 1000, h: 500, face: 'images/a1-face.jpg' }] });
+  it('폴더 선택 창 → 그 폴더의 ganpanda.json 으로 대지, 그림은 그 폴더의 images/ 를 연결', () => {
+    const f = fakeIllustrator({ scriptDir: '/Applications/Illustrator/Scripts', pick: '/Users/me/Downloads/매장 일러스트 대지', files: { '/Users/me/Downloads/매장 일러스트 대지/ganpanda.json': JSON.stringify(data) } });
+    vm.runInNewContext(TEMPLATE, f.ctx); // 데이터 줄 없는 스크립트 그대로
+    expect(f.log.some((l) => l.startsWith('pick:'))).toBe(true);
+    const doc = f.docs[0];
+    expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['정면 #a1']);
+    expect(doc.layers.find((l: Rec) => l.name === '간판다 사진').placedItems[0].file.fsName).toBe('/Users/me/Downloads/매장 일러스트 대지/images/a1-face.jpg');
+  });
+  it('취소하면 아무것도 안 함, ganpanda.json 이 없는 폴더면 알림', () => {
+    const f1 = fakeIllustrator({ pick: null });
+    vm.runInNewContext(TEMPLATE, f1.ctx);
+    expect(f1.docs).toHaveLength(0);
+    const f2 = fakeIllustrator({ pick: '/Users/me/Desktop' });
+    vm.runInNewContext(TEMPLATE, f2.ctx);
+    expect(f2.docs).toHaveLength(0);
+    expect(f2.log.some((l) => l.startsWith('alert:') && l.includes('ganpanda.json'))).toBe(true);
+  });
+  it('간판다 대지가 있는 문서를 연 채 실행하면 보내기 (설치형도 같다)', () => {
+    const f = fakeIllustrator({ existing: { names: ['정면 #a1'] } });
+    vm.runInNewContext(TEMPLATE, f.ctx);
+    expect(f.docs[0].XMPString).toContain('<ganpanda:artboards>a1</ganpanda:artboards>');
+    expect(f.log.some((l) => l.startsWith('pick:'))).toBe(false);
   });
 });
 

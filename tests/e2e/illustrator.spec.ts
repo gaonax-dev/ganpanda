@@ -58,6 +58,7 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   await page.getByTestId('view-design').click();
   const dl = page.waitForEvent('download');
   await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  await page.getByTestId('illustrator-download').click(); // 창에서 [대지 받기 (zip)]
   const download = await dl;
   expect(download.suggestedFilename()).toMatch(/일러스트 대지\.zip$/); // 폴더째 zip (2026-11-05 "이미지들을 따로 폴더에 넣고 연결")
   const zipPath = await download.path();
@@ -72,7 +73,18 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   const faces = data.cards.map((c: any) => c.face).filter(Boolean);
   expect(faces.length).toBeGreaterThan(0);
   expect(faces.every((f: string) => /^images\/[A-Za-z0-9_-]+-face\.jpg$/.test(f))).toBe(true); // 카드 사진 = 폴더의 파일
-  expect(names).toEqual(expect.arrayContaining(['ganpanda.jsx', ...faces]));
+  expect(names).toEqual(expect.arrayContaining(['ganpanda.jsx', 'ganpanda.json', ...faces])); // 설치형 스크립트가 읽는 데이터 (2026-11-05)
+  const json = JSON.parse(execFileSync('python3', ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("ganpanda.json").decode("utf8"))', zipPath!]).toString('utf8'));
+  expect(json).toEqual(data);
+  // 설치용 스크립트 = 데이터 없는 스크립트 그대로
+  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  const dl2 = page.waitForEvent('download');
+  await page.getByTestId('illustrator-script').click();
+  const script = await dl2;
+  expect(script.suggestedFilename()).toBe('간판다.jsx');
+  const scriptText = (await import('fs')).readFileSync((await script.path())!, 'utf8');
+  expect(scriptText.startsWith('var GANPANDA_DATA')).toBe(false);
+  expect(scriptText).toContain('selectDialog');
   expect(jsx).toContain('간판다로 보내기');
   expect(jsx).toContain('.ganpanda'); // 구성 요소 묶음으로 돌아온다
 });
@@ -157,6 +169,7 @@ test('[일러스트 대지 받기] 데이터에 구성 요소 하위 레이어 �
   });
   await page.getByTestId('view-design').click();
   await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  await page.getByTestId('illustrator-download').click();
   await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.lastIllustrator.length)).toBeGreaterThan(0);
   const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
   const data = JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));

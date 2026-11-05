@@ -66,7 +66,7 @@
   }
   // 그림 파일 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데"): 간판다가 내려준 zip 을 푼 폴더의 images/… 를
   // 그대로 연결한다 — 풀기·묻기 없음. 예전 data URL 이면 풀어서 묻는다(느림)
-  var BASE = (function () { try { return new File($.fileName).parent; } catch (e) { return null; } })();
+  var BASE = (function () { try { return new File($.fileName).parent; } catch (e) { return null; } })(); // 설치형은 고른 폴더로 바뀐다
   var missing = 0;
   function isData(ref) { return /^data:/.test(String(ref)); }
   function refFile(ref) {
@@ -194,7 +194,7 @@
     var f = File.saveDialog('간판다 대지 저장 (' + data.project + ')', 'Illustrator:*.ai');
     if (f) doc.saveAs(f, pdfOptions());
     alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n디자인을 마친 뒤 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.' +
-      (missing ? '\n\n그림 ' + missing + '개를 찾지 못했습니다 — 간판다에서 받은 zip 을 풀고, 그 폴더 안의 ganpanda.jsx 를 실행해 주세요(images 폴더가 옆에 있어야 합니다).' : ''));
+      (missing ? '\n\n그림 ' + missing + '개를 찾지 못했습니다 — 간판다에서 받은 zip 을 풀고 그 폴더(images 폴더가 있는 곳)를 써 주세요.' : ''));
   }
 
   // 열린 문서에 간판다 대지(#id)가 있으면 보내기, 아니면 대지 만들기
@@ -204,5 +204,15 @@
     for (j = 0; j < active.artboards.length; j++) if (idOf(active.artboards[j].name)) { has = true; break; }
     if (has && confirm('지금 문서를 간판다로 보낼까요?\n대지 이름(#사인물)으로 짝을 적어 PDF 호환 .ai 로 저장합니다.\n[아니요]를 누르면 간판다 데이터로 새 대지 문서를 만듭니다.')) { sendBack(active); return; }
   }
-  build(DATA);
+  if (DATA) { build(DATA); return; }
+  // 설치형 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건"): 데이터 줄이 없으면 받은 폴더를 고른다
+  var folder = Folder.selectDialog('간판다에서 받은 폴더를 고르세요 (zip 을 푼 폴더 — ganpanda.json 이 있는 곳)');
+  if (!folder) return;
+  var jf = new File(folder.fsName + '/ganpanda.json');
+  if (!jf.exists) { alert('그 폴더에 ganpanda.json 이 없습니다.\n간판다 디자인 탭 [일러스트 대지 받기]로 받은 zip 을 풀고, 그 폴더를 골라 주세요.'); return; }
+  jf.encoding = 'UTF-8'; jf.open('r'); var txt = jf.read(); jf.close();
+  var picked;
+  try { picked = eval('(' + txt + ')'); } catch (e) { alert('ganpanda.json 을 읽지 못했습니다: ' + e); return; }
+  BASE = folder;
+  build(picked);
 })();

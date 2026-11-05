@@ -68,13 +68,27 @@ export async function exportIllustrator(): Promise<boolean> {
   }
   if (!cards.length) return false;
   const project = app.access.status === 'ok' ? app.access.projectName : '간판다';
-  const jsx = jsxWithData(illustratorJsx, illustratorPackage({ project, cards }));
+  const pkg = illustratorPackage({ project, cards });
+  const jsx = jsxWithData(illustratorJsx, pkg);
   app.lastIllustrator = jsx;
-  const zip = zipStore([{ name: 'ganpanda.jsx', data: new TextEncoder().encode(jsx) }, ...files]);
+  // ganpanda.json = 설치형 스크립트(간판다.jsx)가 폴더를 골라 읽는 데이터, ganpanda.jsx = 설치 없이 바로 실행 (2026-11-05)
+  const zip = zipStore([{ name: 'ganpanda.jsx', data: new TextEncoder().encode(jsx) }, { name: 'ganpanda.json', data: new TextEncoder().encode(JSON.stringify(pkg)) }, ...files]);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
   a.download = `${project} 일러스트 대지.zip`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   return true;
+}
+
+/**
+ * 설치용 스크립트 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건"): 데이터 없는 간판다.jsx —
+ * 일러스트 스크립트 폴더에 한 번 넣으면 파일 › 스크립트 › 간판다. 실행하면 받은 폴더를 고르고(ganpanda.json), 간판다 대지 문서를 연 채면 보내기
+ */
+export function downloadIllustratorScript() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([illustratorJsx], { type: 'application/javascript' }));
+  a.download = '간판다.jsx';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }

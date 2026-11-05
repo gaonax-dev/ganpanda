@@ -48,6 +48,13 @@
 - 예전 형식(data URL)도 그대로 읽는다 — 그때만 "카드 사진을 넣을까요?"를 묻고 푼다(빠른 해독: 표·4글자 단위·덩어리).
 - 실행: zip 을 풀고 **파일 › 스크립트 › 기타 스크립트…**(⌘F12 / Ctrl+F12)로 그 폴더의 `ganpanda.jsx`.
 
+## 설치형 스크립트 — 폴더를 골라 (2026-11-05)
+사용자: "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건".
+- 디자인 탭 [일러스트 대지 받기] → 작은 창(`ui/IllustratorExport.svelte`, `illustrator-options`): **[대지 받기 (zip)]**(`illustrator-download`) · **[설치용 스크립트 받기 (간판다.jsx)]**(`illustrator-script`, 데이터 없는 스크립트) · 설치 안내.
+- zip 에 **`ganpanda.json`**(패키지 데이터)을 더했다 — `ganpanda.jsx`(데이터 포함, 설치 없이 바로 실행)도 그대로.
+- 설치: `간판다.jsx` 를 일러스트 스크립트 폴더(맥: 응용 프로그램 › Adobe Illustrator › Presets › ko_KR › 스크립트 / 윈도우: Program Files › Adobe › Adobe Illustrator › Presets › ko_KR › 스크립트)에 넣고 다시 켜면 **파일 › 스크립트 › 간판다**.
+- 실행: 간판다 대지(#id)가 있는 문서를 연 채면 → [간판다로 보내기]를 묻는다(전과 같다). 아니면 **폴더 선택 창**(`Folder.selectDialog`) → 그 폴더의 `ganpanda.json` 을 읽어(`eval` — 간판다가 만든 데이터) 대지, 그림은 **그 폴더의 images/** 를 연결. 취소하면 아무것도 안 함, `ganpanda.json` 이 없으면 알림.
+
 ## 알 수 없는 것 (실제 일러스트에서 확인 필요)
 - 일러스트가 문서 XMP 를 PDF 호환 `.ai` 의 PDF 메타데이터로 그대로 쓰는지. 안 쓰면 대지 크기 짝맞춤으로 넘어간다.
 - 클리핑·SVG 들여오기의 세부 동작(버전별). 실패하면 그 디자인만 빠지고 나머지는 계속한다(try/catch).
