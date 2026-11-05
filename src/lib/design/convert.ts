@@ -2,7 +2,7 @@
 import { sourceKind, type SourceKind } from '../core/design';
 
 /** 변환된 페이지 (PNG) */
-export interface RenderedPage { blob: Blob; w: number; h: number }
+export interface RenderedPage { blob: Blob; w: number; h: number; /** PDF 페이지(= 일러스트 대지) 실제 크기 mm — 일러스트 왕복의 크기 짝맞춤 (2026-11-05) */ mm?: { w: number; h: number } }
 
 /** 긴 변 최대 px (너무 큰 아트보드는 줄여서 저장) */
 export const PAGE_MAX_SIDE = 2048;
@@ -11,14 +11,14 @@ export class ConvertError extends Error {
   constructor(public code: 'not-pdf-compatible' | 'unsupported' | 'render-failed', message: string) { super(message); }
 }
 
-export async function convertFile(file: File): Promise<{ kind: SourceKind; pages: RenderedPage[] }> {
+export async function convertFile(file: File): Promise<{ kind: SourceKind; pages: RenderedPage[]; xmp?: string }> {
   const kind = sourceKind(file.name, file.type);
   if (!kind) throw new ConvertError('unsupported', '지원하지 않는 파일입니다 (ai·pdf·svg·png·jpg).');
-  if (kind === 'pdf') return { kind, pages: await renderPdf(file) };
+  if (kind === 'pdf') return { kind, ...(await renderPdf(file)) };
   return { kind, pages: [await renderImage(file)] };
 }
 
-async function renderPdf(file: File): Promise<RenderedPage[]> {
+async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: string }> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   // 일러스트레이터 "PDF 호환" 저장이면 파일 앞부분에 %PDF 가 있다
   const head = new TextDecoder('latin1').decode(bytes.subarray(0, 1024));
@@ -33,6 +33,9 @@ async function renderPdf(file: File): Promise<RenderedPage[]> {
   } catch (e) {
     throw new ConvertError('render-failed', `파일을 읽지 못했습니다: ${e instanceof Error ? e.message : e}`);
   }
+  // 문서 XMP — 간판다 일러스트 스크립트가 대지 순서대로 사인물 id 를 적어 둔다(ganpanda:artboards, core/illustrator.ts)
+  let xmp: string | undefined;
+  try { xmp = (await doc.getMetadata()).metadata?.getRaw() ?? undefined; } catch { xmp = undefined; }
   const pages: RenderedPage[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
@@ -44,10 +47,10 @@ async function renderPdf(file: File): Promise<RenderedPage[]> {
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // 투명 배경 → 흰색
     await page.render({ canvasContext: ctx, viewport: vp, canvas }).promise;
-    pages.push({ blob: await toBlob(canvas), w: canvas.width, h: canvas.height });
+    pages.push({ blob: await toBlob(canvas), w: canvas.width, h: canvas.height, mm: { w: (base.width * 25.4) / 72, h: (base.height * 25.4) / 72 } });
   }
   await task.destroy();
-  return pages;
+  return { pages, xmp };
 }
 
 async function renderImage(file: File): Promise<RenderedPage> {

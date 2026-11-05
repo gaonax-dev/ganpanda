@@ -25,6 +25,7 @@ import { loadRoomView } from './core/roomView';
 import { alignBlock, blockFits, blockMismatch, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
+import { matchArtboards, xmpArtboardIds } from './core/illustrator';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { materializeRequestSigns } from './core/requestSigns';
 import { estimateProject } from './projects';
@@ -264,6 +265,8 @@ class AppState {
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');
+  /** 마지막으로 내려받은 일러스트 스크립트 (.jsx, 테스트·다시 받기용) */
+  lastIllustrator = $state('');
   lastRender = $state('');
   quoteSheetOpen = $state(false);
   /** 주문 정보 창 */
@@ -1066,16 +1069,33 @@ class AppState {
     if (!this.canEdit) return;
     this.converting = true;
     try {
-      const { kind, pages } = await convertFile(file);
+      const { kind, pages, xmp } = await convertFile(file);
       const fileAssetId = await putAsset(file);
       const pageAssets = [];
       for (const pg of pages) pageAssets.push({ assetId: await putAsset(pg.blob), w: pg.w, h: pg.h });
-      this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
+      const sourceId = this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
+      if (kind === 'pdf') this.linkArtboards(sourceId, pages, xmp);
     } catch (e) {
       if (e instanceof ConvertError) this.notice = e.message;
       else if (e instanceof StorageLimitError) this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 올릴 수 없습니다.`;
       else this.notice = '파일을 처리하지 못했습니다.';
     } finally { this.converting = false; }
+  }
+
+  /**
+   * 일러스트 왕복 (2026-11-05 "일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지"): 올린 .ai/PDF 의 대지(페이지)를 사인물에 자동으로 입힌다.
+   * 간판다 일러스트 스크립트가 적은 XMP 짝(ganpanda:artboards)이 있으면 그대로 — 수정본이면 새 디자인으로 바뀐다(이력에 남음).
+   * 짝 정보가 없으면 대지 크기(1:1·1:10)·순서로, **아직 디자인이 없는 사인물만**(우연히 크기가 같은 다른 PDF 가 덮지 않게). core/illustrator.ts matchArtboards
+   */
+  private linkArtboards(sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number } }[], xmp: string | undefined) {
+    const ids = xmpArtboardIds(xmp);
+    const signs = this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h }] : []; });
+    const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
+    let pairs = matchArtboards(pagesMm, signs, ids);
+    const byXmp = !!ids && ids.length === pages.length;
+    if (!byXmp) pairs = pairs.filter(({ id }) => !this.project.object(id)?.design);
+    for (const { page, id } of pairs) this.setDesign(id, { sourceId, page, crop: { x: 0, y: 0, w: pages[page].w, h: pages[page].h } });
+    if (pairs.length) this.notice = `대지 ${pairs.length}개를 사인물에 자동으로 연결했습니다${byXmp ? '' : ' (대지 크기로 짝지음)'}.`;
   }
 
   /** 사인물에 디자인 영역을 입히고 이력에 남긴다 */
