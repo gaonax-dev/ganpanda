@@ -203,7 +203,7 @@
       <!-- 디자인 탭 (2026-10-22 "디자인은 디자이너와 소통하는 곳으로 사진보드 그대로인데 사인물 디자인파일 연결하는 곳이다. 여기에 디자이너가 일러스트 파일도 올린다"):
            사진보드(2D) 그대로 + 디자인 파일 올리기 · 파일 보기·연결 · 고른 사인물에 연결 -->
       <div class="views stage designbar" data-testid="design-bar">
-        {#if app.canEdit && !app.boardOnly}<label class="up" data-testid="design-upload" title="일러스트(.ai, PDF 호환)·PDF·SVG·그림">＋ {app.compact ? '파일' : '일러스트·SVG 올리기'}<input data-testid="design-upload-input" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
+        {#if app.canEdit && !app.boardOnly}<label class="up" data-testid="design-upload" title="일러스트(.ai, PDF 호환)·PDF·SVG·그림">＋ {app.compact ? '파일' : '일러스트·SVG 올리기'}<input data-testid="design-upload-input" type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
         <button data-testid="view-uv" class:on={app.view === 'uv'} title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { if (app.view === 'uv') { app.view = 'board'; } else { app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>
         {#if app.selected && app.view === 'board' && app.canEdit}<button data-testid="design-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => (app.view = 'uv')}>이 사인물에 연결</button>{/if}
         <!-- 프로젝트 컬러셋 (2026-10-31 "컬러셋 프로젝트 뷰어 디자인에 컬러셋 누르면 컬러 대화창 나오고 여기에서 컬러셋 체인지한다") -->

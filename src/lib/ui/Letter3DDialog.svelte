@@ -13,7 +13,7 @@
   import { buildChannel, buildSign, type BuiltSign } from '../sim/signs';
   import { ENV_DAY, SUN_DAY } from '../sim/viewer';
   import { renderSpecOf } from '../core/render';
-  import { loadItemImages } from '../render/itemImages';
+  import { loadItemImages, loadItemVectors } from '../render/itemImages';
 
   let { obj }: { obj: SignObject } = $props();
   let host: HTMLDivElement;
@@ -73,9 +73,10 @@
     const spec = comp ?? (base && cp ? { ...base, ...componentOf(cp.kind).look3d!(cp) } : base); // 몸통 마감·띄움·뒤 빛 (2026-10-23)
     if (!spec || !font) return;
     const images = comp?.faceItems ? await loadItemImages(obj, app.sources) : undefined;
+    const vectors = comp?.letterItems?.some((l) => l.vectorId) ? await loadItemVectors(obj, app.sources) : undefined; // 일러스트 벡터 입체 (2026-11-05)
     if (my !== token || !font) return;
     built?.group.removeFromParent(); built?.dispose();
-    built = comp ? buildSign(comp, font, 'Pretendard, sans-serif', undefined, images) : buildChannel(spec, font);
+    built = comp ? buildSign(comp, font, 'Pretendard, sans-serif', undefined, images, undefined, vectors) : buildChannel(spec, font);
     scene.add(built.group);
     widthMm = comp ? null : built.measured.widthMm;
     const w = comp ? comp.widthMm : built.measured.widthMm, h = spec.heightMm;

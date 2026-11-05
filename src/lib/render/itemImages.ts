@@ -20,3 +20,20 @@ export async function loadItemImages(o: SignObject, sources: DesignSource[]): Pr
   }));
   return out;
 }
+
+/**
+ * 일러스트 벡터 그림 객체의 윤곽 (2026-11-05): 객체 id → mm 윤곽(객체 상자 크기, 가운데 원점). 채널·스카시의 입체(buildSign vectors).
+ * SVG 를 못 받거나 채운 패스가 없으면 빠진다(그 객체는 입체 없이)
+ */
+export async function loadItemVectors(o: SignObject, sources: DesignSource[]): Promise<Record<string, import('three').Shape[]>> {
+  const { svgShapes } = await import('../core/vectorShapes');
+  const out: Record<string, import('three').Shape[]> = {};
+  await Promise.all((o.parts ?? []).flatMap((p) => p.items).map(async (it) => {
+    if (!(it.kind === 'image' && it.vector && it.image)) return;
+    const id = itemAssetId(it.image, sources);
+    const url = id && (await assetUrl(id));
+    if (!url) return;
+    try { const shapes = svgShapes(await (await fetch(url)).text(), { w: it.w ?? it.h, h: it.h }); if (shapes.length) out[it.id] = shapes; } catch { /* 깨진 SVG 는 건너뜀 */ }
+  }));
+  return out;
+}

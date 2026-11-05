@@ -56,6 +56,8 @@ export interface PartItem {
   w?: number;
   /** 그림 소스: 디자인 파일의 페이지(영역) 또는 직접 올린 그림 */
   image?: { sourceId: string; page: number } | { assetId: string; name?: string };
+  /** 그림이 SVG 벡터(일러스트 입체 레이어, 2026-11-05) — 밀어내는 구성 요소(채널·스카시)면 이 윤곽을 입체로 (core/vectorShapes.ts) */
+  vector?: boolean;
 }
 /** 구성 요소 (2026-10-16 조합형): 채널·스카시·시트. type = 채널 제품 id / 스카시 제품 id / 시트 id. 시트는 올릴 곳(on: 'frame' 또는 채널 구성 요소 id) */
 /** 재료 층의 마감 (2026-10-21 core/stack.ts): 도색 = options 의 도색 객체 접두사(paintHex/paintLabel 로 읽음), 시트 = 시트 종류 id */

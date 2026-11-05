@@ -111,13 +111,13 @@
       {#if !app.sources.length}
         <div class="empty">
           <p>디자인 파일을 올리면 아트보드마다 페이지가 됩니다.</p>
-          {#if app.canEdit}<label class="btn primary">디자인 파일 올리기<input data-testid="source-input" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
+          {#if app.canEdit}<label class="btn primary">디자인 파일 올리기<input data-testid="source-input" type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
           <small>일러스트레이터(.ai, PDF 호환 저장) · PDF · SVG · PNG · JPG</small>
         </div>
       {/if}
       <div class="tools" class:hidden={app.compact}>
         {#if app.canEdit}
-          <label class="file">＋ 디자인 파일<input data-testid={app.sources.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
+          <label class="file">＋ 디자인 파일<input data-testid={app.sources.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
         {/if}
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
         <button onclick={fit} title="전체 보기">⤢</button>
@@ -132,7 +132,7 @@
       <button class="lk" class:on={linkOpen} data-testid="link-toggle" onclick={() => (linkOpen = !linkOpen)}>
         사인물 연결 {linkOpen ? '▼' : '▲'}{#if selected}<b>{selected.name}</b>{/if}
       </button>
-      {#if app.canEdit}<label class="file">＋ 파일<input data-testid="source-input-m" type="file" accept=".ai,.pdf,.svg,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
+      {#if app.canEdit}<label class="file">＋ 파일<input data-testid="source-input-m" type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
       <button onclick={fit} title="전체 보기">⤢</button>
     </nav>
     {#if selected && !linkOpen}<div class="hintbar" data-testid="design-hint">{app.canEdit ? `"${selected.name}" — 페이지를 끌어 입힐 영역을 그리세요` : `"${selected.name}"`}</div>{/if}

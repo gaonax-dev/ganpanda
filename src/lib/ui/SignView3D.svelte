@@ -17,7 +17,7 @@
   import { buildChannel, buildSign, type BuiltSign } from '../sim/signs';
   import { ENV_DAY, SUN_DAY } from '../sim/viewer';
   import { renderSpecOf } from '../core/render';
-  import { loadItemImages } from '../render/itemImages';
+  import { loadItemImages, loadItemVectors } from '../render/itemImages';
 
   /** focusPart: 그 구성 요소만 남기고 나머지(다른 구성 요소·프레임)는 숨겨 가까이 본다 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업"). 'frame' = 프레임(상자)만 — 글자는 모두 숨김 */
   let { obj, closeUp = false, focusPart = null }: { obj: SignObject; closeUp?: boolean; focusPart?: string | null } = $props();
@@ -88,9 +88,10 @@
     const spec = comp ?? (base && cp ? { ...base, ...componentOf(cp.kind).look3d!(cp) } : base);
     if (!spec || !font) { empty = !spec; ready = !spec ? false : ready; return; }
     const images = comp?.faceItems ? await loadItemImages(obj, app.sources) : undefined;
+    const vectors = comp?.letterItems?.some((l) => l.vectorId) ? await loadItemVectors(obj, app.sources) : undefined; // 일러스트 벡터 입체 (2026-11-05)
     if (my !== token || !font) return;
     built?.group.removeFromParent(); built?.dispose();
-    built = comp ? buildSign(comp, font, 'Pretendard, sans-serif', undefined, images) : buildChannel(spec, font);
+    built = comp ? buildSign(comp, font, 'Pretendard, sans-serif', undefined, images, undefined, vectors) : buildChannel(spec, font);
     built.setNight(false);
     scene.add(built.group);
     size = { w: comp ? comp.widthMm : built.measured.widthMm, h: spec.heightMm };

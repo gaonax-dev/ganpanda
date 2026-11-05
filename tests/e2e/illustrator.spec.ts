@@ -67,6 +67,7 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   expect(Math.min(...data.cards.map((c: any) => c.x))).toBe(0);
   expect(data.cards.some((c: any) => /^data:image\//.test(c.face ?? ''))).toBe(true); // 카드 사진
   expect(jsx).toContain('간판다로 보내기');
+  expect(jsx).toContain('.ganpanda'); // 구성 요소 묶음으로 돌아온다
 });
 
 test('스크립트가 저장한 .ai(XMP 짝)를 올리면 대지가 짝지은 사인물에 자동으로 입혀진다 — 순서가 바뀌어도, 수정본은 새 디자인으로', async ({ page, request }) => {
@@ -92,4 +93,66 @@ test('XMP 짝이 없는 PDF 는 대지 크기(1:10)로 짝짓되, 디자인이 �
   await expect.poll(() => designOf(page, ids.b), { timeout: 30_000 }).toMatchObject({ page: 1 });
   expect((await designOf(page, ids.a)).sourceId).toBe('keep');
   await expect(page.getByTestId('notice')).toContainText('대지 크기로 짝지음');
+});
+
+test('구성 요소 묶음(.ganpanda)을 올리면 바탕 인쇄는 사인물 바탕 디자인, 채널 입체(SVG)는 벡터 → 3D 입체, 없는 구성 요소는 건너뜀 (2026-11-05 "일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => {
+    const g = (window as any).__ganpanda; const pid = g.photos[0].id;
+    return g.project.addObject({ photoId: pid, name: '채널 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600,
+      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [{ id: 't1', kind: 'text', text: '카페', x: 0, y: 0, h: 400 }] }] });
+  });
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAEUlEQVR42mP8z8DwnwEJMCJ7ABBOAv+xFBY1AAAAAElFTkSuQmCC';
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850.39 170.08"><rect x="100" y="40" width="300" height="90" fill="#f00"/></svg>').toString('base64');
+  const bundle = JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 1, items: [
+    { sign: id, part: 'frame', kind: 'png', data: png }, { sign: id, part: 'ch1', kind: 'svg', data: svg }, { sign: id, part: 'nope', kind: 'svg', data: svg },
+  ] });
+  await page.getByTestId('view-design').click();
+  await page.getByTestId('design-upload-input').setInputFiles({ name: '매장.ganpanda', mimeType: 'application/json', buffer: Buffer.from(bundle) });
+  await expect(page.getByTestId('notice')).toContainText('구성 요소 디자인 2개', { timeout: 20_000 });
+  const o = await page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
+  expect(o.design).toMatchObject({ page: 0, crop: { x: 0, y: 0, w: 3, h: 2 } });
+  const ch = o.parts.find((p: any) => p.id === 'ch1');
+  expect(ch.items).toHaveLength(1);
+  expect(ch.items[0]).toMatchObject({ kind: 'image', vector: true, x: 0, y: 0, w: 3000, h: 600 });
+  // 3D 사양: 채널의 벡터 그림은 입체(vectorId)
+  const li = await page.evaluate(async (id) => {
+    const rp = '/src/lib/core/render.ts'; const { renderSpecOf } = await import(/* @vite-ignore */ rp);
+    const o = (window as any).__ganpanda.project.object(id);
+    return renderSpecOf(o, { cx: 1500, cy: 300, w: 3000, h: 600 })?.letterItems ?? [];
+  }, id);
+  expect(li).toEqual([expect.objectContaining({ partId: 'ch1', vectorId: ch.items[0].id })]);
+  // 브라우저에서 SVG 를 받아 입체 윤곽으로 (사각형 하나 → 윤곽 하나, 상자 mm 안)
+  const vec = await page.evaluate(async (id) => {
+    const ip = '/src/lib/render/itemImages.ts'; const { loadItemVectors } = await import(/* @vite-ignore */ ip);
+    const g = (window as any).__ganpanda; const o = g.project.object(id);
+    const v = await loadItemVectors(o, g.sources);
+    const shapes = Object.values(v)[0] as any[];
+    const xs = shapes?.[0]?.getPoints(4).map((p: any) => p.x) ?? [];
+    return { n: shapes?.length ?? 0, minX: Math.min(...xs), maxX: Math.max(...xs) };
+  }, id);
+  expect(vec.n).toBe(1);
+  expect(vec.minX).toBeCloseTo((100 / 850.39) * 3000 - 1500, 0);
+  expect(vec.maxX).toBeCloseTo((400 / 850.39) * 3000 - 1500, 0);
+  // 보드 카드·사진에도 디자인이 보인다 (2D 탭)
+  await page.getByTestId('stage-2d').click();
+  await expect(page.locator(`[data-testid="board-card"][data-id="${id}"] [data-testid="parts-overlay"] image`)).toHaveCount(1);
+});
+
+test('[일러스트 대지 받기] 데이터에 구성 요소 하위 레이어 — 채널·스카시 = 입체, 시트 = 인쇄, 조명 등은 빠짐', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => {
+    const g = (window as any).__ganpanda; const pid = g.photos[0].id;
+    return g.project.addObject({ photoId: pid, name: '조합', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600,
+      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [] }, { id: 'sc1', kind: 'scashi', type: '', items: [] }, { id: 'sh1', kind: 'sheet', type: 'sh-print', on: 'sc1', items: [] }] });
+  });
+  await page.getByTestId('view-design').click();
+  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.lastIllustrator.length)).toBeGreaterThan(0);
+  const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
+  const data = JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));
+  const card = data.cards.find((c: any) => c.id === id);
+  expect(card.parts.map((p: any) => [p.id, p.mode, /\((입체|인쇄)\)$/.test(p.label)])).toEqual([['ch1', 'vector', true], ['sc1', 'vector', true], ['sh1', 'print', true]]);
 });

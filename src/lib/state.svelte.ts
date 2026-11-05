@@ -59,7 +59,8 @@ import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
-import { categoryPatch, materialPatch } from './core/parts';
+import { categoryPatch, commitParts, materialPatch, newItem, partLabel, partsOf as partsOfSign } from './core/parts';
+import { bundleTargets, FRAME_PART, isBundleName, parseBundle, pngSize, svgSize, type BundleItem } from './core/illustratorBundle';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -1069,6 +1070,7 @@ class AppState {
     if (!this.canEdit) return;
     this.converting = true;
     try {
+      if (isBundleName(file.name)) { await this.applyIllustratorBundle(file); return; } // 일러스트 구성 요소 묶음 (2026-11-05)
       const { kind, pages, xmp } = await convertFile(file);
       const fileAssetId = await putAsset(file);
       const pageAssets = [];
@@ -1096,6 +1098,45 @@ class AppState {
     if (!byXmp) pairs = pairs.filter(({ id }) => !this.project.object(id)?.design);
     for (const { page, id } of pairs) this.setDesign(id, { sourceId, page, crop: { x: 0, y: 0, w: pages[page].w, h: pages[page].h } });
     if (pairs.length) this.notice = `대지 ${pairs.length}개를 사인물에 자동으로 연결했습니다${byXmp ? '' : ' (대지 크기로 짝지음)'}.`;
+  }
+
+  /**
+   * 일러스트 구성 요소 묶음(.ganpanda) 적용 (2026-11-05 "내가 디자이너야 사인물에 각각의 디자인이 연결되어야해 후렉스(인쇄) 위에 체널(입체), 스카시(입체+ 시트 또는 도색)의 구성이라면
+   * 일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게"): 바탕(frame) → 사인물 바탕 디자인(이력에 남음),
+   * 구성 요소 → 그 구성 요소의 내용을 디자인 하나로(SVG = 벡터 — 채널·스카시는 입체, PNG = 그림). 러프 글자·그림은 디자인으로 바뀐다(⌘Z)
+   */
+  private async applyIllustratorBundle(file: File) {
+    const b = parseBundle(await file.text());
+    if (!b) { this.notice = '간판다 일러스트 묶음(.ganpanda) 파일이 아닙니다.'; return; }
+    const targets = bundleTargets(b.items, this.signs.map((o) => ({ id: o.id, parts: partsOfSign(o).map((p) => p.id) })));
+    const bySign = new Map<string, BundleItem[]>();
+    for (const t of targets) bySign.set(t.sign, [...(bySign.get(t.sign) ?? []), t]);
+    const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    let n = 0;
+    for (const [signId, its] of bySign) {
+      const o = this.project.object(signId);
+      if (!o) continue;
+      const size = this.sizeOf(o) ?? { w: o.widthMm ?? 1000, h: o.heightMm ?? 1000 };
+      let parts = partsOfSign(o), changed = false;
+      for (const it of its) {
+        const bytes = bytesOf(it.data);
+        const assetId = await putAsset(new Blob([bytes], { type: it.kind === 'svg' ? 'image/svg+xml' : 'image/png' }));
+        const part = parts.find((p) => p.id === it.part);
+        const label = `${o.name} ${part ? partLabel(part) : '바탕'} (일러스트)`;
+        if (it.part === FRAME_PART) {
+          const sz = (it.kind === 'png' ? pngSize(bytes) : svgSize(new TextDecoder().decode(bytes))) ?? { w: 1000, h: 1000 };
+          const sourceId = this.project.addSource({ name: label, kind: it.kind === 'svg' ? 'svg' : 'bitmap', fileAssetId: assetId, pages: [{ assetId, w: sz.w, h: sz.h }], author: this.nickname });
+          this.setDesign(o.id, { sourceId, page: 0, crop: { x: 0, y: 0, w: sz.w, h: sz.h } });
+        } else if (part) {
+          const item = { ...newItem('image'), image: { assetId, name: label }, ...(it.kind === 'svg' ? { vector: true } : {}), x: 0, y: 0, w: size.w, h: size.h };
+          parts = parts.map((p) => (p.id === part.id ? { ...p, items: [item] } : p));
+          changed = true;
+        }
+        n++;
+      }
+      if (changed) { this.editBoundary(); this.project.updateObject(o.id, commitParts(o, parts)); this.editBoundary(); }
+    }
+    this.notice = n ? `일러스트에서 구성 요소 디자인 ${n}개를 받아 사인물에 넣었습니다.` : '묶음에 이 프로젝트의 사인물·구성 요소가 없습니다.';
   }
 
   /** 사인물에 디자인 영역을 입히고 이력에 남긴다 */

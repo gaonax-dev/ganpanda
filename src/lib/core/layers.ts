@@ -21,7 +21,7 @@ const isItemKind = (kind: string) => (ITEM_KINDS as readonly string[]).includes(
 function itemLayer(it: PartItem): Layer {
   const spec: Record<string, unknown> = it.kind === 'text' ? { text: it.text ?? '', ...(it.count ? { count: it.count } : {}) }
     : it.kind === 'shape' ? { shape: it.shape ?? 'rect', ...(it.fill ? { fill: it.fill } : {}), ...(it.stroke ? { stroke: it.stroke } : {}) }
-    : { ...(it.image ? { image: it.image } : {}) };
+    : { ...(it.image ? { image: it.image } : {}), ...(it.vector ? { vector: true } : {}) }; // 일러스트 벡터 (2026-11-05)
   return { id: it.id, kind: it.kind, spec, box: { x: it.x, y: it.y, w: it.w ?? 0, h: it.h }, children: [] };
 }
 function partLayer(p: SignPart, parts: SignPart[], seen: Set<string>): Layer {
@@ -43,11 +43,11 @@ export function fromParts(parts: SignPart[]): Layer[] {
 /** 레이어 트리 → 펼친 구성 요소 (on = 부모 구성 요소 id, 프레임 바로 아래면 'frame' — 올라가는 종류일 때만). 좌표는 부모 오프셋을 더해 간판 중심 기준으로 */
 /** 내용 객체 레이어 → PartItem (좌표는 간판 중심 기준 절대 mm) */
 function itemOf(c: Layer, ax: number, ay: number): PartItem {
-  const s = c.spec as { text?: string; count?: number; image?: PartItem['image']; shape?: PartItem['shape']; fill?: string; stroke?: string };
+  const s = c.spec as { text?: string; count?: number; image?: PartItem['image']; vector?: boolean; shape?: PartItem['shape']; fill?: string; stroke?: string };
   return {
     id: c.id, kind: c.kind as PartItem['kind'], ...(c.kind === 'text' ? { text: s.text ?? '' } : {}), ...(s.count ? { count: s.count } : {}),
     ...(c.kind === 'shape' ? { shape: s.shape ?? 'rect', ...(s.fill ? { fill: s.fill } : {}), ...(s.stroke ? { stroke: s.stroke } : {}) } : {}),
-    x: ax, y: ay, h: c.box.h, ...(c.box.w ? { w: c.box.w } : {}), ...(s.image ? { image: s.image } : {}),
+    x: ax, y: ay, h: c.box.h, ...(c.box.w ? { w: c.box.w } : {}), ...(s.image ? { image: s.image } : {}), ...(s.vector ? { vector: true } : {}),
   };
 }
 /**
@@ -111,7 +111,7 @@ export function sameParts(a: SignPart[], b: SignPart[]): boolean {
     id: p.id, kind: p.kind, type: p.type, on: p.on && p.on !== FRAME_ID ? p.on : undefined,
     options: Object.keys(p.options ?? {}).length ? Object.fromEntries(Object.entries(p.options!).sort()) : undefined,
     stack: p.stack ?? undefined, // 재료 층 (2026-10-21)
-    items: p.items.map((it) => ({ id: it.id, kind: it.kind, text: it.text ?? undefined, count: it.count || undefined, x: it.x, y: it.y, h: it.h, w: it.w || undefined, image: it.image })),
+    items: p.items.map((it) => ({ id: it.id, kind: it.kind, text: it.text ?? undefined, count: it.count || undefined, x: it.x, y: it.y, h: it.h, w: it.w || undefined, image: it.image, vector: it.vector || undefined })),
   })));
   return canon(a) === canon(b);
 }

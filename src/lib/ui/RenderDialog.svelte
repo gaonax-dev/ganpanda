@@ -10,7 +10,7 @@
   import { loadFont } from '../core/textShapes';
   import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
-  import { loadItemImages } from '../render/itemImages';
+  import { loadItemImages, loadItemVectors } from '../render/itemImages';
   import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
   let { photo }: { photo: Photo } = $props();
@@ -95,7 +95,8 @@
       if (!spec) return null;
       const face = spec.kind === 'lightbox' ? await faceOf(o) : undefined;
       const images = spec.faceItems ? await loadItemImages(o, app.sources) : undefined; // 조합형 그림 객체 (4단계)
-      return { o, spec, face, images, corners, plane: own };
+      const vectors = spec.letterItems?.some((l) => l.vectorId) ? await loadItemVectors(o, app.sources) : undefined; // 일러스트 벡터 입체 (2026-11-05)
+      return { o, spec, face, images, vectors, corners, plane: own };
     }));
     if (my !== token) return;
     v.clearSignCameras();
@@ -105,7 +106,7 @@
       if (!it) continue;
       let b: BuiltSign;
       try {
-        b = buildSign(it.spec, font, 'Pretendard, sans-serif', it.face, it.images);
+        b = buildSign(it.spec, font, 'Pretendard, sans-serif', it.face, it.images, undefined, it.vectors);
       } catch (e) {
         try { b = buildLightbox({ ...it.spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 입체 글자를 만들 수 없어 상자로 표시 (${e instanceof Error ? e.message : e})`); }
         catch { notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 그릴 수 없음`); continue; }

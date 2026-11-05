@@ -80,6 +80,16 @@ export interface ChannelGeometry {
 /** 입체 글자 형상 (DOM 불필요 → 단위 테스트 대상). 중심 = 원점, 앞면 z = depth */
 export function channelGeometry(spec: SignSpec, font: Font): ChannelGeometry {
   const text = spec.text.trim() || ' ';
+  // 일러스트 벡터 윤곽 (2026-11-05): 이미 mm·가운데 원점 — 글꼴 맞춤 없이 배율만
+  if (spec.vectorShapes?.length) {
+    const geometry = new THREE.ExtrudeGeometry(spec.vectorShapes, { depth: spec.depthMm, bevelEnabled: false, curveSegments: 6 });
+    const [kx, k] = spec.vectorScale ?? [1, 1];
+    geometry.scale(kx, k, 1);
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    const bb = geometry.boundingBox!;
+    return { geometry, shapes: spec.vectorShapes, center: new THREE.Vector2(0, 0), scale: k, scaleX: kx, measured: { widthMm: bb.max.x - bb.min.x, heightMm: bb.max.y - bb.min.y, charCount: 0 } };
+  }
   const shapes = textToShapes(font, text, spec.letterSpacing);
   if (!shapes.length) throw new Error('글자 윤곽이 없습니다 (폰트에 없는 글자·공백만)');
   const geometry = new THREE.ExtrudeGeometry(shapes, { depth: spec.depthMm, bevelEnabled: false, curveSegments: 6 });
@@ -241,8 +251,9 @@ function withTopLights(b: BuiltSign, spec: SignSpec): BuiltSign {
 /** images = 앞면 그림 객체(faceItems)의 그림, 객체 id → 이미지 */
 /** 앞면 그림(인쇄 글자·디자인)의 긴 변 픽셀. 기본 1024 — 실시간 3D 는 더 크게(확대해도 또렷, 2026-10-27) */
 export const FACE_TEX_LONG = 1024;
-export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG): BuiltSign {
-  return withAccessories(withTopLights(buildSignBody(spec, font, fontFamily, face, images, texLong), spec), spec);
+/** vectors = 일러스트 벡터 그림 객체의 윤곽(객체 id → mm 윤곽, core/vectorShapes.ts) — 채널·스카시의 입체 (2026-11-05) */
+export function buildSign(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG, vectors?: Record<string, THREE.Shape[]>): BuiltSign {
+  return withAccessories(withTopLights(buildSignBody(spec, font, fontFamily, face, images, texLong, vectors), spec), spec);
 }
 
 /** 그룹 안 모든 메쉬의 형상을 옮긴다 — warpToQuad 가 정점만 보므로 위치를 그룹 변환이 아니라 정점에 굽는다 */
@@ -254,11 +265,14 @@ function bakeOffset(group: THREE.Group, x: number, y: number, z: number) {
  * 조합형 4단계 (2026-10-16): 글자 객체마다 입체 글자를 정면도 자리에 (상자 앞면 위, 몸통 없음이면 벽 위). 크기는 정한 높이 그대로.
  * 폰트에 없는 글자 등으로 못 만든 객체는 건너뛴다
  */
-function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign {
+function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font, vectors?: Record<string, THREE.Shape[]>): BuiltSign {
   const built: BuiltSign[] = [];
   for (const L of spec.letterItems ?? []) {
     let b: BuiltSign;
-    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
+    // 벡터 그림(일러스트 입체 레이어): 윤곽을 못 받았으면 건너뜀
+    const vec = L.vectorId ? vectors?.[L.vectorId] : undefined;
+    if (L.vectorId && !vec?.length) continue;
+    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(vec ? { vectorShapes: vec, vectorScale: L.vectorScale } : L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
     catch { continue; }
     if (L.partId) b.group.userData.partId = L.partId; // 간판 속성 클로즈업용 (2026-10-31)
     bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
@@ -273,10 +287,10 @@ function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font): BuiltSign 
   };
 }
 
-function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG): BuiltSign {
+function buildSignBody(spec: SignSpec, font: Font, fontFamily: string, face?: FaceImage, images?: Record<string, CanvasImageSource>, texLong = FACE_TEX_LONG, vectors?: Record<string, THREE.Shape[]>): BuiltSign {
   if (spec.kind === 'channel') return buildChannel(spec, font);
   const box = buildLightbox(spec, fontFamily, face, images, texLong);
-  if (spec.letterItems) return withLetterItems(box, spec, font);
+  if (spec.letterItems) return withLetterItems(box, spec, font, vectors);
   const L = spec.letters;
   if (!L || !L.text.trim()) return box;
   let letters: BuiltSign;

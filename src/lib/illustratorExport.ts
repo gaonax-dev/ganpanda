@@ -6,6 +6,8 @@ import { faceUrl } from './photoDisplay';
 import { imageDataUrl } from './core/imageData';
 import { illustratorPackage, jsxWithData, type IllustratorCardIn } from './core/illustrator';
 import illustratorJsx from './illustrator/ganpanda.jsx?raw';
+import { partLabel, partsOf } from './core/parts';
+import { componentOf } from './core/components';
 
 const toDataUrl = async (u: string): Promise<string | undefined> => { try { return await imageDataUrl(await (await fetch(u)).blob()); } catch { return undefined; } };
 async function cropPng(u: string, crop: { x: number; y: number; w: number; h: number }): Promise<string | undefined> {
@@ -24,7 +26,9 @@ export async function exportIllustrator(): Promise<boolean> {
     if (placeholder) continue;
     const p = app.flatPlaced.get(o.id);
     if (!p) continue;
-    const card: IllustratorCardIn = { id: o.id, name: o.name, x: p.x, y: p.y, w, h };
+    // 구성 요소 하위 레이어 (2026-11-05): 밀어내는 종류(채널·스카시) = 입체(SVG 로 돌아와 밀어냄), 내용을 받는 평면 종류(시트) = 인쇄. 내용을 안 받는 종류(조명·몰딩·지주 등)는 빠짐
+    const parts: NonNullable<IllustratorCardIn['parts']> = partsOf(o).flatMap((pt): NonNullable<IllustratorCardIn['parts']> => componentOf(pt.kind).extrude ? [{ id: pt.id, label: `${partLabel(pt)} (입체)`, mode: 'vector' }] : componentOf(pt.kind).takesItems ? [{ id: pt.id, label: `${partLabel(pt)} (인쇄)`, mode: 'print' }] : []);
+    const card: IllustratorCardIn = { id: o.id, name: o.name, x: p.x, y: p.y, w, h, ...(parts.length ? { parts } : {}) };
     const ph = app.photos.find((x) => x.id === o.photoId);
     if (ph && o.quad.length === 4) { const f = await faceUrl(ph.assetId, ph.w, o.quad, w, h, 640); if (f) card.face = f.startsWith('data:') ? f : await toDataUrl(f); }
     if (o.design) {

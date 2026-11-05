@@ -10,7 +10,7 @@ import { Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
 import { displayUrl } from '../photoDisplay';
-import { loadItemImages } from './itemImages';
+import { loadItemImages, loadItemVectors } from './itemImages';
 
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
 
@@ -70,18 +70,21 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
   const specs = placed.map(({ o, at }) => renderSpecOf(o, sizedAt(o, at, plane), opts.estOf?.(o))); // 사인물 자체 크기는 정면 축과 무관 (2026-10-15)
   const assets = await Promise.all(placed.map(({ o }, i) => {
     const spec = specs[i];
-    if (!spec || !opts.designs) return { face: undefined, images: undefined };
+    // 일러스트 벡터 윤곽(채널·스카시 입체, 2026-11-05)은 형상이라 디자인 표시와 상관없이 받는다
+    const vectors = spec?.letterItems?.some((l) => l.vectorId) ? timed(`v:${o.id}`, loadItemVectors(o, sources).catch(() => undefined), opts.assetWaitMs) : undefined;
+    if (!spec || !opts.designs) return Promise.resolve(vectors).then((v) => ({ face: undefined, images: undefined, vectors: v }));
     return Promise.all([
       spec.kind === 'lightbox' ? timed(`f:${o.id}`, faceOf(o, sources).catch(() => undefined), opts.assetWaitMs) : undefined,
       spec.faceItems ? timed(`i:${o.id}`, loadItemImages(o, sources).catch(() => undefined), opts.assetWaitMs) : undefined,
-    ]).then(([face, images]) => ({ face, images }));
+      vectors,
+    ]).then(([face, images, v]) => ({ face, images, vectors: v }));
   }));
   for (const [i, { o, plane: own }] of placed.entries()) {
     const spec = specs[i];
     if (!spec) continue;
-    const { face, images } = assets[i];
+    const { face, images, vectors } = assets[i];
     let b: BuiltSign;
-    try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images, opts.texLong); }
+    try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images, opts.texLong, vectors ?? undefined); }
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
     if (spec.kind === 'lightbox' && !spec.bodyless) recessBox(b.group, spec.depthMm); // 외곽선 = 앞면: 바탕은 뒤로, 글자는 앞으로 (2026-10-17)
     const corners = quadOnWall(own, o) as [number, number][];
