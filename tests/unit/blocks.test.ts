@@ -308,3 +308,26 @@ describe('안전장치 (2026-11-05 사용자: "두 가지 안전장치 모두 �
     expect(r.get('s')!.heightMm).toBeCloseTo(100, 6);
   });
 });
+
+describe('다른 블록과 안 맞는 블록 (2026-11-05 사용자: "3번째 사진의 사인물 예상 크기 … 사인물 14와 사인물 18의 세로가 많이 차이난다")', async () => {
+  const { blockOutliers, measureByBlocks, BLOCK_OUTLIER_TOL } = await import('../../src/lib/core/blocks');
+  // 현장(제나컴퍼니): 벽돌 기둥 블록 둘(축척 0.975·0.85)과 창턱 블록 하나(1.36) — 깊이가 다르거나 치수가 그린 크기와 달라 60% 넘게 어긋남.
+  // 셋을 위치로 이으면 같은 줄 창의 세로가 787 → 883 으로 기울었다
+  const bk = (s: number, at: Pt) => ({ raw: { widthMm: 400 / s, heightMm: 400 / s }, w: 400, h: 400, at });
+  const blocks = [bk(0.975, [0, 3000]), bk(0.85, [0, 6000]), bk(1.36, [8000, 0])];
+  it('셋 이상에서 가운데 값과 25% 넘게 다른 블록 = 다른 블록과 안 맞음 (둘이면 판단하지 않음)', () => {
+    expect(BLOCK_OUTLIER_TOL).toBe(0.25);
+    expect([...blockOutliers(blocks)]).toEqual([2]);
+    expect([...blockOutliers(blocks.slice(0, 2))]).toEqual([]);
+    expect([...blockOutliers([bk(1, [0, 0]), bk(1.1, [1, 0]), bk(0.95, [2, 0])])]).toEqual([]);
+  });
+  it('가로·세로를 따로 본다 — 현장 값: 가로 축척은 1.05~1.07 로 같고 세로만 0.975·0.85·1.36 (섞은 평균이면 17% 로 묽어져 못 잡았다)', () => {
+    const an = (sx: number, sy: number) => ({ raw: { widthMm: 400 / sx, heightMm: 400 / sy }, w: 400, h: 400 });
+    expect([...blockOutliers([an(1.058, 0.975), an(1.069, 0.847), an(1.047, 1.355)])]).toEqual([2]);
+  });
+  it('안 맞는 블록은 기준에서 빠진다 — 같은 줄(같은 높이 v)의 사인물은 가로 자리가 달라도 세로가 거의 같다', () => {
+    const r = measureByBlocks(blocks, [{ id: 'l', raw: { widthMm: 100, heightMm: 700 }, at: [3000, 4000] }, { id: 'r', raw: { widthMm: 100, heightMm: 700 }, at: [6000, 4000] }]);
+    const hl = r.get('l')!.heightMm, hr = r.get('r')!.heightMm;
+    expect(Math.abs(hl - hr) / hl).toBeLessThan(0.02);
+  });
+});

@@ -34,10 +34,11 @@
         if (hideInfo && !bsel) return;
         const c = b.q.reduce((acc, q) => [acc[0] + q[0] / 4, acc[1] + q[1] / 4] as Pt, [0, 0] as Pt);
         const a = at(c);
-        const bad = app.blockMismatchOf(p.id, i); // 원근과 안 맞음 (2026-11-05) — 기준에서 빠진 블록
+        const mis = app.blockMismatchOf(p.id, i), odd = !mis && app.blockOutlierOf(p.id, i); // 원근과 안 맞음 · 다른 블록과 안 맞음 (2026-11-05) — 기준에서 빠진 블록
+        const bad = mis || odd;
         const size = b.w && b.h ? `${fmt(b.w)}×${fmt(b.h)}` : b.w ? `가로 ${fmt(b.w)}` : b.h ? `세로 ${fmt(b.h)}` : '치수 입력';
         if (inView(a) || hide) out.push({ hide, key: `b${p.id}${i}`, kind: 'block', ...a, index: i, need: !b.w && !b.h, fit: !bad && app.blockFitOf(p.id, i), bad,
-          text: bad ? `⚠ ${size} · 원근과 안 맞음` : size });
+          text: mis ? `⚠ ${size} · 원근과 안 맞음` : odd ? `⚠ ${size} · 다른 블록과 안 맞음` : size });
       });
     }
     return out;

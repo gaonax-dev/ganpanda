@@ -11,6 +11,7 @@
   const block = $derived(app.blockAt(photoId, index));
   const ax = $derived(app.blockAxisOf(photoId, index));
   const bad = $derived(app.blockMismatchOf(photoId, index));
+  const outlier = $derived(!bad && app.blockOutlierOf(photoId, index));
   const num = (v: string) => (v.trim() === '' ? undefined : Math.max(0, Number(v)) || undefined);
   /** 칸을 떠날 때(엔터·바깥 누르기) 한 번 반영 — 글자마다 저장하면 블록을 매번 다시 써서 입력이 끊겼다 (2026-11-04 "입력 후 엔터나 화면밖 클릭에 포커스해제와 입력이 안된다") */
   function commit(k: 'w' | 'h', v: string) {
@@ -35,6 +36,7 @@
     <label>세로<input data-testid="block-height" class:need={!block?.w && !block?.h} type="number" inputmode="decimal" min="0" step="10" placeholder="입력" value={block?.h ?? ''} disabled={ro} onchange={(e) => commit('h', e.currentTarget.value)} onkeydown={enterBlur} /></label>
     <small>mm</small>
   </div>
+  {#if outlier}<p class="bad" data-testid="block-outlier">⚠ 다른 블록과 안 맞음 — 이 블록이 말하는 축척이 다른 블록들과 25% 넘게 달라 치수 기준에서 뺐습니다. 튀어나온 기둥처럼 깊이가 다른 면에 그렸거나 치수가 그린 크기와 다른지 확인하세요.</p>{/if}
   {#if bad}<p class="bad" data-testid="block-mismatch">⚠ 원근과 안 맞음 — 넣은 가로·세로 비율이 원근으로 잰 비율과 30% 넘게 달라 치수 기준에서 뺐습니다. 치수(가로·세로 바뀜?)·축·원근을 확인하세요.</p>{/if}
   <div class="row axes" role="radiogroup" aria-label="축" data-testid="block-axis">
     <span class="lbl">축</span>

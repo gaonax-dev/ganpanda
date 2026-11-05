@@ -227,12 +227,45 @@ export const GRID_HORIZON = 0.25;
  * - 그 밖(옆면·수평면, 자리 모름): 그 축 면 블록들의 중앙값, 그 면에 블록이 없으면 모든 블록의 중앙값
  * raw = 원근 면에서 잰 길이(원근의 단위), axis 없음 = 벽면 y
  */
+/** 다른 블록과 안 맞음 판정 허용치 — 같은 축 면 블록이 셋 이상일 때, 축척이 가운데 값과 25% 넘게 다르면 (2026-11-05) */
+export const BLOCK_OUTLIER_TOL = 0.25;
+/**
+ * 다른 블록과 안 맞는 블록 (2026-11-05 사용자: "3번째 사진의 사인물 예상 크기 … 사인물 14와 사인물 18의 세로가 많이 차이난다"):
+ * 같은 축 면(axis)의 치수 있는 블록이 셋 이상이면 블록마다 축척(입력 ÷ 펼친 길이)을 가로·세로 따로 가운데 값과 비교해 어느 하나라도 25% 넘게 다른 것.
+ * 깊이가 다른 면(튀어나온 기둥 등)에 그렸거나 치수를 잘못 넣은 블록 — 위치로 축척을 이으면 같은 줄의 사인물이 기울어진다. 둘이면 어느 쪽인지 몰라 판단하지 않는다
+ */
+export function blockOutliers(blocks: { raw: { widthMm: number; heightMm: number } | null | undefined; w?: number; h?: number; axis?: BlockAxis }[]): Set<number> {
+  const out = new Set<number>();
+  // 가로·세로 축척을 따로 (현장: 가로는 같고 세로만 크게 달랐다 — 섞으면 묽어진다)
+  const scaleOf = (b: (typeof blocks)[number]) => {
+    if (!b.raw || !(b.raw.widthMm > 0) || !(b.raw.heightMm > 0) || blockMismatch(b.raw, b.w, b.h)) return null;
+    const sx = b.w && b.w > 0 ? b.w / b.raw.widthMm : undefined, sy = b.h && b.h > 0 ? b.h / b.raw.heightMm : undefined;
+    return sx || sy ? { sx, sy } : null;
+  };
+  const median = (v: number[]) => { const a = [...v].sort((x, y) => x - y), n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2; };
+  const far = (s: number, m: number) => Math.abs(Math.log(s / m)) > Math.log(1 + BLOCK_OUTLIER_TOL);
+  const byAxis = new Map<BlockAxis, { i: number; sx?: number; sy?: number }[]>();
+  blocks.forEach((b, i) => { const s = scaleOf(b); if (s) byAxis.set(b.axis ?? 'y', [...(byAxis.get(b.axis ?? 'y') ?? []), { i, ...s }]); });
+  for (const g of byAxis.values()) {
+    if (g.length < 3) continue;
+    for (const k of ['sx', 'sy'] as const) {
+      const have = g.filter((x) => x[k]);
+      if (have.length < 3) continue;
+      const m = median(have.map((x) => x[k]!));
+      for (const x of have) if (far(x[k]!, m)) out.add(x.i);
+    }
+  }
+  return out;
+}
+
 export function measureByBlocks(
   blocks: { raw: { widthMm: number; heightMm: number } | null | undefined; w?: number; h?: number; axis?: BlockAxis; at?: Pt }[],
   signs: { id: string; raw: { widthMm: number; heightMm: number } | null | undefined; axis?: BlockAxis; at?: Pt }[],
 ): Map<string, { widthMm: number; heightMm: number }> {
   const scales: { axis: BlockAxis; sx: number; sy: number; at?: Pt }[] = [];
-  for (const b of blocks) {
+  const outliers = blockOutliers(blocks); // 다른 블록과 안 맞는 블록은 기준에서 뺀다 (2026-11-05)
+  for (const [bi, b] of blocks.entries()) {
+    if (outliers.has(bi)) continue;
     if (!b.raw || !(b.raw.widthMm > 0) || !(b.raw.heightMm > 0)) continue;
     if (blockMismatch(b.raw, b.w, b.h)) continue; // 원근과 안 맞는 블록은 기준에서 뺀다 (2026-11-05)
     const sx = b.w && b.w > 0 ? b.w / b.raw.widthMm : undefined, sy = b.h && b.h > 0 ? b.h / b.raw.heightMm : undefined;

@@ -876,7 +876,7 @@
         {@const b = quadOf(pb)}
         {@const bsel = app.selectedBlock?.photoId === photo.id && app.selectedBlock.i === bi}
         {@const fit = app.blockFitOf(photo.id, bi)}
-        {@const bad = app.blockMismatchOf(photo.id, bi)}
+        {@const bad = app.blockMismatchOf(photo.id, bi) || app.blockOutlierOf(photo.id, bi)}
         {@const col = bad ? '#fb923c' : fit ? BLOCK_FIT_COLOR : BLOCK_COLOR}
         <g class="block" class:fit class:sel={bsel} class:ghost={hideLines && !bsel} data-testid="size-block" data-id={photo.id} data-index={bi} data-fit={fit ? '1' : undefined} data-mismatch={bad ? '1' : undefined} data-selected={bsel || undefined}>
           <polygon points={b.map((p) => p.join(',')).join(' ')} style:stroke={col} stroke-width={(bsel ? 3 : 2) * u} stroke-dasharray={bad ? `${8 * u} ${5 * u}` : undefined} role="button" tabindex="-1" pointer-events={tool === 'select' ? 'auto' : 'none'} onpointerdown={(e) => shapeDown(e, pb, 'move')} />

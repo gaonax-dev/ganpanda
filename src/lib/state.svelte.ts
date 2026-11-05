@@ -22,7 +22,7 @@ import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import { measureQuad, type Calibration } from './core/calibration';
 import { applyHomography } from './core/homography';
 import { loadRoomView } from './core/roomView';
-import { alignBlock, blockFits, blockMismatch, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
+import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { matchArtboards, xmpArtboardIds } from './core/illustrator';
@@ -2137,12 +2137,24 @@ class AppState {
   /** 블록이 지금 원근과 맞는가(입력 치수와 10% 안) → 보라. 숫자(추정)는 보이지 않는다 */
   /** 블록이 지금 원근과 안 맞는가 — 가로·세로를 모두 넣었고, 원근으로 그 축 면에 펼친 비율과 30% 넘게 다르면 (core/blocks.ts blockMismatch, 2026-11-05). 원근 없으면 false */
   blockMismatchOf(photoId: string, i: number): boolean {
+    const b = this.blockAt(photoId, i);
+    if (!b || !b.w || !b.h) return false;
+    const raw = this.blockRaw(photoId, i);
+    return !!raw && blockMismatch(raw, b.w, b.h);
+  }
+  /** 블록을 그 축 면에 펼친 길이 (원근 단위). 원근 없으면 null */
+  private blockRaw(photoId: string, i: number): { widthMm: number; heightMm: number } | null {
     const b = this.blockAt(photoId, i), calib = this.calibrations.get(photoId);
-    if (!b || !b.w || !b.h || !calib?.metric || !isValidQuad(b.q)) return false;
+    if (!b || !calib?.metric || !isValidQuad(b.q)) return null;
     const cal = wallPlaneOf([], calib);
     const side = b.axis && b.axis !== 'y';
-    const raw = (side && cal ? faceSizeOnAxis(b.q, cal, b.axis as 'x' | 'z') : undefined) ?? measureQuad(calib, b.q);
-    return blockMismatch(raw, b.w, b.h);
+    return (side && cal ? faceSizeOnAxis(b.q, cal, b.axis as 'x' | 'z') : undefined) ?? measureQuad(calib, b.q);
+  }
+  /** 다른 블록과 안 맞는 블록인가 — 같은 축 면 블록이 셋 이상, 축척이 가운데 값과 25% 넘게 다름 → 기준에서 빠짐 (core/blocks.ts blockOutliers, 2026-11-05) */
+  blockOutlierOf(photoId: string, i: number): boolean {
+    const bs = this.photoBlocks.get(photoId) ?? [];
+    if (bs.length < 3) return false;
+    return blockOutliers(bs.map((b, k) => ({ raw: this.blockRaw(photoId, k), w: b.w, h: b.h, axis: b.axis }))).has(i);
   }
   blockFitOf(photoId: string, i: number): boolean {
     const b = this.blockAt(photoId, i);
