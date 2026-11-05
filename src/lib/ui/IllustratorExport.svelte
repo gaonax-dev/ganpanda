@@ -20,6 +20,7 @@
   {#if open}
     <div class="opts" data-testid="illustrator-options">
       <b>일러스트 대지</b>
+      {#if app.unconfirmedCount}<small class="unconfirmed" data-testid="unconfirmed-warning">⚠ 고객 컨펌 뒤 바뀐 사인물 {app.unconfirmedCount}개 — 이 파일은 지금 내용입니다. 변경 견적을 발행해 고객이 컨펌한 뒤 출력하세요(견적 탭 [바뀐 내용]).</small>{/if}
       <button class="primary" data-testid="illustrator-download" disabled={busy} onclick={zip}>{busy ? '만드는 중…' : '대지 받기 (zip)'}</button>
       <small class="tip">zip 을 풀면 프로젝트 이름 폴더(ganpanda.json · images · ganpanda.jsx)가 됩니다.</small>
       <button data-testid="illustrator-script" onclick={() => { downloadIllustratorScript(); }}>설치용 스크립트 받기 (간판다.jsx)</button>
@@ -29,6 +30,7 @@
 </span>
 
 <style>
+  .opts .unconfirmed { color: #fb923c; line-height: 1.4; }
   .wrap { position: relative; display: inline-flex; }
   .opts { position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 20; width: min(380px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
   .opts small { color: var(--muted); line-height: 1.4; }

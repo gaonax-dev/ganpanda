@@ -16,7 +16,7 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, nophoto = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, nophoto = false, changed = false, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
@@ -31,6 +31,8 @@
     linked?: boolean;
     /** 사진에 없음 — 어느 사진에도 외곽선이 없다 → 외곽 빨강 (2026-11-05) */
     nophoto?: boolean;
+    /** 고객 컨펌(계약·발행) 뒤 바뀐 사인물 — 변경안 (2026-11-05) */
+    changed?: boolean;
     onpointerdown?: (e: PointerEvent) => void;
   } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -77,7 +79,7 @@
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
-    <b>{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
+    <b>{#if changed}<span class="badge change" data-testid="card-change" title="고객 컨펌(발행) 뒤 바뀐 사인물 — 고객이 다시 컨펌하기 전까지 변경안 (견적 탭 [바뀐 내용])">변경안</span>{/if}{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
@@ -100,6 +102,7 @@
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
+  .badge.change { color: #fb923c; border-color: #fb923c; } /* 변경안 (2026-11-05) */
   .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
   .badge.settings { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
   .badge.unsized { color: var(--warn); border-color: var(--warn); }

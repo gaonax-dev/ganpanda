@@ -24,6 +24,7 @@
 </script>
 
 <div class="sheet-wrap" data-testid="quote-sheet">
+  {#if app.unconfirmedCount}<small class="unconfirmed" data-testid="unconfirmed-warning">⚠ 고객 컨펌 뒤 바뀐 사인물 {app.unconfirmedCount}개 — 이 파일은 지금 내용입니다. 변경 견적을 발행해 고객이 컨펌한 뒤 출력하세요(견적 탭 [바뀐 내용]).</small>{/if}
   <div class="toolbar no-print">
     <button class="btn primary" onclick={() => window.print()}>인쇄 · PDF 저장</button>
     <button class="btn" data-testid="order-json" title="주문 데이터(JSON) 내려받기" onclick={exportJson}>JSON 내보내기</button>
@@ -86,6 +87,7 @@
 </div>
 
 <style>
+  .unconfirmed { display: block; margin: 8px 12px; color: #fb923c; font-size: 12px; line-height: 1.4; }
   .sheet-wrap { position: fixed; inset: 0; z-index: 70; background: #555; overflow-y: auto; padding: 20px; }
   .toolbar { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
   .paper { background: #fff; color: #111; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 18mm 16mm; box-shadow: 0 10px 40px rgba(0,0,0,0.5); font-size: 12px; }

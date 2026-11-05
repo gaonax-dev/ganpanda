@@ -21,7 +21,7 @@
   const scale = $derived(Math.max(1, ...steps.map((x) => Math.max(x.from, x.to))));
   const won = (n: number) => `${Math.round(n).toLocaleString('ko-KR')}원`;
   const sign = (n: number) => (n > 0 ? `+${won(n)}` : n < 0 ? `−${won(-n)}` : '0원');
-  const FIELD: Record<ItemField, string> = { size: '크기', type: '종류', category: '분류', sheets: '시트', options: '옵션', text: '문구', design: '디자인', amount: '금액' };
+  const FIELD: Record<ItemField, string> = { size: '크기', type: '종류', category: '분류', sheets: '시트', options: '옵션', text: '문구', design: '디자인', amount: '금액', parts: '구성' };
   const show = (f: ItemField, v: string | number) => (f === 'amount' ? won(v as number) : f === 'size' ? (v ? `${String(v).replace('×', ' × ')} mm` : '없음') : v === '' ? '없음' : String(v));
   const riskOf = (id: string) => risks.filter((r) => r.itemId === id);
   const general = $derived(risks.filter((r) => !r.itemId));

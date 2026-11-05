@@ -38,6 +38,7 @@
   {#if open}
     <div class="opts" data-testid="svg-options">
       <b>SVG 내려받기 <small>(코렐·커팅·일러스트)</small></b>
+      {#if app.unconfirmedCount}<small class="unconfirmed" data-testid="unconfirmed-warning">⚠ 고객 컨펌 뒤 바뀐 사인물 {app.unconfirmedCount}개 — 이 파일은 지금 내용입니다. 변경 견적을 발행해 고객이 컨펌한 뒤 출력하세요(견적 탭 [바뀐 내용]).</small>{/if}
       <div class="choices" role="radiogroup" aria-label="비율">
         <span class="lbl">비율</span>
         <label title="제작 도면, mm 그대로"><input type="radio" name="svgscale" value="1" bind:group={scale} data-testid="svg-scale-1" /> 실물 1:1</label>
@@ -52,6 +53,7 @@
 </span>
 
 <style>
+  .opts .unconfirmed { color: #fb923c; line-height: 1.4; }
   .wrap { position: relative; display: inline-flex; }
   .opts { position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 20; width: min(360px, calc(100vw - 24px)); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
   .opts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }

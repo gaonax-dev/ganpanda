@@ -39,7 +39,7 @@ import { describeBillingError, issueBilling, takeBillingReturn, type BillingRetu
 import type { Business } from './core/business';
 import { quoteProject } from './core/quote';
 import { resolveLinks } from './core/link';
-import { signHash, approvalState, contentHash, fnv1a, snapshotOf } from './core/proposal';
+import { signHash, approvalState, contentHash, fnv1a, partsHash, snapshotOf } from './core/proposal';
 import { customerView, diffIssued, customerRisks, issueOf, type IssuedQuote } from './core/quoteChange';
 import { maskProfanity } from './core/profanity';
 import { blockFacePlane, faceOf, faceSizeOf, faceSizeOnAxis, sideWallOf, wallPlaneOf } from './core/wallPlane';
@@ -569,17 +569,21 @@ class AppState {
   voiceCounts = $derived(voiceCounts(this.messages));
   /** 승인 대상 내용의 해시 (사인물 규격·치수·디자인·금액) */
   contentHash = $derived(contentHash(this.signs, (o) => this.sizeOf(o), this.quote));
+  /** 구성 지문 — 재료 층·구성 요소 (2026-11-05 고객 컨펌 기준선: 디자이너가 구성만 바꿔도 변경안) */
+  partsHash = $derived(partsHash(this.signs));
+  /** 발행본과 지금이 같은가 — 내용 해시, 그리고 발행본에 구성 지문이 있으면 그것도 (옛 발행본은 내용 해시만) */
+  private sameAsIssue(q: IssuedQuote): boolean { return q.hash === this.contentHash && (q.ph === undefined || q.ph === this.partsHash); }
   /** 최신 승인과 현재 내용의 관계 */
   approval = $derived(approvalState(this.settings.approvals, this.contentHash));
   /** 발행 견적 (2026-10-26 박제) — 최신이 뒤 */
   issues = $derived<IssuedQuote[]>(this.settings.issues ?? []);
   latestIssue = $derived<IssuedQuote | null>(this.issues.at(-1) ?? null);
   /** 지금 내용을 발행본 모양으로 (비교용, 아직 발행 안 함) */
-  draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash,
+  draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash, ph: this.partsHash,
     // 사진 위 사인물 자리 (2026-10-26 사진 위 변경 표시) — 내용 해시에는 안 들어간다(자리만 옮겨도 변경 아님)
     geo: Object.fromEntries(this.signs.filter((o) => o.photoId && o.quad.length === 4).map((o) => [o.id, { photoId: o.photoId!, quad: o.quad as [number, number][], ...(o.shape ? { shape: o.shape } : {}), ...(o.polygon?.length ? { polygon: o.polygon as [number, number][] } : {}) }])) }));
   /** 발행 뒤 사장이 고쳐 지금 내용이 마지막 발행본과 다름 — 고객에게는 안 보인다, 다시 발행해야 */
-  issueChanged = $derived(!!this.latestIssue && this.latestIssue.hash !== this.contentHash);
+  issueChanged = $derived(!!this.latestIssue && !this.sameAsIssue(this.latestIssue));
   /** 고객이 보는 견적: 발행본·계약 견적·변경 견적 대기·거절 */
   customerQuote = $derived(customerView(this.issues, this.settings.approvals ?? []));
   /** 사장 화면: 지금 내용 vs 기준(계약 견적, 없으면 마지막 발행본) — 차이와 고객 안전장치 */
@@ -590,12 +594,19 @@ class AppState {
     return { base, diff, risks: customerRisks(diff) };
   });
   /**
+   * 고객 컨펌 기준(계약, 없으면 마지막 발행본)과 달라진 사인물 — 바뀜·추가 (2026-11-05 "고객이 컨펌한 내역으로 진행하는게 깔끔한데 변경사항을 같이 공유하면 좋겠다"):
+   * 보드 카드에 "변경안", 출력 창에 경고. 기준이 없으면 비어 있다
+   */
+  changedSignIds = $derived(new Set(this.issueChanged && this.draftDiff ? this.draftDiff.diff.items.filter((i) => i.kind !== 'removed').map((i) => i.id) : []));
+  /** 컨펌 전 변경안 수 (바뀜·추가·삭제) */
+  unconfirmedCount = $derived(this.issueChanged && this.draftDiff ? this.draftDiff.diff.items.length : 0);
+  /**
    * 견적 발행 (2026-10-26 "견적을 발행하고 다시 호출할땐 그간 원가 견적 금액이 변경되어도 이전에 발행 상태로"): 제안 링크를 발급할 때.
    * 지금 사양·견적 줄·합계를 값 그대로 박제한다 — 이후 단가표·원가·배수가 바뀌어도 이 발행본은 그대로. 같은 내용이면 새로 만들지 않는다
    */
   issueQuote(id: string, note?: string): IssuedQuote | null {
     if (!this.canEdit || this.lostQuote) return null;
-    if (this.latestIssue && this.latestIssue.hash === this.contentHash) return this.latestIssue;
+    if (this.latestIssue && this.sameAsIssue(this.latestIssue)) return this.latestIssue;
     const q = issueOf({ ...this.draftIssue, id, at: Date.now(), by: this.nickname, ...(note ? { note } : {}) });
     this.updateSettings({ issues: [...this.issues, q].slice(-50) });
     return q;

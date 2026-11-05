@@ -50,3 +50,12 @@
 ## 코드 · 테스트
 `core/quoteChange.ts`(issueOf·diffIssued·customerRisks·customerView), `ui/QuoteChange.svelte`, `state.svelte.ts`(issues·draftIssue·issueChanged·customerQuote·draftDiff·issueQuote·rejectChange·setGlobalMarkup·costOutdated·recalcWithCurrentCost), `ProposalView`·`ProposalDialog`·`ListView`·`PricesDialog`, 서버 `room.ts addApproval`·`index.ts postApproval`·`projects.ts`(costMarkup).
 테스트: `tests/unit/quoteChange.test.ts`, `server/test/proposal.test.ts`, `tests/e2e/proposal.spec.ts`(박제·변경 견적 거절·위험 경고·새 계약), `tests/e2e/globalCost.spec.ts`, `tests/e2e/lineUnit.spec.ts`, `tests/e2e/quote.spec.ts`.
+
+## 고객 컨펌 기준선 · 변경안 — 구성까지, 보드에서 공유 (2026-11-05, roadmap 10-0 1차)
+사용자: "견적은 현장인원이나 사장이 내지만 디자이너가 고객과 소통하면서 변경을 할 때도 있어 고객이 컨펌한 내역으로 진행하는게 깔끔한데 변경사항을 같이 공유하면 좋겠다. 결국 내부의 결정보다 고객의 결정이 우선해".
+- 기준선 = 지금처럼 **고객이 승인한 발행본(계약)**, 없으면 마지막 발행본. 변경안 = 그 뒤 바뀐 것(누가 바꿨든) — 고객이 변경 견적을 컨펌하기 전까지.
+- **구성까지 비교**: 박제에 사인물별 **구성 요약**(`SnapshotItem.parts` — `core/proposal.ts partsSummary`: 구성 요소 · 재료 층·두께 · 글자 · 그림/벡터 id)과 발행본의 **구성 지문**(`IssuedQuote.ph` — `partsHash`: 구성 요소·재료 층·내용 객체, 사인물 자리는 뺌). 재료 층만 바꿔도 "발행 뒤 바뀜", 바뀐 내용에 **"구성"** 항목. 내용 해시(`contentHash`)는 그대로 두어 승인·제안의 기존 비교는 같다. **예전 발행본**(구성 요약·지문 없음)은 구성으로 비교하지 않는다 — 업데이트 뒤 갑자기 "바뀜"이 뜨지 않게(`skipIfBaseMissing`).
+- **보드에서 공유**: 기준과 달라진(바뀜·추가) 사인물 카드에 **"변경안"** 배지(`card-change`, 편집 권한 — 고객은 제안 화면의 변경 표시). `app.changedSignIds`.
+- **출력 경고**: 컨펌 전 변경안이 있으면 일러스트 대지·SVG·주문서 창에 "⚠ 고객 컨펌 뒤 바뀐 사인물 n개 — 이 파일은 지금 내용입니다"(`unconfirmed-warning`, `app.unconfirmedCount`). 출력을 아예 컨펌본으로만 만드는 것(사인물 박제본에서 출력)은 다음 단계.
+- 테스트: `tests/unit/composeChange.test.ts`, `tests/e2e/baseline.spec.ts`.
+

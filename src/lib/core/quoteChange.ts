@@ -18,6 +18,8 @@ export interface IssuedQuote {
   lines: IssuedLine[];
   /** 발행 순간의 내용 해시 — 지금 내용과 같으면 "발행 그대로" */
   hash: string;
+  /** 구성 지문 (core/proposal partsHash, 2026-11-05) — 재료 층·구성 요소만 바꿔도 "발행 뒤 바뀜". 옛 발행본엔 없음 */
+  ph?: string;
   /** 사인물 외곽선 위치 (2026-10-26 사진 위 변경 표시) — 옛 발행본에는 없음 */
   geo?: Record<string, IssuedGeo>;
 }
@@ -28,10 +30,10 @@ const LINE_KEYS = ['key', 'objectId', 'label', 'detail', 'amount', 'qty', 'unit'
 /** 박제본 만들기: 필요한 값만 깊은 복사 (원본·단가표를 나중에 고쳐도 그대로) */
 export function issueOf(q: IssuedQuote): IssuedQuote {
   const lines = q.lines.map((l) => Object.fromEntries(LINE_KEYS.filter((k) => l[k] !== undefined).map((k) => [k, l[k]])) as unknown as IssuedLine);
-  return { id: q.id, no: q.no, at: q.at, by: q.by, ...(q.note ? { note: q.note } : {}), snapshot: JSON.parse(JSON.stringify(q.snapshot)) as Snapshot, lines, hash: q.hash, ...(q.geo ? { geo: JSON.parse(JSON.stringify(q.geo)) as Record<string, IssuedGeo> } : {}) };
+  return { id: q.id, no: q.no, at: q.at, by: q.by, ...(q.note ? { note: q.note } : {}), snapshot: JSON.parse(JSON.stringify(q.snapshot)) as Snapshot, lines, hash: q.hash, ...(q.ph ? { ph: q.ph } : {}), ...(q.geo ? { geo: JSON.parse(JSON.stringify(q.geo)) as Record<string, IssuedGeo> } : {}) };
 }
 
-export type ItemField = 'size' | 'type' | 'category' | 'sheets' | 'options' | 'text' | 'design' | 'amount';
+export type ItemField = 'size' | 'type' | 'category' | 'sheets' | 'options' | 'text' | 'design' | 'amount' | 'parts';
 export interface FieldChange { field: ItemField; before: string | number; after: string | number }
 export interface ItemChange { id: string; name: string; kind: 'added' | 'removed' | 'changed'; fields: FieldChange[]; amountDelta: number; before?: SnapshotItem; after?: SnapshotItem }
 export interface UnitChange { priceId: string; label: string; before: number; after: number }
@@ -39,10 +41,11 @@ export interface QuoteDiff { items: ItemChange[]; unchanged: number; totalBefore
 
 const sizeStr = (i: SnapshotItem) => (i.size ? `${i.size.w}×${i.size.h}` : '');
 const list = (a: string[]) => [...a].sort().join(', ');
-const FIELDS: { field: ItemField; of: (i: SnapshotItem) => string | number }[] = [
+const FIELDS: { field: ItemField; of: (i: SnapshotItem) => string | number; skipIfBaseMissing?: (i: SnapshotItem) => boolean }[] = [
   { field: 'size', of: sizeStr }, { field: 'type', of: (i) => i.type }, { field: 'category', of: (i) => i.category },
   { field: 'sheets', of: (i) => list(i.sheets) }, { field: 'options', of: (i) => list(i.options) },
   { field: 'text', of: (i) => i.text ?? '' }, { field: 'design', of: (i) => i.design ?? '' }, { field: 'amount', of: (i) => i.amount },
+  { field: 'parts', of: (i) => i.parts ?? '', skipIfBaseMissing: (i) => i.parts === undefined }, // 구성 (2026-11-05) — 옛 박제본엔 없어 비교하지 않는다
 ];
 
 /** 기준(계약) 견적 → 변경 견적: 사인물별 추가·삭제·변경, 단가 항목별 단가 변화, 합계 차이 */
@@ -53,7 +56,7 @@ export function diffIssued(base: IssuedQuote, next: IssuedQuote): QuoteDiff {
   for (const [id, x] of b) {
     const y = n.get(id);
     if (!y) { items.push({ id, name: x.name, kind: 'removed', fields: [], amountDelta: -x.amount, before: x }); continue; }
-    const fields = FIELDS.filter((f) => f.of(x) !== f.of(y)).map((f) => ({ field: f.field, before: f.of(x), after: f.of(y) }));
+    const fields = FIELDS.filter((f) => !f.skipIfBaseMissing?.(x) && f.of(x) !== f.of(y)).map((f) => ({ field: f.field, before: f.of(x), after: f.of(y) }));
     if (fields.length) items.push({ id, name: y.name, kind: 'changed', fields, amountDelta: y.amount - x.amount, before: x, after: y });
     else unchanged++;
   }
