@@ -10,7 +10,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { confirm?: boolean; existing?: { names: string[]; layers?: { name: string; subs: { name: string; items: number }[] }[] } } = {}) {
+function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; existing?: { names: string[]; layers?: { name: string; subs: { name: string; items: number }[] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = {};
   const mkItems = (kind: string, layer: Rec) => {
@@ -52,7 +52,7 @@ function fakeIllustrator(opts: { confirm?: boolean; existing?: { names: string[]
     }
     docs.push(d);
   }
-  class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
+  class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
   class XMPMeta { props: Record<string, string> = {}; constructor(_s: string) {} static registerNamespace() {} setProperty(_ns: string, k: string, v: string) { this.props[k] = v; } serialize() { const [k, v] = Object.entries(this.props)[0]; return `<x:xmpmeta><ganpanda:${k}>${v}</ganpanda:${k}></x:xmpmeta>`; } }
   const ctx: Rec = {
     app: { documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0], coordinateSystem: null },
@@ -60,7 +60,7 @@ function fakeIllustrator(opts: { confirm?: boolean; existing?: { names: string[]
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
     ExportOptionsSVG: function (this: Rec) { this.fontType = null; }, ExportOptionsPNG24: function (this: Rec) { this.transparency = false; },
     ExportType: { SVG: 'SVG', PNG24: 'PNG24' }, SVGFontType: { OUTLINEFONT: 'outline' }, SaveOptions: { DONOTSAVECHANGES: 'no' }, ElementPlacement: { PLACEATEND: 'end', PLACEATBEGINNING: 'begin' },
-    ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' } },
+    ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' } }, $: { fileName: '/tmp/pkg/ganpanda.jsx' },
     alert: (m: string) => log.push('alert:' + m), confirm: (m: string) => { log.push('confirm:' + m); return opts.confirm ?? true; },
     String, Math, Number, parseInt, isNaN,
   };
@@ -161,3 +161,32 @@ describe('ganpanda.jsx — 카드 사진은 물어보고 (2026-11-05 "많은 시
     expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
   });
 });
+
+describe('ganpanda.jsx — 그림은 폴더의 파일을 연결 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데")', () => {
+  const pkg = illustratorPackage({ project: 'p', cards: [
+    { id: 'a1', name: 'a', x: 0, y: 0, w: 50, h: 50, face: 'images/a1-face.jpg' },
+    { id: 'b2', name: 'b', x: 100, y: 0, w: 50, h: 50, face: 'images/b2-face.jpg', design: { svgFile: 'images/b2-design.svg', crop: { x: 0, y: 0, w: 1, h: 1 } } },
+    { id: 'c3', name: 'c', x: 200, y: 0, w: 50, h: 50, design: { png: 'images/c3-design.png' } },
+  ] });
+  it('스크립트 폴더의 images/ 를 연결해 놓는다 — 풀지도 묻지도(embed) 않고, 물어보지도 않는다', () => {
+    const f = fakeIllustrator();
+    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
+    const doc = f.docs[0];
+    const photo = doc.layers.find((l: Rec) => l.name === '간판다 사진');
+    expect(photo.placedItems.map((it: Rec) => it.file.fsName)).toEqual(['/tmp/pkg/images/a1-face.jpg', '/tmp/pkg/images/b2-face.jpg']);
+    expect(photo.placedItems.every((it: Rec) => !it.embedded)).toBe(true);
+    const b2 = doc.layers.find((l: Rec) => l.name === 'b #b2').layers[0];
+    expect(b2.groupItems[0].file).toBe('/tmp/pkg/images/b2-design.svg'); // SVG 는 벡터로 들여온다
+    const c3 = doc.layers.find((l: Rec) => l.name === 'c #c3').layers[0];
+    expect(c3.placedItems[0].file.fsName).toBe('/tmp/pkg/images/c3-design.png');
+    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
+    expect(Object.keys(f.written).some((k) => /ganpanda-\d+\./.test(k))).toBe(false); // 풀어 쓴 파일 없음
+  });
+  it('폴더에 없는 그림은 건너뛰고 알린다 (zip 을 풀어 그 폴더에서 실행)', () => {
+    const f = fakeIllustrator({ missing: ['/tmp/pkg/images/a1-face.jpg'] });
+    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
+    expect(f.docs[0].layers.find((l: Rec) => l.name === '간판다 사진').placedItems).toHaveLength(1);
+    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('찾지 못했습니다'))).toBe(true);
+  });
+});
+

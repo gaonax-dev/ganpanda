@@ -2,6 +2,7 @@
 // "가장 나이스한건 일러스트 플러그인을 개발하고 우리 포맷을 일러스트에서 재구성하는 거야")
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, test, type Page } from '@playwright/test';
+import { execFileSync } from 'child_process';
 import { openOwnedProject, uploadPhoto } from './helpers';
 
 const PT = 72 / 25.4;
@@ -57,7 +58,10 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   await page.getByTestId('view-design').click();
   const dl = page.waitForEvent('download');
   await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
-  expect((await dl).suggestedFilename()).toMatch(/일러스트 대지\.jsx$/);
+  const download = await dl;
+  expect(download.suggestedFilename()).toMatch(/일러스트 대지\.zip$/); // 폴더째 zip (2026-11-05 "이미지들을 따로 폴더에 넣고 연결")
+  const zipPath = await download.path();
+  const names = execFileSync('python3', ['-c', 'import sys,zipfile; print("\\n".join(zipfile.ZipFile(sys.argv[1]).namelist()))', zipPath!]).toString('utf8').trim().split('\n');
   const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
   expect(jsx.startsWith('var GANPANDA_DATA = ')).toBe(true);
   const data = JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));
@@ -65,7 +69,10 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   expect(data.scale).toBe(1);
   expect(data.cards.map((c: any) => [c.id, c.name, c.w, c.h])).toEqual(expect.arrayContaining([[ids.a, '정면 간판', 3000, 600], [ids.b, '돌출', 600, 900]]));
   expect(Math.min(...data.cards.map((c: any) => c.x))).toBe(0);
-  expect(data.cards.some((c: any) => /^data:image\//.test(c.face ?? ''))).toBe(true); // 카드 사진
+  const faces = data.cards.map((c: any) => c.face).filter(Boolean);
+  expect(faces.length).toBeGreaterThan(0);
+  expect(faces.every((f: string) => /^images\/[A-Za-z0-9_-]+-face\.jpg$/.test(f))).toBe(true); // 카드 사진 = 폴더의 파일
+  expect(names).toEqual(expect.arrayContaining(['ganpanda.jsx', ...faces]));
   expect(jsx).toContain('간판다로 보내기');
   expect(jsx).toContain('.ganpanda'); // 구성 요소 묶음으로 돌아온다
 });

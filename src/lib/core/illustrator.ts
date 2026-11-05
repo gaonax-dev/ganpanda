@@ -12,10 +12,11 @@ export interface IllustratorCardIn {
   id: string; name: string;
   /** 배치 (mm, 카드·리스트 좌표) */
   x: number; y: number; w: number; h: number;
-  /** 카드 얼굴(사진을 펼친 그림) data URL */
+  /** 카드 얼굴(사진을 펼친 그림) — 스크립트 폴더 기준 파일 경로(images/…, 2026-11-05 연결) 또는 예전 data URL */
   face?: string;
   /** 입힌 디자인: 잘라낸 영역 그림(data URL) — 벡터 원본(SVG)이 있으면 svg + 페이지 안 잘라낸 영역(비율 0~1) */
-  design?: { png?: string; svg?: string; crop?: { x: number; y: number; w: number; h: number } };
+  /** 입힌 디자인: png = 잘라낸 그림(파일 경로 또는 data URL), svgFile = SVG 원본 파일 경로(벡터), svg = 예전 SVG 글자 — crop = 페이지 안 잘라낸 영역(비율 0~1) */
+  design?: { png?: string; svg?: string; svgFile?: string; crop?: { x: number; y: number; w: number; h: number } };
   /** 구성 요소 하위 레이어 (2026-11-05): 입체(vector — 채널·스카시, SVG 로 돌아옴) · 인쇄(print — 시트, PNG). 바탕(인쇄)은 늘 만든다 */
   parts?: { id: string; label: string; mode: 'vector' | 'print' }[];
 }

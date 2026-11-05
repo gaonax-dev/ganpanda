@@ -64,14 +64,26 @@
     f.open('w'); f.write(text); f.close();
     return f;
   }
-  function place(layer, url, left, top, w, h) {
-    var f = dataUrlFile(url);
+  // 그림 파일 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데"): 간판다가 내려준 zip 을 푼 폴더의 images/… 를
+  // 그대로 연결한다 — 풀기·묻기 없음. 예전 data URL 이면 풀어서 묻는다(느림)
+  var BASE = (function () { try { return new File($.fileName).parent; } catch (e) { return null; } })();
+  var missing = 0;
+  function isData(ref) { return /^data:/.test(String(ref)); }
+  function refFile(ref) {
+    if (isData(ref)) return dataUrlFile(ref);
+    if (!BASE) { missing++; return null; }
+    var f = new File(BASE.fsName + '/' + ref);
+    if (!f.exists) { missing++; return null; }
+    return f;
+  }
+  function place(layer, ref, left, top, w, h) {
+    var f = refFile(ref);
     if (!f) return null;
     var it = layer.placedItems.add();
     it.file = f;
     it.width = w; it.height = h;
     it.position = [left, top];
-    try { it.embed(); } catch (e) {}
+    if (isData(ref)) { try { it.embed(); } catch (e) {} } // 예전 방식만 묻는다 — 파일은 연결 그대로
     return it;
   }
 
@@ -142,7 +154,7 @@
     try { app.coordinateSystem = CoordinateSystem.DOCUMENTCOORDINATESYSTEM; } catch (e) {}
     // 카드 사진(참고 레이어)은 물어본다 — 사진을 풀고 묻는 것이 가장 오래 걸린다 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다")
     var hasFace = false, fi;
-    for (fi = 0; fi < data.cards.length; fi++) if (data.cards[fi].face) { hasFace = true; break; }
+    for (fi = 0; fi < data.cards.length; fi++) if (data.cards[fi].face && isData(data.cards[fi].face)) { hasFace = true; break; } // 파일 연결이면 빠르니 묻지 않는다
     var withPhotos = hasFace && confirm('카드 사진을 참고 레이어(간판다 사진)로 넣을까요?\n사진이 많으면 시간이 걸립니다. [아니요]를 누르면 대지·레이어만 빠르게 만듭니다.');
     var photo = doc.layers[0]; // 맨 아래 — 사인물 레이어는 그 위에 쌓인다
     photo.name = '간판다 사진';
@@ -153,17 +165,18 @@
       var ab = doc.artboards.add([left, top, left + w, top - h]);
       ab.name = c.name + ' #' + c.id;
       ids.push(c.id);
-      if (withPhotos && c.face) place(photo, c.face, left, top, w, h);
+      if (c.face && (withPhotos || !isData(c.face))) place(photo, c.face, left, top, w, h);
       // 사인물 레이어 > 바탕(인쇄) + 구성 요소 하위 레이어 (나중에 만든 것이 위 — 바탕이 맨 아래)
       var signLayer = doc.layers.add();
       signLayer.name = c.name + ' #' + c.id;
       var design = signLayer.layers.add();
       design.name = '바탕 (인쇄) #' + c.id + ':frame';
       if (c.parts) for (j = 0; j < c.parts.length; j++) { var pl = signLayer.layers.add(); pl.name = c.parts[j].label + ' #' + c.id + ':' + c.parts[j].id; }
-      if (c.design && c.design.svg) {
+      var svgSrc = c.design ? (c.design.svgFile ? refFile(c.design.svgFile) : c.design.svg ? textFile(c.design.svg, 'svg') : null) : null;
+      if (svgSrc) {
         // 벡터 원본: 페이지 전체를 그룹으로 들여와 잘라낸 영역이 대지에 맞게 키우고 대지 사각형으로 클리핑
         try {
-          var g = design.groupItems.createFromFile(textFile(c.design.svg, 'svg'));
+          var g = design.groupItems.createFromFile(svgSrc);
           var cr = c.design.crop || { x: 0, y: 0, w: 1, h: 1 };
           g.width = w / cr.w; g.height = h / cr.h;
           g.position = [left - cr.x * g.width, top + cr.y * g.height];
@@ -180,7 +193,8 @@
     writeXmp(doc, ids);
     var f = File.saveDialog('간판다 대지 저장 (' + data.project + ')', 'Illustrator:*.ai');
     if (f) doc.saveAs(f, pdfOptions());
-    alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n디자인을 마친 뒤 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.');
+    alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n디자인을 마친 뒤 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.' +
+      (missing ? '\n\n그림 ' + missing + '개를 찾지 못했습니다 — 간판다에서 받은 zip 을 풀고, 그 폴더 안의 ganpanda.jsx 를 실행해 주세요(images 폴더가 옆에 있어야 합니다).' : ''));
   }
 
   // 열린 문서에 간판다 대지(#id)가 있으면 보내기, 아니면 대지 만들기

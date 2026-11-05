@@ -5,6 +5,7 @@ import { assetUrl } from './assets';
 import { faceUrl } from './photoDisplay';
 import { imageDataUrl } from './core/imageData';
 import { illustratorPackage, jsxWithData, type IllustratorCardIn } from './core/illustrator';
+import { zipStore } from './core/zip';
 import illustratorJsx from './illustrator/ganpanda.jsx?raw';
 import { partLabel, partsOf } from './core/parts';
 import { componentOf } from './core/components';
@@ -19,9 +20,23 @@ async function cropPng(u: string, crop: { x: number; y: number; w: number; h: nu
   } catch { return undefined; }
 }
 
-/** 치수 있는 카드(임시 크기 제외)로 스크립트를 만들어 내려받는다. 카드가 없으면 false */
+/** data URL → 바이트 */
+function dataBytes(u: string): Uint8Array | null {
+  const m = /^data:[^;,]+(;base64)?,(.*)$/.exec(u);
+  if (!m) return null;
+  return m[1] ? Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(m[2]));
+}
+const safe = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_');
+
+/**
+ * 치수 있는 카드(임시 크기 제외)로 일러스트 묶음 zip 을 내려받는다: ganpanda.jsx + images/(카드 사진 JPG·디자인 PNG·SVG). 카드가 없으면 false.
+ * 그림은 스크립트 안에 넣지 않고 파일로 — 일러스트가 연결만 한다 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데").
+ * zip 안 이름은 영문만(윈도우 기본 압축 풀기에서 한글 이름이 깨지지 않게), 풀면 zip 이름(프로젝트명) 폴더가 된다
+ */
 export async function exportIllustrator(): Promise<boolean> {
   const cards: IllustratorCardIn[] = [];
+  const files: { name: string; data: Uint8Array }[] = [];
+  const addFile = (name: string, data: Uint8Array | null) => { if (!data) return undefined; files.push({ name, data }); return name; };
   for (const { o, w, h, placeholder } of app.flatCards) {
     if (placeholder) continue;
     const p = app.flatPlaced.get(o.id);
@@ -29,8 +44,13 @@ export async function exportIllustrator(): Promise<boolean> {
     // 구성 요소 하위 레이어 (2026-11-05): 밀어내는 종류(채널·스카시) = 입체(SVG 로 돌아와 밀어냄), 내용을 받는 평면 종류(시트) = 인쇄. 내용을 안 받는 종류(조명·몰딩·지주 등)는 빠짐
     const parts: NonNullable<IllustratorCardIn['parts']> = partsOf(o).flatMap((pt): NonNullable<IllustratorCardIn['parts']> => componentOf(pt.kind).extrude ? [{ id: pt.id, label: `${partLabel(pt)} (입체)`, mode: 'vector' }] : componentOf(pt.kind).takesItems ? [{ id: pt.id, label: `${partLabel(pt)} (인쇄)`, mode: 'print' }] : []);
     const card: IllustratorCardIn = { id: o.id, name: o.name, x: p.x, y: p.y, w, h, ...(parts.length ? { parts } : {}) };
+    const id = safe(o.id);
     const ph = app.photos.find((x) => x.id === o.photoId);
-    if (ph && o.quad.length === 4) { const f = await faceUrl(ph.assetId, ph.w, o.quad, w, h, 480); if (f) card.face = f.startsWith('data:') ? f : await toDataUrl(f); }
+    if (ph && o.quad.length === 4) {
+      const f = await faceUrl(ph.assetId, ph.w, o.quad, w, h, 640);
+      const d = f ? (f.startsWith('data:') ? f : await toDataUrl(f)) : undefined;
+      card.face = d ? addFile(`images/${id}-face.jpg`, dataBytes(d)) : undefined;
+    }
     if (o.design) {
       const src = app.sources.find((s) => s.id === o.design!.sourceId), page = src?.pages[o.design.page];
       if (src && page) {
@@ -38,9 +58,10 @@ export async function exportIllustrator(): Promise<boolean> {
         if (src.kind === 'svg') {
           const u = await assetUrl(src.fileAssetId);
           const svg = u ? await (await fetch(u)).text().catch(() => undefined) : undefined;
-          if (svg) card.design = { svg, crop: { x: cr.x / page.w, y: cr.y / page.h, w: cr.w / page.w, h: cr.h / page.h } };
+          const svgFile = svg ? addFile(`images/${id}-design.svg`, new TextEncoder().encode(svg)) : undefined;
+          if (svgFile) card.design = { svgFile, crop: { x: cr.x / page.w, y: cr.y / page.h, w: cr.w / page.w, h: cr.h / page.h } };
         }
-        if (!card.design) { const u = await assetUrl(page.assetId); const png = u ? await cropPng(u, cr) : undefined; if (png) card.design = { png }; }
+        if (!card.design) { const u = await assetUrl(page.assetId); const png = u ? await cropPng(u, cr) : undefined; const f = png ? addFile(`images/${id}-design.png`, dataBytes(png)) : undefined; if (f) card.design = { png: f }; }
       }
     }
     cards.push(card);
@@ -49,9 +70,10 @@ export async function exportIllustrator(): Promise<boolean> {
   const project = app.access.status === 'ok' ? app.access.projectName : '간판다';
   const jsx = jsxWithData(illustratorJsx, illustratorPackage({ project, cards }));
   app.lastIllustrator = jsx;
+  const zip = zipStore([{ name: 'ganpanda.jsx', data: new TextEncoder().encode(jsx) }, ...files]);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([jsx], { type: 'application/javascript' }));
-  a.download = `${project} 일러스트 대지.jsx`;
+  a.href = URL.createObjectURL(new Blob([zip as BlobPart], { type: 'application/zip' }));
+  a.download = `${project} 일러스트 대지.zip`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   return true;
