@@ -230,3 +230,30 @@ describe('앱에서 시작한 로그인은 ganpanda:// 로 돌아온다', () => 
     expect((await api(`/api/auth/kakao/callback?code=c&state=${s2}`, { redirect: 'manual' })).headers.get('location')!.startsWith('http://localhost:5199/login#')).toBe(true);
   });
 });
+
+// 2026-11-05 "로그인 실패가 자주 발생해": 서비스 차단 중(SERVICE_BLOCKED=1)에는 앱 UA 토큰이 없는 요청이 503 — 그런데 앱의 카카오 로그인은
+// 시스템 브라우저(UA 토큰 없음)에서 start?app=1 → 카카오 → callback 으로 돌아 503 으로 막혔다. 로그인 경로만 통과시킨다(시작은 app=1 일 때만)
+describe('서비스 차단 중 앱 로그인 (시스템 브라우저)', () => {
+  const E = env as unknown as { SERVICE_BLOCKED?: string };
+  it('start?app=1 은 통과, app=1 없는 시작은 503 — 콜백은 ganpanda:// 로, 받은 세션은 앱 세션(UA 없이도 통과)', async () => {
+    const prev = E.SERVICE_BLOCKED;
+    E.SERVICE_BLOCKED = '1';
+    try {
+      const safari = { 'user-agent': 'Mozilla/5.0 (Macintosh) Safari/605.1.15' };
+      expect((await api('/api/auth/kakao/start?next=%2F', { redirect: 'manual', headers: safari })).status).toBe(503);
+      const r = await api('/api/auth/kakao/start?next=%2F&app=1', { redirect: 'manual', headers: safari });
+      expect(r.status).toBe(302);
+      const state = new URL(r.headers.get('location')!).searchParams.get('state')!;
+      mock('https://kauth.kakao.com/oauth/token', { access_token: 'kat' }, 200, 'POST');
+      mock('https://kapi.kakao.com/v2/user/me', { id: 7777, kakao_account: {}, properties: { nickname: '차단중' } });
+      const cb = await api(`/api/auth/kakao/callback?code=c&state=${state}`, { redirect: 'manual', headers: safari });
+      expect(cb.status).toBe(302);
+      const loc = cb.headers.get('location')!;
+      expect(loc.startsWith('ganpanda://login#')).toBe(true);
+      const session = new URLSearchParams(loc.split('#')[1]).get('session')!;
+      expect((await get('/api/me', session)).status).toBe(200); // 앱 세션 — UA 토큰 없이도
+      // 다른 API 는 그대로 막힌다
+      expect((await api('/api/projects', { headers: safari })).status).toBe(503);
+    } finally { E.SERVICE_BLOCKED = prev; }
+  });
+});

@@ -277,7 +277,11 @@ export default {
     const { pathname } = url;
     // 서비스 차단 (2026-10-31 "법적문제가 있다. 웹에서 접근을 차단한다."): 헬스만 빼고 전부 503 — WebSocket 업그레이드도 여기로 오므로 함께 막힌다. 데이터는 그대로
     // 2026-10-31 "모든 접근을 차단할게" → "앱만 열어줘": 설치한 앱(Tauri)은 User-Agent 에 Ganpanda-App/ 을 붙인다(src-tauri) — 그 요청만 통과, 브라우저는 503
-    if (env.SERVICE_BLOCKED === '1' && pathname !== '/api/health' && !isAppRequest(req) && !(await isAppSession(req, url, env))) {
+    // 앱의 소셜 로그인은 시스템 브라우저(UA 토큰 없음)에서 돈다 — 시작(app=1)과 콜백만 통과 (2026-11-05 "로그인 실패가 자주 발생해": 차단 뒤 카카오 로그인이 503).
+    // 콜백은 1회용 state 가 있어야 처리되고, app=1 로 시작한 로그인의 세션은 ganpanda:// 로만 앱에 간다. 웹 화면·다른 API 는 그대로 막힌다
+    const appLogin = /^\/api\/auth\/(kakao|google|apple)\/(start|callback)$/.exec(pathname);
+    const loginPass = !!appLogin && (appLogin[2] === 'callback' || url.searchParams.get('app') === '1');
+    if (env.SERVICE_BLOCKED === '1' && pathname !== '/api/health' && !loginPass && !isAppRequest(req) && !(await isAppSession(req, url, env))) {
       return new Response(null, { status: 503, headers: { ...CORS, 'cache-control': 'no-store', 'retry-after': '3600' } }); // 본문 없음 — 정보를 주지 않는다 ("모든 정보를 못보게 해")
     }
 
