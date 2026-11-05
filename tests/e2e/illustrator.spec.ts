@@ -47,12 +47,16 @@ async function upload(page: Page, name: string, buf: Buffer) {
   await page.getByTestId('source-input').setInputFiles({ name, mimeType: 'application/postscript', buffer: buf });
 }
 
-test('[일러스트] = 일러스트레이터 스크립트(.jsx) — 앞줄에 카드 배치(mm)·이름·id·카드 사진 데이터, 뒤에 대지 스크립트', async ({ page, request }) => {
+test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) — 앞줄에 카드 배치(mm)·이름·id·카드 사진 데이터, 뒤에 대지 스크립트', async ({ page, request }) => {
   await openOwnedProject(page, request);
   const ids = await twoSigns(page);
+  // 단추는 디자인 탭 막대에 (2026-11-05 "견적탭에서 디자인으로 이동해줘") — 견적 탭에는 없다
   await page.getByTestId('view-list').click();
+  await expect(page.getByTestId('export-svg')).toBeVisible();
+  await expect(page.getByTestId('export-illustrator')).toHaveCount(0);
+  await page.getByTestId('view-design').click();
   const dl = page.waitForEvent('download');
-  await page.getByTestId('export-illustrator').click();
+  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
   expect((await dl).suggestedFilename()).toMatch(/일러스트 대지\.jsx$/);
   const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
   expect(jsx.startsWith('var GANPANDA_DATA = ')).toBe(true);

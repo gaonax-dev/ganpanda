@@ -57,6 +57,7 @@
   import { listContentReports } from './lib/projects';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
+  import { exportIllustrator } from './lib/illustratorExport';
 
   // 무거운 창(three.js·폰트·렌더링)은 처음 열 때 따로 내려받는다 — 메인 번들을 가볍게 (2026-10-15 사용자: "모바일에서는 무겁다")
   const lazyRender = () => import('./lib/ui/RenderDialog.svelte');
@@ -66,6 +67,7 @@
   const lazyProposal = () => import('./lib/ui/ProposalDialog.svelte');
 
   let accountOpen = $state(false);
+  let aiBusy = $state(false); // 일러스트 스크립트 만드는 중
   let nameDraft = $state('');
   // 닉네임 메뉴는 바깥을 누르거나 Esc 로 닫힌다 (2026-10-22 "사용자 닉 클릭으로 나온 창은 다른 곳을 누르면 꺼지게")
   $effect(() => {
@@ -204,6 +206,8 @@
         <button data-testid="view-uv" class:on={app.view === 'uv'} title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { if (app.view === 'uv') { app.view = 'board'; } else { app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>
         {#if app.selected && app.view === 'board' && app.canEdit}<button data-testid="design-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => (app.view = 'uv')}>이 사인물에 연결</button>{/if}
         <!-- 프로젝트 컬러셋 (2026-10-31 "컬러셋 프로젝트 뷰어 디자인에 컬러셋 누르면 컬러 대화창 나오고 여기에서 컬러셋 체인지한다") -->
+        <!-- 일러스트레이터 왕복 (2026-11-05, 견적 탭에서 옮김 "견적탭에서 디자인으로 이동해줘"): 스크립트를 일러스트에서 실행 → 사인물마다 대지, 다시 실행해 저장한 .ai 를 올리면 자동 연결 -->
+        {#if !app.boardOnly}<button data-testid="export-illustrator" disabled={aiBusy} title="일러스트레이터 스크립트(.jsx) — 일러스트에서 실행하면 지금 카드 배치 그대로 사인물마다 대지를 만들고, 디자인 뒤 다시 실행하면 간판다로 보낼 .ai 를 저장합니다. 그 .ai 를 [올리기]로 올리면 사인물에 자동 연결" onclick={async () => { if (aiBusy) return; aiBusy = true; try { if (!(await exportIllustrator())) app.notice = '치수가 있는 사인물 카드가 없습니다.'; } catch (e) { app.notice = `일러스트 스크립트를 만들지 못했습니다: ${e instanceof Error ? e.message : e}`; } finally { aiBusy = false; } }}>{aiBusy ? '만드는 중…' : app.compact ? '일러스트' : '일러스트 대지 받기'}</button>{/if}
         <button data-testid="colors-open" title="프로젝트 컬러 — 메인·배경·포인트 … 컬러셋 바꾸기" onclick={() => (app.colorsOpen = true)}>컬러셋</button>
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
       </div>
