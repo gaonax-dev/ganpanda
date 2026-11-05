@@ -7,12 +7,33 @@
   import { loadFont } from '../core/textShapes';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import type { SvgSheet } from '../core/listSvg';
+  import { buildCutSvg } from '../cutExport';
 
   let open = $state(false);
   let scale = $state<'a4' | '1' | '0.1'>('1');
   let outline = $state(true);
   let busy = $state(false);
   const exportable = $derived(app.flatCards.some((c) => !c.placeholder));
+  const save = (svg: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  };
+  // 칼선 (2026-11-05 roadmap 10-2): 채널·스카시 글자·벡터 윤곽만 CutContour 레이어로, 실물 1:1
+  async function downloadCut() {
+    if (busy) return;
+    busy = true;
+    try {
+      const { svg, count } = await buildCutSvg();
+      if (!count) { app.notice = '칼선을 낼 입체 글자·벡터가 없습니다 (채널·스카시 구성 요소의 글자 또는 일러스트 벡터).'; return; }
+      app.lastSvg = svg;
+      save(svg, `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 칼선 1-1.svg`);
+      open = false;
+    } catch (e) { app.notice = `칼선을 만들지 못했습니다: ${e instanceof Error ? e.message : e}`; }
+    finally { busy = false; }
+  }
   async function download() {
     if (busy) return;
     busy = true;
@@ -22,11 +43,7 @@
       if (outline) opts.text = outlineRenderer(await loadFont(fontUrl));
       const svg = await buildListSvg(opts, { amounts: false });
       app.lastSvg = svg;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      a.download = `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 전개도${scale === 'a4' ? '' : scale === '1' ? ' 1-1' : ' 1-10'}.svg`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      save(svg, `${app.access.status === 'ok' ? app.access.projectName : '간판다'} 전개도${scale === 'a4' ? '' : scale === '1' ? ' 1-1' : ' 1-10'}.svg`);
       open = false;
     } catch (e) { app.notice = `SVG 를 만들지 못했습니다: ${e instanceof Error ? e.message : e}`; }
     finally { busy = false; }
@@ -47,7 +64,10 @@
         <label title="폰트 없어도 같은 모양, 글자 편집 불가"><input type="checkbox" bind:checked={outline} data-testid="svg-outline" /> 글자 윤곽선</label>
       </div>
       <small class="tip" data-testid="svg-artboards-tip">일러스트레이터라면 [일러스트 대지 받기]가 대지를 바로 만들고 간판다로 돌아오는 길도 있습니다. 이 SVG 에도 사인물마다 같은 자리에 "대지" 레이어의 사각형이 있어, 레이어 <b>대지</b>를 선택 → <b>오브젝트 › 대지 › 선택 오브젝트를 대지로 변환</b> 하면 사인물마다 대지가 됩니다.</small>
-      <button class="primary" data-testid="svg-download" disabled={busy} onclick={download}>{busy ? '만드는 중…' : '내려받기'}</button>
+      <div class="row">
+        <button data-testid="cut-download" disabled={busy} title="채널·스카시 글자와 일러스트 벡터의 윤곽만, 실물 1:1(mm) — 커팅 플로터·레이저용 CutContour 레이어" onclick={downloadCut}>칼선 SVG</button>
+        <button class="primary" data-testid="svg-download" disabled={busy} onclick={download}>{busy ? '만드는 중…' : '내려받기'}</button>
+      </div>
     </div>
   {/if}
 </span>
@@ -62,6 +82,6 @@
   .opts small { color: var(--muted); }
   .opts .tip { display: block; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); }
   .opts .tip b { color: var(--text); }
-  .opts .primary { align-self: flex-end; margin-top: 4px; }
+  .opts .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
   @media (max-width: 720px) { .opts { position: fixed; left: 12px; right: 12px; top: auto; width: auto; } }
 </style>

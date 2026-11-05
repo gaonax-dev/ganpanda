@@ -56,6 +56,7 @@
   - [auto-segment.md](features/auto-segment.md) — AI 자동 분리(SlimSAM), 모델 호스팅, 마스크→다각형
   - [uv-view.md](features/uv-view.md) — 디자인 소스 매핑 (계획)
   - [illustrator.md](features/illustrator.md) — 일러스트레이터 왕복: 카드 배치 → 대지 스크립트(.jsx), 저장한 .ai 를 올리면 사인물에 자동 연결
+  - [cut-lines.md](features/cut-lines.md) — 칼선 SVG: 채널·스카시 글자·벡터 윤곽을 실물 1:1 CutContour 레이어로 (10-2)
   - [render-3d.md](features/render-3d.md) — 입체 간판(4차)·실사 보기(5차, 사진 속 합성)
 - server
   - [api.md](server/api.md) — HTTP·WebSocket API 명세
