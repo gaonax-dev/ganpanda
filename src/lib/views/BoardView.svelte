@@ -318,7 +318,15 @@
   // 실시간 (2026-10-28 "3d가 실시간으로 랜더링 보이느게 어려운건가?" → "진행해봐"): 그림판은 보드 화면 크기로 고정이라 화면을 움직이는 동안에도
   // 숨기지 않고 매번 바로 다시 그린다. 지어 둔 장면은 사진마다 기억해(휴대폰 2 · 그 외 4) 다시 가운데로 오면 바로, 데스크톱은 쉬는 동안 보이는 옆 사진을 미리 짓는다
   let boardSize = $state({ w: 0, h: 0 });
-  $effect(() => { const upd = () => (boardSize = canvas?.size() ?? { w: 0, h: 0 }); upd(); window.addEventListener('resize', upd); return () => window.removeEventListener('resize', upd); });
+  // 보드 크기: 창 크기 바꿈뿐 아니라 보드 요소 자체의 크기 변화도 (2026-11-05 맥 앱 진단 기록 — 열릴 때 0 으로 잰 뒤 창 크기 바꿈이 없어 실시간 3D 가 영영 안 켜졌다:
+  // 3D·확대 10.97 인데 live null · builds 0 → 저장 그림만 늘어나 깍두기)
+  $effect(() => {
+    const upd = () => { const s = canvas?.size() ?? { w: 0, h: 0 }; const b = untrack(() => boardSize); if (s.w !== b.w || s.h !== b.h) boardSize = s; };
+    upd();
+    window.addEventListener('resize', upd);
+    const off = canvas?.onResize(upd) ?? (() => {});
+    return () => { window.removeEventListener('resize', upd); off(); };
+  });
   const planeOf = (id: string) => wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id));
   const live = $derived.by((): LiveView | null => {
     if (app.stage !== '3d' || !boardSize.w) return null;

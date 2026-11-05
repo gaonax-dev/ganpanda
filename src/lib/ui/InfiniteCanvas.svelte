@@ -125,6 +125,13 @@
   export function size() {
     return { w: el.clientWidth, h: el.clientHeight };
   }
+  /** 보드 요소 크기가 바뀔 때마다 (창 크기 바꿈이 없어도 — 앱이 열릴 때 배치 전·패널로 폭이 바뀔 때). 끄는 함수를 돌려준다 (2026-11-05 맥 앱 실시간 3D) */
+  export function onResize(cb: () => void): () => void {
+    if (typeof ResizeObserver !== 'function' || !el) return () => {};
+    const ro = new ResizeObserver(() => cb());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }
 
   function isTyping(e: Event) {
     const t = e.target as HTMLElement;

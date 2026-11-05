@@ -254,3 +254,19 @@ test.describe('휴대폰 폭 3D', () => {
     await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 3000 });
   });
 });
+
+// 2026-11-05 "확대할때 3d 업데이트 안되서 깍두기 보임" → "맥앱에서만 그런거 같은데": 맥 앱 진단 기록 — 3D·확대 10.97 인데 실시간 사진이 없음(live null, builds 0).
+// 보드 크기를 처음 한 번과 창 크기 바꿈에서만 재어, 앱이 열릴 때 0 으로 재면 실시간 3D 가 영영 안 켜졌다 → 보드 요소 자체의 크기를 지켜본다(ResizeObserver)
+test('3D 실시간: 창 크기 바꿈 없이 보드 크기만 바뀌어도 따라간다 (처음에 0 으로 재도 실시간이 켜진다)', async ({ page, request }) => {
+  await setup(page, request);
+  await page.getByTestId('stage-3d').click();
+  const live = page.getByTestId('live-3d');
+  await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
+  const img = (await page.getByTestId('photo-img').boundingBox())!;
+  await page.mouse.move(img.x + img.width / 2, img.y + img.height * 0.6);
+  for (let i = 0; i < 6; i++) { await page.keyboard.down('Control'); await page.mouse.wheel(0, -400); await page.keyboard.up('Control'); }
+  await page.waitForTimeout(300);
+  // 창은 그대로, 보드 요소만 700px 로 (resize 이벤트 없음)
+  await page.evaluate(() => { (document.querySelector('[data-testid="board-canvas"]') as HTMLElement).style.width = '700px'; });
+  await expect.poll(async () => (await live.boundingBox())!.width, { timeout: 5000 }).toBeLessThanOrEqual(702);
+});
