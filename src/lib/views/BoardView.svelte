@@ -281,6 +281,9 @@
         const saved = await loadSnapshot(id, key);
         if (saved) { app.stageRenders[id] = { key, url: saved }; continue; }
         if (phoneStage) { app.stageRenders[id] = { key, url: '' }; continue; } // 휴대폰은 만들지 않는다 — 가운데 사진의 실시간 화면에서 떠서 채운다(snapshotLater)
+        // 실시간 3D 가 먼저 (2026-11-05 "확대할때 3d 업데이트 안되서 깍두기 보임" — 맥 앱 실측: 다른 사진 합성과 함께 지으면 가운데 사진의 실시간 장면이 1분 가까이 늦어
+        // 그동안 저장 그림이 늘어나 보였다): 가운데 사진의 실시간 장면이 지어질 때까지 합성을 기다린다 (최대 15초 — 실시간이 실패해도 멈추지 않게)
+        for (let waited = 0; waited < 15000 && app.stage === '3d' && live && !liveLost && liveBuilt?.id !== live.id; waited += 200) await new Promise((ok) => setTimeout(ok, 200));
         // three.js·폰트는 3D 그림을 처음 만들 때 내려받는다
         const [{ loadFont }, { StageRenderer, dataUrlToBlob }] = await Promise.all([import('../core/textShapes'), import('../render/scene')]);
         stageFont ??= await loadFont(fontUrl);

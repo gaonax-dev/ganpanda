@@ -1,4 +1,5 @@
 // 화면 없이 사진 한 장을 3D 합성해 PNG 로 (제안 이미지 만들기). RenderDialog 와 같은 규칙
+import { stageExportSize } from './stageSize';
 import * as THREE from 'three';
 import { releaseTextures } from './release';
 import type { Font } from 'opentype.js';
@@ -153,7 +154,8 @@ export class StageRenderer {
     try {
       built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
       v.setNight(false); for (const b of built) b.setNight(false);
-      return v.exportPng(Math.min(photo.w, 1280), Math.min(photo.w, 1280) * (photo.h / photo.w), 'image/jpeg', 0.88); // 저장해 두므로 JPEG (2026-10-29)
+      const sz = stageExportSize(photo.w, photo.h); // 긴 변 2560 (2026-11-05 맥 앱 확대 깍두기 — 전엔 가로 1280)
+      return v.exportPng(sz.w, sz.h, 'image/jpeg', 0.88); // 저장해 두므로 JPEG (2026-10-29)
     } finally {
       for (const b of built) { b.group.removeFromParent(); b.dispose(); }
     }
