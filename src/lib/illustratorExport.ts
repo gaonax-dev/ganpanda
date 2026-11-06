@@ -20,7 +20,9 @@ export async function exportIllustrator(): Promise<string | null> {
   const addFile = (name: string, data: Uint8Array | null) => { if (!data) return undefined; files.push({ name, data }); return name; };
   // 대지 번호 (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게" → "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번"):
   // 번호 없는 사인물에 만든 순서대로 매기고, 지금까지 매긴 가장 큰 번호(artNoLast)와 함께 저장 — 지운 사인물의 번호는 다시 쓰지 않는다
-  const byCreated = app.flatCards.filter((c) => !c.placeholder).map((c) => c.o).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  // 같은 순간에 만든 사인물(여러 개 붙여넣기 등)은 보드 카드 자리 순서(위 → 아래, 왼쪽 → 오른쪽)로
+  const at = (id: string) => app.flatPlaced.get(id) ?? { x: 0, y: 0 };
+  const byCreated = app.flatCards.filter((c) => !c.placeholder).map((c) => c.o).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || at(a.id).y - at(b.id).y || at(a.id).x - at(b.id).x || (a.id < b.id ? -1 : 1));
   const { nos, added, last } = artNumbers(byCreated, app.settings.artNoLast ?? 0);
   if (added.length && app.canEdit) {
     app.editBoundary();

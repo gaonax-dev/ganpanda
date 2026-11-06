@@ -252,6 +252,7 @@ test('대지 = "프로젝트명 #번호" — 1부터, 새로 생기면 증분, �
   // 사용자: "대지 #id로 추적하고 프로젝트명+숫자 간단하게" → "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번"
   await openOwnedProject(page, request);
   const ids = await twoSigns(page);
+  await page.evaluate((ids) => { const g = (window as any).__ganpanda; g.project.updateObject(ids.a, { createdAt: 1000 }); g.project.updateObject(ids.b, { createdAt: 2000 }); }, ids); // 만든 순서를 분명히 (같은 밀리초면 카드 자리 순)
   const exportData = async () => {
     await openDesignSync(page, 'illustrator');
     const before = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator?.length ?? 0);
