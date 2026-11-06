@@ -1,0 +1,18 @@
+// 사인물 카드 = 실측(사진) · 2D(속성 내용) · 3D(속성 내용, 3D 추가) · 디자인(대지 이미지) (2026-11-06 사용자 정의)
+import { describe, expect, it } from 'vitest';
+import { cardLayers } from '../../src/lib/core/cardLayers';
+
+describe('cardLayers — 탭마다 카드에 그리는 층', () => {
+  it('실측 = 사진만', () => expect(cardLayers('measure', true)).toEqual({ photo: true, fill: false, parts: false, design: false }));
+  it('2D·3D = 사진 위 속성 내용(바탕색·구성 요소), 디자인은 안 그림', () => {
+    for (const t of ['2d', '3d'] as const) expect(cardLayers(t, true)).toEqual({ photo: true, fill: true, parts: true, design: false });
+  });
+  it('디자인 = 대지 이미지(디자인)만, 없으면 2D 내용', () => {
+    expect(cardLayers('design', true)).toEqual({ photo: true, fill: false, parts: false, design: true });
+    expect(cardLayers('design', false)).toEqual({ photo: true, fill: true, parts: true, design: false });
+  });
+  it('보내기 최종 이미지 = 디자인 탭 카드와 같다 (3D 제외 마지막 단계)', () => {
+    expect(cardLayers('final', true)).toEqual(cardLayers('design', true));
+    expect(cardLayers('final', false)).toEqual(cardLayers('2d', false));
+  });
+});

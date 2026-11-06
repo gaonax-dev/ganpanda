@@ -1,11 +1,11 @@
 // 간판다 ↔ 일러스트레이터 (2026-11-05 사용자: "가장 나이스한건 일러스트 플러그인을 개발하고 우리 포맷을 일러스트에서 재구성하는 거야").
-// 간판다 견적 탭 [일러스트] 로 받은 이 파일을 일러스트레이터 "파일 › 스크립트 › 기타 스크립트…" 로 실행한다. 앞줄의 GANPANDA_DATA 가 프로젝트 데이터.
-//  - 대지 만들기: 사인물 카드 배치 그대로 사인물마다 대지("이름 #id")와 레이어("이름 #id") — 안에 하위 레이어 "바탕 (인쇄) #id:frame" 과
-//    구성 요소마다 "채널 (입체) #id:구성요소id"·"시트 (인쇄) #id:…" (2026-11-05 "후렉스(인쇄) 위에 체널(입체), 스카시(입체+ 시트 또는 도색)의 구성이라면 일러스트 레이어를 생성").
-//    카드 사진 = 잠긴 "간판다 사진" 레이어, 입힌 디자인 = 바탕 레이어(SVG 원본은 벡터) → .ai(PDF 호환) 저장
-//  - 간판다로 보내기: 대지 이름에 #id 가 있는 문서를 연 채 다시 실행 → 대지 순서대로 사인물 id 를 문서 XMP(ganpanda:artboards)에 적어 같은 파일로 저장하고,
-//    내용이 있는 구성 요소 하위 레이어마다 그 대지 크기로 내보내(입체 = SVG 글자 윤곽선, 인쇄 = PNG) "같은 이름.ganpanda" 묶음으로.
-//    .ganpanda 를 간판다 디자인 탭에 올리면 구성 요소마다 자동으로 들어간다(채널·스카시는 입체). .ai 를 올리면 대지 전체가 사인물 바탕으로.
+// 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › [대지 받기 (zip)]의 폴더에서 실행(또는 설치형 간판다.jsx 로 폴더를 고름). 앞줄의 GANPANDA_DATA 가 프로젝트 데이터.
+// 일러스트 기준 파일 싱크 (2026-11-06 사용자 정의):
+//  - 대지 만들기: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
+//    → 사인물마다 크기대로 대지("이름 #id"), 레이어 아래부터 받은 이미지(잠금 — 카드의 최종 그림) · 디자인 · path → .ai(PDF 호환) 저장
+//  - 간판다로 보내기: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다.
+//    path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
+//    → 간판다 대지(#id)마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → "같은 이름.ganpanda" 묶음
 // ExtendScript(ES3) — let·화살표 함수·JSON 없음. → docs/features/illustrator.md
 (function () {
   var PT = 72 / 25.4; // mm → pt
@@ -58,12 +58,6 @@
     f.close();
     return f;
   }
-  function textFile(text, ext) {
-    var f = new File(Folder.temp.fsName + '/ganpanda-' + (tmpCount++) + '.' + ext);
-    f.encoding = 'UTF-8';
-    f.open('w'); f.write(text); f.close();
-    return f;
-  }
   // 그림 파일 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데"): 간판다가 내려준 zip 을 푼 폴더의 images/… 를
   // 그대로 연결한다 — 풀기·묻기 없음. 예전 data URL 이면 풀어서 묻는다(느림)
   var BASE = (function () { try { return new File($.fileName).parent; } catch (e) { return null; } })(); // 설치형은 고른 폴더로 바뀐다
@@ -95,14 +89,26 @@
     }
     return out.join('');
   }
-  function partOf(name) { var m = /#([A-Za-z0-9_\-]+):([A-Za-z0-9_\-]+)\s*$/.exec(String(name)); return m ? { sign: m[1], part: m[2] } : null; }
-  function artboardOf(doc, signId) { for (var i = 0; i < doc.artboards.length; i++) if (idOf(doc.artboards[i].name) === signId) return doc.artboards[i].artboardRect; return null; }
-  /** 하위 레이어 내용만 그 대지 크기의 임시 문서로 복제해 내보내고 base64 로 (입체 = SVG 글자 윤곽선, 인쇄 = PNG) */
-  function exportLayer(layer, r, svg) {
+  var RECEIVED = '받은 이미지', DESIGN = '디자인', PATH = 'path';
+  function layerNamed(doc, name) { for (var i = 0; i < doc.layers.length; i++) if (doc.layers[i].name === name) return doc.layers[i]; return null; }
+  /** 레이어의 맨 위 항목 중 대지와 겹치는 것 (그룹 안 항목은 그룹째) */
+  function itemsIn(layer, r) {
+    var out = [], i, it, b;
+    if (!layer) return out;
+    for (i = 0; i < layer.pageItems.length; i++) {
+      it = layer.pageItems[i];
+      if (it.parent && it.parent !== layer) continue;
+      b = it.geometricBounds; // [왼, 위, 오른, 아래]
+      if (b[0] < r[2] && b[2] > r[0] && b[1] > r[3] && b[3] < r[1]) out.push(it);
+    }
+    return out;
+  }
+  /** 항목들을 그 대지 크기의 임시 문서로 복제해 내보내고 base64 로 (path = SVG 글자 윤곽선, 디자인 = PNG 대지로 자름) */
+  function exportItems(items, r, svg) {
     var W = r[2] - r[0], H = r[1] - r[3];
     var t = app.documents.add(DocumentColorSpace.RGB, W, H);
     var tr = t.artboards[0].artboardRect, i;
-    for (i = 0; i < layer.pageItems.length; i++) { var d = layer.pageItems[i].duplicate(t.layers[0], ElementPlacement.PLACEATEND); d.translate(tr[0] - r[0], tr[1] - r[1]); }
+    for (i = 0; i < items.length; i++) { var d = items[i].duplicate(t.layers[0], ElementPlacement.PLACEATEND); d.translate(tr[0] - r[0], tr[1] - r[1]); }
     var f = new File(Folder.temp.fsName + '/ganpanda-out-' + (tmpCount++) + (svg ? '.svg' : '.png'));
     if (svg) { var o = new ExportOptionsSVG(); o.fontType = SVGFontType.OUTLINEFONT; o.embedRasterImages = true; t.exportFile(f, ExportType.SVG, o); }
     else { var p = new ExportOptionsPNG24(); p.transparency = true; p.antiAliasing = true; p.artBoardClipping = true; var sc = Math.max(10, Math.min(400, (2048 / Math.max(W, H)) * 100)); p.horizontalScale = sc; p.verticalScale = sc; t.exportFile(f, ExportType.PNG24, p); }
@@ -114,86 +120,59 @@
 
   // ---------- 간판다로 보내기 ----------
   function sendBack(doc) {
-    var ids = [], n = 0, i, j;
+    var ids = [], n = 0, i;
     for (i = 0; i < doc.artboards.length; i++) { var id = idOf(doc.artboards[i].name); ids.push(id || ''); if (id) n++; }
     writeXmp(doc, ids);
     var target = doc.fullName ? doc.fullName : File.saveDialog('간판다로 보낼 .ai 저장', 'Illustrator:*.ai');
     if (!target) { alert('저장하지 않았습니다.'); return; }
     doc.saveAs(target, pdfOptions());
-    // 구성 요소 하위 레이어 → 묶음 (.ganpanda)
-    var items = [];
-    for (i = 0; i < doc.layers.length; i++) {
-      var L = doc.layers[i];
-      if (!idOf(L.name) || !L.layers) continue;
-      for (j = 0; j < L.layers.length; j++) {
-        var S = L.layers[j], pr = partOf(S.name);
-        if (!pr || !S.pageItems.length) continue;
-        var r = artboardOf(doc, pr.sign);
-        if (!r) continue;
-        var svg = String(S.name).indexOf('(입체)') >= 0;
-        try { items.push('{"sign":' + q(pr.sign) + ',"part":' + q(pr.part) + ',"kind":"' + (svg ? 'svg' : 'png') + '","data":"' + exportLayer(S, r, svg) + '"}'); } catch (e) {}
-      }
+    // 대지마다 디자인(PNG)·path(SVG) → 묶음 (.ganpanda)
+    var D = layerNamed(doc, DESIGN), P = layerNamed(doc, PATH), items = [], nd = 0, np = 0;
+    for (i = 0; i < doc.artboards.length; i++) {
+      var sid = idOf(doc.artboards[i].name), r = doc.artboards[i].artboardRect;
+      if (!sid) continue;
+      var di = itemsIn(D, r), pi = itemsIn(P, r);
+      try { if (di.length) { items.push('{"sign":' + q(sid) + ',"part":"design","kind":"png","data":"' + exportItems(di, r, false) + '"}'); nd++; } } catch (e) {}
+      try { if (pi.length) { items.push('{"sign":' + q(sid) + ',"part":"path","kind":"svg","data":"' + exportItems(pi, r, true) + '"}'); np++; } } catch (e) {}
     }
     try { doc.activate(); } catch (e) {}
     var bundlePath = String(target.fsName).replace(/\.ai$/i, '') + '.ganpanda';
-    if (items.length) {
-      var bf = new File(bundlePath);
-      bf.encoding = 'UTF-8'; bf.open('w'); bf.write('{"format":"ganpanda-illustrator-bundle","version":1,"items":[' + items.join(',') + ']}'); bf.close();
-    }
-    alert('간판다로 보낼 준비가 되었습니다 (대지 ' + n + '개' + (items.length ? ', 구성 요소 디자인 ' + items.length + '개' : '') + ').\n' +
-      (items.length ? bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리고 사진보드에서 확인 뒤 [확정]하면 구성 요소마다 들어갑니다(채널·스카시는 입체).\n' : '') +
-      '.ai 를 올리면 대지 전체가 사인물 바탕 디자인으로 연결됩니다.');
+    if (!items.length) { alert('간판다 대지 ' + n + '개에 디자인·path 레이어 내용이 없습니다.\n대지 안 "디자인" 레이어에 디자인을, "path" 레이어에 입체로 만들 패스를 넣어 주세요.'); return; }
+    var bf = new File(bundlePath);
+    bf.encoding = 'UTF-8'; bf.open('w'); bf.write('{"format":"ganpanda-illustrator-bundle","version":2,"items":[' + items.join(',') + ']}'); bf.close();
+    alert('간판다로 보낼 준비가 되었습니다 (대지 ' + n + '개 — 디자인 ' + nd + ' · path ' + np + ').\n' +
+      bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n디자인은 사인물 카드에 바로 들어가고, path 는 어느 구성물(채널·스카시)에 쓸지 고르면 입체가 됩니다.');
   }
 
   // ---------- 대지 만들기 ----------
   function build(data) {
-    if (!data || !data.cards || !data.cards.length) { alert('간판다 데이터에 사인물 카드가 없습니다. 간판다 견적 탭에서 [일러스트]로 다시 받아 주세요.'); return; }
+    if (!data || !data.cards || !data.cards.length) { alert('간판다 데이터에 사인물 카드가 없습니다. 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › [대지 받기 (zip)]로 다시 받아 주세요.'); return; }
     var k = data.scale * PT;
     var W = Math.max(1, data.width * k), H = Math.max(1, data.height * k);
     var doc = app.documents.add(DocumentColorSpace.RGB, W, H);
     try { app.coordinateSystem = CoordinateSystem.DOCUMENTCOORDINATESYSTEM; } catch (e) {}
-    // 카드 사진(참고 레이어)은 물어본다 — 사진을 풀고 묻는 것이 가장 오래 걸린다 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다")
-    var hasFace = false, fi;
-    for (fi = 0; fi < data.cards.length; fi++) if (data.cards[fi].face && isData(data.cards[fi].face)) { hasFace = true; break; } // 파일 연결이면 빠르니 묻지 않는다
-    var withPhotos = hasFace && confirm('카드 사진을 참고 레이어(간판다 사진)로 넣을까요?\n사진이 많으면 시간이 걸립니다. [아니요]를 누르면 대지·레이어만 빠르게 만듭니다.');
-    var photo = doc.layers[0]; // 맨 아래 — 사인물 레이어는 그 위에 쌓인다
-    photo.name = '간판다 사진';
-    var ids = [], i, j;
+    // 레이어: 아래부터 받은 이미지(잠금) · 디자인 · path (나중에 만든 것이 위)
+    var recv = doc.layers[0];
+    recv.name = RECEIVED;
+    var design = doc.layers.add(); design.name = DESIGN;
+    var path = doc.layers.add(); path.name = PATH;
+    var ids = [], i;
     for (i = 0; i < data.cards.length; i++) {
       var c = data.cards[i];
       var left = c.x * k, top = -c.y * k, w = c.w * k, h = c.h * k;
       var ab = doc.artboards.add([left, top, left + w, top - h]);
       ab.name = c.name + ' #' + c.id;
       ids.push(c.id);
-      if (c.face && (withPhotos || !isData(c.face))) place(photo, c.face, left, top, w, h);
-      // 사인물 레이어 > 바탕(인쇄) + 구성 요소 하위 레이어 (나중에 만든 것이 위 — 바탕이 맨 아래)
-      var signLayer = doc.layers.add();
-      signLayer.name = c.name + ' #' + c.id;
-      var design = signLayer.layers.add();
-      design.name = '바탕 (인쇄) #' + c.id + ':frame';
-      if (c.parts) for (j = 0; j < c.parts.length; j++) { var pl = signLayer.layers.add(); pl.name = c.parts[j].label + ' #' + c.id + ':' + c.parts[j].id; }
-      var svgSrc = c.design ? (c.design.svgFile ? refFile(c.design.svgFile) : c.design.svg ? textFile(c.design.svg, 'svg') : null) : null;
-      if (svgSrc) {
-        // 벡터 원본: 페이지 전체를 그룹으로 들여와 잘라낸 영역이 대지에 맞게 키우고 대지 사각형으로 클리핑
-        try {
-          var g = design.groupItems.createFromFile(svgSrc);
-          var cr = c.design.crop || { x: 0, y: 0, w: 1, h: 1 };
-          g.width = w / cr.w; g.height = h / cr.h;
-          g.position = [left - cr.x * g.width, top + cr.y * g.height];
-          var clip = design.groupItems.add();
-          var rect = design.pathItems.rectangle(top, left, w, h);
-          g.move(clip, ElementPlacement.PLACEATEND);
-          rect.move(clip, ElementPlacement.PLACEATBEGINNING);
-          clip.clipped = true;
-        } catch (e) {}
-      } else if (c.design && c.design.png) place(design, c.design.png, left, top, w, h);
+      if (c.image) place(recv, c.image, left, top, w, h);
     }
     if (doc.artboards.length > data.cards.length) doc.artboards.remove(0); // 문서를 만들 때 생긴 처음 대지
-    photo.locked = true;
+    recv.locked = true;
+    try { doc.activeLayer = design; } catch (e) {}
     writeXmp(doc, ids);
     var f = File.saveDialog('간판다 대지 저장 (' + data.project + ')', 'Illustrator:*.ai');
     if (f) doc.saveAs(f, pdfOptions());
-    alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n디자인을 마친 뒤 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.' +
+    alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n' +
+      '"디자인" 레이어에 대지마다 디자인을, "path" 레이어에 입체(채널·스카시)로 만들 패스를 넣고 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.' +
       (missing ? '\n\n그림 ' + missing + '개를 찾지 못했습니다 — 간판다에서 받은 zip 을 풀고 그 폴더(images 폴더가 있는 곳)를 써 주세요.' : ''));
   }
 
@@ -202,7 +181,7 @@
   if (active) {
     var has = false, j;
     for (j = 0; j < active.artboards.length; j++) if (idOf(active.artboards[j].name)) { has = true; break; }
-    if (has && confirm('지금 문서를 간판다로 보낼까요?\n대지 이름(#사인물)으로 짝을 적어 PDF 호환 .ai 로 저장합니다.\n[아니요]를 누르면 간판다 데이터로 새 대지 문서를 만듭니다.')) { sendBack(active); return; }
+    if (has && confirm('지금 문서를 간판다로 보낼까요?\n대지 이름(#사인물)으로 짝을 적어 PDF 호환 .ai 로 저장하고, 대지마다 디자인·path 를 .ganpanda 로 내보냅니다.\n[아니요]를 누르면 간판다 데이터로 새 대지 문서를 만듭니다.')) { sendBack(active); return; }
   }
   if (DATA) { build(DATA); return; }
   // 설치형 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건"): 데이터 줄이 없으면 받은 폴더를 고른다

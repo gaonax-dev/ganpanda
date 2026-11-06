@@ -6,11 +6,10 @@ import { illustratorPackage, jsxWithData } from '../../src/lib/core/illustrator'
 
 const TEMPLATE = readFileSync(new URL('../../src/lib/illustrator/ganpanda.jsx', import.meta.url), 'utf8');
 const PT = 72 / 25.4;
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs: { name: string; items: number }[] }[] } } = {}) {
+function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -20,7 +19,7 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
       createFromFile(f: { fsName: string }) { const it: Rec = { kind: 'svgGroup', file: f.fsName, layer: layer.name, position: [0, 0], width: 100, height: 50, clipped: false }; arr.push(it); return it; },
     });
   };
-  const pageItem = (): Rec => ({ duplicate(target: Rec) { const d: Rec = { translated: [0, 0], translate(dx: number, dy: number) { d.translated = [dx, dy]; } }; target.pageItems.push(d); return d; } });
+  const pageItem = (bounds: number[] = [0, 0, 1, -1], parent?: Rec): Rec => ({ geometricBounds: bounds, parent, duplicate(target: Rec) { const d: Rec = { translated: [0, 0], translate(dx: number, dy: number) { d.translated = [dx, dy]; } }; target.pageItems.push(d); return d; } });
   const mkLayer = (name: string): Rec => {
     const l: Rec = { name, locked: false, pageItems: [] as Rec[] };
     l.placedItems = mkItems('placed', l); l.groupItems = mkItems('group', l);
@@ -48,7 +47,8 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
     const d = mkDoc(1000, 1000, opts.existing.names);
     for (const L of opts.existing.layers ?? []) {
       const l = d.layers.add(); l.name = L.name;
-      for (const S of L.subs) { const c = l.layers.add(); c.name = S.name; for (let i = 0; i < S.items; i++) c.pageItems.push(pageItem()); }
+      for (const S of L.subs ?? []) { const c = l.layers.add(); c.name = S.name; for (let i = 0; i < S.items; i++) c.pageItems.push(pageItem([0, 0, 1, -1], c)); }
+      for (const b of L.items ?? []) l.pageItems.push(pageItem(b, l));
     }
     docs.push(d);
   }
@@ -69,12 +69,13 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
 }
 const b64 = (s: string) => Buffer.from(s, 'latin1').toString('base64');
 
-describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기)', () => {
+describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11-06 정의)', () => {
+  // 사용자: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
   const pkg = illustratorPackage({ project: '테스트 매장', cards: [
-    { id: 'a1', name: '정면 간판', x: 1000, y: 500, w: 3000, h: 600, face: PNG, parts: [{ id: 'c1', label: '채널 (입체)', mode: 'vector' }, { id: 's1', label: '시트 (인쇄)', mode: 'print' }] },
-    { id: 'b2', name: '돌출', x: 4500, y: 700, w: 600, h: 900, face: PNG, design: { png: PNG } },
+    { id: 'a1', name: '정면 간판', x: 1000, y: 500, w: 3000, h: 600, image: 'images/a1.png' },
+    { id: 'b2', name: '돌출', x: 4500, y: 700, w: 600, h: 900, image: 'images/b2.png' },
   ] });
-  it('사인물마다 대지(자리·크기 mm → pt, "이름 #id")와 레이어("이름 #id") — 안에 바탕(인쇄)·구성 요소 하위 레이어("#사인물:구성 요소"). 사진은 잠긴 레이어, 바탕 디자인은 바탕 레이어, XMP, PDF 호환 .ai', () => {
+  it('사인물마다 크기대로 대지("이름 #id") — 레이어는 아래부터 받은 이미지(잠금, 최종 이미지) · 디자인 · path, XMP, PDF 호환 .ai', () => {
     const f = fakeIllustrator();
     vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
     const doc = f.docs[0];
@@ -82,18 +83,18 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기)', () =>
     const [r0, r1] = doc.artboards.map((a: Rec) => a.artboardRect);
     expect(r0[0]).toBeCloseTo(0, 6); expect(r0[1]).toBeCloseTo(0, 6); expect(r0[2]).toBeCloseTo(3000 * PT, 4); expect(r0[3]).toBeCloseTo(-600 * PT, 4);
     expect(r1[0]).toBeCloseTo(3500 * PT, 4); expect(r1[1]).toBeCloseTo(-200 * PT, 4); expect(r1[2]).toBeCloseTo(4100 * PT, 4); expect(r1[3]).toBeCloseTo(-1100 * PT, 4);
-    const photo = doc.layers.find((l: Rec) => l.name === '간판다 사진');
-    expect(photo.locked).toBe(true);
-    expect(photo.placedItems).toHaveLength(2);
-    expect(photo.placedItems[1].position).toEqual([3500 * PT, -200 * PT].map((v) => expect.closeTo(v, 4)));
-    expect(photo.placedItems[1].embedded).toBe(true);
-    const a1 = doc.layers.find((l: Rec) => l.name === '정면 간판 #a1');
-    expect(a1.layers.map((l: Rec) => l.name).sort()).toEqual(['바탕 (인쇄) #a1:frame', '시트 (인쇄) #a1:s1', '채널 (입체) #a1:c1'].sort());
-    const b2 = doc.layers.find((l: Rec) => l.name === '돌출 #b2');
-    expect(b2.layers.map((l: Rec) => l.name)).toEqual(['바탕 (인쇄) #b2:frame']);
-    expect(b2.layers[0].placedItems).toHaveLength(1); // 바탕 디자인
+    expect(doc.layers.map((l: Rec) => l.name)).toEqual(['path', '디자인', '받은 이미지']); // 위 → 아래
+    const recv = doc.layers.find((l: Rec) => l.name === '받은 이미지');
+    expect(recv.locked).toBe(true);
+    expect(recv.placedItems.map((it: Rec) => it.file.fsName)).toEqual(['/tmp/pkg/images/a1.png', '/tmp/pkg/images/b2.png']); // 폴더의 파일을 연결
+    expect(recv.placedItems.every((it: Rec) => !it.embedded)).toBe(true);
+    expect(recv.placedItems[1].position).toEqual([3500 * PT, -200 * PT].map((v) => expect.closeTo(v, 4)));
+    expect(recv.placedItems[1].width).toBeCloseTo(600 * PT, 4);
+    expect(doc.layers.find((l: Rec) => l.name === '디자인').pageItems).toHaveLength(0);
+    expect(doc.layers.find((l: Rec) => l.name === 'path').pageItems).toHaveLength(0);
     expect(doc.XMPString).toContain('<ganpanda:artboards>a1|b2</ganpanda:artboards>');
     expect(doc.saved).toEqual({ file: '/tmp/out.ai', pdf: true });
+    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
   });
   it('전체가 5.5m 를 넘으면 1:10 으로 그린다', () => {
     const big = illustratorPackage({ project: 'p', cards: [{ id: 'a', name: 'a', x: 0, y: 0, w: 9000, h: 900 }] });
@@ -101,41 +102,55 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기)', () =>
     vm.runInNewContext(jsxWithData(TEMPLATE, big), f.ctx);
     expect(f.docs[0].artboards[0].artboardRect[2]).toBeCloseTo(900 * PT, 4);
   });
+  it('폴더에 없는 그림은 건너뛰고 알린다 (zip 을 풀어 그 폴더에서 실행)', () => {
+    const f = fakeIllustrator({ missing: ['/tmp/pkg/images/a1.png'] });
+    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
+    expect(f.docs[0].layers.find((l: Rec) => l.name === '받은 이미지').placedItems).toHaveLength(1);
+    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('찾지 못했습니다'))).toBe(true);
+  });
 });
 
-describe('ganpanda.jsx — 일러스트 → 간판다 (보내기)', () => {
-  it('XMP 짝을 다시 적고 저장 + 내용이 있는 구성 요소 레이어마다 대지 크기로 내보내 .ganpanda 묶음(입체 = SVG 글자 윤곽선, 인쇄 = PNG)', () => {
+describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정의)', () => {
+  // 사용자: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다. path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
+  it('대지마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → .ganpanda. 대지 밖·간판다 대지 아닌 곳은 빠짐', () => {
+    // 대지(가짜): i번째 = [i*100, 0, i*100+90, -90]
     const f = fakeIllustrator({ existing: { names: ['정면 간판 #a1', '대지 3', '돌출 #b2'], layers: [
-      { name: '정면 간판 #a1', subs: [{ name: '바탕 (인쇄) #a1:frame', items: 2 }, { name: '채널 (입체) #a1:c1', items: 1 }, { name: '시트 (인쇄) #a1:s1', items: 0 }] },
-      { name: '메모', subs: [{ name: '아무거나', items: 3 }] },
+      { name: '받은 이미지', items: [[0, 0, 90, -90], [200, 0, 290, -90]] },
+      { name: '디자인', items: [[10, -10, 50, -50], [60, -5, 80, -40], [110, -10, 150, -50]] }, // a1 에 둘, '대지 3' 에 하나
+      { name: 'path', items: [[205, -10, 250, -60]] }, // b2 에 하나
     ] } });
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
     const doc = f.docs[0];
     expect(doc.XMPString).toContain('<ganpanda:artboards>a1||b2</ganpanda:artboards>');
-    expect(doc.saved).toEqual({ file: '/tmp/existing.ai', pdf: true }); // 같은 파일에 PDF 호환으로
+    expect(doc.saved).toEqual({ file: '/tmp/existing.ai', pdf: true });
     const bundle = JSON.parse(f.written['/tmp/existing.ganpanda']);
-    expect(bundle.format).toBe('ganpanda-illustrator-bundle');
-    expect(bundle.items).toHaveLength(2); // 위 레이어부터 (순서 무관)
-    expect(bundle.items).toEqual(expect.arrayContaining([
-      { sign: 'a1', part: 'frame', kind: 'png', data: b64('PNGDATA') },
-      { sign: 'a1', part: 'c1', kind: 'svg', data: b64('SVGDATA') },
-    ]));
+    expect(bundle).toMatchObject({ format: 'ganpanda-illustrator-bundle', version: 2 });
+    expect(bundle.items).toEqual([
+      { sign: 'a1', part: 'design', kind: 'png', data: b64('PNGDATA') },
+      { sign: 'b2', part: 'path', kind: 'svg', data: b64('SVGDATA') },
+    ]);
     const temps = f.docs.slice(1);
     expect(temps).toHaveLength(2);
     expect(temps.every((t: Rec) => t.closed)).toBe(true);
-    const svgDoc = temps.find((t: Rec) => t.exported.type === 'SVG')!, pngDoc = temps.find((t: Rec) => t.exported.type === 'PNG24')!;
-    expect(svgDoc.exported.o.fontType).toBe('outline'); // 글자는 윤곽선으로
-    expect(svgDoc.layers[0].pageItems).toHaveLength(1); // 그 레이어 내용만 복제
-    expect(pngDoc.layers[0].pageItems).toHaveLength(2);
-    expect(pngDoc.exported.o.transparency).toBe(true);
-    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('.ganpanda'))).toBe(true);
+    const pngDoc = temps.find((t: Rec) => t.exported.type === 'PNG24')!, svgDoc = temps.find((t: Rec) => t.exported.type === 'SVG')!;
+    expect(pngDoc.layers[0].pageItems).toHaveLength(2); // 그 대지 안 디자인만
+    expect(pngDoc.exported.o.artBoardClipping).toBe(true);
+    expect(svgDoc.layers[0].pageItems).toHaveLength(1);
+    expect(svgDoc.exported.o.fontType).toBe('outline');
+    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인 1') && l.includes('path 1'))).toBe(true);
+  });
+  it('디자인·path 가 비었으면 묶음을 만들지 않고 알린다', () => {
+    const f = fakeIllustrator({ existing: { names: ['정면 #a1'], layers: [{ name: '디자인' }, { name: 'path' }] } });
+    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
+    expect(f.written['/tmp/existing.ganpanda']).toBeUndefined();
+    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인·path'))).toBe(true);
   });
 });
 
-describe('ganpanda.jsx — 그림 해독 (2026-11-05 "일러스트에서 .jsx를 가져오는데 많은 시간이 걸린다")', () => {
-  it('카드 사진 base64 를 바이트 그대로 파일로 — 길이가 3의 배수가 아니어도(= 채움)', () => {
+describe('ganpanda.jsx — 그림 해독 (예전 data URL)', () => {
+  it('base64 를 바이트 그대로 파일로 — 길이가 3의 배수가 아니어도(= 채움)', () => {
     const bytes = [10, 11, 12, 300].map((n, k) => Buffer.from(Array.from({ length: n }, (_, i) => (i * 37 + k * 11) % 256)));
-    const pkg = illustratorPackage({ project: 'p', cards: bytes.map((b, i) => ({ id: `c${i}`, name: `n${i}`, x: i * 100, y: 0, w: 50, h: 50, face: `data:image/jpeg;base64,${b.toString('base64')}` })) });
+    const pkg = illustratorPackage({ project: 'p', cards: bytes.map((b, i) => ({ id: `c${i}`, name: `n${i}`, x: i * 100, y: 0, w: 50, h: 50, image: `data:image/jpeg;base64,${b.toString('base64')}` })) });
     const f = fakeIllustrator();
     vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
     const files = Object.keys(f.written).filter((k) => /ganpanda-\d+\.jpg$/.test(k)).sort((a, b) => Number(/(\d+)\.jpg/.exec(a)![1]) - Number(/(\d+)\.jpg/.exec(b)![1]));
@@ -144,61 +159,15 @@ describe('ganpanda.jsx — 그림 해독 (2026-11-05 "일러스트에서 .jsx를
   });
 });
 
-describe('ganpanda.jsx — 카드 사진은 물어보고 (2026-11-05 "많은 시간이 걸린다")', () => {
-  const pkg = illustratorPackage({ project: 'p', cards: [{ id: 'a', name: 'a', x: 0, y: 0, w: 50, h: 50, face: PNG }, { id: 'b', name: 'b', x: 100, y: 0, w: 50, h: 50, face: PNG }] });
-  it('[아니요] → 사진을 풀지도 넣지도 않는다 (대지·레이어는 그대로)', () => {
-    const f = fakeIllustrator({ confirm: false });
-    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
-    const doc = f.docs[0];
-    expect(doc.artboards).toHaveLength(2);
-    expect(doc.layers.find((l: Rec) => l.name === '간판다 사진').placedItems).toHaveLength(0);
-    expect(Object.keys(f.written).some((k) => /ganpanda-\d+\.(png|jpg)$/.test(k))).toBe(false);
-    expect(f.log.some((l) => l.startsWith('confirm:') && l.includes('사진'))).toBe(true);
-  });
-  it('사진이 없는 데이터면 묻지 않는다', () => {
-    const f = fakeIllustrator();
-    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [{ id: 'a', name: 'a', x: 0, y: 0, w: 50, h: 50 }] })), f.ctx);
-    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
-  });
-});
-
-describe('ganpanda.jsx — 그림은 폴더의 파일을 연결 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데")', () => {
-  const pkg = illustratorPackage({ project: 'p', cards: [
-    { id: 'a1', name: 'a', x: 0, y: 0, w: 50, h: 50, face: 'images/a1-face.jpg' },
-    { id: 'b2', name: 'b', x: 100, y: 0, w: 50, h: 50, face: 'images/b2-face.jpg', design: { svgFile: 'images/b2-design.svg', crop: { x: 0, y: 0, w: 1, h: 1 } } },
-    { id: 'c3', name: 'c', x: 200, y: 0, w: 50, h: 50, design: { png: 'images/c3-design.png' } },
-  ] });
-  it('스크립트 폴더의 images/ 를 연결해 놓는다 — 풀지도 묻지도(embed) 않고, 물어보지도 않는다', () => {
-    const f = fakeIllustrator();
-    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
-    const doc = f.docs[0];
-    const photo = doc.layers.find((l: Rec) => l.name === '간판다 사진');
-    expect(photo.placedItems.map((it: Rec) => it.file.fsName)).toEqual(['/tmp/pkg/images/a1-face.jpg', '/tmp/pkg/images/b2-face.jpg']);
-    expect(photo.placedItems.every((it: Rec) => !it.embedded)).toBe(true);
-    const b2 = doc.layers.find((l: Rec) => l.name === 'b #b2').layers[0];
-    expect(b2.groupItems[0].file).toBe('/tmp/pkg/images/b2-design.svg'); // SVG 는 벡터로 들여온다
-    const c3 = doc.layers.find((l: Rec) => l.name === 'c #c3').layers[0];
-    expect(c3.placedItems[0].file.fsName).toBe('/tmp/pkg/images/c3-design.png');
-    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
-    expect(Object.keys(f.written).some((k) => /ganpanda-\d+\./.test(k))).toBe(false); // 풀어 쓴 파일 없음
-  });
-  it('폴더에 없는 그림은 건너뛰고 알린다 (zip 을 풀어 그 폴더에서 실행)', () => {
-    const f = fakeIllustrator({ missing: ['/tmp/pkg/images/a1-face.jpg'] });
-    vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
-    expect(f.docs[0].layers.find((l: Rec) => l.name === '간판다 사진').placedItems).toHaveLength(1);
-    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('찾지 못했습니다'))).toBe(true);
-  });
-});
-
 describe('간판다.jsx 설치형 — 데이터 없이 실행하면 폴더를 골라 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건")', () => {
-  const data = illustratorPackage({ project: '매장', cards: [{ id: 'a1', name: '정면', x: 0, y: 0, w: 1000, h: 500, face: 'images/a1-face.jpg' }] });
+  const data = illustratorPackage({ project: '매장', cards: [{ id: 'a1', name: '정면', x: 0, y: 0, w: 1000, h: 500, image: 'images/a1.png' }] });
   it('폴더 선택 창 → 그 폴더의 ganpanda.json 으로 대지, 그림은 그 폴더의 images/ 를 연결', () => {
     const f = fakeIllustrator({ scriptDir: '/Applications/Illustrator/Scripts', pick: '/Users/me/Downloads/매장 일러스트 대지', files: { '/Users/me/Downloads/매장 일러스트 대지/ganpanda.json': JSON.stringify(data) } });
     vm.runInNewContext(TEMPLATE, f.ctx); // 데이터 줄 없는 스크립트 그대로
     expect(f.log.some((l) => l.startsWith('pick:'))).toBe(true);
     const doc = f.docs[0];
     expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['정면 #a1']);
-    expect(doc.layers.find((l: Rec) => l.name === '간판다 사진').placedItems[0].file.fsName).toBe('/Users/me/Downloads/매장 일러스트 대지/images/a1-face.jpg');
+    expect(doc.layers.find((l: Rec) => l.name === '받은 이미지').placedItems[0].file.fsName).toBe('/Users/me/Downloads/매장 일러스트 대지/images/a1.png');
   });
   it('취소하면 아무것도 안 함, ganpanda.json 이 없는 폴더면 알림', () => {
     const f1 = fakeIllustrator({ pick: null });
@@ -216,4 +185,3 @@ describe('간판다.jsx 설치형 — 데이터 없이 실행하면 폴더를 �
     expect(f.log.some((l) => l.startsWith('pick:'))).toBe(false);
   });
 });
-

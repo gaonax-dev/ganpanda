@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
   import { SYNC_STATUS_LABEL, type SyncStatus } from '../core/designSync';
+  import { cardLayers } from '../core/cardLayers';
   import type { Photo, SignObject } from '../core/model';
   import { faceBadge, faceClip } from '../core/cardFace';
   import { bodyLook } from '../core/render';
@@ -45,8 +46,9 @@
   let face = $state<string | undefined>(undefined);
   // 바탕색(2026-10-17 "정면도에도 배경색 나오게"): 2D 무대의 sign-fill 과 같은 색·투명도를 사진 얼굴 위에
   // 실측 탭은 원본 사진만 (2026-11-05 "실측모드에서 사인물카드 재질이 아닌 원본 사진표시") — 재질·디자인·구성 요소는 2D·디자인 탭
-  const raw = $derived(app.stage === 'original');
-  const look = $derived(raw ? null : bodyLook(o));
+  // 탭마다 그리는 층 (2026-11-06 "사인물카드는 실측(사진), 2d(속성내용), 3d(속성내용 3d추가), 디자인(대지 이미지)") — core/cardLayers
+  const layers = $derived(cardLayers(app.tab, !!o.design));
+  const look = $derived(layers.fill ? bodyLook(o) : null);
   const badge = $derived(faceBadge(o));
   // 정면도 카드의 말풍선 (2026-10-18 "사진에 갇혀 있는데 정면도들에게도 적용"): 사인물 좌표(0~1)로 저장된 자리를 카드 px 로
   const chatId = $derived(o.sameAs ?? o.id);
@@ -66,10 +68,8 @@
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
-    {#if !raw}
-      {#if o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
-      <PartsOverlay {o} {mmW} {mmH} {w} {h} />
-    {/if}
+    {#if layers.design && o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
+    {#if layers.parts}<PartsOverlay {o} {mmW} {mmH} {w} {h} />{/if}
   </div>
   {#if lastMsg}
     <svg class="bubbles" width={w} height={h} viewBox="0 0 {w} {h}" overflow="visible">

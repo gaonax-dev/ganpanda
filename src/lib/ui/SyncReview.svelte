@@ -5,6 +5,7 @@
 <script lang="ts">
   import { app } from '../state.svelte';
   import { SYNC_ACTION_LABEL, SYNC_STATUS_LABEL, type SyncAction, type SyncStatus } from '../core/designSync';
+  import { partLabel, partsOf } from '../core/parts';
 
   const r = $derived(app.syncReview!);
   const ORDER: SyncStatus[] = ['new', 'missing', 'update', 'link'];
@@ -13,8 +14,11 @@
   const nameOf = (id?: string) => (id ? app.project.object(id)?.name ?? '간판다에 없는 사인물' : '');
   const what = (row: (typeof rows)[number]) => {
     if (row.status === 'new') return row.page !== undefined ? `대지 ${row.page + 1}${row.w ? ` · ${row.w.toLocaleString()}×${row.h!.toLocaleString()}mm` : ''}` : nameOf(row.signId);
-    return `${nameOf(row.signId)}${row.page !== undefined ? ` ← 대지 ${row.page + 1}` : ''}${row.parts ? ` · ${row.parts.length}개 레이어` : ''}`;
+    const got = [row.design ? '디자인' : '', row.path ? 'path' : '', row.parts ? `구성 요소 ${row.parts.length}` : ''].filter(Boolean).join(' · ');
+    return `${nameOf(row.signId)}${row.page !== undefined ? ` ← 대지 ${row.page + 1}` : ''}${got ? ` · ${got}` : ''}`;
   };
+  /** path 를 받을 구성물 이름 (2026-11-06 "path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다") */
+  const partName = (signId: string | undefined, partId: string) => { const o = signId ? app.project.object(signId) : undefined; const p = o ? partsOf(o).find((x) => x.id === partId) : undefined; return p ? partLabel(p) : partId; };
   let busy = $state(false);
   async function confirm() { if (busy) return; busy = true; try { await app.confirmSync(); } finally { busy = false; } }
 </script>
@@ -37,10 +41,21 @@
           </select>
         {:else}<span class="fixed">{SYNC_ACTION_LABEL[row.action]}</span>{/if}
       </li>
+      {#if row.path && row.action === 'apply'}
+        <li class="sub" data-testid="sync-path-row" data-sign={row.signId}>
+          <span class="arrow">path →</span>
+          {#if row.pathParts?.length}
+            <select data-testid="sync-path" value={row.pathPart ?? ''} onchange={(e) => app.setSyncPath(row.key, e.currentTarget.value)}>
+              <option value="">구성물 고르기 (안 넣음)</option>
+              {#each row.pathParts as pid (pid)}<option value={pid}>{partName(row.signId, pid)}</option>{/each}
+            </select>
+          {:else}<span class="fixed">입체 구성물(채널·스카시)이 없어 넣지 않음</span>{/if}
+        </li>
+      {/if}
     {/each}
     {#if !rows.length}<li class="empty">이 프로젝트 사인물과 짝지은 대지가 없습니다.</li>{/if}
   </ul>
-  <small class="tip">누락 = 보낸 사인물인데 받은 파일에 없음 · 새로 생김 = 파일에만 있는 대지(새 사인물 카드로 만들 수 있음). 확정 전에는 아무것도 바뀌지 않습니다.</small>
+  <small class="tip">디자인은 사인물 카드에 바로 들어가고, path 는 고른 구성물(채널·스카시)의 입체가 됩니다. 누락 = 보낸 사인물인데 받은 파일에 없음 · 새로 생김 = 파일에만 있는 대지. 확정 전에는 아무것도 바뀌지 않습니다.</small>
   <footer>
     <button class="btn small" data-testid="sync-cancel" onclick={() => app.cancelSync()}>취소</button>
     <button class="btn small primary" data-testid="sync-confirm" disabled={busy || !app.canEdit} onclick={confirm}>확정</button>
@@ -61,6 +76,8 @@
   select { flex: none; width: auto; max-width: 45%; font: inherit; font-size: 12px; background: var(--input); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; }
   .fixed { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); }
+  li.sub { padding-left: 22px; justify-content: flex-end; }
+  .arrow { flex: 1; color: var(--muted); font-size: 12px; }
   .tip { color: var(--muted); line-height: 1.4; font-size: 11px; }
   footer { display: flex; justify-content: flex-end; gap: 8px; }
   @media (max-width: 720px) { .review { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; max-height: 50dvh; } }

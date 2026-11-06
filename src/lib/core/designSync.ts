@@ -21,7 +21,11 @@ export interface SyncRow {
   page?: number;
   /** 새 사인물 실물 크기(mm) */
   w?: number; h?: number;
-  /** 묶음: 받은 구성 요소(frame = 바탕) */
+  /** 묶음: 디자인(대지 이미지) 있음 */
+  design?: boolean;
+  /** 묶음: path(입체용 벡터) 있음 — pathPart = 연결할 구성물 id('' = 아직 안 고름), pathParts = 고를 수 있는 입체 구성 요소 */
+  path?: boolean; pathPart?: string; pathParts?: string[];
+  /** 예전 묶음: 구성 요소 id 로 온 것 */
   parts?: string[];
 }
 
@@ -64,18 +68,23 @@ export function planArtboards(pages: { w: number; h: number }[], ids: (string | 
   return rows;
 }
 
-/** 구성 요소 묶음 ↔ 사인물: 사인물별로, 없는 구성 요소는 빼고. 간판다에 없는 사인물은 새로 생김(건너뛰기만), 묶음에 없는 사인물은 누락 */
-export function planBundle(items: { sign: string; part: string }[], signs: { id: string; parts: string[]; hasDesign: boolean }[]): SyncRow[] {
+/**
+ * 일러스트 묶음 ↔ 사인물 (2026-11-06 정의 "디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다. path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"):
+ * 사인물(대지 이름의 #id)별 한 줄 — design = 바탕 디자인으로 입힘, path = 고른 구성물(pathPart, 입체 구성 요소 하나면 그것)의 벡터.
+ * 간판다에 없는 사인물은 새로 생김(건너뛰기만), 묶음에 없는 사인물은 누락. 예전 묶음(frame = 디자인, 구성 요소 id = 그 구성 요소)도 읽는다
+ */
+export function planBundle(items: { sign: string; part: string }[], signs: { id: string; hasDesign: boolean; pathParts: string[]; parts?: string[] }[]): SyncRow[] {
   const known = new Map(signs.map((s) => [s.id, s]));
   const bySign = new Map<string, string[]>();
   for (const it of items) bySign.set(it.sign, [...(bySign.get(it.sign) ?? []), it.part]);
   const rows: SyncRow[] = [];
-  for (const [id, parts] of bySign) {
+  for (const [id, got] of bySign) {
     const s = known.get(id);
-    if (!s) { rows.push(row({ key: `b${id}`, status: 'new', signId: id, parts, actions: ['skip'] })); continue; }
-    const ok = parts.filter((p) => p === 'frame' || s.parts.includes(p));
-    if (!ok.length) continue;
-    rows.push(row({ key: `b${id}`, status: s.hasDesign ? 'update' : 'link', signId: id, parts: ok }));
+    if (!s) { rows.push(row({ key: `b${id}`, status: 'new', signId: id, actions: ['skip'] })); continue; }
+    const design = got.includes('design') || got.includes('frame'), path = got.includes('path');
+    const legacy = got.filter((p) => p !== 'design' && p !== 'frame' && p !== 'path' && (s.parts ?? s.pathParts).includes(p));
+    if (!design && !path && !legacy.length) continue;
+    rows.push(row({ key: `b${id}`, status: design && s.hasDesign ? 'update' : 'link', signId: id, design, path, ...(path ? { pathParts: s.pathParts, pathPart: s.pathParts.length === 1 ? s.pathParts[0] : '' } : {}), ...(legacy.length ? { parts: legacy } : {}) }));
   }
   for (const s of signs) if (!bySign.has(s.id)) rows.push(row({ key: `m${s.id}`, status: 'missing', signId: s.id }));
   return rows;

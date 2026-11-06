@@ -12,16 +12,14 @@ export interface IllustratorCardIn {
   id: string; name: string;
   /** 배치 (mm, 카드·리스트 좌표) */
   x: number; y: number; w: number; h: number;
-  /** 카드 얼굴(사진을 펼친 그림) — 스크립트 폴더 기준 파일 경로(images/…, 2026-11-05 연결) 또는 예전 data URL */
-  face?: string;
-  /** 입힌 디자인: 잘라낸 영역 그림(data URL) — 벡터 원본(SVG)이 있으면 svg + 페이지 안 잘라낸 영역(비율 0~1) */
-  /** 입힌 디자인: png = 잘라낸 그림(파일 경로 또는 data URL), svgFile = SVG 원본 파일 경로(벡터), svg = 예전 SVG 글자 — crop = 페이지 안 잘라낸 영역(비율 0~1) */
-  design?: { png?: string; svg?: string; svgFile?: string; crop?: { x: number; y: number; w: number; h: number } };
-  /** 구성 요소 하위 레이어 (2026-11-05): 입체(vector — 채널·스카시, SVG 로 돌아옴) · 인쇄(print — 시트, PNG). 바탕(인쇄)은 늘 만든다 */
-  parts?: { id: string; label: string; mode: 'vector' | 'print' }[];
+  /**
+   * 받은 이미지 (2026-11-06 정의 "보내기는 위의 순서로 최종(3d제외) 이미지로 보낸다"): 카드의 최종 그림 — 디자인(대지 이미지)이 있으면 그것,
+   * 없으면 2D(속성 내용: 사진 위 바탕색·구성 요소), 그것도 없으면 실측 사진. 스크립트 폴더 기준 파일 경로(images/…) 또는 data URL
+   */
+  image?: string;
 }
 export interface IllustratorPackage {
-  format: typeof ILLUSTRATOR_FORMAT; version: 1;
+  format: typeof ILLUSTRATOR_FORMAT; version: 2;
   project: string;
   /** 일러스트에 그릴 축척 (1 = 실물, 0.1 = 1:10) */
   scale: number;
@@ -41,7 +39,7 @@ export function illustratorPackage(input: { project: string; cards: IllustratorC
   const cs = input.cards;
   const x0 = cs.length ? Math.min(...cs.map((c) => c.x)) : 0, y0 = cs.length ? Math.min(...cs.map((c) => c.y)) : 0;
   const width = cs.length ? Math.max(...cs.map((c) => c.x + c.w)) - x0 : 0, height = cs.length ? Math.max(...cs.map((c) => c.y + c.h)) - y0 : 0;
-  return { format: ILLUSTRATOR_FORMAT, version: 1, project: input.project, scale: illustratorScale(width, height), width, height, cards: cs.map((c) => ({ ...c, x: c.x - x0, y: c.y - y0 })) };
+  return { format: ILLUSTRATOR_FORMAT, version: 2, project: input.project, scale: illustratorScale(width, height), width, height, cards: cs.map((c) => ({ ...c, x: c.x - x0, y: c.y - y0 })) };
 }
 
 /** 대지 이름 = "이름 #id" — 되돌아올 때 이 id 로 사인물을 찾는다 */

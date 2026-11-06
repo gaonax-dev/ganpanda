@@ -70,10 +70,11 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   expect(data.scale).toBe(1);
   expect(data.cards.map((c: any) => [c.id, c.name, c.w, c.h])).toEqual(expect.arrayContaining([[ids.a, '정면 간판', 3000, 600], [ids.b, '돌출', 600, 900]]));
   expect(Math.min(...data.cards.map((c: any) => c.x))).toBe(0);
-  const faces = data.cards.map((c: any) => c.face).filter(Boolean);
-  expect(faces.length).toBeGreaterThan(0);
-  expect(faces.every((f: string) => /^images\/[A-Za-z0-9_-]+-face\.jpg$/.test(f))).toBe(true); // 카드 사진 = 폴더의 파일
-  expect(names).toEqual(expect.arrayContaining(['ganpanda.jsx', 'ganpanda.json', ...faces])); // 설치형 스크립트가 읽는 데이터 (2026-11-05)
+  // 카드마다 최종 이미지 한 장 = 받은 이미지 레이어 (2026-11-06 정의 "보내기는 위의 순서로 최종(3d제외) 이미지로 보낸다")
+  const images = data.cards.map((c: any) => c.image);
+  expect(images).toHaveLength(2);
+  expect(images.every((f: string) => /^images\/[A-Za-z0-9_-]+\.png$/.test(f))).toBe(true);
+  expect(names).toEqual(expect.arrayContaining(['ganpanda.jsx', 'ganpanda.json', ...images])); // 설치형 스크립트가 읽는 데이터 (2026-11-05)
   const json = JSON.parse(execFileSync('python3', ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("ganpanda.json").decode("utf8"))', zipPath!]).toString('utf8'));
   expect(json).toEqual(data);
   // 설치용 스크립트 = 데이터 없는 스크립트 그대로
@@ -123,36 +124,41 @@ test('XMP 짝이 없는 PDF 는 대지 크기(1:10)로 짝짓되, 디자인이 �
   expect((await designOf(page, ids.a)).sourceId).toBe('keep');
 });
 
-test('구성 요소 묶음(.ganpanda)을 올리면 바탕 인쇄는 사인물 바탕 디자인, 채널 입체(SVG)는 벡터 → 3D 입체, 없는 구성 요소는 건너뜀 (2026-11-05 "일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게")', async ({ page, request }) => {
+test('일러스트 묶음(.ganpanda, 2026-11-06 정의): 디자인 = 대지 이미지로 사인물 카드에 바로, path = 사용자가 고른 구성물(채널·스카시)의 입체 · 최종 이미지·카드 표시', async ({ page, request }) => {
+  // "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다. path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   const id = await page.evaluate(() => {
     const g = (window as any).__ganpanda; const pid = g.photos[0].id;
     return g.project.addObject({ photoId: pid, name: '채널 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600,
-      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [{ id: 't1', kind: 'text', text: '카페', x: 0, y: 0, h: 400 }] }] });
+      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [{ id: 't1', kind: 'text', text: '카페', x: 0, y: 0, h: 400 }] }, { id: 'sc1', kind: 'scashi', type: '', items: [] }] });
   });
-  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAEUlEQVR42mP8z8DwnwEJMCJ7ABBOAv+xFBY1AAAAAElFTkSuQmCC';
+  // 빨간 디자인(PNG) — 브라우저 캔버스로
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 30; c.height = 6; const x = c.getContext('2d')!; x.fillStyle = '#ff0000'; x.fillRect(0, 0, 30, 6); return c.toDataURL('image/png').split(',')[1]; });
   const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850.39 170.08"><rect x="100" y="40" width="300" height="90" fill="#f00"/></svg>').toString('base64');
-  const bundle = JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 1, items: [
-    { sign: id, part: 'frame', kind: 'png', data: png }, { sign: id, part: 'ch1', kind: 'svg', data: svg }, { sign: id, part: 'nope', kind: 'svg', data: svg },
-  ] });
+  const bundle = JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 2, items: [{ sign: id, part: 'design', kind: 'png', data: png }, { sign: id, part: 'path', kind: 'svg', data: svg }] });
   await upload(page, '매장.ganpanda', Buffer.from(bundle));
   await expect(page.locator(`[data-testid="sync-row"][data-sign="${id}"]`)).toHaveAttribute('data-status', 'link');
+  // path 는 구성물이 둘(채널·스카시)이라 사용자가 고른다 — 고르기 전에는 안 넣음
+  const sel = page.locator(`[data-testid="sync-path-row"][data-sign="${id}"] [data-testid="sync-path"]`);
+  await expect(sel).toHaveValue('');
+  await expect(sel.locator('option')).toHaveCount(3);
+  await sel.selectOption('ch1');
   await page.getByTestId('sync-confirm').click();
   await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
   const o = await page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
-  expect(o.design).toMatchObject({ page: 0, crop: { x: 0, y: 0, w: 3, h: 2 } });
+  expect(o.design).toMatchObject({ page: 0, crop: { x: 0, y: 0, w: 30, h: 6 } });
   const ch = o.parts.find((p: any) => p.id === 'ch1');
   expect(ch.items).toHaveLength(1);
   expect(ch.items[0]).toMatchObject({ kind: 'image', vector: true, x: 0, y: 0, w: 3000, h: 600 });
-  // 3D 사양: 채널의 벡터 그림은 입체(vectorId)
+  expect(o.parts.find((p: any) => p.id === 'sc1').items).toHaveLength(0);
+  // 3D 사양: 채널의 path 는 입체(vectorId)
   const li = await page.evaluate(async (id) => {
     const rp = '/src/lib/core/render.ts'; const { renderSpecOf } = await import(/* @vite-ignore */ rp);
     const o = (window as any).__ganpanda.project.object(id);
     return renderSpecOf(o, { cx: 1500, cy: 300, w: 3000, h: 600 })?.letterItems ?? [];
   }, id);
   expect(li).toEqual([expect.objectContaining({ partId: 'ch1', vectorId: ch.items[0].id })]);
-  // 브라우저에서 SVG 를 받아 입체 윤곽으로 (사각형 하나 → 윤곽 하나, 상자 mm 안)
   const vec = await page.evaluate(async (id) => {
     const ip = '/src/lib/render/itemImages.ts'; const { loadItemVectors } = await import(/* @vite-ignore */ ip);
     const g = (window as any).__ganpanda; const o = g.project.object(id);
@@ -164,26 +170,58 @@ test('구성 요소 묶음(.ganpanda)을 올리면 바탕 인쇄는 사인물 �
   expect(vec.n).toBe(1);
   expect(vec.minX).toBeCloseTo((100 / 850.39) * 3000 - 1500, 0);
   expect(vec.maxX).toBeCloseTo((400 / 850.39) * 3000 - 1500, 0);
-  // 보드 카드·사진에도 디자인이 보인다 (2D 탭)
+  // 카드 표시 (2026-11-06 "사인물카드는 실측(사진), 2d(속성내용), 3d(속성내용 3d추가), 디자인(대지 이미지)")
+  const card = page.locator(`[data-testid="board-card"][data-id="${id}"]`);
+  await page.getByTestId('view-design').click();
+  await expect(card.getByTestId('design-image')).toHaveCount(1);
+  await expect(card.getByTestId('parts-overlay')).toHaveCount(0);
   await page.getByTestId('stage-2d').click();
-  await expect(page.locator(`[data-testid="board-card"][data-id="${id}"] [data-testid="parts-overlay"] image`)).toHaveCount(1);
+  await expect(card.getByTestId('design-image')).toHaveCount(0);
+  await expect(card.locator('[data-testid="parts-overlay"] image')).toHaveCount(1);
+  await page.getByTestId('view-board').click(); // 실측
+  await expect(card.getByTestId('design-image')).toHaveCount(0);
+  await expect(card.getByTestId('parts-overlay')).toHaveCount(0);
+  // 보내기 최종 이미지 = 디자인(빨강)
+  const px = await page.evaluate(async (id) => {
+    const mp = '/src/lib/render/cardImage.ts'; const { cardFinalPng } = await import(/* @vite-ignore */ mp);
+    const o = (window as any).__ganpanda.project.object(id);
+    const b: Blob = await cardFinalPng(o, 3000, 600, 300);
+    const img = await createImageBitmap(b); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d')!; x.drawImage(img, 0, 0); return [img.width, img.height, ...x.getImageData(150, 30, 1, 1).data];
+  }, id);
+  expect(px.slice(0, 5)).toEqual([300, 60, 255, 0, 0]);
 });
 
-test('[일러스트 대지 받기] 데이터에 구성 요소 하위 레이어 — 채널·스카시 = 입체, 시트 = 인쇄, 조명 등은 빠짐', async ({ page, request }) => {
+test('보내기 최종 이미지: 디자인이 없으면 2D 속성 내용(사진 위 바탕색), 아무것도 없으면 사진 (2026-11-06 "보내기는 위의 순서로 최종(3d제외) 이미지로 보낸다")', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  const id = await page.evaluate(() => {
+  const ids = await page.evaluate(() => {
     const g = (window as any).__ganpanda; const pid = g.photos[0].id;
-    return g.project.addObject({ photoId: pid, name: '조합', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600,
-      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [] }, { id: 'sc1', kind: 'scashi', type: '', items: [] }, { id: 'sh1', kind: 'sheet', type: 'sh-print', on: 'sc1', items: [] }] });
+    return {
+      fill: g.project.addObject({ photoId: pid, name: '바탕', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600, options: { faceColor: '#0000ff' } }),
+      none: g.project.addObject({ photoId: '', name: '빈', shape: 'rect', quad: [], sheetIds: [], widthMm: 600, heightMm: 600 }),
+    };
   });
-  await openDesignSync(page, 'illustrator');
-  await page.getByTestId('illustrator-download').click();
-  await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.lastIllustrator.length)).toBeGreaterThan(0);
-  const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
-  const data = JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));
-  const card = data.cards.find((c: any) => c.id === id);
-  expect(card.parts.map((p: any) => [p.id, p.mode, /\((입체|인쇄)\)$/.test(p.label)])).toEqual([['ch1', 'vector', true], ['sc1', 'vector', true], ['sh1', 'print', true]]);
+  const out = await page.evaluate(async (ids) => {
+    const mp = '/src/lib/render/cardImage.ts'; const { cardFinalPng } = await import(/* @vite-ignore */ mp);
+    const rp = '/src/lib/core/render.ts'; const { bodyLook } = await import(/* @vite-ignore */ rp);
+    const g = (window as any).__ganpanda;
+    const a = g.project.object(ids.fill);
+    const b: Blob | null = await cardFinalPng(a, 3000, 600, 300);
+    const look = bodyLook(a);
+    const img = await createImageBitmap(b!); const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d')!; x.drawImage(img, 0, 0);
+    const none = await cardFinalPng(g.project.object(ids.none), 600, 600, 300);
+    return { has: !!b, look, px: [...x.getImageData(150, 30, 1, 1).data], none };
+  }, ids);
+  expect(out.has).toBe(true);
+  expect(out.look).toBeTruthy(); // 2D 바탕색이 있는 사인물
+  // 가운데 픽셀 = 사진 위에 바탕색을 불투명도만큼 (사진 픽셀을 모르니 바탕색 쪽으로 기울었는지)
+  const hex = (out.look as any).color as string;
+  const want = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const dist = (p: number[]) => Math.hypot(p[0] - want[0], p[1] - want[1], p[2] - want[2]);
+  expect(dist(out.px)).toBeLessThan(255 * (1 - (out.look as any).opacity) * 1.8 + 8);
+  expect(out.none).toBeNull(); // 사진도 속성도 없으면 보낼 그림 없음
 });
 
 test('받기 검토: 누락(파일에 없는 사인물)·새로 생김(짝 없는 대지) 처리 — 새 대지는 새 사인물 카드로, 누락은 연결 해제 (2026-11-06 "확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요")', async ({ page, request }) => {

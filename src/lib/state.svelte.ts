@@ -26,6 +26,7 @@ import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { xmpArtboardIds } from './core/illustrator';
+import { componentOf } from './core/components';
 import { planArtboards, planBundle, type SyncAction, type SyncRow } from './core/designSync';
 import { STAGE_EXPORT_LONG } from './render/stageSize';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
@@ -62,7 +63,7 @@ import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
 import { categoryPatch, commitParts, materialPatch, newItem, partLabel, partsOf as partsOfSign } from './core/parts';
-import { bundleTargets, FRAME_PART, isBundleName, parseBundle, pngSize, svgSize, type BundleItem } from './core/illustratorBundle';
+import { FRAME_PART, isBundleName, parseBundle, pngSize, svgSize, type BundleItem } from './core/illustratorBundle';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
 import type { Pt } from './core/homography';
@@ -1132,11 +1133,18 @@ class AppState {
   private async reviewIllustratorBundle(file: File) {
     const b = parseBundle(await file.text());
     if (!b) { this.notice = '간판다 일러스트 묶음(.ganpanda) 파일이 아닙니다.'; return; }
-    const signs = this.syncSigns().map((o) => { const parts = partsOfSign(o); return { id: o.id, parts: parts.map((p) => p.id), hasDesign: !!o.design || parts.some((p) => p.items.some((i) => i.kind === 'image')) }; });
+    // path 를 받을 수 있는 구성물 = 밀어내는(입체) 구성 요소 — 채널·스카시 (2026-11-06 "path는 … 해당 구성물의 path에 사용자가 연결한다")
+    const signs = this.syncSigns().map((o) => { const parts = partsOfSign(o); return { id: o.id, parts: parts.map((p) => p.id), pathParts: parts.filter((p) => componentOf(p.kind).extrude).map((p) => p.id), hasDesign: !!o.design }; });
     this.syncReview = { kind: 'bundle', fileName: file.name, bundle: b.items, rows: planBundle(b.items, signs) };
     this.view = 'board';
   }
 
+  /** path 를 연결할 구성물 고르기 ('' = 아직 안 고름 — 확정해도 path 는 넣지 않는다) */
+  setSyncPath(key: string, partId: string) {
+    const r = this.syncReview;
+    if (!r) return;
+    this.syncReview = { ...r, rows: r.rows.map((x) => (x.key === key && (partId === '' || x.pathParts?.includes(partId)) ? { ...x, pathPart: partId } : x)) };
+  }
   setSyncAction(key: string, action: SyncAction) {
     const r = this.syncReview;
     if (!r) return;
@@ -1165,42 +1173,46 @@ class AppState {
         }
       }
     } else if (r.kind === 'bundle' && r.bundle) {
-      const take = new Set(r.rows.filter((x) => x.action === 'apply').map((x) => x.signId));
-      applied = await this.applyIllustratorBundle(r.bundle.filter((it) => take.has(it.sign)));
+      applied = await this.applyIllustratorBundle(r.bundle, r.rows.filter((x) => x.action === 'apply'));
     }
     this.syncReview = null;
     this.selectObject(null);
     this.notice = `디자인 싱크 확정 — 입힘 ${applied}${created ? ` · 새 사인물 ${created}` : ''}${unlinked ? ` · 연결 해제 ${unlinked}` : ''}`;
   }
 
-  private async applyIllustratorBundle(items: BundleItem[]): Promise<number> {
-    const targets = bundleTargets(items, this.signs.map((o) => ({ id: o.id, parts: partsOfSign(o).map((p) => p.id) })));
-    const bySign = new Map<string, BundleItem[]>();
-    for (const t of targets) bySign.set(t.sign, [...(bySign.get(t.sign) ?? []), t]);
+  /**
+   * 묶음 적용 (2026-11-06 정의): 디자인(PNG) → 사인물 바탕 디자인(새 디자인 소스, 이력에 남음), path(SVG) → 고른 구성물의 내용을 벡터 그림 하나로(채널·스카시 입체).
+   * 예전 묶음의 frame = 디자인, 구성 요소 id = 그 구성 요소. 적용한 사인물 수
+   */
+  private async applyIllustratorBundle(items: BundleItem[], rows: SyncRow[]): Promise<number> {
     const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     let n = 0;
-    for (const [signId, its] of bySign) {
-      const o = this.project.object(signId);
+    for (const row of rows) {
+      const o = row.signId ? this.project.object(row.signId) : undefined;
       if (!o) continue;
+      const its = items.filter((it) => it.sign === o.id);
       const size = this.sizeOf(o) ?? { w: o.widthMm ?? 1000, h: o.heightMm ?? 1000 };
-      let parts = partsOfSign(o), changed = false;
+      let parts = partsOfSign(o), changed = false, did = false;
+      const asItem = (assetId: string, label: string, svg: boolean) => ({ ...newItem('image'), image: { assetId, name: label }, ...(svg ? { vector: true } : {}), x: 0, y: 0, w: size.w, h: size.h });
       for (const it of its) {
+        const toPart = it.part === 'path' ? row.pathPart : it.part !== 'design' && it.part !== FRAME_PART ? it.part : undefined;
+        const isDesign = it.part === 'design' || it.part === FRAME_PART;
+        if (!isDesign && !(toPart && parts.some((p) => p.id === toPart))) continue; // path 는 구성물을 골라야 넣는다
         const bytes = bytesOf(it.data);
         const assetId = await putAsset(new Blob([bytes], { type: it.kind === 'svg' ? 'image/svg+xml' : 'image/png' }));
-        const part = parts.find((p) => p.id === it.part);
-        const label = `${o.name} ${part ? partLabel(part) : '바탕'} (일러스트)`;
-        if (it.part === FRAME_PART) {
+        if (isDesign) {
           const sz = (it.kind === 'png' ? pngSize(bytes) : svgSize(new TextDecoder().decode(bytes))) ?? { w: 1000, h: 1000 };
-          const sourceId = this.project.addSource({ name: label, kind: it.kind === 'svg' ? 'svg' : 'bitmap', fileAssetId: assetId, pages: [{ assetId, w: sz.w, h: sz.h }], author: this.nickname });
+          const sourceId = this.project.addSource({ name: `${o.name} 디자인 (일러스트)`, kind: it.kind === 'svg' ? 'svg' : 'bitmap', fileAssetId: assetId, pages: [{ assetId, w: sz.w, h: sz.h }], author: this.nickname });
           this.setDesign(o.id, { sourceId, page: 0, crop: { x: 0, y: 0, w: sz.w, h: sz.h } });
-        } else if (part) {
-          const item = { ...newItem('image'), image: { assetId, name: label }, ...(it.kind === 'svg' ? { vector: true } : {}), x: 0, y: 0, w: size.w, h: size.h };
-          parts = parts.map((p) => (p.id === part.id ? { ...p, items: [item] } : p));
+        } else {
+          const part = parts.find((p) => p.id === toPart)!;
+          parts = parts.map((p) => (p.id === part.id ? { ...p, items: [asItem(assetId, `${o.name} ${partLabel(part)} ${it.part === 'path' ? 'path' : ''} (일러스트)`.replace('  ', ' '), it.kind === 'svg')] } : p));
           changed = true;
         }
+        did = true;
       }
-      n++;
       if (changed) { this.editBoundary(); this.project.updateObject(o.id, commitParts(o, parts)); this.editBoundary(); }
+      if (did) n++;
     }
     return n;
   }
