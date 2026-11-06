@@ -16,6 +16,10 @@ test('보내기 버튼: 누르면 만드는 중 → 끝나면 ✓ 완료(창을 
   await dl;
   await expect(script).toHaveAttribute('data-state', 'done');
   await expect(script).toContainText('✓');
+  // 저장된 파일 이름과 위치·찾는 법 (2026-11-06 "다운로드 위치를 사용자가 브라우저에서 확인해야 된다")
+  const saved = page.getByTestId('sync-saved');
+  await expect(saved).toContainText('간판다.jsx');
+  await expect(saved).toContainText('다운로드 폴더');
   // 대지 zip — 만드는 중(다른 보내기 버튼은 잠김) → 완료
   const zip = page.getByTestId('illustrator-download');
   const dl2 = page.waitForEvent('download');
@@ -24,6 +28,8 @@ test('보내기 버튼: 누르면 만드는 중 → 끝나면 ✓ 완료(창을 
   await dl2;
   await expect(zip).toHaveAttribute('data-state', 'done');
   await expect(zip).toContainText('✓');
+  await expect(saved).toContainText('테스트 매장 일러스트 대지.zip'); // 마지막으로 받은 파일
+  await expect(saved).toContainText('간판다.jsx'); // 앞서 받은 것도 목록에
   // SVG 탭: 전개도·칼선도 같은 표시 (칼선은 낼 것이 없으면 실패 표시)
   await page.getByTestId('sync-program-svg').click();
   const svg = page.getByTestId('svg-download');

@@ -13,7 +13,8 @@ const safe = (id: string) => id.replace(/[^A-Za-z0-9_-]/g, '_');
  * 그림은 스크립트 안에 넣지 않고 파일로 — 일러스트가 연결만 한다 (2026-11-05 "5분정도 걸린다. 차라리 이미지들을 따로 폴더에 넣고 연결하는게 좋을 거 같은데").
  * zip 안 이름은 영문만(윈도우 기본 압축 풀기에서 한글 이름이 깨지지 않게), 풀면 zip 이름(프로젝트명) 폴더가 된다
  */
-export async function exportIllustrator(): Promise<boolean> {
+/** 받은 파일 이름 (없으면 null — 치수 있는 카드 없음) */
+export async function exportIllustrator(): Promise<string | null> {
   const cards: IllustratorCardIn[] = [];
   const files: { name: string; data: Uint8Array }[] = [];
   const addFile = (name: string, data: Uint8Array | null) => { if (!data) return undefined; files.push({ name, data }); return name; };
@@ -36,7 +37,7 @@ export async function exportIllustrator(): Promise<boolean> {
     const image = png ? addFile(`images/${safe(o.id)}.png`, new Uint8Array(await png.arrayBuffer())) : undefined;
     cards.push({ id: o.id, no: nos.get(o.id), name: o.name, x: p.x, y: p.y, w, h, ...(image ? { image } : {}) });
   }
-  if (!cards.length) return false;
+  if (!cards.length) return null;
   const project = app.access.status === 'ok' ? app.access.projectName : '간판다';
   const pkg = illustratorPackage({ project, cards });
   const jsx = jsxWithData(illustratorJsx, pkg);
@@ -48,17 +49,18 @@ export async function exportIllustrator(): Promise<boolean> {
   a.download = `${project} 일러스트 대지.zip`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-  return true;
+  return a.download;
 }
 
 /**
  * 설치용 스크립트 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건"): 데이터 없는 간판다.jsx —
  * 일러스트 스크립트 폴더에 한 번 넣으면 파일 › 스크립트 › 간판다. 실행하면 받은 폴더를 고르고(ganpanda.json), 간판다 대지 문서를 연 채면 보내기
  */
-export function downloadIllustratorScript() {
+export function downloadIllustratorScript(): string {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([illustratorJsx], { type: 'application/javascript' }));
   a.download = '간판다.jsx';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  return a.download;
 }

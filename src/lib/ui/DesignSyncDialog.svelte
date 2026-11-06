@@ -23,6 +23,10 @@
   // 버튼 상태 (2026-11-06 "스크립트 다운로드가 시각화 되지 않아 계속누르게 된다. 나머지 버튼도 시각화와 완료상태 보여줘"):
   // 누르면 만드는 중(다른 버튼 잠김) → ✓ 완료(창을 닫을 때까지) · 실패면 다시 시도. 창을 닫으면 처음 상태
   type Act = 'zip' | 'script' | 'svg' | 'cut' | 'receive';
+  /** 이 창에서 받은 파일 이름 (최근이 앞) — 웹은 저장 경로를 알 수 없어 이름과 찾는 법을 보인다 (2026-11-06 "다운로드 위치를 사용자가 브라우저에서 확인해야 된다") */
+  let saved = $state<string[]>([]);
+  const remember = (name: string) => { saved = [name, ...saved.filter((n) => n !== name)].slice(0, 5); };
+  const inApp = typeof navigator !== 'undefined' && /Ganpanda-App\//.test(navigator.userAgent);
   let st = $state<Partial<Record<Act, 'busy' | 'done' | 'error'>>>({});
   const busy = $derived(Object.values(st).includes('busy') || app.converting);
   const close = () => (app.syncOpen = false);
@@ -46,9 +50,10 @@
     a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    remember(name);
   };
-  const zip = () => run('zip', async () => { if (await exportIllustrator()) return true; app.notice = '치수가 있는 사인물 카드가 없습니다.'; return false; });
-  const script = () => run('script', async () => { downloadIllustratorScript(); });
+  const zip = () => run('zip', async () => { const n = await exportIllustrator(); if (n) { remember(n); return true; } app.notice = '치수가 있는 사인물 카드가 없습니다.'; return false; });
+  const script = () => run('script', async () => { remember(downloadIllustratorScript()); });
   // 전개도 SVG (금액·합계 없음) — 대지 레이어(사인물마다 사각형)는 그대로
   const svg = (s: typeof scale) => run('svg', async () => {
     const opts: Partial<SvgSheet> = { artboards: true };
@@ -110,6 +115,14 @@
       {/if}
     </section>
 
+    {#if saved.length}
+      <div class="saved" data-testid="sync-saved">
+        <b>✓ 저장됨 — 다운로드 폴더</b>
+        <ul>{#each saved as n (n)}<li>{n}</li>{/each}</ul>
+        <small>{inApp ? 'Finder › 다운로드 폴더에서 찾으세요.' : '브라우저 다운로드 목록(크롬 ⌘⇧J · 사파리 ⌥⌘L · 윈도우 Ctrl+J) 또는 다운로드 폴더에서 찾으세요. 브라우저에서 "저장 위치 묻기"를 켰다면 고른 곳에 있습니다.'} 같은 이름이 있으면 브라우저가 이름 뒤에 (1)을 붙입니다.</small>
+      </div>
+    {/if}
+
     <section data-testid="sync-receive">
       <h3>받기 <small>{PROGRAMS.find((p) => p.id === program)!.label} → 간판다</small></h3>
       {#if app.canEdit}
@@ -151,6 +164,9 @@
   .unconfirmed { margin: 0; color: #fb923c; font-size: 12px; line-height: 1.4; }
   footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* 버튼 상태 (2026-11-06): 만드는 중 스피너 · ✓ 완료 초록 · 실패 주황 */
+  .saved { border: 1px solid var(--ok); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .saved ul { margin: 0; padding-left: 18px; word-break: break-all; }
+  .saved small { color: var(--muted); line-height: 1.45; }
   .btn.done { background: color-mix(in srgb, var(--ok) 22%, transparent); border-color: var(--ok); color: var(--text); }
   .btn.err { border-color: var(--warn); color: var(--warn); background: transparent; }
   .btn:disabled, .btn.off { opacity: 0.55; cursor: progress; }
