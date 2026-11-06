@@ -1,7 +1,7 @@
 // 일러스트레이터 왕복 (2026-11-05 사용자: "대지를 다시 구성한다는건 이후에 일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지" →
 // "가장 나이스한건 일러스트 플러그인을 개발하고 우리 포맷을 일러스트에서 재구성하는 거야" → "현재는 최신버전")
 import { describe, expect, it } from 'vitest';
-import { artboardName, idFromArtboardName, illustratorPackage, illustratorScale, jsxWithData, matchArtboards, xmpArtboardIds } from '../../src/lib/core/illustrator';
+import { artboardName, artNumbers, artRef, idFromArtboardName, illustratorPackage, illustratorScale, jsxWithData, matchArtboards, xmpArtboardIds } from '../../src/lib/core/illustrator';
 
 describe('illustratorPackage — 카드 배치(mm)를 대지로', () => {
   const cards = [
@@ -23,11 +23,37 @@ describe('illustratorPackage — 카드 배치(mm)를 대지로', () => {
   });
 });
 
-describe('대지 이름 = "이름 #id"', () => {
-  it('만들고 되읽는다 — 이름에 #이 있어도 마지막 #뒤가 id', () => {
-    expect(artboardName('정면 #1 간판', 'k9_X-2')).toBe('정면 #1 간판 #k9_X-2');
-    expect(idFromArtboardName('정면 #1 간판 #k9_X-2')).toBe('k9_X-2');
+describe('대지 이름 = "프로젝트명 #번호" (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게")', () => {
+  it('만들고 되읽는다 — 프로젝트명의 #은 빼고, 마지막 # 뒤가 추적 값', () => {
+    expect(artboardName('테스트 매장', 3)).toBe('테스트 매장 #3');
+    expect(artboardName('A#B 매장', 12)).toBe('AB 매장 #12');
+    expect(idFromArtboardName('테스트 매장 #3')).toBe('3');
+    expect(idFromArtboardName('정면 #1 간판 #k9_X-2')).toBe('k9_X-2'); // 예전 이름
     expect(idFromArtboardName('대지 1')).toBeNull();
+  });
+  it('artNumbers — 1부터, 새로 생기면 증분, 사라진 번호는 영구결번 (2026-11-06 "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번")', () => {
+    // 처음: 1부터 차례로
+    const r0 = artNumbers([{ id: 'x' }, { id: 'y' }], 0);
+    expect(r0.added).toEqual([{ id: 'x', no: 1 }, { id: 'y', no: 2 }]);
+    expect(r0.last).toBe(2);
+    // 2(y)를 지운 뒤 새 사인물 → 2 가 아니라 3 (지금까지 매긴 가장 큰 번호 다음)
+    const r1 = artNumbers([{ id: 'x', artNo: 1 }, { id: 'z' }], 2);
+    expect(r1.added).toEqual([{ id: 'z', no: 3 }]);
+    expect(r1.last).toBe(3);
+    // 있으면 그대로, 겹치면(복제한 사인물) 뒤의 것에 새 번호
+    const r2 = artNumbers([{ id: 'a', artNo: 2 }, { id: 'b' }, { id: 'c', artNo: 2 }, { id: 'd', artNo: 5 }, { id: 'e' }], 5);
+    expect(Object.fromEntries(r2.nos)).toEqual({ a: 2, b: 6, c: 7, d: 5, e: 8 });
+    expect(r2.added).toEqual([{ id: 'b', no: 6 }, { id: 'c', no: 7 }, { id: 'e', no: 8 }]);
+    expect(r2.last).toBe(8);
+    // 기록이 없어도(예전 프로젝트) 있는 번호보다 크게
+    expect(artNumbers([{ id: 'a', artNo: 4 }, { id: 'b' }]).added).toEqual([{ id: 'b', no: 5 }]);
+  });
+  it('artRef — 대지의 추적 값 → 사인물 id: 번호, 아니면 예전 id', () => {
+    const signs = [{ id: 'k9', artNo: 3 }, { id: 'zz' }];
+    expect(artRef('3', signs)).toBe('k9');
+    expect(artRef('zz', signs)).toBe('zz');
+    expect(artRef('4', signs)).toBeNull();
+    expect(artRef(null, signs)).toBeNull();
   });
 });
 

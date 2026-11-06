@@ -72,14 +72,14 @@ const b64 = (s: string) => Buffer.from(s, 'latin1').toString('base64');
 describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11-06 정의)', () => {
   // 사용자: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
   const pkg = illustratorPackage({ project: '테스트 매장', cards: [
-    { id: 'a1', name: '정면 간판', x: 1000, y: 500, w: 3000, h: 600, image: 'images/a1.png' },
-    { id: 'b2', name: '돌출', x: 4500, y: 700, w: 600, h: 900, image: 'images/b2.png' },
+    { id: 'a1', no: 1, name: '정면 간판', x: 1000, y: 500, w: 3000, h: 600, image: 'images/a1.png' },
+    { id: 'b2', no: 2, name: '돌출', x: 4500, y: 700, w: 600, h: 900, image: 'images/b2.png' },
   ] });
-  it('사인물마다 크기대로 대지("이름 #id") — 레이어는 아래부터 받은 이미지(잠금, 최종 이미지) · 디자인 · path, XMP, PDF 호환 .ai', () => {
+  it('사인물마다 크기대로 대지("프로젝트명 #번호" — 2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게") — 레이어는 아래부터 받은 이미지(잠금, 최종 이미지) · 디자인 · path, XMP, PDF 호환 .ai', () => {
     const f = fakeIllustrator();
     vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
     const doc = f.docs[0];
-    expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['정면 간판 #a1', '돌출 #b2']);
+    expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['테스트 매장 #1', '테스트 매장 #2']);
     const [r0, r1] = doc.artboards.map((a: Rec) => a.artboardRect);
     expect(r0[0]).toBeCloseTo(0, 6); expect(r0[1]).toBeCloseTo(0, 6); expect(r0[2]).toBeCloseTo(3000 * PT, 4); expect(r0[3]).toBeCloseTo(-600 * PT, 4);
     expect(r1[0]).toBeCloseTo(3500 * PT, 4); expect(r1[1]).toBeCloseTo(-200 * PT, 4); expect(r1[2]).toBeCloseTo(4100 * PT, 4); expect(r1[3]).toBeCloseTo(-1100 * PT, 4);
@@ -92,7 +92,7 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
     expect(recv.placedItems[1].width).toBeCloseTo(600 * PT, 4);
     expect(doc.layers.find((l: Rec) => l.name === '디자인').pageItems).toHaveLength(0);
     expect(doc.layers.find((l: Rec) => l.name === 'path').pageItems).toHaveLength(0);
-    expect(doc.XMPString).toContain('<ganpanda:artboards>a1|b2</ganpanda:artboards>');
+    expect(doc.XMPString).toContain('<ganpanda:artboards>1|2</ganpanda:artboards>');
     expect(doc.saved).toEqual({ file: '/tmp/out.ai', pdf: true });
     expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
   });
@@ -114,20 +114,20 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정
   // 사용자: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다. path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
   it('대지마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → .ganpanda. 대지 밖·간판다 대지 아닌 곳은 빠짐', () => {
     // 대지(가짜): i번째 = [i*100, 0, i*100+90, -90]
-    const f = fakeIllustrator({ existing: { names: ['정면 간판 #a1', '대지 3', '돌출 #b2'], layers: [
+    const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [
       { name: '받은 이미지', items: [[0, 0, 90, -90], [200, 0, 290, -90]] },
       { name: '디자인', items: [[10, -10, 50, -50], [60, -5, 80, -40], [110, -10, 150, -50]] }, // a1 에 둘, '대지 3' 에 하나
       { name: 'path', items: [[205, -10, 250, -60]] }, // b2 에 하나
     ] } });
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
     const doc = f.docs[0];
-    expect(doc.XMPString).toContain('<ganpanda:artboards>a1||b2</ganpanda:artboards>');
+    expect(doc.XMPString).toContain('<ganpanda:artboards>1||2</ganpanda:artboards>');
     expect(doc.saved).toEqual({ file: '/tmp/existing.ai', pdf: true });
     const bundle = JSON.parse(f.written['/tmp/existing.ganpanda']);
     expect(bundle).toMatchObject({ format: 'ganpanda-illustrator-bundle', version: 2 });
     expect(bundle.items).toEqual([
-      { sign: 'a1', part: 'design', kind: 'png', data: b64('PNGDATA') },
-      { sign: 'b2', part: 'path', kind: 'svg', data: b64('SVGDATA') },
+      { sign: '1', part: 'design', kind: 'png', data: b64('PNGDATA') },
+      { sign: '2', part: 'path', kind: 'svg', data: b64('SVGDATA') },
     ]);
     const temps = f.docs.slice(1);
     expect(temps).toHaveLength(2);
@@ -166,7 +166,7 @@ describe('간판다.jsx 설치형 — 데이터 없이 실행하면 폴더를 �
     vm.runInNewContext(TEMPLATE, f.ctx); // 데이터 줄 없는 스크립트 그대로
     expect(f.log.some((l) => l.startsWith('pick:'))).toBe(true);
     const doc = f.docs[0];
-    expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['정면 #a1']);
+    expect(doc.artboards.map((a: Rec) => a.name)).toEqual(['매장 #a1']); // 번호가 없으면(예전 데이터) id
     expect(doc.layers.find((l: Rec) => l.name === '받은 이미지').placedItems[0].file.fsName).toBe('/Users/me/Downloads/매장 일러스트 대지/images/a1.png');
   });
   it('취소하면 아무것도 안 함, ganpanda.json 이 없는 폴더면 알림', () => {

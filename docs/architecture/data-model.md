@@ -56,6 +56,7 @@
 | `letter3d?` | 입체 설정 `{depthMm, faceColor, sideColor, letterSpacing}` |
 | `design?` | 입힌 디자인 `{sourceId, page, crop}` (페이지 px) |
 | `designHistory?` | 디자인 변경 이력 (최신이 앞, 최대 20) |
+| `artNo?` | 일러스트 대지 번호 — 대지 이름 "프로젝트명 #번호"로 추적. 보낼 때 매김, 1부터 증분·지운 번호 영구결번(설정 `artNoLast`) (2026-11-06) |
 | `listX?`, `listY?` | 평면도 위치 (mm) — 리스트 뷰와 보드 평면 구역이 같은 배치를 씀. 없으면 자동 배치 |
 | `depthMm?` | 보드 두께·돌출 깊이 (규격 필드) |
 | `options?` | 주문 사양 옵션 (`core/options.ts` 스키마 키 → 값). 규격 필드 → [../features/order.md](../features/order.md) |

@@ -11,7 +11,7 @@
   const ORDER: SyncStatus[] = ['new', 'missing', 'update', 'link'];
   const rows = $derived([...r.rows].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status)));
   const count = (s: SyncStatus) => r.rows.filter((x) => x.status === s).length;
-  const nameOf = (id?: string) => (id ? app.project.object(id)?.name ?? '간판다에 없는 사인물' : '');
+  const nameOf = (id?: string) => { const o = id ? app.project.object(id) : undefined; return o ? `${o.artNo ? `#${o.artNo} ` : ''}${o.name}` : id ? '간판다에 없는 사인물' : ''; };
   const what = (row: (typeof rows)[number]) => {
     if (row.status === 'new') return row.page !== undefined ? `대지 ${row.page + 1}${row.w ? ` · ${row.w.toLocaleString()}×${row.h!.toLocaleString()}mm` : ''}` : nameOf(row.signId);
     const got = [row.design ? '디자인' : '', row.path ? 'path' : '', row.parts ? `구성 요소 ${row.parts.length}` : ''].filter(Boolean).join(' · ');

@@ -25,7 +25,7 @@ import { loadRoomView } from './core/roomView';
 import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
-import { xmpArtboardIds } from './core/illustrator';
+import { artRef, xmpArtboardIds } from './core/illustrator';
 import { componentOf } from './core/components';
 import { planArtboards, planBundle, type SyncAction, type SyncRow } from './core/designSync';
 import { STAGE_EXPORT_LONG } from './render/stageSize';
@@ -1118,7 +1118,8 @@ class AppState {
   private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number } }[], xmp: string | undefined) {
     const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
     const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design }] : []; });
-    const ids = xmpArtboardIds(xmp);
+    // 대지 추적 값(# 뒤 — 대지 번호 또는 예전 사인물 id) → 사인물 id (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게")
+    const ids = xmpArtboardIds(xmp)?.map((r) => (r ? artRef(r, this.signs) ?? r : null)) ?? null;
     const rows = planArtboards(pagesMm, ids, signs);
     // 짝 정보도 크기 짝도 없으면 검토할 것이 없다 — 디자인 파일에만 (영역을 그려 연결)
     if (!(ids && ids.length === pages.length) && !rows.some((r) => r.signId)) { if (this.view !== 'uv') this.notice = `${fileName} 을 디자인 파일에 넣었습니다 — 크기가 맞는 사인물이 없어 [디자인 싱크] › 디자인 파일에서 영역을 그려 연결하세요.`; return; }
@@ -1133,6 +1134,7 @@ class AppState {
   private async reviewIllustratorBundle(file: File) {
     const b = parseBundle(await file.text());
     if (!b) { this.notice = '간판다 일러스트 묶음(.ganpanda) 파일이 아닙니다.'; return; }
+    b.items = b.items.map((it) => ({ ...it, sign: artRef(it.sign, this.signs) ?? it.sign })); // 대지 번호 → 사인물 id
     // path 를 받을 수 있는 구성물 = 밀어내는(입체) 구성 요소 — 채널·스카시 (2026-11-06 "path는 … 해당 구성물의 path에 사용자가 연결한다")
     const signs = this.syncSigns().map((o) => { const parts = partsOfSign(o); return { id: o.id, parts: parts.map((p) => p.id), pathParts: parts.filter((p) => componentOf(p.kind).extrude).map((p) => p.id), hasDesign: !!o.design }; });
     this.syncReview = { kind: 'bundle', fileName: file.name, bundle: b.items, rows: planBundle(b.items, signs) };

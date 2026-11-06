@@ -2,7 +2,7 @@
 // 카드 배치(mm)와 카드마다 최종 이미지(2026-11-06 정의 — 디자인 > 2D 속성 내용 > 사진)를 담는다. 일러스트에서 실행하면 사인물마다 대지 + 받은 이미지·디자인·path 레이어 → docs/features/illustrator.md
 import { app } from './state.svelte';
 import { cardFinalPng } from './render/cardImage';
-import { illustratorPackage, jsxWithData, type IllustratorCardIn } from './core/illustrator';
+import { artNumbers, illustratorPackage, jsxWithData, type IllustratorCardIn } from './core/illustrator';
 import { zipStore } from './core/zip';
 import illustratorJsx from './illustrator/ganpanda.jsx?raw';
 
@@ -17,6 +17,16 @@ export async function exportIllustrator(): Promise<boolean> {
   const cards: IllustratorCardIn[] = [];
   const files: { name: string; data: Uint8Array }[] = [];
   const addFile = (name: string, data: Uint8Array | null) => { if (!data) return undefined; files.push({ name, data }); return name; };
+  // 대지 번호 (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게" → "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번"):
+  // 번호 없는 사인물에 만든 순서대로 매기고, 지금까지 매긴 가장 큰 번호(artNoLast)와 함께 저장 — 지운 사인물의 번호는 다시 쓰지 않는다
+  const byCreated = app.flatCards.filter((c) => !c.placeholder).map((c) => c.o).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  const { nos, added, last } = artNumbers(byCreated, app.settings.artNoLast ?? 0);
+  if (added.length && app.canEdit) {
+    app.editBoundary();
+    for (const a of added) app.project.updateObject(a.id, { artNo: a.no });
+    app.updateSettings({ artNoLast: last });
+    app.editBoundary();
+  }
   for (const { o, w, h, placeholder } of app.flatCards) {
     if (placeholder) continue;
     const p = app.flatPlaced.get(o.id);
@@ -24,7 +34,7 @@ export async function exportIllustrator(): Promise<boolean> {
     // 받은 이미지 = 카드의 최종 그림 (2026-11-06 정의 "보내기는 위의 순서로 최종(3d제외) 이미지로 보낸다") — render/cardImage
     const png = await cardFinalPng(o, w, h).catch(() => null);
     const image = png ? addFile(`images/${safe(o.id)}.png`, new Uint8Array(await png.arrayBuffer())) : undefined;
-    cards.push({ id: o.id, name: o.name, x: p.x, y: p.y, w, h, ...(image ? { image } : {}) });
+    cards.push({ id: o.id, no: nos.get(o.id), name: o.name, x: p.x, y: p.y, w, h, ...(image ? { image } : {}) });
   }
   if (!cards.length) return false;
   const project = app.access.status === 'ok' ? app.access.projectName : '간판다';

@@ -248,6 +248,37 @@ test('받기 검토: 누락(파일에 없는 사인물)·새로 생김(짝 없�
   expect(await page.evaluate(() => (window as any).__ganpanda.signs.length)).toBe(before + 1);
 });
 
+test('대지 = "프로젝트명 #번호" — 1부터, 새로 생기면 증분, 지운 사인물 번호는 영구결번, 받을 때 번호로 사인물을 찾는다 (2026-11-06)', async ({ page, request }) => {
+  // 사용자: "대지 #id로 추적하고 프로젝트명+숫자 간단하게" → "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번"
+  await openOwnedProject(page, request);
+  const ids = await twoSigns(page);
+  const exportData = async () => {
+    await openDesignSync(page, 'illustrator');
+    const before = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator?.length ?? 0);
+    await page.getByTestId('illustrator-download').click();
+    await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.lastIllustrator?.length ?? 0)).not.toBe(before);
+    await page.getByTestId('design-sync-close').click();
+    const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
+    return JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));
+  };
+  const no = (id: string) => page.evaluate((id) => (window as any).__ganpanda.project.object(id)?.artNo, id);
+  const d1 = await exportData();
+  expect(d1.project).toBe('테스트 매장');
+  expect(Object.fromEntries(d1.cards.map((c: any) => [c.id, c.no]))).toEqual({ [ids.a]: 1, [ids.b]: 2 }); // 만든 순서대로 1부터
+  expect([await no(ids.a), await no(ids.b)]).toEqual([1, 2]); // 사인물에 저장
+  await expect(page.locator(`[data-testid="board-card"][data-id="${ids.b}"] [data-testid="card-artno"]`)).toHaveText('#2'); // 카드에 번호
+  // 2번을 지우고 새 사인물 → 3 (2 는 영구결번)
+  const c = await page.evaluate((b) => { const g = (window as any).__ganpanda; g.project.removeObject(b); return g.project.addObject({ photoId: g.photos[0].id, name: '새 간판', shape: 'rect', quad: [[100, 400], [300, 400], [300, 500], [100, 500]], sheetIds: [], widthMm: 1200, heightMm: 400 }); }, ids.b);
+  const d2 = await exportData();
+  expect(Object.fromEntries(d2.cards.map((x: any) => [x.id, x.no]))).toEqual({ [ids.a]: 1, [c]: 3 });
+  expect(await page.evaluate(() => (window as any).__ganpanda.settings.artNoLast)).toBe(3);
+  // 받기: .ai 의 XMP 짝(대지 번호) → 사인물
+  await upload(page, '매장 대지.ai', pdfWith([[1200 * PT, 400 * PT], [3000 * PT, 600 * PT]], xmpOf(['3', '1'])));
+  await page.getByTestId('sync-confirm').click();
+  await expect.poll(() => designOf(page, c), { timeout: 30_000 }).toMatchObject({ page: 0 });
+  expect(await designOf(page, ids.a)).toMatchObject({ page: 1 });
+});
+
 test('받기 검토 [취소] — 아무것도 입히지 않는다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   const ids = await twoSigns(page);

@@ -2,7 +2,7 @@
 // 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › [대지 받기 (zip)]의 폴더에서 실행(또는 설치형 간판다.jsx 로 폴더를 고름). 앞줄의 GANPANDA_DATA 가 프로젝트 데이터.
 // 일러스트 기준 파일 싱크 (2026-11-06 사용자 정의):
 //  - 대지 만들기: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
-//    → 사인물마다 크기대로 대지("이름 #id"), 레이어 아래부터 받은 이미지(잠금 — 카드의 최종 그림) · 디자인 · path → .ai(PDF 호환) 저장
+//    → 사인물마다 크기대로 대지("프로젝트명 #번호" — 번호 = 간판다 사인물의 고정 대지 번호), 레이어 아래부터 받은 이미지(잠금 — 카드의 최종 그림) · 디자인 · path → .ai(PDF 호환) 저장
 //  - 간판다로 보내기: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다.
 //    path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
 //    → 간판다 대지(#id)마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → "같은 이름.ganpanda" 묶음
@@ -161,8 +161,10 @@
       var c = data.cards[i];
       var left = c.x * k, top = -c.y * k, w = c.w * k, h = c.h * k;
       var ab = doc.artboards.add([left, top, left + w, top - h]);
-      ab.name = c.name + ' #' + c.id;
-      ids.push(c.id);
+      // 대지 이름 = "프로젝트명 #번호" (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게") — # 뒤 값으로 사인물을 찾는다
+      var ref = c.no ? String(c.no) : c.id;
+      ab.name = String(data.project).replace(/#/g, '') + ' #' + ref;
+      ids.push(ref);
       if (c.image) place(recv, c.image, left, top, w, h);
     }
     if (doc.artboards.length > data.cards.length) doc.artboards.remove(0); // 문서를 만들 때 생긴 처음 대지

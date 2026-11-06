@@ -142,6 +142,8 @@ export interface SignObject {
   bubble?: { tip: [number, number]; body: [number, number] };
   /** 디자인 변경 이력 (최신이 앞) */
   designHistory?: DesignHistoryEntry[];
+  /** 일러스트 대지 번호 — 대지 이름 "프로젝트명 #번호"로 추적 (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게"). 처음 보낼 때 매긴다 */
+  artNo?: number;
   /** 평면도 위치 (mm) — 리스트 뷰와 보드의 평면 구역이 같은 배치를 쓴다. 없으면 자동 배치 */
   listX?: number;
   listY?: number;
@@ -220,6 +222,8 @@ export interface ProjectSettings {
   flatScale?: number;
   /** 보드 평면 구역 이동 (보드 px, 기본 0,0 — 2026-10-17 왼쪽 위 이동 손잡이) */
   flatOffset?: { x: number; y: number };
+  /** 지금까지 매긴 가장 큰 일러스트 대지 번호 — 지운 사인물의 번호는 영구결번 (2026-11-06 "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번") */
+  artNoLast?: number;
   /** 버전 되돌리기 (2026-10-21): 누가·언제·어느 버전으로 — 서버가 넣고, 함께 보는 사람에게 안내 */
   restored?: { by: string; at: number; version: string };
   /** 보드 카드 간격 (mm, 기본 600 — 2026-10-20 "상단 버튼에 카드 간격 + -") — 재정렬·자동 배치에 쓴다 */

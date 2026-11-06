@@ -17,6 +17,8 @@ export interface IllustratorCardIn {
    * 없으면 2D(속성 내용: 사진 위 바탕색·구성 요소), 그것도 없으면 실측 사진. 스크립트 폴더 기준 파일 경로(images/…) 또는 data URL
    */
   image?: string;
+  /** 대지 번호 — 대지 이름 "프로젝트명 #번호" (2026-11-06) */
+  no?: number;
 }
 export interface IllustratorPackage {
   format: typeof ILLUSTRATOR_FORMAT; version: 2;
@@ -42,8 +44,34 @@ export function illustratorPackage(input: { project: string; cards: IllustratorC
   return { format: ILLUSTRATOR_FORMAT, version: 2, project: input.project, scale: illustratorScale(width, height), width, height, cards: cs.map((c) => ({ ...c, x: c.x - x0, y: c.y - y0 })) };
 }
 
-/** 대지 이름 = "이름 #id" — 되돌아올 때 이 id 로 사인물을 찾는다 */
-export const artboardName = (name: string, id: string) => `${name} #${id}`;
+/**
+ * 대지 이름 = "프로젝트명 #번호" (2026-11-06 사용자: "대지 #id로 추적하고 프로젝트명+숫자 간단하게"). 번호 = 사인물의 고정 대지 번호(artNo) —
+ * 되돌아올 때 # 뒤 값으로 사인물을 찾는다(artRef). 프로젝트명의 # 은 뺀다. 예전 이름 "이름 #사인물id" 도 읽는다
+ */
+export const artboardName = (project: string, no: number) => `${project.replace(/#/g, '').trim()} #${no}`;
+
+/**
+ * 사인물마다 고정 대지 번호 (2026-11-06 "번호 규칙은 1부터 새로생기면 증분 사라지면 영구결번"): 있으면 그대로, 없거나 앞 사인물과 겹치면(복제)
+ * 지금까지 매긴 가장 큰 번호(last — 프로젝트 설정 artNoLast) 다음부터 차례로 — 지운 사인물의 번호는 다시 쓰지 않는다.
+ * added = 새로 매긴 것, last = 새 가장 큰 번호 (둘 다 저장할 것)
+ */
+export function artNumbers(signs: { id: string; artNo?: number }[], last = 0): { nos: Map<string, number>; added: { id: string; no: number }[]; last: number } {
+  const used = new Set<number>(), nos = new Map<string, number>(), added: { id: string; no: number }[] = [];
+  let next = Math.max(last, ...signs.map((s) => s.artNo ?? 0)) + 1;
+  for (const s of signs) {
+    if (s.artNo && s.artNo > 0 && !used.has(s.artNo)) { used.add(s.artNo); nos.set(s.id, s.artNo); continue; }
+    nos.set(s.id, next); added.push({ id: s.id, no: next }); used.add(next); next++;
+  }
+  return { nos, added, last: next - 1 };
+}
+
+/** 대지의 추적 값(# 뒤) → 사인물 id: 대지 번호, 아니면 예전 사인물 id */
+export function artRef(ref: string | null | undefined, signs: { id: string; artNo?: number }[]): string | null {
+  if (!ref) return null;
+  if (/^\d+$/.test(ref)) { const s = signs.find((x) => x.artNo === Number(ref)); if (s) return s.id; }
+  return signs.find((x) => x.id === ref)?.id ?? null;
+}
+
 export function idFromArtboardName(s: string): string | null {
   const m = /#([A-Za-z0-9_-]+)\s*$/.exec(s);
   return m ? m[1] : null;
