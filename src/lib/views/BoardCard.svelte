@@ -82,7 +82,7 @@
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
-    <b>{#if sync}<span class="badge sync {sync}" data-testid="card-sync" data-status={sync} title="디자인 싱크 — 받은 파일과의 연결 상태 (확정 전)">{SYNC_STATUS_LABEL[sync]}</span>{/if}{#if changed}<span class="badge change" data-testid="card-change" title="고객 컨펌(발행) 뒤 바뀐 사인물 — 고객이 다시 컨펌하기 전까지 변경안 (견적 탭 [바뀐 내용])">변경안</span>{/if}{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{#if o.artNo}<span class="artno" data-testid="card-artno" title="일러스트 대지 번호 — 대지 이름 '프로젝트명 #{o.artNo}'">#{o.artNo}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
+    <b>{#if sync}<span class="badge sync {sync}" data-testid="card-sync" data-status={sync} title="디자인 싱크 — 받은 파일과의 연결 상태 (확정 전)">{SYNC_STATUS_LABEL[sync]}</span>{/if}{#if changed}<span class="badge change" data-testid="card-change" title="고객 컨펌(발행) 뒤 바뀐 사인물 — 고객이 다시 컨펌하기 전까지 변경안 (견적 탭 [바뀐 내용])">변경안</span>{/if}{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{#if o.artNo}<span class="badge artno" data-testid="card-artno" title="디자인 보냄 — 일러스트 대지 '프로젝트명 #{o.artNo}'{o.design ? ' · 디자인 받음' : ' · 디자인 진행'}">#{o.artNo}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
@@ -110,7 +110,7 @@
   .fill { position: absolute; inset: 0; pointer-events: none; }
   .design { position: absolute; inset: 0; }
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
-  .artno { margin-right: 4px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; } /* 일러스트 대지 번호 (2026-11-06) */
+  .badge.artno { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); font-variant-numeric: tabular-nums; } /* 일러스트 대지 번호 배지 (2026-11-06 "배지로 사인물카드에 작게") */
   .badge.change { color: #fb923c; border-color: #fb923c; } /* 변경안 (2026-11-05) */
   .voice { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 6px; background: rgba(255, 90, 90, 0.18); color: #ff8a8a; font-size: 10px; font-weight: 700; }
   .badge.settings { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }

@@ -55,6 +55,7 @@
   import RequestInbox from './lib/ui/RequestInbox.svelte';
   import OpsPage from './lib/ui/OpsPage.svelte';
   import { listContentReports } from './lib/projects';
+  import { designCounts } from './lib/core/measureSummary';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
   import DesignSyncDialog from './lib/ui/DesignSyncDialog.svelte';
@@ -103,6 +104,18 @@
     if (key === lastSavedCounts) return;
     clearTimeout(countTimer);
     countTimer = window.setTimeout(() => { lastSavedCounts = key; updateProject(app.room!, { signTotal: total, signUnmeasured: un }).catch(() => {}); }, 1000);
+  });
+
+  // 디자인 진행 (2026-11-06 "디지인 내보내면 번호생성 … 이걸로 상태를 디자인 진행으로 표시" → "상태 표시는 홈의 프로젝트 카드를 말한거야"):
+  // 일러스트로 보낸(대지 번호) 사인물 수·그중 디자인 받은 수가 바뀌면 1초 뒤 저장 — 홈 카드 "디자인 진행 받음/보냄" (core/measureSummary.ts designLabel)
+  let designTimer = 0, lastSavedDesign = '';
+  $effect(() => {
+    const c = designCounts(app.signs);
+    if (!app.room || app.role !== 'owner' || !app.ready) return;
+    const key = `${c.signDesign}/${c.signDesigned}`;
+    if (key === lastSavedDesign) return;
+    clearTimeout(designTimer);
+    designTimer = window.setTimeout(() => { lastSavedDesign = key; updateProject(app.room!, c).catch(() => {}); }, 1000);
   });
 
   // 캔버스 밖에서도 브라우저 확대(Ctrl+휠·핀치)가 일어나지 않게 (xlpop 과 동일)

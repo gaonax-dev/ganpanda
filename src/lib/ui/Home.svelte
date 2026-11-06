@@ -19,7 +19,7 @@
   // 운영 배너 (2026-10-22 "서비스 시작하고 이런 상황이 벌어지면 심각하다"): 운영자에게 서버 헬스(메일 DNS) 이상을 홈에서 바로
   let health = $state<{ ok: boolean; mail?: { detail: string } } | null>(null);
   $effect(() => { if (app.account?.operator && SERVER_URL) fetch(`${SERVER_URL}/api/health`, { cache: 'no-store' }).then(async (r) => (health = (await r.json()) as typeof health)).catch(() => (health = { ok: false, mail: { detail: '서버 헬스 응답 없음' } })); });
-  import { measureLabel } from '../core/measureSummary';
+  import { designLabel, measureLabel } from '../core/measureSummary';
   import { groupDday, projectDday } from '../core/dday';
   import type { ProjectDetails } from '../projects';
   import { createGroup, createProject, deleteGroup, deleteProject, getGroup, listGroups, listProjects, updateProject, STATUS_LABEL, type GroupInfo, type GroupView, type ProjectInfo, type ProjectStatus } from '../projects';
@@ -220,6 +220,7 @@
 
 {#snippet card(p: ProjectInfo)}
   {@const m = measureLabel(p, STATUS_LABEL[p.status])}
+  {@const dz = designLabel(p)}
   {@const d = projectDday(p)}
   <a class="pcard" data-testid="project-item" data-id={p.id} data-status={p.status} data-measure={m.kind} class:sel={selected.has(p.id)} class:picking={selectMode} href="/?room={p.id}" onclick={(e) => clickCard(e, p.id)}>
     {#if selectMode}<span class="pick" aria-hidden="true">{selected.has(p.id) ? '◉' : '○'}</span>
@@ -229,6 +230,8 @@
     <small class="meta" data-testid="project-meta">
       {#if p.lost}<span class="lost" data-testid="project-lost" title="가게 사장님이 다른 간판집을 골랐습니다 — 마음을 바꿀 수 있어 정지로 두었습니다">다른 업체 선택</span>{/if}<span class="status" data-status={p.status}>{m.label}</span>
       {#if m.count}<span class="count" data-testid="project-count" data-measure={m.kind} title={m.title}>{m.count}</span>{/if}
+      <!-- 디자인 진행 (2026-11-06 "디지인 내보내면 번호생성 … 이걸로 상태를 디자인 진행으로 표시" → "상태 표시는 홈의 프로젝트 카드를 말한거야") -->
+      {#if dz}<span class="design" data-testid="project-design" data-kind={dz.kind} title={dz.title}>{dz.label} {dz.count}</span>{/if}
       <span class="dday" data-testid="project-dday" title={d.title} class:late={d.days < 0}>{d.label}</span>
     </small>
   </a>
@@ -522,6 +525,7 @@
   .more .x { margin-left: auto; }
   /* 카드 아래 글자 */
   .pcard .meta { display: flex; gap: 6px; align-items: center; }
+  .design { color: var(--accent); font-weight: 600; } .design[data-kind='designed'] { color: var(--ok); } /* 디자인 진행 (2026-11-06) */
   .count[data-measure='waiting'] { color: var(--muted); }
   .count[data-measure='measuring'] { color: var(--accent); font-weight: 600; }
   .count[data-measure='measured'] { color: var(--ok); font-weight: 600; }

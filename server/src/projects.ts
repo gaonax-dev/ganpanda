@@ -17,7 +17,7 @@ export type Role = 'owner' | 'editor' | 'viewer';
 const INVITE_ROLES = new Set<Role>(['viewer', 'editor']);
 const NAME_MAX = 60;
 
-export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; /** 외주 폴더 (2026-10-22) */ outsource?: number; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost_at?: number | null; request_id?: string | null; group_id?: string | null; status?: string; /** 'estimate' = 소비자 견적 요청 초안 (2026-10-22) */ kind?: string | null; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
+export interface ProjectRow { id: string; owner_id: string; name: string; created_at: number; /** 외주 폴더 (2026-10-22) */ outsource?: number; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost_at?: number | null; request_id?: string | null; group_id?: string | null; status?: string; /** 'estimate' = 소비자 견적 요청 초안 (2026-10-22) */ kind?: string | null; /** 상세 (2026-10-21): 연락처·주소·계약일·시작일·완료일(YYYY-MM-DD)·메모 */ contact?: string; address?: string; contract_date?: string | null; start_date?: string | null; due_date?: string | null; memo?: string; /** 실측 상태용 사인물 수·미측정 수 (2026-10-21, 앱이 저장) */ sign_total?: number; sign_unmeasured?: number; /** 디자인 진행 (2026-11-06): 일러스트로 보낸 사인물 수·그중 디자인 받은 수 */ sign_design?: number; sign_designed?: number; /** 상태가 된 시각 (2026-10-21) */ status_at?: number | null; contract_amount?: number; paid_amount?: number; quote_total?: number; contract_override?: number | null }
 interface InviteRow { token_hash: string; project_id: string; role: Role; created_at: number; revoked_at: number | null; kind?: string | null; /** 원문 (다시 복사용, 2026-10-17). 옛 링크는 null */ token?: string | null }
 
 /** 방 ID: 16자 base64url (서버 ROOM_RE 와 호환) */
@@ -30,7 +30,7 @@ export const pubProject = (p: ProjectRow, role: Role) => ({
   id: p.id, name: p.name, createdAt: p.created_at, role,
   groupId: p.group_id ?? null, status: p.status ?? 'waiting', ...(p.status_at ? { statusAt: p.status_at } : {}), outsource: !!p.outsource, lost: !!p.lost_at,
   quoteTotal: p.quote_total ?? 0,
-  signTotal: p.sign_total ?? 0, signUnmeasured: p.sign_unmeasured ?? 0,
+  signTotal: p.sign_total ?? 0, signUnmeasured: p.sign_unmeasured ?? 0, signDesign: p.sign_design ?? 0, signDesigned: p.sign_designed ?? 0,
   contact: p.contact ?? '', address: p.address ?? '', contractDate: p.contract_date ?? null, startDate: p.start_date ?? null, dueDate: p.due_date ?? null, memo: p.memo ?? '',
   contractAmount: p.contract_override ?? p.quote_total ?? 0, contractAuto: p.contract_override == null,
   paidAmount: p.paid_amount ?? 0,
@@ -177,7 +177,7 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
   if (!sub) {
     if (req.method === 'PATCH') {
       // 이름 · 그룹(내 그룹만, null = 그룹 없음) · 상태 · 계약 금액(숫자 = 직접 입력, null = 자동 계산 복구) · 받은 금액 · 견적 합계(앱이 저장) — 주어진 것만 바꾼다
-      const body = await readJson<{ name?: string; groupId?: string | null; status?: string; contractAmount?: number | null; paidAmount?: number; quoteTotal?: number; statusAt?: number; signTotal?: number; signUnmeasured?: number }>(req);
+      const body = await readJson<{ name?: string; groupId?: string | null; status?: string; contractAmount?: number | null; paidAmount?: number; quoteTotal?: number; statusAt?: number; signTotal?: number; signUnmeasured?: number; signDesign?: number; signDesigned?: number }>(req);
       if (!body) return text('bad body', 400);
       // 주어진 칸만 UPDATE (2026-10-21): 앱이 견적 합계와 실측 수를 같은 순간에 따로 보내는데, 전체 행을 다시 쓰면 먼저 읽은 요청이 나중 값을 되돌렸다
       const next = { ...project };
@@ -199,10 +199,12 @@ export async function handleProjects(req: Request, env: Env, pathname: string, u
       }
       if (typeof (body as { outsource?: unknown }).outsource === 'boolean') sets.outsource = (body as { outsource: boolean }).outsource ? 1 : 0; // 외주 폴더 (2026-10-22)
       if (typeof body.statusAt === 'number' && env.AUTH_DEV_LINK === '1') sets.status_at = body.statusAt; // 개발·E2E 전용: 옛 날짜 흉내
-      const pd = amount(body.paidAmount), qt = amount(body.quoteTotal), st = amount(body.signTotal), su = amount(body.signUnmeasured);
-      if (pd === null || qt === null || st === null || su === null) return text('bad amount', 400);
+      const pd = amount(body.paidAmount), qt = amount(body.quoteTotal), st = amount(body.signTotal), su = amount(body.signUnmeasured), sd = amount(body.signDesign), sdd = amount(body.signDesigned);
+      if (pd === null || qt === null || st === null || su === null || sd === null || sdd === null) return text('bad amount', 400);
       if (st !== undefined) sets.sign_total = st; // 실측 상태 (2026-10-21)
       if (su !== undefined) sets.sign_unmeasured = su;
+      if (sd !== undefined) sets.sign_design = sd; // 디자인 진행 (2026-11-06)
+      if (sdd !== undefined) sets.sign_designed = sdd;
       if (body.contractAmount === null) sets.contract_override = null;
       else if (body.contractAmount !== undefined) { const c = amount(body.contractAmount); if (c === null || c === undefined) return text('bad amount', 400); sets.contract_override = c; }
       if (pd !== undefined) sets.paid_amount = pd;

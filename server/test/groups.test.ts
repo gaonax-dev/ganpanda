@@ -37,6 +37,10 @@ describe('프로젝트 그룹 · 상태 · 정산 · 팀 멤버', () => {
     const sc = await (await json(`/api/projects/${p.id}`, { signTotal: 3, signUnmeasured: 1 }, s, 'PATCH')).json<{ project: { signTotal: number; signUnmeasured: number } }>();
     expect(sc.project).toMatchObject({ signTotal: 3, signUnmeasured: 1 });
     expect((await json(`/api/projects/${p.id}`, { signTotal: -1 }, s, 'PATCH')).status).toBe(400);
+    // 디자인 진행 수 (2026-11-06 "상태 표시는 홈의 프로젝트 카드를 말한거야"): 일러스트로 보낸 사인물 수·그중 디자인 받은 수
+    const ds = await (await json(`/api/projects/${p.id}`, { signDesign: 5, signDesigned: 2 }, s, 'PATCH')).json<{ project: { signDesign: number; signDesigned: number; signTotal: number } }>();
+    expect(ds.project).toMatchObject({ signDesign: 5, signDesigned: 2, signTotal: 3 });
+    expect((await json(`/api/projects/${p.id}`, { signDesigned: -2 }, s, 'PATCH')).status).toBe(400);
     // 상세 칸 (2026-10-21): 만들 때·고칠 때, 날짜는 YYYY-MM-DD 만, 빈 값은 지움
     const made = await (await json('/api/projects', { name: '상세 매장', contact: '010-1234-5678', address: '서울 송파구', dueDate: '2026-12-01', memo: '야간 조명' }, s)).json<{ project: Record<string, unknown> }>();
     expect(made.project).toMatchObject({ contact: '010-1234-5678', address: '서울 송파구', dueDate: '2026-12-01', startDate: null, memo: '야간 조명' });
