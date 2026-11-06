@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openDesignSync, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
 
 /** 보드 빈 곳(사진 밖)에서 world 좌표로 끌기 */
 async function dragOnBoard(page: import('@playwright/test').Page, from: [number, number], to: [number, number]) {
@@ -176,10 +176,9 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(svg).toContain('합계'); // 견적 탭 PDF 는 금액·합계
   await w.close();
   // SVG 내려받기는 디자인 탭에 — 다른 프로그램(코렐·커팅)용, 금액·합계 없음 (2026-11-05 "견적탭에 svg,pdf가 있을 이유가 있나?" → "진행해줘")
-  await expect(page.getByTestId('export-svg')).toHaveCount(0);
-  await page.getByTestId('view-design').click();
+  await expect(page.getByTestId('svg-download')).toHaveCount(0);
+  await openDesignSync(page, 'svg'); // [디자인 싱크] › SVG › 보내기 (2026-11-06)
   // SVG 내려받기: 실물 1:1 + 글자 윤곽선 (2026-10-17 "비율, 윤곽선은 옵션으로")
-  await page.getByTestId('design-bar').getByTestId('export-svg').click();
   await page.getByTestId('svg-scale-1').check();
   await page.getByTestId('svg-outline').check();
   const dl = page.waitForEvent('download');
@@ -192,7 +191,6 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   expect(svg11).toContain('<g id="대지" data-layer="artboards">'); // 대지 레이어 (2026-10-18): 사인물 자리마다 보이지 않는 사각형
   expect((svg11.match(/data-artboard=/g) ?? []).length).toBe(1);
   // 금액·합계 없음 (글자는 윤곽선이라 다시 글자로 받아 확인)
-  await page.getByTestId('design-bar').getByTestId('export-svg').click();
   await page.getByTestId('svg-outline').uncheck();
   await page.getByTestId('svg-download').click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { lastSvg: string } }).__ganpanda.lastSvg)).toContain('<text');

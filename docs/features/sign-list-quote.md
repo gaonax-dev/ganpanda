@@ -22,7 +22,7 @@
 ## 견적 탭은 PDF 만, SVG·일러스트는 디자인 탭 (2026-11-05)
 사용자: "견적탭에서 디자인으로 이동해줘"(일러스트 스크립트) → "견적탭에 svg,pdf가 있을 이유가 있나?" → "진행해줘".
 - **견적 탭 [PDF]**: 전개도 + 카드별 종류·옵션·금액 + 합계 — 고객·주문용 견적 자료라 견적 탭에 남긴다. ([주문서·견적서]와 합칠지는 정하지 않음.)
-- **디자인 탭 [SVG]**(`ui/SvgExport.svelte`, `export-svg` · `svg-options` · `svg-download`): 아래 "SVG 내려받기"와 같은 옵션(비율·글자 윤곽선·대지 레이어)이되 **금액·합계 없음** — 디자이너·제작자용, 코렐드로우·커팅·출력 프로그램처럼 스크립트를 못 쓰는 곳용. 일러스트 사용자는 [일러스트 대지 받기] → [illustrator.md](illustrator.md).
+- **디자인 탭 [⇄ 디자인 싱크] › SVG·코렐드로우 › 보내기**(`ui/DesignSyncDialog.svelte`, `svg-download`, 2026-11-06 — 앞선 [SVG] 단추 `SvgExport.svelte` 는 대체됨 → [design-sync.md](design-sync.md)): 아래 "SVG 내려받기"와 같은 옵션(비율·글자 윤곽선·대지 레이어)이되 **금액·합계 없음** — 디자이너·제작자용, 코렐드로우·커팅·출력 프로그램처럼 스크립트를 못 쓰는 곳용. 일러스트 사용자는 [일러스트 대지 받기] → [illustrator.md](illustrator.md).
 - 만들기는 `src/lib/listSvgExport.ts` `buildListSvg(opts, { amounts })` 하나를 PDF·SVG 가 함께 쓴다.
 - 고친 것: 2026-10-17 부터 견적 화면의 일부 CSS(`.quote h2 .ref`, SVG 옵션 창)가 PDF 인쇄 창 문자열 안에 잘못 들어가 있었다(옵션 창 스타일이 화면에 안 먹고, 인쇄 창에 쓸데없는 CSS). 이번에 바로잡음.
 

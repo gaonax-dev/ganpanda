@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { SERVER, openOwnedProject, uploadPhoto } from './helpers';
+import { SERVER, openOwnedProject, uploadPhoto, openDesignFiles } from './helpers';
 
 /** 휴대폰 폭(390px, 터치) — 핀치 확대와 축약 라벨 */
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -184,9 +184,7 @@ test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
     app.project.addObject({ photoId: app.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex' });
   });
-  await page.getByTestId('view-design').click(); // 디자인 탭 안의 [파일] (2026-10-22)
-  await expect(page.getByTestId('view-uv')).toContainText('디자인 파일');
-  await page.getByTestId('view-uv').click();
+  await openDesignFiles(page); // [디자인 싱크] › 디자인 파일 (2026-11-06)
   const panel = page.getByTestId('link-panel');
   await expect(panel).toBeHidden();
   await page.getByTestId('link-toggle').click();

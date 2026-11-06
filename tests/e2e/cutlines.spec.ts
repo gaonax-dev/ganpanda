@@ -1,7 +1,7 @@
 // 칼선 SVG (2026-11-05 roadmap 10-2, 사용자: "진행해줘") — 디자인 탭 SVG 창의 [칼선 SVG]: 채널·스카시 글자 윤곽만 CutContour 레이어에, 실물 1:1(mm)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openDesignSync, openOwnedProject, uploadPhoto } from './helpers';
 
 test('[칼선 SVG] — 채널 글자 윤곽이 CutContour(마젠타 선, 채움 없음)에, 시트 글자는 빠지고 이름표는 따로', async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -14,8 +14,7 @@ test('[칼선 SVG] — 채널 글자 윤곽이 CutContour(마젠타 선, 채움 
         { id: 'h', kind: 'sheet', type: 'sh-cut', items: [{ id: 'z', kind: 'text', text: '시트', x: 0, y: -250, h: 80 }] },
       ] });
   });
-  await page.getByTestId('view-design').click();
-  await page.getByTestId('design-bar').getByTestId('export-svg').click();
+  await openDesignSync(page, 'svg');
   const dl = page.waitForEvent('download');
   await page.getByTestId('cut-download').click();
   expect((await dl).suggestedFilename()).toMatch(/칼선 1-1\.svg$/);

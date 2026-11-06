@@ -22,8 +22,9 @@ test('발행(컨펌 기준) 뒤 재료 층만 바꿔도 "발행 뒤 바뀜" — 
   await expect(card.getByTestId('card-change')).toBeVisible();
   // 출력 창 경고
   await page.getByTestId('view-design').click();
-  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  await page.getByTestId('design-bar').getByTestId('design-sync-open').click();
   await expect(page.getByTestId('unconfirmed-warning').first()).toContainText('1');
+  await page.getByTestId('design-sync-close').click();
   // 견적 탭 바뀐 내용에 "구성"
   await page.getByTestId('view-list').click();
   await page.getByTestId('issue-diff-toggle').click();

@@ -57,8 +57,8 @@
   import { listContentReports } from './lib/projects';
   import { ROLE_LABEL, updateProject } from './lib/projects';
   import { formatBytes } from './lib/core/format';
-  import IllustratorExport from './lib/ui/IllustratorExport.svelte';
-  import SvgExport from './lib/ui/SvgExport.svelte';
+  import DesignSyncDialog from './lib/ui/DesignSyncDialog.svelte';
+  import SyncReview from './lib/ui/SyncReview.svelte';
 
   // 무거운 창(three.js·폰트·렌더링)은 처음 열 때 따로 내려받는다 — 메인 번들을 가볍게 (2026-10-15 사용자: "모바일에서는 무겁다")
   const lazyRender = () => import('./lib/ui/RenderDialog.svelte');
@@ -179,6 +179,19 @@
       {/if}
       {#if app.approval.status !== 'none'}<span class="approval" data-testid="approval-status" data-status={app.approval.status} title={app.approval.status === 'approved' ? `${app.approval.approval.by} 승인` : '승인 뒤 내용이 바뀜 — 재승인 필요'}>{app.approval.status === 'approved' ? (app.compact ? '✅' : `✅ 승인됨 · ${app.approval.approval.by}`) : app.compact ? '⚠' : '⚠ 변경됨 · 재승인 필요'}</span>{/if}
     {/if}
+    <!-- 작업 탭은 [제안 보내기] 바로 뒤, 디자인 탭 막대는 그 뒤 (2026-11-06 "데스크탑에서 실측 2d 3d 디자인 견적은 제안보내기 버튼 다음에 위치하게") — 휴대폰은 CSS order 로 탭 줄이 따로 -->
+    <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
+    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
+      {#each TABS.filter((t) => (app.isCustomer ? t.id !== 'design' && (t.id !== 'list' || !!app.requestView) : true)) as t (t.id)}
+        <button data-testid={t.tid} class:on={app.tab === t.id} title={t.id === 'measure' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === '2d' ? '바탕색·디자인·글자를 사진 위에 평면으로' : t.id === '3d' ? '사진 위 입체 합성' : t.id === 'design' ? '디자이너와 소통 — 디자인 싱크(일러스트·코렐·SVG 보내기·받기)·컬러셋' : ''} onclick={() => app.setTab(t.id)}>
+          {app.compact ? t.short : t.label}
+          {#if t.id === 'measure' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
+          {#if t.id === 'measure' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
+          {#if t.id === 'measure' && app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}
+          {#if t.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
+        </button>
+      {/each}
+    </div>
     {#if app.room && app.access.status === 'ok' && !app.proposalMode && (app.view === 'board' || app.view === 'uv')}
       <!-- 보드 단계: 원본(실측·편집) / 3D(합성 결과를 사진에 겹침) -->
       {#if app.compact && app.selected && app.canEdit && app.view === 'board'}
@@ -201,32 +214,18 @@
       {#if app.tab === 'design'}
       <!-- 디자인 탭 (2026-10-22 "디자인은 디자이너와 소통하는 곳으로 사진보드 그대로인데 사인물 디자인파일 연결하는 곳이다. 여기에 디자이너가 일러스트 파일도 올린다"):
            사진보드(2D) 그대로 + 디자인 파일 올리기 · 파일 보기·연결 · 고른 사인물에 연결 -->
+      <!-- 디자인 탭 막대 = [디자인 싱크] · [컬러셋] 만 (2026-11-06 "아이콘을 하나로 하고 디자인싱크로 버튼 하나 만들고 … 디자인파일은 디자인싱크로 편입 최종적으로 디자인 탭은 디자인싱크 컬러셋 만 남게").
+           보내기·받기(일러스트·코렐·SVG)·디자인 파일은 대화창 안. 디자인 파일 화면에서는 [← 사진보드] -->
       <div class="views stage designbar" data-testid="design-bar">
-        {#if app.canEdit && !app.boardOnly}<label class="up" data-testid="design-upload" title="일러스트(.ai, PDF 호환)·PDF·SVG·그림">＋ {app.compact ? '파일' : '일러스트·SVG 올리기'}<input data-testid="design-upload-input" type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
-        <button data-testid="view-uv" class:on={app.view === 'uv'} title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { if (app.view === 'uv') { app.view = 'board'; } else { app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>
-        {#if app.selected && app.view === 'board' && app.canEdit}<button data-testid="design-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => (app.view = 'uv')}>이 사인물에 연결</button>{/if}
+        {#if app.view === 'uv'}<button data-testid="view-uv-back" onclick={() => (app.view = 'board')}>← 사진보드</button>{/if}
+        {#if !app.boardOnly}<button data-testid="design-sync-open" class:on={app.syncOpen} title="디자인 싱크 — 일러스트레이터·코렐드로우·SVG 로 보내기·받기, 디자인 파일" onclick={() => (app.syncOpen = true)}>⇄ 디자인 싱크</button>{/if}
         <!-- 프로젝트 컬러셋 (2026-10-31 "컬러셋 프로젝트 뷰어 디자인에 컬러셋 누르면 컬러 대화창 나오고 여기에서 컬러셋 체인지한다") -->
-        <!-- 일러스트레이터 왕복 (2026-11-05, 견적 탭에서 옮김 "견적탭에서 디자인으로 이동해줘"): 스크립트를 일러스트에서 실행 → 사인물마다 대지, 다시 실행해 저장한 .ai 를 올리면 자동 연결 -->
-        {#if !app.boardOnly}<IllustratorExport />{/if}
-        {#if !app.boardOnly}<SvgExport />{/if}
         <button data-testid="colors-open" title="프로젝트 컬러 — 메인·배경·포인트 … 컬러셋 바꾸기" onclick={() => (app.colorsOpen = true)}>컬러셋</button>
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
       </div>
       {/if}
       {/if}
     {/if}
-    <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
-    <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
-      {#each TABS.filter((t) => (app.isCustomer ? t.id !== 'design' && (t.id !== 'list' || !!app.requestView) : true)) as t (t.id)}
-        <button data-testid={t.tid} class:on={app.tab === t.id} title={t.id === 'measure' ? `실측 — 사진 그대로, 외곽선·치수만${app.unmeasuredCount ? ` · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : ''}` : t.id === '2d' ? '바탕색·디자인·글자를 사진 위에 평면으로' : t.id === '3d' ? '사진 위 입체 합성' : t.id === 'design' ? '디자이너와 소통 — 사진보드 그대로, 사인물에 디자인 파일(일러스트·SVG) 연결' : ''} onclick={() => app.setTab(t.id)}>
-          {app.compact ? t.short : t.label}
-          {#if t.id === 'measure' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
-          {#if t.id === 'measure' && warnCount}<span class="dot" title="실측 확인 필요">{warnCount}</span>{/if}
-          {#if t.id === 'measure' && app.unmeasuredCount}<span class="dot" data-testid="unmeasured-count" title="가로·세로를 아직 넣지 않은 사인물">{app.unmeasuredCount}</span>{/if}
-          {#if t.id === 'list' && app.signs.length}<span class="n">{app.signs.length}</span>{/if}
-        </button>
-      {/each}
-    </div>
     <div class="right">
       <!-- 받은 견적 요청 (2026-10-22 "헤더에 표시해도 될거 같아 그리고 페이지 이동해서 리스트 보이게"). 받은 요청 페이지 안에서는 감춘다 — 페이지에 받은/보낸 탭이 있다 ("견적요청 페이지에 견적요청 링크가 있는데 이건 감춰줘") -->
       <!-- 프로젝트 안에서는 감춘다 — 홈에서만 (2026-10-25 "프로젝트 뷰에서 요청 제거해주고 톡을 키워줘") -->
@@ -384,6 +383,8 @@
 {#if app.estimateOpen && (app.consumer || app.outsourceProject)}<EstimateRequestDialog />{/if}
 {#if app.loginOpen}<LoginDialog />{/if}
 {#if app.colorsOpen}<ProjectColorsDialog />{/if}
+{#if app.syncOpen}<DesignSyncDialog />{/if}
+{#if app.syncReview && app.room}<SyncReview />{/if}
 <AskDialog />
 <CrashNotice />
 {#if app.passwordOpen && app.account}<PasswordDialog />{/if}
@@ -502,6 +503,5 @@
     .talkbtn b { padding: 0 4px; font-size: 10px; }
   }
   .qb[hidden] { display: none; }
-  .designbar .up { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 7px; font-size: 13px; color: var(--accent); cursor: pointer; font-weight: 600; }
   .designbar .muted { color: var(--muted); font-size: 12px; align-self: center; }
 </style>

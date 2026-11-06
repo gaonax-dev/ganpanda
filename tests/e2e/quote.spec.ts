@@ -61,7 +61,7 @@ test('단가 설정에서 ㎡ 단가를 바꾸면 견적이 바뀌고, 고객은
   // 2026-10-16 사용자: "고객에게 보여지는 것은 사진보드만 보인다." — 리스트·디자인 파일·금액 없음 (금액은 제안 링크에서)
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
   await expect(guest.getByTestId('photo-zone').first()).toBeVisible();
-  for (const v of ['view-list', 'view-uv', 'quote-total', 'open-prices']) await expect(guest.getByTestId(v)).toHaveCount(0);
+  for (const v of ['view-list', 'design-sync-open', 'quote-total', 'open-prices']) await expect(guest.getByTestId(v)).toHaveCount(0);
   await guest.evaluate(() => { const a = (window as unknown as { __ganpanda: { selectedId: string | null; signs: { id: string }[] } }).__ganpanda; a.selectedId = a.signs[0].id; });
   await expect(guest.getByTestId('object-summary')).toContainText('2,000×1,000');
   await expect(guest.getByTestId('object-summary')).not.toContainText('원'); // 사인물 요약에도 금액 없음

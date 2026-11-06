@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'child_process';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openDesignSync, openOwnedProject, uploadPhoto } from './helpers';
 
 const PT = 72 / 25.4;
 /** 대지(페이지)마다 크기(pt)를 주고, xmp 가 있으면 카탈로그 /Metadata 로 넣은 최소 PDF (일러스트 PDF 호환 .ai 와 같은 모양) */
@@ -42,10 +42,11 @@ async function twoSigns(page: Page) {
   });
 }
 const designOf = (page: Page, id: string) => page.evaluate((id) => (window as any).__ganpanda.project.object(id)?.design ?? null, id);
-async function upload(page: Page, name: string, buf: Buffer) {
-  await page.getByTestId('view-design').click();
-  await page.getByTestId('view-uv').click();
-  await page.getByTestId('source-input').setInputFiles({ name, mimeType: 'application/postscript', buffer: buf });
+/** [디자인 싱크] › 받기 (2026-11-06) — 받은 뒤 사진보드에 검토 패널 */
+async function upload(page: Page, name: string, buf: Buffer, program: 'illustrator' | 'corel' = 'illustrator') {
+  await openDesignSync(page, program);
+  await page.getByTestId('sync-receive-input').setInputFiles({ name, mimeType: name.endsWith('.ganpanda') ? 'application/json' : 'application/postscript', buffer: buf });
+  await expect(page.getByTestId('sync-review')).toBeVisible({ timeout: 30_000 });
 }
 
 test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) — 앞줄에 카드 배치(mm)·이름·id·카드 사진 데이터, 뒤에 대지 스크립트', async ({ page, request }) => {
@@ -55,10 +56,9 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('export-pdf')).toBeVisible();
   await expect(page.getByTestId('export-illustrator')).toHaveCount(0);
-  await page.getByTestId('view-design').click();
+  await openDesignSync(page, 'illustrator'); // [디자인 싱크] › 일러스트레이터 › 보내기 (2026-11-06)
   const dl = page.waitForEvent('download');
-  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
-  await page.getByTestId('illustrator-download').click(); // 창에서 [대지 받기 (zip)]
+  await page.getByTestId('illustrator-download').click(); // [대지 받기 (zip)]
   const download = await dl;
   expect(download.suggestedFilename()).toMatch(/일러스트 대지\.zip$/); // 폴더째 zip (2026-11-05 "이미지들을 따로 폴더에 넣고 연결")
   const zipPath = await download.path();
@@ -77,7 +77,6 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   const json = JSON.parse(execFileSync('python3', ['-c', 'import sys,zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read("ganpanda.json").decode("utf8"))', zipPath!]).toString('utf8'));
   expect(json).toEqual(data);
   // 설치용 스크립트 = 데이터 없는 스크립트 그대로
-  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
   const dl2 = page.waitForEvent('download');
   await page.getByTestId('illustrator-script').click();
   const script = await dl2;
@@ -94,12 +93,21 @@ test('스크립트가 저장한 .ai(XMP 짝)를 올리면 대지가 짝지은 �
   const ids = await twoSigns(page);
   // 대지 순서: 돌출, 정면 간판 (일러스트에서 순서를 바꿔도 짝은 XMP 대로)
   await upload(page, '매장 대지.ai', pdfWith([[600 * PT, 900 * PT], [3000 * PT, 600 * PT]], xmpOf([ids.b, ids.a])));
+  // 확정 전에는 입히지 않고 카드에 상태만 (2026-11-06 "받은 다음 사진보드에서 연결상태 확인 후 확정 버튼으로")
+  await expect(page.getByTestId('sync-count-link')).toContainText('2');
+  await expect(page.locator(`[data-testid="board-card"][data-id="${ids.a}"] [data-testid="card-sync"]`)).toHaveAttribute('data-status', 'link');
+  expect(await designOf(page, ids.a)).toBeNull();
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('sync-review')).toHaveCount(0);
   await expect.poll(() => designOf(page, ids.b), { timeout: 30_000 }).toMatchObject({ page: 0 });
   expect(await designOf(page, ids.a)).toMatchObject({ page: 1 });
+  await expect(page.locator('[data-testid="card-sync"]')).toHaveCount(0);
   const src1 = (await designOf(page, ids.a)).sourceId;
-  await expect(page.getByTestId('notice')).toContainText('대지 2개를 사인물에 자동으로 연결했습니다');
-  // 수정본 다시 올리기 → 새 소스로 바뀌고 이력에 남는다
-  await page.getByTestId('source-input').setInputFiles({ name: '매장 대지 v2.ai', mimeType: 'application/postscript', buffer: pdfWith([[600 * PT, 900 * PT], [3000 * PT, 600 * PT]], xmpOf([ids.b, ids.a])) });
+  await expect(page.getByTestId('notice')).toContainText('입힘 2');
+  // 수정본 다시 받기 → 바뀜, 확정하면 새 소스로 바뀌고 이력에 남는다
+  await upload(page, '매장 대지 v2.ai', pdfWith([[600 * PT, 900 * PT], [3000 * PT, 600 * PT]], xmpOf([ids.b, ids.a])));
+  await expect(page.getByTestId('sync-count-update')).toContainText('2');
+  await page.getByTestId('sync-confirm').click();
   await expect.poll(async () => (await designOf(page, ids.a)).sourceId, { timeout: 30_000 }).not.toBe(src1);
   expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).designHistory.length, ids.a)).toBe(2);
 });
@@ -108,10 +116,11 @@ test('XMP 짝이 없는 PDF 는 대지 크기(1:10)로 짝짓되, 디자인이 �
   await openOwnedProject(page, request);
   const ids = await twoSigns(page);
   await page.evaluate((a) => { const g = (window as any).__ganpanda; g.project.updateObject(a, { design: { sourceId: 'keep', page: 0, crop: { x: 0, y: 0, w: 10, h: 10 } } }); }, ids.a);
-  await upload(page, '1-10.pdf', pdfWith([[300 * PT, 60 * PT], [60 * PT, 90 * PT]]));
+  await upload(page, '1-10.pdf', pdfWith([[300 * PT, 60 * PT], [60 * PT, 90 * PT]]), 'corel'); // 코렐 PDF 처럼 짝 정보 없음
+  await expect(page.locator('[data-testid="sync-row"][data-status="update"] [data-testid="sync-action"]')).toHaveValue('keep');
+  await page.getByTestId('sync-confirm').click();
   await expect.poll(() => designOf(page, ids.b), { timeout: 30_000 }).toMatchObject({ page: 1 });
   expect((await designOf(page, ids.a)).sourceId).toBe('keep');
-  await expect(page.getByTestId('notice')).toContainText('대지 크기로 짝지음');
 });
 
 test('구성 요소 묶음(.ganpanda)을 올리면 바탕 인쇄는 사인물 바탕 디자인, 채널 입체(SVG)는 벡터 → 3D 입체, 없는 구성 요소는 건너뜀 (2026-11-05 "일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게")', async ({ page, request }) => {
@@ -127,9 +136,10 @@ test('구성 요소 묶음(.ganpanda)을 올리면 바탕 인쇄는 사인물 �
   const bundle = JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 1, items: [
     { sign: id, part: 'frame', kind: 'png', data: png }, { sign: id, part: 'ch1', kind: 'svg', data: svg }, { sign: id, part: 'nope', kind: 'svg', data: svg },
   ] });
-  await page.getByTestId('view-design').click();
-  await page.getByTestId('design-upload-input').setInputFiles({ name: '매장.ganpanda', mimeType: 'application/json', buffer: Buffer.from(bundle) });
-  await expect(page.getByTestId('notice')).toContainText('구성 요소 디자인 2개', { timeout: 20_000 });
+  await upload(page, '매장.ganpanda', Buffer.from(bundle));
+  await expect(page.locator(`[data-testid="sync-row"][data-sign="${id}"]`)).toHaveAttribute('data-status', 'link');
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
   const o = await page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
   expect(o.design).toMatchObject({ page: 0, crop: { x: 0, y: 0, w: 3, h: 2 } });
   const ch = o.parts.find((p: any) => p.id === 'ch1');
@@ -167,12 +177,45 @@ test('[일러스트 대지 받기] 데이터에 구성 요소 하위 레이어 �
     return g.project.addObject({ photoId: pid, name: '조합', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex', widthMm: 3000, heightMm: 600,
       parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [] }, { id: 'sc1', kind: 'scashi', type: '', items: [] }, { id: 'sh1', kind: 'sheet', type: 'sh-print', on: 'sc1', items: [] }] });
   });
-  await page.getByTestId('view-design').click();
-  await page.getByTestId('design-bar').getByTestId('export-illustrator').click();
+  await openDesignSync(page, 'illustrator');
   await page.getByTestId('illustrator-download').click();
   await expect.poll(() => page.evaluate(() => (window as any).__ganpanda.lastIllustrator.length)).toBeGreaterThan(0);
   const jsx: string = await page.evaluate(() => (window as any).__ganpanda.lastIllustrator);
   const data = JSON.parse(jsx.slice('var GANPANDA_DATA = '.length, jsx.indexOf(';\n')));
   const card = data.cards.find((c: any) => c.id === id);
   expect(card.parts.map((p: any) => [p.id, p.mode, /\((입체|인쇄)\)$/.test(p.label)])).toEqual([['ch1', 'vector', true], ['sc1', 'vector', true], ['sh1', 'print', true]]);
+});
+
+test('받기 검토: 누락(파일에 없는 사인물)·새로 생김(짝 없는 대지) 처리 — 새 대지는 새 사인물 카드로, 누락은 연결 해제 (2026-11-06 "확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const ids = await twoSigns(page);
+  // a 에 예전 디자인 · 받은 .ai: 대지 1 = b, 대지 2 = 디자이너가 새로 만든 대지(짝 없음, 1:1 1200×400)
+  await page.evaluate((a) => (window as any).__ganpanda.project.updateObject(a, { design: { sourceId: 'old', page: 0, crop: { x: 0, y: 0, w: 10, h: 10 } } }), ids.a);
+  await upload(page, '매장 대지 v3.ai', pdfWith([[600 * PT, 900 * PT], [1200 * PT, 400 * PT]], xmpOf([ids.b, ''])));
+  await expect(page.getByTestId('sync-count-new')).toContainText('1');
+  await expect(page.getByTestId('sync-count-missing')).toContainText('1');
+  await expect(page.locator(`[data-testid="board-card"][data-id="${ids.a}"] [data-testid="card-sync"]`)).toHaveAttribute('data-status', 'missing');
+  const newRow = page.locator('[data-testid="sync-row"][data-status="new"]');
+  await expect(newRow).toContainText('1,200×400mm');
+  await expect(newRow.getByTestId('sync-action')).toHaveValue('create');
+  await page.locator('[data-testid="sync-row"][data-status="missing"] [data-testid="sync-action"]').selectOption('unlink');
+  const before = await page.evaluate(() => (window as any).__ganpanda.signs.length);
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('새 사인물 1');
+  await expect(page.getByTestId('notice')).toContainText('연결 해제 1');
+  expect(await designOf(page, ids.a)).toBeNull();
+  expect(await designOf(page, ids.b)).toMatchObject({ page: 0 });
+  const made = await page.evaluate(() => { const g = (window as any).__ganpanda; return g.signs.filter((o: any) => !o.photoId).map((o: any) => ({ w: o.widthMm, h: o.heightMm, page: o.design?.page })); });
+  expect(made).toEqual([{ w: 1200, h: 400, page: 1 }]);
+  expect(await page.evaluate(() => (window as any).__ganpanda.signs.length)).toBe(before + 1);
+});
+
+test('받기 검토 [취소] — 아무것도 입히지 않는다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const ids = await twoSigns(page);
+  await upload(page, '매장 대지.ai', pdfWith([[600 * PT, 900 * PT], [3000 * PT, 600 * PT]], xmpOf([ids.b, ids.a])));
+  await page.getByTestId('sync-cancel').click();
+  await expect(page.getByTestId('sync-review')).toHaveCount(0);
+  expect(await designOf(page, ids.a)).toBeNull();
+  expect(await designOf(page, ids.b)).toBeNull();
 });

@@ -3,6 +3,7 @@
   얼굴은 사진 영역을 정면 보정한 모습(사진이 없으면 색 면), 이름·치수 라벨은 화면 크기 고정
 -->
 <script lang="ts">
+  import { SYNC_STATUS_LABEL, type SyncStatus } from '../core/designSync';
   import type { Photo, SignObject } from '../core/model';
   import { faceBadge, faceClip } from '../core/cardFace';
   import { bodyLook } from '../core/render';
@@ -16,7 +17,7 @@
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
-  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, nophoto = false, changed = false, onpointerdown }: {
+  let { o, x, y, w, h, mmW, mmH, photo, zoom, selected, multi = false, standalone = false, linked = false, placeholder = false, nophoto = false, changed = false, sync, onpointerdown }: {
     o: SignObject; x: number; y: number; w: number; h: number;
     /** 카드가 나타내는 사인물 mm (조합형 객체 배치) */
     mmW: number; mmH: number;
@@ -33,6 +34,8 @@
     nophoto?: boolean;
     /** 고객 컨펌(계약·발행) 뒤 바뀐 사인물 — 변경안 (2026-11-05) */
     changed?: boolean;
+    /** 디자인 싱크 받기 검토 중 상태 (2026-11-06) */
+    sync?: SyncStatus;
     onpointerdown?: (e: PointerEvent) => void;
   } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -58,7 +61,7 @@
   });
 </script>
 
-<div class="card" class:standalone class:nophoto class:sel={selected} class:multi data-multi={multi || undefined} data-nophoto={nophoto ? '1' : undefined} title={nophoto ? '사진에 없는 사인물 — 사진 위에 외곽선이 없습니다' : undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
+<div class="card" class:standalone class:nophoto class:sel={selected} data-sync={sync} class:multi data-multi={multi || undefined} data-nophoto={nophoto ? '1' : undefined} title={nophoto ? '사진에 없는 사인물 — 사진 위에 외곽선이 없습니다' : undefined} data-testid={standalone ? 'board-standalone' : 'board-card'} data-id={o.id}
   style:--z={zoom} style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
@@ -79,7 +82,7 @@
   <!-- 카드가 화면에서 40px 보다 좁으면(많이 축소) 라벨이 서로 겹치므로 숨긴다 -->
   {#if w * zoom >= 40}
   <div class="label" style:transform="scale({inv})">
-    <b>{#if changed}<span class="badge change" data-testid="card-change" title="고객 컨펌(발행) 뒤 바뀐 사인물 — 고객이 다시 컨펌하기 전까지 변경안 (견적 탭 [바뀐 내용])">변경안</span>{/if}{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
+    <b>{#if sync}<span class="badge sync {sync}" data-testid="card-sync" data-status={sync} title="디자인 싱크 — 받은 파일과의 연결 상태 (확정 전)">{SYNC_STATUS_LABEL[sync]}</span>{/if}{#if changed}<span class="badge change" data-testid="card-change" title="고객 컨펌(발행) 뒤 바뀐 사인물 — 고객이 다시 컨펌하기 전까지 변경안 (견적 탭 [바뀐 내용])">변경안</span>{/if}{#if placeholder}<span class="badge unsized" data-testid="card-unsized" title="가로·세로를 넣으면 실측 크기로 그려집니다">치수 없음</span>{/if}<span class="badge {badge.id}" data-testid="card-badge" data-state={badge.id}>{badge.label}</span>{#if app.voiceCounts[o.sameAs ?? o.id]}<span class="voice" data-testid="card-voice" title="음성 메모 {app.voiceCounts[o.sameAs ?? o.id]}개 — 상세의 🎙">🎙{app.voiceCounts[o.sameAs ?? o.id]}</span>{/if}{linked ? '⇄ ' : ''}{o.name}</b>
     {#if o.widthMm && o.heightMm}<span>{fmt(o.widthMm)} × {fmt(o.heightMm)}{o.depthMm ? ` × ${fmt(o.depthMm)}` : ''} mm</span>{:else}<span class="muted">치수 입력</span>{/if}
     {#if standalone && !linked}<span class="muted">보드 사인물 — 사진의 영역과 연결하세요</span>{/if}
   </div>
@@ -92,6 +95,11 @@
   .bubbles :global(.bubble) { pointer-events: auto; }
   .face { position: absolute; inset: 0; overflow: hidden; background: #d9d9d4; outline: 1px solid rgba(255, 255, 255, 0.35); }
   .standalone .face { background: #e8e4d8; outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); }
+  /* 디자인 싱크 검토 (2026-11-06): 연결 초록 · 바뀜 파랑 · 누락 주황 */
+  [data-sync='link'] .face { outline: calc(3px / var(--z, 1)) solid #22c55e; }
+  [data-sync='update'] .face { outline: calc(3px / var(--z, 1)) solid #3b82f6; }
+  [data-sync='missing'] .face { outline: calc(3px / var(--z, 1)) dashed #fb923c; }
+  .badge.sync.link { background: #166534; color: #fff; } .badge.sync.update { background: #1d4ed8; color: #fff; } .badge.sync.missing { background: #c2410c; color: #fff; }
   .nophoto .face { outline: calc(2px / var(--z, 1)) solid #ef4444; } /* 사진에 없음 (2026-11-05) — 화면 기준 2px */
   .sel .face { outline: 2px solid var(--accent); }
   .multi .face { outline: 2px solid var(--accent); } /* 다중 선택도 진하게 (2026-10-22) */

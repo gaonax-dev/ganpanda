@@ -744,7 +744,7 @@
       {@const p = app.flatPlaced.get(o.id)!}
       {@const at = listToBoard(origin, p.x, p.y, k)}
       {@const photo = app.photos.find((x) => x.id === o.photoId)}
-      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} nophoto={app.photolessIds.has(o.id)} changed={app.canEdit && app.changedSignIds.has(o.id)} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
+      <BoardCard {o} x={at.x} y={at.y} w={w * k} h={h * k} mmW={w} mmH={h} {photo} {placeholder} zoom={viewport.zoom} selected={app.selectionKind === 'shape' && (app.selectedId === o.id || app.sameAsSelected.includes(o.id))} multi={app.selectionKind === 'card' && app.selectionIds.includes(o.id)} standalone={!o.photoId} nophoto={app.photolessIds.has(o.id)} changed={app.canEdit && app.changedSignIds.has(o.id)} sync={app.syncRowOf.get(o.id)?.status} linked={app.objects.some((x) => x.sameAs === o.id)} onpointerdown={(e) => cardDown(e, o)} />
     {/each}
     {#if marquee}
       <div class="draft marquee" data-testid="marquee" style:left="{Math.min(marquee.x0, marquee.x1)}px" style:top="{Math.min(marquee.y0, marquee.y1)}px" style:width="{Math.abs(marquee.x1 - marquee.x0)}px" style:height="{Math.abs(marquee.y1 - marquee.y0)}px" style:border-width="{1 / viewport.zoom}px"></div>

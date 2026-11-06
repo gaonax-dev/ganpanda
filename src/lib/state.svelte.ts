@@ -25,7 +25,8 @@ import { loadRoomView } from './core/roomView';
 import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
-import { matchArtboards, xmpArtboardIds } from './core/illustrator';
+import { xmpArtboardIds } from './core/illustrator';
+import { planArtboards, planBundle, type SyncAction, type SyncRow } from './core/designSync';
 import { STAGE_EXPORT_LONG } from './render/stageSize';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { materializeRequestSigns } from './core/requestSigns';
@@ -501,6 +502,8 @@ class AppState {
   private emptyColors = newProjectColors();
   /** 컬러 대화창 */
   colorsOpen = $state(false);
+  /** 디자인 싱크 대화창 (2026-11-06) */
+  syncOpen = $state(false);
   /** 프로젝트 컬러를 고친다 — 그 칸을 쓰는 모든 사인물·구성 요소를 같은 묶음(되돌리기 한 번)으로 다시 적는다 */
   setProjectColors(pc: import('./core/projectColors').ProjectColors) {
     if (!this.canEdit) return;
@@ -1082,13 +1085,14 @@ class AppState {
     if (!this.canEdit) return;
     this.converting = true;
     try {
-      if (isBundleName(file.name)) { await this.applyIllustratorBundle(file); return; } // 일러스트 구성 요소 묶음 (2026-11-05)
+      if (isBundleName(file.name)) { await this.reviewIllustratorBundle(file); return; } // 일러스트 구성 요소 묶음 (2026-11-05)
       const { kind, pages, xmp } = await convertFile(file);
       const fileAssetId = await putAsset(file);
       const pageAssets = [];
       for (const pg of pages) pageAssets.push({ assetId: await putAsset(pg.blob), w: pg.w, h: pg.h });
       const sourceId = this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
-      if (kind === 'pdf') this.linkArtboards(sourceId, pages, xmp);
+      if (kind === 'pdf') this.reviewArtboards(file.name, sourceId, pages, xmp);
+      else if (this.view !== 'uv') this.notice = `${file.name} 을 디자인 파일에 넣었습니다 — [디자인 싱크] › 디자인 파일에서 영역을 그려 사인물에 연결하세요.`;
     } catch (e) {
       if (e instanceof ConvertError) this.notice = e.message;
       else if (e instanceof StorageLimitError) this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 올릴 수 없습니다.`;
@@ -1097,30 +1101,80 @@ class AppState {
   }
 
   /**
-   * 일러스트 왕복 (2026-11-05 "일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지"): 올린 .ai/PDF 의 대지(페이지)를 사인물에 자동으로 입힌다.
-   * 간판다 일러스트 스크립트가 적은 XMP 짝(ganpanda:artboards)이 있으면 그대로 — 수정본이면 새 디자인으로 바뀐다(이력에 남음).
-   * 짝 정보가 없으면 대지 크기(1:1·1:10)·순서로, **아직 디자인이 없는 사인물만**(우연히 크기가 같은 다른 PDF 가 덮지 않게). core/illustrator.ts matchArtboards
+   * 디자인 싱크 받기 검토 (2026-11-06 사용자: "받은 다음 사진보드에서 연결상태 확인 후 확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요"):
+   * 받은 파일을 바로 입히지 않고 사인물마다 상태·처리를 정해 사진보드에 보여 준다. [확정] 해야 입혀진다. core/designSync.ts
    */
-  private linkArtboards(sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number } }[], xmp: string | undefined) {
-    const ids = xmpArtboardIds(xmp);
-    const signs = this.signs.flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h }] : []; });
+  syncReview = $state<{ kind: 'artboards' | 'bundle'; fileName: string; sourceId?: string; pagesMm?: { w: number; h: number }[]; bundle?: BundleItem[]; rows: SyncRow[] } | null>(null);
+  /** 사인물 id → 검토 줄 (보드 카드 표시) */
+  syncRowOf = $derived(new Map((this.syncReview?.rows ?? []).filter((r) => r.signId).map((r) => [r.signId!, r])));
+  /** 보낸(치수 있는) 사인물 — 대지·묶음의 짝 상대 */
+  private syncSigns() { return this.flatCards.filter((c) => !c.placeholder).map((c) => c.o); }
+
+  /**
+   * 일러스트 왕복 (2026-11-05 "일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지"): 올린 .ai/PDF 의 대지(페이지) ↔ 사인물.
+   * 간판다 일러스트 스크립트가 적은 XMP 짝(ganpanda:artboards)이 있으면 그대로, 없으면 대지 크기(1:1·1:10)·순서로 — 검토 뒤 [확정]
+   */
+  private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number } }[], xmp: string | undefined) {
     const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
-    let pairs = matchArtboards(pagesMm, signs, ids);
-    const byXmp = !!ids && ids.length === pages.length;
-    if (!byXmp) pairs = pairs.filter(({ id }) => !this.project.object(id)?.design);
-    for (const { page, id } of pairs) this.setDesign(id, { sourceId, page, crop: { x: 0, y: 0, w: pages[page].w, h: pages[page].h } });
-    if (pairs.length) this.notice = `대지 ${pairs.length}개를 사인물에 자동으로 연결했습니다${byXmp ? '' : ' (대지 크기로 짝지음)'}.`;
+    const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design }] : []; });
+    const ids = xmpArtboardIds(xmp);
+    const rows = planArtboards(pagesMm, ids, signs);
+    // 짝 정보도 크기 짝도 없으면 검토할 것이 없다 — 디자인 파일에만 (영역을 그려 연결)
+    if (!(ids && ids.length === pages.length) && !rows.some((r) => r.signId)) { if (this.view !== 'uv') this.notice = `${fileName} 을 디자인 파일에 넣었습니다 — 크기가 맞는 사인물이 없어 [디자인 싱크] › 디자인 파일에서 영역을 그려 연결하세요.`; return; }
+    this.syncReview = { kind: 'artboards', fileName, sourceId, pagesMm, rows };
+    this.view = 'board';
   }
 
   /**
-   * 일러스트 구성 요소 묶음(.ganpanda) 적용 (2026-11-05 "내가 디자이너야 사인물에 각각의 디자인이 연결되어야해 후렉스(인쇄) 위에 체널(입체), 스카시(입체+ 시트 또는 도색)의 구성이라면
-   * 일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게"): 바탕(frame) → 사인물 바탕 디자인(이력에 남음),
-   * 구성 요소 → 그 구성 요소의 내용을 디자인 하나로(SVG = 벡터 — 채널·스카시는 입체, PNG = 그림). 러프 글자·그림은 디자인으로 바뀐다(⌘Z)
+   * 일러스트 구성 요소 묶음 (2026-11-05 "후렉스(인쇄) 위에 체널(입체), 스카시(입체+ 시트 또는 도색)의 구성이라면 일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게"):
+   * 바탕(frame) = 사인물 바탕 디자인, 구성 요소 = 그 구성 요소의 그림(SVG 면 벡터 → 채널·스카시 입체) — 검토 뒤 [확정]
    */
-  private async applyIllustratorBundle(file: File) {
+  private async reviewIllustratorBundle(file: File) {
     const b = parseBundle(await file.text());
     if (!b) { this.notice = '간판다 일러스트 묶음(.ganpanda) 파일이 아닙니다.'; return; }
-    const targets = bundleTargets(b.items, this.signs.map((o) => ({ id: o.id, parts: partsOfSign(o).map((p) => p.id) })));
+    const signs = this.syncSigns().map((o) => { const parts = partsOfSign(o); return { id: o.id, parts: parts.map((p) => p.id), hasDesign: !!o.design || parts.some((p) => p.items.some((i) => i.kind === 'image')) }; });
+    this.syncReview = { kind: 'bundle', fileName: file.name, bundle: b.items, rows: planBundle(b.items, signs) };
+    this.view = 'board';
+  }
+
+  setSyncAction(key: string, action: SyncAction) {
+    const r = this.syncReview;
+    if (!r) return;
+    this.syncReview = { ...r, rows: r.rows.map((x) => (x.key === key && x.actions.includes(action) ? { ...x, action } : x)) };
+  }
+  /** 검토 취소 — 아무것도 입히지 않는다 (올린 파일은 디자인 파일 목록에 남는다) */
+  cancelSync() { this.syncReview = null; }
+
+  /** [확정]: 고른 처리대로 입히기·새 사인물·연결 해제 */
+  async confirmSync() {
+    const r = this.syncReview;
+    if (!r || !this.canEdit) return;
+    let applied = 0, created = 0, unlinked = 0;
+    for (const row of r.rows) if (row.action === 'unlink' && row.signId) { this.clearDesign(row.signId); unlinked++; }
+    if (r.kind === 'artboards' && r.sourceId) {
+      const src = this.sources.find((s) => s.id === r.sourceId);
+      const full = (page: number) => ({ sourceId: r.sourceId!, page, crop: { x: 0, y: 0, w: src?.pages[page]?.w ?? 1, h: src?.pages[page]?.h ?? 1 } });
+      // 새 사인물은 평면 구역 오른쪽에 차례로
+      let x = Math.max(0, ...[...this.flatPlaced.values()].map((p) => p.x + p.w)) + this.flatGap;
+      for (const row of r.rows) {
+        if (row.page === undefined) continue;
+        if (row.action === 'apply' && row.signId) { this.setDesign(row.signId, full(row.page)); applied++; }
+        if (row.action === 'create' && row.w && row.h) {
+          const id = this.createStandalone(x, 0, { widthMm: row.w, heightMm: row.h });
+          if (id) { this.setDesign(id, full(row.page)); created++; x += row.w + this.flatGap; }
+        }
+      }
+    } else if (r.kind === 'bundle' && r.bundle) {
+      const take = new Set(r.rows.filter((x) => x.action === 'apply').map((x) => x.signId));
+      applied = await this.applyIllustratorBundle(r.bundle.filter((it) => take.has(it.sign)));
+    }
+    this.syncReview = null;
+    this.selectObject(null);
+    this.notice = `디자인 싱크 확정 — 입힘 ${applied}${created ? ` · 새 사인물 ${created}` : ''}${unlinked ? ` · 연결 해제 ${unlinked}` : ''}`;
+  }
+
+  private async applyIllustratorBundle(items: BundleItem[]): Promise<number> {
+    const targets = bundleTargets(items, this.signs.map((o) => ({ id: o.id, parts: partsOfSign(o).map((p) => p.id) })));
     const bySign = new Map<string, BundleItem[]>();
     for (const t of targets) bySign.set(t.sign, [...(bySign.get(t.sign) ?? []), t]);
     const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -1144,11 +1198,11 @@ class AppState {
           parts = parts.map((p) => (p.id === part.id ? { ...p, items: [item] } : p));
           changed = true;
         }
-        n++;
       }
+      n++;
       if (changed) { this.editBoundary(); this.project.updateObject(o.id, commitParts(o, parts)); this.editBoundary(); }
     }
-    this.notice = n ? `일러스트에서 구성 요소 디자인 ${n}개를 받아 사인물에 넣었습니다.` : '묶음에 이 프로젝트의 사인물·구성 요소가 없습니다.';
+    return n;
   }
 
   /** 사인물에 디자인 영역을 입히고 이력에 남긴다 */

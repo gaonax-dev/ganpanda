@@ -158,3 +158,17 @@ export async function openSettings(page: Page) {
     await page.getByTestId('open-settings').click({ timeout: 2000 });
   }).toPass({ timeout: 15_000 });
 }
+
+/** 디자인 탭 [⇄ 디자인 싱크] 대화창 — 프로그램 고르기 (2026-11-06) */
+export async function openDesignSync(page: Page, program: 'illustrator' | 'corel' | 'svg' = 'illustrator') {
+  await page.getByTestId('view-design').click();
+  await page.getByTestId('design-bar').getByTestId('design-sync-open').click();
+  await page.getByTestId(`sync-program-${program}`).click();
+}
+
+/** 디자인 싱크 › 디자인 파일 화면 (예전 디자인 탭 [디자인 파일 n]) */
+export async function openDesignFiles(page: Page) {
+  await page.getByTestId('view-design').click();
+  await page.getByTestId('design-bar').getByTestId('design-sync-open').click();
+  await page.getByTestId('sync-design-files').click();
+}

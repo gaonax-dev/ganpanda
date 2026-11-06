@@ -141,7 +141,7 @@
       bf.encoding = 'UTF-8'; bf.open('w'); bf.write('{"format":"ganpanda-illustrator-bundle","version":1,"items":[' + items.join(',') + ']}'); bf.close();
     }
     alert('간판다로 보낼 준비가 되었습니다 (대지 ' + n + '개' + (items.length ? ', 구성 요소 디자인 ' + items.length + '개' : '') + ').\n' +
-      (items.length ? bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [＋ 일러스트·SVG 올리기]로 올리면 구성 요소마다 자동으로 들어갑니다(채널·스카시는 입체).\n' : '') +
+      (items.length ? bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리고 사진보드에서 확인 뒤 [확정]하면 구성 요소마다 들어갑니다(채널·스카시는 입체).\n' : '') +
       '.ai 를 올리면 대지 전체가 사인물 바탕 디자인으로 연결됩니다.');
   }
 
@@ -209,7 +209,7 @@
   var folder = Folder.selectDialog('간판다에서 받은 폴더를 고르세요 (zip 을 푼 폴더 — ganpanda.json 이 있는 곳)');
   if (!folder) return;
   var jf = new File(folder.fsName + '/ganpanda.json');
-  if (!jf.exists) { alert('그 폴더에 ganpanda.json 이 없습니다.\n간판다 디자인 탭 [일러스트 대지 받기]로 받은 zip 을 풀고, 그 폴더를 골라 주세요.'); return; }
+  if (!jf.exists) { alert('그 폴더에 ganpanda.json 이 없습니다.\n간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › [대지 받기 (zip)]로 받은 zip 을 풀고, 그 폴더를 골라 주세요.'); return; }
   jf.encoding = 'UTF-8'; jf.open('r'); var txt = jf.read(); jf.close();
   var picked;
   try { picked = eval('(' + txt + ')'); } catch (e) { alert('ganpanda.json 을 읽지 못했습니다: ' + e); return; }
