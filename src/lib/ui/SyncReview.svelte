@@ -58,7 +58,7 @@
   <small class="tip">디자인은 사인물 카드에 바로 들어가고, path 는 고른 구성물(채널·스카시)의 입체가 됩니다. 누락 = 보낸 사인물인데 받은 파일에 없음 · 새로 생김 = 파일에만 있는 대지. 확정 전에는 아무것도 바뀌지 않습니다.</small>
   <footer>
     <button class="btn small" data-testid="sync-cancel" onclick={() => app.cancelSync()}>취소</button>
-    <button class="btn small primary" data-testid="sync-confirm" disabled={busy || !app.canEdit} onclick={confirm}>확정</button>
+    <button class="btn small primary" data-testid="sync-confirm" disabled={busy || !app.canEdit} onclick={confirm}>{busy ? '적용 중…' : '확정'}</button>
   </footer>
 </div>
 
