@@ -14,8 +14,8 @@
   import { colorFor } from '../core/presence';
   import BubbleShape from '../ui/BubbleShape.svelte';
   import type { Pt } from '../core/homography';
-  import { faceFromUrl, faceUrl } from '../photoDisplay';
-  import { designIsFace } from '../core/sheetArea';
+  import { faceUrl } from '../photoDisplay';
+  import { withoutDesign } from '../core/parts';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
@@ -48,15 +48,9 @@
   // 바탕색(2026-10-17 "정면도에도 배경색 나오게"): 2D 무대의 sign-fill 과 같은 색·투명도를 사진 얼굴 위에
   // 실측 탭은 원본 사진만 (2026-11-05 "실측모드에서 사인물카드 재질이 아닌 원본 사진표시") — 재질·디자인·구성 요소는 2D·디자인 탭
   // 탭마다 그리는 층 (2026-11-06 "사인물카드는 실측(사진), 2d(속성내용), 3d(속성내용 3d추가), 디자인(대지 이미지)") — core/cardLayers
-  // 3D 탭 = 그 사진의 3D 합성 그림에서 편 사인물 자리, 디자인이 면인 시트는 2D·3D 에도 디자인 (2026-11-07 "사이물 카드가 모드 변화에 이미지 교체가 안된다")
-  const stage3d = $derived(photo ? app.stageRenders[photo.id]?.url || '' : '');
-  const layers = $derived(cardLayers(app.tab, !!o.design, { has3d: !!stage3d, designIsFace: designIsFace(o) }));
-  let face3d = $state<string | undefined>(undefined);
-  $effect(() => {
-    const mm = { w: o.widthMm ?? w, h: o.heightMm ?? h };
-    if (layers.d3 && stage3d && photo && o.quad.length === 4 && !app.safeMode) faceFromUrl(stage3d, photo.w, o.quad, mm.w, mm.h).then((u) => (face3d = u));
-    else face3d = undefined;
-  });
+  // 2D·3D = 디자인 적용 전 임시 설정(디자인을 뗀 사본으로 그림), 디자인 탭 = 전체 디자인 (2026-11-07 "이건 일종의 약속과 같은거여서")
+  const layers = $derived(cardLayers(app.tab, !!o.design));
+  const propsObj = $derived(withoutDesign(o));
   const look = $derived(layers.fill ? bodyLook(o) : null);
   const badge = $derived(faceBadge(o));
   // 정면도 카드의 말풍선 (2026-10-18 "사진에 갇혀 있는데 정면도들에게도 적용"): 사인물 좌표(0~1)로 저장된 자리를 카드 px 로
@@ -76,10 +70,9 @@
   style:--z={zoom} style:left="{x}px" style:top="{y}px" style:width="{w}px" style:height="{h}px" role="button" tabindex="-1" onpointerdown={onpointerdown}>
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
-    {#if layers.d3 && face3d}<img class="flat" data-testid="card-3d" src={face3d} alt="" draggable="false" />{/if}
     {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
     {#if layers.design && o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
-    {#if layers.parts}<PartsOverlay {o} {mmW} {mmH} {w} {h} />{/if}
+    {#if layers.parts}<PartsOverlay o={propsObj} {mmW} {mmH} {w} {h} />{/if}
   </div>
   {#if lastMsg}
     <svg class="bubbles" width={w} height={h} viewBox="0 0 {w} {h}" overflow="visible">

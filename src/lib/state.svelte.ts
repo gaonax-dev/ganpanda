@@ -63,7 +63,7 @@ import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
-import { categoryPatch, commitParts, materialPatch, newItem, partLabel, partsOf as partsOfSign } from './core/parts';
+import { categoryPatch, commitParts, materialPatch, newItem, partLabel, partsOf as partsOfSign, withoutDesign } from './core/parts';
 import { FRAME_PART, isBundleName, parseBundle, pngSize, svgSize, type BundleItem } from './core/illustratorBundle';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
@@ -263,10 +263,13 @@ class AppState {
   /** 3D 그림을 새로 만든 횟수 (기기에 저장된 그림을 쓴 것은 세지 않는다 — 2026-10-29 확인용) */
   stageMade = $state(0);
   /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
-  stageKey(photoId: string): string {
+  /** 디자인을 입힌 화면인가 — 디자인 탭만. 2D·3D 탭은 디자인 적용 전 임시 설정 (2026-11-07) */
+  get designView(): boolean { return this.tab === 'design' || this.isCustomer; } // 고객(보기 초대)은 디자인 탭이 없다 — 디자인이 입혀진 결과를 본다
+  /** 사진 3D 그림의 내용 키 — design = 디자인 탭(디자인을 입힌 3D, 예전 키 그대로), 아니면 임시 설정 3D(디자인 빼고 'p' 표시 — 디자인이 바뀌어도 그대로) */
+  stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
-    const objs = this.objects.filter((o) => o.photoId === photoId).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
-    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
+    const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
+    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, ...(design ? {} : { v: 'p' }) })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');

@@ -85,11 +85,11 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   expect(bpx.derived).toBe(true);
   expect(bpx.blue).toEqual([255, 255, 255]);
   expect(bpx.green[1]).toBeGreaterThan(100);
-  // 디자인 탭 = 3D (2026-11-07 "디자인은 3d를 표시하게"), 2D 사진 위는 입체 제외 그림, 디자인 파일 목록에 파생 그림은 안 보임
+  // 디자인 탭 = 3D, 2D 사진 위는 디자인 전 임시 설정(디자인 없음) (2026-11-07)
   await page.getByTestId('view-design').click();
   expect(await page.evaluate(() => (window as any).__ganpanda.stage)).toBe('3d');
   await page.getByTestId('stage-2d').click();
-  await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveAttribute('data-source', o.designBase.sourceId);
+  await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveCount(0);
   await page.getByTestId('view-design').click();
   await page.getByTestId('design-bar').getByTestId('view-uv').click();
   await expect(page.getByTestId('page-card')).toHaveCount(1);
@@ -167,7 +167,7 @@ test('다시 받으면 지난번 레이어 연결을 미리 골라 둔다 (2026-
   await expect(layerSel('디자인')).toHaveValue('ch1');
 });
 
-test('카드는 모드마다 바뀐다: 실측 = 사진, 2D = 속성 내용, 3D = 3D 합성에서 편 사인물 자리, 디자인 = 디자인 (2026-11-07 "핀볼에서 모든 모드 확인해줘 사이물 카드가 모드 변화에 이미지 교체가 안된다")', async ({ page, request }) => {
+test('카드는 모드마다: 실측 = 사진, 2D·3D = 디자인 전 임시 설정, 디자인 = 전체 디자인 (2026-11-07 "핀볼에서 모든 모드 확인해줘 사이물 카드가 모드 변화에 이미지 교체가 안된다")', async ({ page, request }) => {
   test.setTimeout(90_000);
   await openOwnedProject(page, request);
   const id = await sign(page);
@@ -178,17 +178,20 @@ test('카드는 모드마다 바뀐다: 실측 = 사진, 2D = 속성 내용, 3D 
   await page.getByTestId('sync-confirm').click();
   await page.evaluate((sheetId) => { const g = (window as any).__ganpanda; const o = g.project.object(g.signs.find((x: any) => x.artNo === 1).id); g.project.updateObject(sheetId, { design: o.design }); }, sheetId);
   const card = (cid: string) => page.locator(`[data-testid="board-card"][data-id="${cid}"]`);
-  await page.getByTestId('view-board').click(); // 실측
-  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+  await page.getByTestId('view-board').click(); // 실측 = 사진
   await expect(card(sheetId).getByTestId('design-image')).toHaveCount(0);
-  await page.getByTestId('stage-2d').click();
-  await expect(card(sheetId).getByTestId('design-image')).toHaveCount(1); // 시트는 디자인을 따른다
-  await expect(card(id).getByTestId('design-image')).toHaveCount(0); // 2D = 속성 내용
-  await page.getByTestId('stage-3d').click();
-  await expect(card(id).getByTestId('card-3d')).toHaveCount(1, { timeout: 60_000 }); // 3D 합성에서 편 그림
-  await page.getByTestId('view-design').click(); // 디자인 탭 카드 = 전체 디자인 (2026-11-07 "사인물 카드는 전체 디자인이 나와야해")
+  await expect(card(sheetId).getByTestId('card-fill')).toHaveCount(0);
+  // 2D·3D = 디자인 적용 전 임시 설정 — 디자인 없음, 바탕 시트는 시트 색 (2026-11-07 "이건 일종의 약속과 같은거여서")
+  for (const tab of ['stage-2d', 'stage-3d']) {
+    await page.getByTestId(tab).click();
+    await expect(card(sheetId).getByTestId('design-image')).toHaveCount(0);
+    await expect(card(sheetId).getByTestId('parts-overlay')).toHaveCount(1); // 시트 색 면
+    await expect(card(id).getByTestId('design-image')).toHaveCount(0);
+    await expect(card(id).getByTestId('card-3d')).toHaveCount(0); // 렌더링 그림은 카드에 쓰지 않는다
+  }
+  await page.getByTestId('view-design').click(); // 디자인 = 전체 디자인
   await expect(card(id).getByTestId('design-image')).toHaveCount(1);
-  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+  await expect(card(sheetId).getByTestId('design-image')).toHaveCount(1);
 });
 
 test('사진보드 3D: 내용이 바뀌어 새로 만드는 동안 마지막 3D 그림을 그대로 보여 준다 (2026-11-07 "3d 랜더링 이미지가 사진보드에서 유지되지 않아")', async ({ page, request }) => {
@@ -197,16 +200,42 @@ test('사진보드 3D: 내용이 바뀌어 새로 만드는 동안 마지막 3D 
   const id = await sign(page);
   const pid = await page.evaluate(() => (window as any).__ganpanda.photos[0].id);
   await page.getByTestId('stage-3d').click();
-  await expect.poll(() => page.evaluate((pid) => (window as any).__ganpanda.stageRenders[pid]?.url ?? '', pid), { timeout: 60_000 }).toMatch(/^blob:/);
+  await expect.poll(() => page.evaluate((pid) => (window as any).__ganpanda.stageRenders['p:' + pid]?.url ?? '', pid), { timeout: 60_000 }).toMatch(/^blob:/);
   // 내용을 바꾸고(키가 바뀜) 다시 연다 — 새 그림이 생기기 전에도 마지막 3D 그림이 사진 위에
   await page.getByTestId('stage-2d').click(); // 2D 에서 바꿔 새 3D 그림은 아직 없음
   await page.evaluate((id) => (window as any).__ganpanda.project.updateObject(id, { heightMm: 1400 }), id);
   await page.waitForTimeout(1500);
   await page.reload();
   await page.getByTestId('stage-3d').click();
-  const first = await page.waitForFunction((pid) => { const g = (window as any).__ganpanda; const r = g?.stageRenders?.[pid]; return r?.url ? { key: r.key, made: g.stageMade } : null; }, pid, { timeout: 60_000 });
+  const first = await page.waitForFunction((pid) => { const g = (window as any).__ganpanda; const r = g?.stageRenders?.['p:' + pid]; return r?.url ? { key: r.key, made: g.stageMade } : null; }, pid, { timeout: 60_000 });
   const v = await first.jsonValue() as { key: string; made: number };
   expect(v.made).toBe(0); // 이 화면에서 새로 만들기 전
   expect(v.key.startsWith('stale|')).toBe(true); // 마지막 그림
   await expect(page.getByTestId('photo-overlay')).toHaveCount(1);
+});
+
+test('사진 3D 는 둘: 3D 탭 = 디자인 전 임시 설정, 디자인 탭 = 디자인을 입힌 3D — 따로 만들고 저장, 다시 열면 만들지 않고 그대로 (2026-11-07 "둘은 다른다" · "랜더링된 이미지는 다음에 열었을때도 유지한다")', async ({ page, request }) => {
+  test.setTimeout(150_000);
+  await openOwnedProject(page, request);
+  await sign(page);
+  const pid = await page.evaluate(() => (window as any).__ganpanda.photos[0].id);
+  await upload(page, layeredPdf('1'));
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 }); // 확정이 끝난 뒤
+  const r = (v: string) => page.evaluate(([pid, v]) => (window as any).__ganpanda.stageRenders[v + ':' + pid] ?? null, [pid, v]);
+  await page.getByTestId('stage-3d').click();
+  const now = (d: boolean) => page.evaluate(([pid, d]) => (window as any).__ganpanda.stageKey(pid, d), [pid, d] as const);
+  await expect.poll(async () => (await r('p'))?.key === (await now(false)) && /^blob:/.test((await r('p'))?.url ?? ''), { timeout: 60_000 }).toBe(true);
+  await page.getByTestId('view-design').click();
+  await expect.poll(async () => (await r('d'))?.key === (await now(true)) && /^blob:/.test((await r('d'))?.url ?? ''), { timeout: 60_000 }).toBe(true);
+  const [p1, d1] = [await r('p'), await r('d')];
+  expect(p1.key).not.toBe(d1.key); // 다른 그림
+  expect(await page.evaluate((pid) => [(window as any).__ganpanda.stageKey(pid, false), (window as any).__ganpanda.stageKey(pid, true)], pid)).toEqual([p1.key, d1.key]);
+  // 다시 열기 — 저장한 그림을 그대로 (새로 만들지 않음)
+  await page.reload();
+  await page.getByTestId('view-design').click();
+  await expect.poll(async () => (await r('d'))?.key ?? '', { timeout: 30_000 }).toBe(d1.key);
+  await page.getByTestId('stage-3d').click();
+  await expect.poll(async () => (await r('p'))?.key ?? '', { timeout: 30_000 }).toBe(p1.key);
+  expect(await page.evaluate(() => (window as any).__ganpanda.stageMade)).toBe(0);
 });

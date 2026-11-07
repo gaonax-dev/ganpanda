@@ -108,6 +108,11 @@ export function commitParts(o: Pick<SignObject, 'options' | 'layers' | 'parts'>,
 /** 미리보기 구성 요소(출력 글자·그림)인가 — 디자인 파일이 붙으면 그리지 않는다 (2026-10-21 "미리보기로 하고 디자인은 별도로") */
 export const isPreviewPart = (p: SignPart) => p.options?.included === true; // included 는 출력 시트(addPrintItem)에만
 /** 그릴 구성 요소: 디자인 파일이 있으면 미리보기 구성 요소는 뺀다 */
+/**
+ * 디자인을 뗀 사본 — "임시 설정"(디자인 적용 전) 화면: 2D·3D 탭의 사진보드와 2D·3D 사인물 카드 (2026-11-07 "2d, 3d는 디자인이 적용되기 전의 임시 설정으로 사인물카드를 보여줘야한다.
+ * 이건 일종의 약속과 같은거여서" · "3d는 이전의 임시설정이 디자인은 디자인파일에서 가져온 걸로 사진위에 3d가 나와야한다. 둘은 다른다"). 미리보기 글자 숨김·시트 색 생략 같은 디자인 동작이 모두 빠진다
+ */
+export const withoutDesign = <T extends { design?: unknown; designBase?: unknown }>(o: T): T => (o.design || o.designBase ? { ...o, design: undefined, designBase: undefined } : o);
 export const drawnParts = (o: Pick<SignObject, 'design'>, parts: SignPart[]) => (o.design ? parts.filter((p) => !isPreviewPart(p)) : parts);
 /**
  * 출력 글자·그림 (2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"): 후렉스·천갈이처럼 몸통이 곧 출력면인 종류에 글자·그림을 넣는다.

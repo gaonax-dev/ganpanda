@@ -123,38 +123,6 @@ export function faceUrl(assetId: string, photoW: number, quad: Pt[], w: number, 
   return p;
 }
 
-/**
- * 3D 카드 얼굴 (2026-11-07 "사이물 카드가 모드 변화에 이미지 교체가 안된다" — 3D 카드가 2D 와 같았다): 사진의 3D 합성 그림(stageRenders, 사진 전체 JPEG)에서
- * 사인물 영역을 정면으로 편 작은 그림. 메모리에만(합성 그림이 바뀌면 주소가 바뀐다)
- */
-const face3dCache = new Map<string, Promise<string | undefined>>();
-export function faceFromUrl(url: string, photoW: number, quad: Pt[], w: number, h: number, max = 360): Promise<string | undefined> {
-  const out = displaySize(w, h, max);
-  const ow = Math.max(1, out.w), oh = Math.max(1, out.h);
-  const key = `${url}|${photoW}|${quad.map((p) => p.map((v) => Math.round(v)).join(',')).join(';')}|${ow}x${oh}`;
-  let p = face3dCache.get(key);
-  if (!p) {
-    p = (async () => {
-      const img = await loadImage(url);
-      const c0 = document.createElement('canvas');
-      c0.width = img.naturalWidth; c0.height = img.naturalHeight;
-      const x0 = c0.getContext('2d', { willReadFrequently: true })!;
-      x0.drawImage(img, 0, 0);
-      const src = x0.getImageData(0, 0, c0.width, c0.height);
-      c0.width = c0.height = 0;
-      const k = src.width / photoW;
-      const H = rectToQuad(ow, oh, quad.map(([x, y]) => [x * k, y * k] as Pt));
-      const c = document.createElement('canvas');
-      c.width = ow; c.height = oh;
-      c.getContext('2d')!.putImageData(new ImageData(warpPixels(src, H, ow, oh) as Uint8ClampedArray<ArrayBuffer>, ow, oh), 0, 0);
-      return URL.createObjectURL(await toJpeg(c));
-    })().catch(() => undefined);
-    face3dCache.set(key, p);
-    p.then((u) => { if (!u) face3dCache.delete(key); });
-  }
-  return p;
-}
-
 async function makeFace(assetId: string, photoW: number, quad: Pt[], ow: number, oh: number, dkey: string): Promise<string | undefined> {
   const src = await pixelsOf(assetId);
   if (!src) return undefined;

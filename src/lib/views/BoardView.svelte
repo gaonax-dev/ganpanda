@@ -1,5 +1,6 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import { withoutDesign } from '../core/parts';
   import { paymentsShown } from '../auth';
   import { askConfirm } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
@@ -262,6 +263,13 @@
   /** 3D 로 바꿀 사인물이 없는 사진 (시트·현수막뿐) — 3D 단계에서도 2D 그림 그대로 (2026-10-29 "시트처럼 2d인 경우는 3d로 변환할 이유가 없다") */
   const flatPhoto = (id: string) => !needs3d(app.objects.filter((o) => o.photoId === id));
   /**
+   * 사진 3D 는 두 가지 (2026-11-07 "3d는 이전의 임시설정이 디자인은 디자인파일에서 가져온 걸로 사진위에 3d가 나와야한다. 둘은 다른다"):
+   * 'p' = 3D 탭 — 디자인 적용 전 임시 설정(디자인을 뗀 사본), 'd' = 디자인 탭 — 디자인 파일의 디자인을 입힌 3D. 그림·기억 자리도 따로
+   */
+  const variant = (): 'p' | 'd' => (app.designView ? 'd' : 'p');
+  const slot = (id: string, v = variant()) => `${v}:${id}`;
+  const viewObjs = (id: string, v = variant()) => app.objects.filter((o) => o.photoId === id).map((o) => (v === 'd' ? o : withoutDesign(o)));
+  /**
    * 3D 단계 그림 (LOD 바탕, 2026-10-29 "사인물을 변경한 경우가 아니라면 기존의 저장된 이미지를 사용한다"): 내용 키가 바뀐 사진만, 차례로.
    * 기기에 저장된 그림이 있으면 그것을 쓰고(만들지 않음), 없으면 데스크톱은 합성해서 저장. 휴대폰은 만들지 않고 — 가운데 사진의 실시간 화면에서 떠서 저장한다
    */
@@ -273,16 +281,17 @@
         const id = stageQueue.shift()!;
         const p = app.photos.find((x) => x.id === id);
         if (!p) continue;
-        const key = app.stageKey(id);
-        if (app.stageRenders[id]?.key === key) continue;
-        const objs = app.objects.filter((o) => o.photoId === id);
+        const v = variant(), sk = slot(id, v); // 시작할 때의 종류 — 도중에 탭이 바뀌어도 그 자리에
+        const key = app.stageKey(id, v === 'd');
+        if (app.stageRenders[sk]?.key === key) continue;
+        const objs = viewObjs(id, v);
         const plane = wallPlaneOf(objs, app.calibrations.get(id));
-        if (!plane || !needs3d(objs)) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없거나 납작한 것뿐 → 사진(2D) 그대로
+        if (!plane || !needs3d(objs)) { app.stageRenders[sk] = { key, url: '' }; continue; } // 3D 벽면이 없거나 납작한 것뿐 → 사진(2D) 그대로
         const saved = await loadSnapshot(id, key);
-        if (saved) { app.stageRenders[id] = { key, url: saved }; continue; }
+        if (saved) { app.stageRenders[sk] = { key, url: saved }; continue; }
         // 새 그림이 준비될 때까지 그 사진의 마지막 3D 그림을 그대로 (2026-11-07 "3d 랜더링 이미지가 사진보드에서 유지되지 않아") — 키는 달라 아래에서 새로 만든다
-        if (!app.stageRenders[id]?.url) { const last = await loadLatestSnapshot(id); if (last) app.stageRenders[id] = { key: `stale|${key}`, url: last }; }
-        if (phoneStage) { app.stageRenders[id] = { key, url: '' }; continue; } // 휴대폰은 만들지 않는다 — 가운데 사진의 실시간 화면에서 떠서 채운다(snapshotLater)
+        if (!app.stageRenders[sk]?.url) { const last = await loadLatestSnapshot(id, v); if (last) app.stageRenders[sk] = { key: `stale|${key}`, url: last }; }
+        if (phoneStage) { if (!app.stageRenders[sk]?.url) app.stageRenders[sk] = { key, url: '' }; continue; } // 휴대폰은 만들지 않는다 — 가운데 사진의 실시간 화면에서 떠서 채운다(snapshotLater)
         // 실시간 3D 가 먼저 (2026-11-05 "확대할때 3d 업데이트 안되서 깍두기 보임" — 맥 앱 실측: 다른 사진 합성과 함께 지으면 가운데 사진의 실시간 장면이 1분 가까이 늦어
         // 그동안 저장 그림이 늘어나 보였다): 가운데 사진의 실시간 장면이 지어질 때까지 합성을 기다린다 (최대 15초 — 실시간이 실패해도 멈추지 않게)
         for (let waited = 0; waited < 15000 && app.stage === '3d' && live && !liveLost && liveBuilt?.id !== live.id; waited += 200) await new Promise((ok) => setTimeout(ok, 200));
@@ -296,13 +305,13 @@
         try {
           const dataUrl = await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize);
           app.stageMade++;
-          app.stageRenders[id] = { key, url: await saveSnapshot(id, key, await dataUrlToBlob(dataUrl)) };
+          app.stageRenders[sk] = { key, url: await saveSnapshot(id, key, await dataUrlToBlob(dataUrl), v) };
           crashLog.event(`3D 그림 ${p.name} 완료 ${Math.round(performance.now() - t0)}ms`);
         }
         catch (e) {
           console.warn('3D 단계 합성 실패', e);
           crashLog.event(`3D 그림 ${p.name} 실패: ${e instanceof Error ? e.message : e}`);
-          app.stageRenders[id] = { key, url: app.stageRenders[id]?.url ?? '' }; // 실패해도 마지막 그림은 그대로
+          app.stageRenders[sk] = { key, url: app.stageRenders[sk]?.url ?? '' }; // 실패해도 마지막 그림은 그대로
         }
         finally { app.stageBusy--; }
       }
@@ -317,7 +326,7 @@
   $effect(() => {
     if (app.stage !== '3d') { stageRenderer?.dispose(); stageRenderer = null; stageQueue.length = 0; return; }
     // 의존: 사진·사인물·카메라 (키 계산이 전부 읽는다)
-    const stale = app.photos.filter((p) => app.stageRenders[p.id]?.key !== app.stageKey(p.id)).map((p) => p.id);
+    const stale = app.photos.filter((p) => app.stageRenders[slot(p.id)]?.key !== app.stageKey(p.id)).map((p) => p.id);
     if (!stale.length) return;
     clearTimeout(stageTimer);
     stageTimer = window.setTimeout(() => { for (const id of stale) if (!stageQueue.includes(id)) stageQueue.push(id); pumpStage(); }, 300);
@@ -363,7 +372,7 @@
     const id = live.id, key = app.stageKey(id);
     if (liveBuilt?.id === id && liveBuilt.key === key) return;
     const p = app.photos.find((x) => x.id === id);
-    const objs = app.objects.filter((o) => o.photoId === id);
+    const objs = viewObjs(id);
     const plane = planeOf(id);
     if (!p || !plane) return;
     const token = ++liveToken, host = liveHost;
@@ -389,14 +398,15 @@
   function snapshotLater(id: string, key: string) {
     if (!phoneStage) return;
     clearTimeout(snapTimer);
+    const v = variant(), sk = slot(id, v);
     snapTimer = window.setTimeout(async () => {
-      if (!liveStage || liveBuilt?.id !== id || liveBuilt.key !== key || app.stageRenders[id]?.key === key && app.stageRenders[id]?.url) return;
-      if (await loadSnapshot(id, key)) { app.stageRenders[id] = { key, url: (await loadSnapshot(id, key))! }; return; }
+      if (!liveStage || liveBuilt?.id !== id || liveBuilt.key !== key || app.stageRenders[sk]?.key === key && app.stageRenders[sk]?.url) return;
+      if (await loadSnapshot(id, key)) { app.stageRenders[sk] = { key, url: (await loadSnapshot(id, key))! }; return; }
       crashLog.event('3D 그림 뜨기 ' + id.slice(0, 6));
       const blob = await liveStage.snapshot(live && live.id === id ? live.crop : null);
       if (!blob || liveBuilt?.id !== id || liveBuilt.key !== key) return;
       app.stageMade++;
-      app.stageRenders[id] = { key, url: await saveSnapshot(id, key, blob) };
+      app.stageRenders[sk] = { key, url: await saveSnapshot(id, key, blob, v) };
     }, 700);
   }
   /** 데스크톱: 화면에 보이는 다른 사진(가까운 2장) 장면을 미리 */
@@ -409,7 +419,7 @@
       const seen = x1 > 0 && y1 > 0 && x0 < boardSize.w && y0 < boardSize.h;
       return { p, seen, d: Math.hypot((x0 + x1) / 2 - cx, (y0 + y1) / 2 - cy) };
     }).filter((x) => x.seen).sort((a, b) => a.d - b.d).slice(0, 2);
-    for (const { p } of near) liveStage.prefetch(p, app.stageKey(p.id), app.objects.filter((o) => o.photoId === p.id), planeOf(p.id)!, app.sources, stageFont, app.estSize);
+    for (const { p } of near) liveStage.prefetch(p, app.stageKey(p.id), viewObjs(p.id), planeOf(p.id)!, app.sources, stageFont, app.estSize);
   }
   // 보이는 부분 맞추기 — 화면을 움직이는 동안에도 매번 (그림판 크기는 그대로라 가볍다)
   // 휴대폰: 화면이 움직이는 동안 실시간 3D 를 숨기고 그리지 않는다 — 저장된 3D 그림이 보인다, 멈추고 LIVE_SETTLE_MS 뒤 다시
@@ -681,8 +691,8 @@
         selectedId={app.selectionKind === 'card' ? null : app.selectedId}
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
-        overlay={app.stage === '3d' ? app.stageRenders[p.id]?.url || undefined : undefined}
-        twoD={(app.stage === '2d' || (app.stage === '3d' && flatPhoto(p.id))) && !app.safeMode}
+        overlay={app.stage === '3d' ? app.stageRenders[slot(p.id)]?.url || undefined : undefined}
+        twoD={(app.stage === '2d' || (app.stage === '3d' && (flatPhoto(p.id) || (app.designView && !planeOf(p.id))))) && !app.safeMode} /* 디자인 탭에서 3D 를 못 만드는 사진(원근 없음)은 2D 로 디자인을 (2026-11-07) */
         onduplicate={(id) => { const b = parseBlockId(id); if (b) return app.duplicateBlock(b.id, b.i, false); app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
