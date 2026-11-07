@@ -191,6 +191,10 @@ test('카드는 모드마다: 실측 = 사진, 2D·3D = 디자인 전 임시 설
   }
   await page.getByTestId('view-design').click(); // 디자인 = 전체 디자인
   await expect(card(id).getByTestId('design-image')).toHaveCount(1);
+  // 상태 배지 "디자인"은 작은 글자 배지 — 라벨을 덮는 큰 블록이 아니다 (2026-11-08 "사인물카드의 커다란 디자인 라벨은 뭔가?")
+  const badge = card(id).getByTestId('card-badge');
+  await expect(badge).toHaveText('디자인');
+  expect(await badge.evaluate((e) => getComputedStyle(e).position)).toBe('static');
   await expect(card(sheetId).getByTestId('design-image')).toHaveCount(1);
 });
 

@@ -71,7 +71,7 @@
   <div class="face" style:clip-path={faceClip(o, w, h)}>
     {#if face}<img class="flat" src={face} alt="" draggable="false" />{/if}
     {#if look}<div class="fill" data-testid="card-fill" style:background={look.color} style:opacity={look.opacity}></div>{/if}
-    {#if layers.design && o.design}<div class="design"><DesignFace design={o.design} {w} {h} /></div>{/if}
+    {#if layers.design && o.design}<div class="design-layer"><DesignFace design={o.design} {w} {h} /></div>{/if}
     {#if layers.parts}<PartsOverlay o={propsObj} {mmW} {mmH} {w} {h} />{/if}
   </div>
   {#if lastMsg}
@@ -111,7 +111,7 @@
   .sel::after, .multi::after { display: block; }
   .face img.flat { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .fill { position: absolute; inset: 0; pointer-events: none; }
-  .design { position: absolute; inset: 0; }
+  .design-layer { position: absolute; inset: 0; } /* 이름이 'design' 이면 상태 배지(badge design)도 이 규칙을 받아 라벨 전체를 덮었다 (2026-11-08 "사인물카드의 커다란 디자인 라벨은 뭔가?") */
   .badge { display: inline-block; margin-right: 5px; padding: 0 5px; border-radius: 4px; font-size: 9px; font-weight: 600; line-height: 14px; vertical-align: 1px; color: var(--muted); border: 1px solid var(--line); }
   .badge.artno { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); font-variant-numeric: tabular-nums; } /* 일러스트 대지 번호 배지 (2026-11-06 "배지로 사인물카드에 작게") */
   .badge.change { color: #fb923c; border-color: #fb923c; } /* 변경안 (2026-11-05) */
