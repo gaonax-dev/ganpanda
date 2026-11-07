@@ -33,8 +33,10 @@ async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: str
   // 일러스트레이터 "PDF 호환" 저장이면 파일 앞부분에 %PDF 가 있다
   const head = new TextDecoder('latin1').decode(bytes.subarray(0, 1024));
   if (!head.includes('%PDF')) throw new ConvertError('not-pdf-compatible', '이 .ai 파일은 PDF 호환으로 저장되지 않았습니다. 일러스트레이터에서 "PDF 호환 파일 만들기"를 켜고 다시 저장해 주세요.');
-  const pdfjs = await import('pdfjs-dist');
-  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+  // legacy 빌드 (2026-11-07 맥 앱 "파일을 처리하지 못했습니다"): pdf.js 일반 빌드는 Map.getOrInsertComputed · Math.sumPrecise 등을 대체 코드 없이 쓰는데
+  // 맥 시스템 WebKit(macOS 26.1)에 없다 — legacy 빌드는 대체 코드를 담는다 (tests/unit/pdfjsCompat.test.ts)
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const task = pdfjs.getDocument({ data: bytes });
   let doc;

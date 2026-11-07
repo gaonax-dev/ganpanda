@@ -96,3 +96,12 @@ test('받다가 실패하면 알림에 단계와 오류 (2026-11-07 맥 앱 "파
   await page.getByTestId('sync-receive-input').setInputFiles({ name: 'a.pdf', mimeType: 'application/pdf', buffer: layeredPdf('1') });
   await expect(page.getByTestId('notice')).toContainText('파일을 처리하지 못했습니다 (디자인 파일 등록: 일부러 실패)', { timeout: 20_000 });
 });
+
+test('맥 앱 엔진처럼 Map.getOrInsertComputed·Math.sumPrecise 가 없어도 PDF 를 받는다 (2026-11-07 "파일을 처리하지 못했습니다")', async ({ page, request }) => {
+  await page.addInitScript(() => { delete (Map.prototype as any).getOrInsertComputed; delete (WeakMap.prototype as any).getOrInsertComputed; delete (Math as any).sumPrecise; });
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  expect(await page.evaluate(() => typeof (Map.prototype as any).getOrInsertComputed)).toBe('undefined');
+  await upload(page, layeredPdf('1'));
+  await expect(page.locator(`[data-testid="sync-layer-row"][data-sign="${id}"]`)).toHaveCount(2);
+});
