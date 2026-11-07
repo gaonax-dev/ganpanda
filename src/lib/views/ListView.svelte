@@ -219,17 +219,6 @@
           <span>{fmt(w)} × {fmt(h)} mm{estimated ? ' · 추정' : ''}</span>
           <span class="muted">{[prod?.name, chan, ...o.sheetIds.map((s) => sheetById(s)?.name)].filter(Boolean).join(' + ') || '종류 미지정'}</span>
           {#if placeholder}<span class="price unsized" data-testid="list-unsized">치수 없음</span>{:else if !app.noPrices}<span class="price">{won(amount)}</span>{/if}
-          {#if app.canEdit && app.photos.length}
-            <!-- 사진 보드에 올리기: 사진이 하나면 바로, 여럿이면 고른다 (같은 사인물로 연결) -->
-            {#if app.photos.length === 1}
-              <button class="place" data-testid="place-on-photo" onclick={() => app.placeOnPhoto(o.id, app.photos[0].id)}>📷 사진에 올리기</button>
-            {:else}
-              <select class="place" data-testid="place-on-photo" value="" onchange={(e) => { const id = e.currentTarget.value; if (id) app.placeOnPhoto(o.id, id); e.currentTarget.value = ''; }}>
-                <option value="">📷 사진에 올리기…</option>
-                {#each app.photos as p (p.id)}<option value={p.id}>{p.name}{o.photoId === p.id || app.objects.some((c) => c.photoId === p.id && (c.sameAs ?? c.id) === (o.sameAs ?? o.id)) ? ' (이미 있음)' : ''}</option>{/each}
-              </select>
-            {/if}
-          {/if}
         </div>
       </div>
     {/each}
@@ -421,7 +410,6 @@
   .badge.settings { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
   .badge.design { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
   .dim, .spec { position: absolute; transform-origin: 0 0; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .spec .place { pointer-events: auto; }
   .dim { color: var(--dim); font-size: 11px; }
   .dim.top { left: 0; bottom: 100%; transform-origin: 0 100%; text-align: center; border-bottom: 1px solid var(--dim); padding-bottom: 2px; margin-bottom: 4px; }
   .dim.side { left: 100%; top: 0; border-left: 1px solid var(--dim); margin-left: 6px; display: flex; align-items: center; padding-left: 4px; }
@@ -429,7 +417,6 @@
   .spec b { font-size: 13px; }
   .spec .muted { color: var(--muted); }
   .spec .price { color: var(--accent); font-weight: 700; }
-  .spec .place { margin-top: 4px; align-self: flex-start; background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 3px 8px; font: inherit; font-size: 11px; cursor: pointer; width: auto; }
   .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); padding-right: 340px; }
   .quote {
     position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; background: var(--panel); border: 1px solid var(--line);

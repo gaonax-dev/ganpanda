@@ -34,7 +34,7 @@
 - **그림 묻기**(2026-10-18 사용자: "svg를 내보내기하고 나면 일러스트에서 [연결 패널에서 일부 파일이 누락되거나 수정되었습니다] 안내가 나온다"): 입힌 디자인·구성 요소 그림은 `<image>` 에 **`xlink:href` 와 `href` 둘 다**로 쓴다 — 일러스트레이터는 SVG 2 의 `href` 만 있으면 그림을 못 읽고 연결 파일 누락으로 본다. 값은 항상 **그림 MIME 의 data URL**(`core/imageData.ts` `imageDataUrl`: 바이트 머리로 PNG/JPEG/WebP/GIF/SVG 를 정해 blob 의 type 이 비거나 octet-stream 이어도 그림으로), 못 만들면(받기 실패·그림 아님) 그 그림은 빼고 "그림 n개를 SVG 에 묻지 못해 뺐습니다" 알림 — 전엔 실패하면 blob:/http 주소를 그대로 넣어 누락 연결이 됐다.
 - 파일 이름 `<프로젝트> 전개도 1-1.svg` 등. `app.lastSvg` 에 마지막 SVG. 테스트: `tests/unit/listSvg.test.ts`(비율·윤곽선·xlink), `tests/unit/imageData.test.ts`, `tests/e2e/boardCards.spec.ts`.
 
-## 사진 보드에 올리기 (2026-10-15)
+## 사진 보드에 올리기 (2026-10-15 — 제거됨 2026-11-08 "불필요한 기능이다")
 사용자: "사인물 리스트의 사인물을 사진 보드에 올릴 수 있나?" → 사양 카드의 **[📷 사진에 올리기]**(`place-on-photo`: 사진이 하나면 버튼, 여럿이면 사진 셀렉터, 이미 그 사인물이 있는 사진은 "(이미 있음)"). `app.placeOnPhoto(signId, photoId)`: 그 사진 가운데에 폭 40%·치수 비율(치수가 없으면 원본 영역 비율)의 사각 영역을 만들고 **같은 사인물로 연결**(`linkObject`, 원본 규격·디자인·대화 공유, 견적은 하나) → 보드로 전환, 새 영역 선택, 그 사진을 화면에 맞춤(`app.reveal`). 자리·크기는 보드에서 끌어 맞춥니다. 편집 권한만. E2E: `tests/e2e/link.spec.ts`.
 
 ## 단가표 (2-1, `src/lib/core/pricing.ts`)
