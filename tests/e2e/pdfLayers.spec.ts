@@ -87,3 +87,12 @@ test('PDF 레이어: 윤곽선 아닌 글자만 있는 레이어는 안내, 받�
   await page.getByTestId('sync-cancel').click();
   expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).design ?? null, id)).toBeNull();
 });
+
+test('받다가 실패하면 알림에 단계와 오류 (2026-11-07 맥 앱 "파일을 처리하지 못했습니다" — 원인이 안 보였다)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await sign(page);
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.project.addSource = () => { throw new Error('일부러 실패'); }; });
+  await openDesignSync(page, 'illustrator');
+  await page.getByTestId('sync-receive-input').setInputFiles({ name: 'a.pdf', mimeType: 'application/pdf', buffer: layeredPdf('1') });
+  await expect(page.getByTestId('notice')).toContainText('파일을 처리하지 못했습니다 (디자인 파일 등록: 일부러 실패)', { timeout: 20_000 });
+});

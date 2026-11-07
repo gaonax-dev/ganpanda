@@ -49,21 +49,15 @@ async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: str
   // 레이어(OC): 받은 이미지는 끄고 그린다 (2026-11-07)
   const { pdfLayerVectors, layerSvg } = await import('../core/pdfVectors');
   let oc: Awaited<ReturnType<typeof doc.getOptionalContentConfig>> | null = null;
-  try { oc = await doc.getOptionalContentConfig(); } catch { oc = null; }
   const ocNames = new Map<string, string>();
-  if (oc) for (const [id, g] of oc) { ocNames.set(String(id), g.name ?? ''); if (HIDDEN_LAYERS.includes(g.name ?? '')) oc.setVisibility(id, false); }
+  try {
+    oc = await doc.getOptionalContentConfig();
+    if (oc) for (const [id, g] of oc) { ocNames.set(String(id), g.name ?? ''); if (HIDDEN_LAYERS.includes(g.name ?? '')) oc.setVisibility(id, false); }
+  } catch { oc = null; ocNames.clear(); } // 레이어를 못 읽으면 예전처럼 전부 그린다
   const pages: RenderedPage[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     let layers: RenderedPage['layers'], blank: boolean | undefined;
-    if (ocNames.size) {
-      const ol = await page.getOperatorList();
-      const view = page.view as [number, number, number, number];
-      const L = pdfLayerVectors(ol.fnArray, ol.argsArray, (id) => ocNames.get(String(id)) ?? null, view);
-      const pw = view[2] - view[0], ph = view[3] - view[1];
-      layers = [...L.values()].filter((l) => l.name && !HIDDEN_LAYERS.includes(l.name)).map((l) => ({ name: l.name, paths: l.paths.length, texts: l.texts, svg: layerSvg(l.paths, pw, ph) }));
-      blank = ![...L.values()].some((l) => !HIDDEN_LAYERS.includes(l.name) && l.marks > 0);
-    }
     const base = page.getViewport({ scale: 1 });
     const scale = Math.min(4, PAGE_MAX_SIDE / Math.max(base.width, base.height));
     const vp = page.getViewport({ scale });
@@ -71,8 +65,26 @@ async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: str
     canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // 투명 배경 → 흰색
-    await page.render({ canvasContext: ctx, viewport: vp, canvas, ...(oc ? { optionalContentConfigPromise: Promise.resolve(oc) } : {}) }).promise;
+    try { await page.render({ canvasContext: ctx, viewport: vp, canvas, ...(oc ? { optionalContentConfigPromise: Promise.resolve(oc) } : {}) }).promise; }
+    catch (e) {
+      if (!oc) throw new ConvertError('render-failed', `${i}쪽을 그리지 못했습니다: ${e instanceof Error ? e.message : e}`);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      try { await page.render({ canvasContext: ctx, viewport: vp, canvas }).promise; } // 레이어 설정 없이 다시
+      catch (e2) { throw new ConvertError('render-failed', `${i}쪽을 그리지 못했습니다: ${e2 instanceof Error ? e2.message : e2}`); }
+    }
+    // 그린 뒤에 — 같은 연산 목록을 다시 쓴다(큰 PDF 를 두 번 풀지 않게)
+    // 레이어 벡터는 덤 — 못 꺼내도 디자인 그림은 넣는다 (2026-11-07 맥 앱 "파일을 처리하지 못했습니다")
+    if (ocNames.size) try {
+      const ol = await page.getOperatorList();
+      const view = page.view as [number, number, number, number];
+      const L = pdfLayerVectors(ol.fnArray, ol.argsArray, (id) => ocNames.get(String(id)) ?? null, view);
+      const pw = view[2] - view[0], ph = view[3] - view[1];
+      layers = [...L.values()].filter((l) => l.name && !HIDDEN_LAYERS.includes(l.name)).map((l) => ({ name: l.name, paths: l.paths.length, texts: l.texts, svg: layerSvg(l.paths, pw, ph) }));
+      blank = ![...L.values()].some((l) => !HIDDEN_LAYERS.includes(l.name) && l.marks > 0);
+    } catch (e) { layers = undefined; blank = undefined; console.warn('PDF 레이어 벡터를 꺼내지 못함', i, e); }
     pages.push({ blob: await toBlob(canvas), w: canvas.width, h: canvas.height, mm: { w: (base.width * 25.4) / 72, h: (base.height * 25.4) / 72 }, ...(layers ? { layers } : {}), ...(blank !== undefined ? { blank } : {}) });
+    canvas.width = canvas.height = 0;
+    page.cleanup(); // 페이지 그림·연산 메모리 비우기 (큰 PDF, 맥 앱)
   }
   await task.destroy();
   return { pages, xmp };

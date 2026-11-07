@@ -26,6 +26,7 @@ import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
 import { artRef, xmpArtboardIds } from './core/illustrator';
+import { crashLog } from './crashLog';
 import { componentOf } from './core/components';
 import { planArtboards, planBundle, type SyncAction, type SyncRow } from './core/designSync';
 import { STAGE_EXPORT_LONG } from './render/stageSize';
@@ -1085,19 +1086,27 @@ class AppState {
   async addSourceFile(file: File) {
     if (!this.canEdit) return;
     this.converting = true;
+    let step = '시작';
     try {
       if (isBundleName(file.name)) { await this.reviewIllustratorBundle(file); return; } // 일러스트 구성 요소 묶음 (2026-11-05)
+      // 단계 이름 — 실패하면 알림·앱 진단 기록에 단계와 오류를 남긴다 (2026-11-07 맥 앱 "파일을 처리하지 못했습니다" — 원인이 안 보였다)
+      step = '파일 읽기';
       const { kind, pages, xmp } = await convertFile(file);
-      const fileAssetId = await putAsset(file);
+      step = '그림 저장';
       const pageAssets = [];
       for (const pg of pages) pageAssets.push({ assetId: await putAsset(pg.blob), w: pg.w, h: pg.h });
+      // 원본 파일은 덤 — 못 넣으면(큰 파일 등) 첫 페이지 그림으로
+      let fileAssetId = pageAssets[0]?.assetId ?? '';
+      try { fileAssetId = await putAsset(file); } catch (e) { console.warn('원본 파일을 저장하지 못함', e); }
+      step = '디자인 파일 등록';
       const sourceId = this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
+      step = '사인물 짝 찾기';
       if (kind === 'pdf') this.reviewArtboards(file.name, sourceId, pages, xmp);
       else if (this.view !== 'uv') this.notice = `${file.name} 을 디자인 파일에 넣었습니다 — [디자인 싱크] › 디자인 파일에서 영역을 그려 사인물에 연결하세요.`;
     } catch (e) {
       if (e instanceof ConvertError) this.notice = e.message;
       else if (e instanceof StorageLimitError) this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 올릴 수 없습니다.`;
-      else this.notice = '파일을 처리하지 못했습니다.';
+      else { const msg = e instanceof Error ? e.message : String(e); this.notice = `파일을 처리하지 못했습니다 (${step}: ${msg})`; crashLog.event(`디자인 받기 실패 · ${file.name} · ${step}: ${msg}`); }
     } finally { this.converting = false; }
   }
 
