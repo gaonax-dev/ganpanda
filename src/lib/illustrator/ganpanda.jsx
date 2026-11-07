@@ -97,7 +97,8 @@
     if (!layer) return out;
     for (i = 0; i < layer.pageItems.length; i++) {
       it = layer.pageItems[i];
-      if (it.parent && it.parent !== layer) continue;
+      // 그룹 안 항목은 그룹째 (부모가 레이어인 것만). 같은 레이어도 참조가 매번 달라 객체 비교(!==)는 늘 참이 된다 — 종류로 (2026-11-07 "내보내기하는데 아무것도 안나왔어")
+      if (it.parent && it.parent.typename && it.parent.typename !== 'Layer') continue;
       b = it.geometricBounds; // [왼, 위, 오른, 아래]
       if (b[0] < r[2] && b[2] > r[0] && b[1] > r[3] && b[3] < r[1]) out.push(it);
     }
@@ -173,7 +174,17 @@
       failText = '\n\n실패한 단계 ' + fails.length + '개:\n- ' + fails.join('\n- ') + '\n(기록: ' + base.replace(/^.*[\/\\]/, '') + '.ganpanda-log.txt)';
       try { var lf = new File(base + '.ganpanda-log.txt'); lf.encoding = 'UTF-8'; lf.open('w'); lf.write('간판다로 보내기 ' + new Date() + '\n' + fails.join('\n') + '\n'); lf.close(); } catch (e) {}
     }
-    if (!items.length) { alert('간판다 대지 ' + n + '개에서 보낼 디자인·path 가 없습니다.\n대지 안 "디자인" 레이어에 디자인을, "path" 레이어에 입체로 만들 패스를 넣어 주세요.' + failText); return; }
+    if (!items.length) {
+      // 원인 보이기: 레이어별 항목 수·대지 안 수, 다른 레이어 이름
+      var count = function (L) { if (!L) return null; var all = 0, inAb = 0, k, m; for (k = 0; k < L.pageItems.length; k++) { var it = L.pageItems[k]; if (it.parent && it.parent.typename && it.parent.typename !== 'Layer') continue; all++; for (m = 0; m < doc.artboards.length; m++) if (idOf(doc.artboards[m].name) && itemsIn({ pageItems: [it] }, doc.artboards[m].artboardRect).length) { inAb++; break; } } return [all, inAb]; };
+      var cd = count(D), cp = count(P), others = [], k2;
+      for (k2 = 0; k2 < doc.layers.length; k2++) { var nm = doc.layers[k2].name; if (nm !== DESIGN && nm !== PATH && nm !== RECEIVED) others.push(nm); }
+      alert('간판다 대지 ' + n + '개에서 보낼 디자인·path 가 없습니다.\n대지 안 "디자인" 레이어에 디자인을, "path" 레이어에 입체로 만들 패스를 넣어 주세요.\n\n' +
+        (cd ? '디자인 레이어 항목 ' + cd[0] + '개 (간판다 대지 안 ' + cd[1] + '개)' : '디자인 레이어 없음') + '\n' +
+        (cp ? 'path 레이어 항목 ' + cp[0] + '개 (간판다 대지 안 ' + cp[1] + '개)' : 'path 레이어 없음') +
+        (others.length ? '\n다른 레이어: ' + others.join(', ') + ' — 여기 있는 것은 보내지 않습니다' : '') + failText);
+      return;
+    }
     alert('간판다로 보낼 준비가 되었습니다 (대지 ' + n + '개 — 디자인 ' + nd + ' · path ' + np + ').\n' +
       bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n디자인은 사인물 카드에 바로 들어가고, path 는 어느 구성물(채널·스카시)에 쓸지 고르면 입체가 됩니다.' + failText);
   }

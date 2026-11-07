@@ -9,7 +9,7 @@ const PT = 72 / 25.4;
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
+function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][]; nested?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -49,7 +49,8 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
     for (const L of opts.existing.layers ?? []) {
       const l = d.layers.add(); l.name = L.name;
       for (const S of L.subs ?? []) { const c = l.layers.add(); c.name = S.name; for (let i = 0; i < S.items; i++) c.pageItems.push(pageItem([0, 0, 1, -1], c)); }
-      for (const b of L.items ?? []) l.pageItems.push(pageItem(b, l));
+      for (const b of L.items ?? []) l.pageItems.push(pageItem(b, { typename: 'Layer', name: l.name })); // 실제 일러스트처럼 부모 참조는 매번 다른 객체
+      for (const b of (L as Rec).nested ?? []) l.pageItems.push(pageItem(b, { typename: 'GroupItem' })); // 그룹 안 항목
     }
     docs.push(d);
   }
@@ -129,7 +130,7 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정
     // 대지(가짜): i번째 = [i*100, 0, i*100+90, -90]
     const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [
       { name: '받은 이미지', items: [[0, 0, 90, -90], [200, 0, 290, -90]] },
-      { name: '디자인', items: [[10, -10, 50, -50], [60, -5, 80, -40], [110, -10, 150, -50]] }, // a1 에 둘, '대지 3' 에 하나
+      { name: '디자인', items: [[10, -10, 50, -50], [60, -5, 80, -40], [110, -10, 150, -50]], nested: [[20, -20, 30, -30]] }, // a1 에 둘(+그룹 안 하나는 그룹째), '대지 3' 에 하나
       { name: 'path', items: [[205, -10, 250, -60]] }, // b2 에 하나
     ] } });
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
@@ -175,6 +176,15 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정
     expect(alert).toContain('#1 디자인');
     expect(alert).toContain('MRAP');
     expect(f.written['/tmp/existing.ganpanda-log.txt']).toContain('#1 디자인');
+  });
+  it('보낼 것이 없으면 레이어별 항목 수를 알려 원인을 보인다 (2026-11-07 "일러스트에서 내보내기하는데 아무것도 안나왔어")', () => {
+    const f = fakeIllustrator({ existing: { names: ['매장 #1'], layers: [{ name: '디자인', items: [[500, -10, 550, -50]] }, { name: '내 작업', items: [[10, -10, 50, -50]] }] } });
+    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
+    const alert = f.log.find((l) => l.startsWith('alert:'))!;
+    expect(alert).toContain('디자인 레이어 항목 1개');
+    expect(alert).toContain('대지 안 0개');
+    expect(alert).toContain('path 레이어 없음');
+    expect(alert).toContain('내 작업');
   });
   it('디자인·path 가 비었으면 묶음을 만들지 않고 알린다', () => {
     const f = fakeIllustrator({ existing: { names: ['정면 #a1'], layers: [{ name: '디자인' }, { name: 'path' }] } });
