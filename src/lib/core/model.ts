@@ -146,6 +146,8 @@ export interface SignObject {
   artNo?: number;
   /** PDF 레이어 → 입체 구성물 id ('' = 입체 안 함) — 다음에 받을 때 미리 고른다 (2026-11-07 "다시 불렀을때 이전 연결을 유지할 수 있나?") */
   layerLinks?: Record<string, string>;
+  /** 사진보드용 디자인 — 입체로 연결한 PDF 레이어를 뺀 그림 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게"). 없으면 design. 디자인을 바꾸면 지운다 */
+  designBase?: DesignRef;
   /** 평면도 위치 (mm) — 리스트 뷰와 보드의 평면 구역이 같은 배치를 쓴다. 없으면 자동 배치 */
   listX?: number;
   listY?: number;
@@ -172,6 +174,8 @@ export interface DesignSource {
   /** UV 뷰 위 위치 (world) */
   x?: number;
   y?: number;
+  /** 간판다가 만든 파생 그림(입체 제외 디자인 등) — 디자인 파일 목록에 안 보인다 (2026-11-07) */
+  derived?: boolean;
 }
 
 /** 사진 위 위치 코멘트(핀). 대화는 messages 에 objectId = 핀 id 로 */

@@ -29,7 +29,7 @@
 </script>
 
 {#if !flat && baked}
-  <img class="warp baked" data-testid="baked-design" src={baked} alt="" draggable="false" style:width="{w}px" style:height="{h}px" style:transform={transform} />
+  <img class="warp baked" data-testid="baked-design" data-source={design.sourceId} src={baked} alt="" draggable="false" style:width="{w}px" style:height="{h}px" style:transform={transform} />
 {:else if !flat || baked === null}
   <!-- 굽지 못했으면 줌아웃 합성에서도 이 층은 직접 그린다 -->
   <div class="warp" style:transform={transform}><DesignFace {design} {w} {h} /></div>

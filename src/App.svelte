@@ -232,7 +232,7 @@
            보내기·받기(일러스트·코렐·SVG)·디자인 파일은 대화창 안. 디자인 파일 화면에서는 [← 사진보드] -->
       <div class="views stage designbar" data-testid="design-bar">
         <!-- [디자인 파일] · [⇄ 디자인 싱크] · [컬러셋] (2026-11-07 "디자인 싱크버튼을 따로 때내고 그자리에 디자인파일로 변경해줘" → (질문) 셋 다 막대에) -->
-        {#if !app.isCustomer}<button data-testid="view-uv" class:on={app.view === 'uv'} title="디자인 파일 — 대지마다 연결된 사인물 보기·연결·일부 잘라 입히기" onclick={() => { if (app.view === 'uv') app.view = 'board'; else { app.uvCrop = false; app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.sources.length}`}</button>{/if}
+        {#if !app.isCustomer}<button data-testid="view-uv" class:on={app.view === 'uv'} title="디자인 파일 — 대지마다 연결된 사인물 보기·연결·일부 잘라 입히기" onclick={() => { if (app.view === 'uv') app.view = 'board'; else { app.uvCrop = false; app.view = 'uv'; } }}>{app.view === 'uv' ? '← 사진보드' : `디자인 파일 ${app.designFiles.length}`}</button>{/if}
         {#if !app.boardOnly}<button data-testid="design-sync-open" class:on={app.syncOpen} title="디자인 싱크 — 일러스트레이터·코렐드로우·SVG 로 보내기·받기, 디자인 파일" onclick={() => (app.syncOpen = true)}>⇄ 디자인 싱크</button>{/if}
         <!-- 프로젝트 컬러셋 (2026-10-31 "컬러셋 프로젝트 뷰어 디자인에 컬러셋 누르면 컬러 대화창 나오고 여기에서 컬러셋 체인지한다") -->
         <button data-testid="colors-open" title="프로젝트 컬러 — 메인·배경·포인트 … 컬러셋 바꾸기" onclick={() => (app.colorsOpen = true)}>컬러셋</button>

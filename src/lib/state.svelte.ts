@@ -250,7 +250,7 @@ class AppState {
     this.designMode = t === 'design';
     if (t === 'list') { this.view = 'list'; return; }
     this.view = 'board';
-    this.stage = t === 'measure' ? 'original' : t === 'design' ? '2d' : t;
+    this.stage = t === 'measure' ? 'original' : t === 'design' ? '3d' : t; // 디자인 탭 = 3D (2026-11-07 "디자인은 3d를 표시하게")
   }
   /** ?safe=1 — 휴대폰 크래시 원인 가르기용 (2026-10-18): 2D 겹침·카드 얼굴을 그리지 않는다 */
   safeMode = $state(false);
@@ -265,7 +265,7 @@ class AppState {
   /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
   stageKey(photoId: string): string {
     const p = this.photos.find((x) => x.id === photoId);
-    const objs = this.objects.filter((o) => o.photoId === photoId).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */]);
+    const objs = this.objects.filter((o) => o.photoId === photoId).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
     return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
@@ -495,6 +495,8 @@ class AppState {
   /** 말풍선 받는 사람 후보 */
   participants = $derived(participantsOf(this.peers.map((p) => p.name), this.messages, this.pins, this.nickname));
   sources = $derived.by(() => (this.version, this.project.allSources()));
+  /** 디자인 파일 목록 — 간판다가 만든 파생 그림(입체 제외 디자인)은 빼고 (2026-11-07) */
+  designFiles = $derived(this.sources.filter((s) => !s.derived));
   /** UV 뷰에서 고른 사인물 */
   uvObjectId = $state<string | null>(null);
   /** 디자인 파일 화면의 [영역 고르기] — 대지 카드 목록 대신 캔버스(UvView)로 일부를 잘라 입힌다 (2026-11-07) */
@@ -1103,7 +1105,7 @@ class AppState {
       step = '디자인 파일 등록';
       const sourceId = this.project.addSource({ name: file.name, kind, fileAssetId, pages: pageAssets, author: this.nickname });
       step = '사인물 짝 찾기';
-      if (kind === 'pdf') this.reviewArtboards(file.name, sourceId, pages, xmp);
+      if (kind === 'pdf') this.reviewArtboards(file.name, sourceId, pages, xmp, file);
       else if (this.view !== 'uv') this.notice = `${file.name} 을 디자인 파일에 넣었습니다 — [디자인 싱크] › 디자인 파일에서 영역을 그려 사인물에 연결하세요.`;
     } catch (e) {
       if (e instanceof ConvertError) this.notice = e.message;
@@ -1116,7 +1118,7 @@ class AppState {
    * 디자인 싱크 받기 검토 (2026-11-06 사용자: "받은 다음 사진보드에서 연결상태 확인 후 확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요"):
    * 받은 파일을 바로 입히지 않고 사인물마다 상태·처리를 정해 사진보드에 보여 준다. [확정] 해야 입혀진다. core/designSync.ts
    */
-  syncReview = $state<{ kind: 'artboards' | 'bundle'; fileName: string; sourceId?: string; pagesMm?: { w: number; h: number }[]; /** PDF 대지 페이지별 레이어 벡터 SVG (2026-11-07) */ pageSvgs?: Record<string, string>[]; bundle?: BundleItem[]; rows: SyncRow[] } | null>(null);
+  syncReview = $state<{ kind: 'artboards' | 'bundle'; fileName: string; /** 받은 PDF (메모리만 — 확정할 때 입체 제외 디자인을 그린다, 2026-11-07) */ file?: File; sourceId?: string; pagesMm?: { w: number; h: number }[]; /** PDF 대지 페이지별 레이어 벡터 SVG (2026-11-07) */ pageSvgs?: Record<string, string>[]; bundle?: BundleItem[]; rows: SyncRow[] } | null>(null);
   /** 사인물 id → 검토 줄 (보드 카드 표시) */
   syncRowOf = $derived(new Map((this.syncReview?.rows ?? []).filter((r) => r.signId).map((r) => [r.signId!, r])));
   /** 보낸(치수 있는) 사인물 — 대지·묶음의 짝 상대 */
@@ -1126,7 +1128,7 @@ class AppState {
    * 일러스트 왕복 (2026-11-05 "일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지"): 올린 .ai/PDF 의 대지(페이지) ↔ 사인물.
    * 간판다 일러스트 스크립트가 적은 XMP 짝(ganpanda:artboards)이 있으면 그대로, 없으면 대지 크기(1:1·1:10)·순서로 — 검토 뒤 [확정]
    */
-  private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number }; layers?: { name: string; paths: number; texts: number; svg: string }[]; blank?: boolean }[], xmp: string | undefined) {
+  private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number }; layers?: { name: string; paths: number; texts: number; svg: string }[]; blank?: boolean }[], xmp: string | undefined, file?: File) {
     const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
     // 입체 구성물 = 밀어내는 구성 요소(채널·스카시) — PDF 레이어 벡터를 연결 (2026-11-07 "레이어로 고르기")
     const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design, parts: partsOfSign(o).filter((p) => componentOf(p.kind).extrude).map((p) => ({ id: p.id, kind: p.kind, label: partLabel(p) })), ...(o.layerLinks ? { layerLinks: o.layerLinks } : {}) }] : []; });
@@ -1135,7 +1137,7 @@ class AppState {
     const rows = planArtboards(pagesMm, ids, signs, pages.map((p) => (p.layers ? { layers: p.layers, blank: p.blank } : undefined)));
     // 짝 정보도 크기 짝도 없으면 검토할 것이 없다 — 디자인 파일에만 (영역을 그려 연결)
     if (!(ids && ids.length === pages.length) && !rows.some((r) => r.signId)) { if (this.view !== 'uv') this.notice = `${fileName} 을 디자인 파일에 넣었습니다 — 크기가 맞는 사인물이 없어 [디자인 싱크] › 디자인 파일에서 영역을 그려 연결하세요.`; return; }
-    this.syncReview = { kind: 'artboards', fileName, sourceId, pagesMm, pageSvgs: pages.map((p) => Object.fromEntries((p.layers ?? []).filter((l) => l.paths > 0).map((l) => [l.name, l.svg]))), rows };
+    this.syncReview = { kind: 'artboards', fileName, ...(file ? { file } : {}), sourceId, pagesMm, pageSvgs: pages.map((p) => Object.fromEntries((p.layers ?? []).filter((l) => l.paths > 0).map((l) => [l.name, l.svg]))), rows };
     this.view = 'board';
   }
 
@@ -1192,6 +1194,7 @@ class AppState {
         if (row.action === 'apply' && row.signId) {
           if (!row.designBlank) this.setDesign(row.signId, full(row.page));
           await this.applyLayerVectors(row.signId, row.layerParts ?? {}, r.pageSvgs?.[row.page] ?? {});
+          if (!row.designBlank && r.file) await this.applyDesignBase(row.signId, r.file, r.fileName, row.page, Object.entries(row.layerParts ?? {}).filter(([, part]) => part).map(([layer]) => layer));
           // 고른 연결을 기억 — 다음에 받을 때 미리 고른다 (2026-11-07)
           const o = this.project.object(row.signId);
           if (o && row.layerParts && Object.keys(row.layerParts).length) { this.editBoundary(); this.project.updateObject(o.id, { layerLinks: { ...(o.layerLinks ?? {}), ...row.layerParts } }); this.editBoundary(); }
@@ -1218,6 +1221,21 @@ class AppState {
    * PDF 레이어 벡터 → 고른 구성물의 입체 (2026-11-07 "연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로"): 레이어 SVG(페이지 = 대지 = 사인물)를
    * 벡터 그림 객체(사인물 크기 전체)로 그 구성물에 — 같은 구성물에 레이어가 여럿이면 객체가 여럿. 고른 구성물의 내용은 이것으로 바뀐다
    */
+  /**
+   * 사진보드용 입체 제외 디자인 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게"):
+   * 입체로 연결한 레이어를 끈 채 그 쪽을 다시 그려 숨은 디자인 파일(derived)로 넣고 designBase 로 — 사인물 카드는 design(전체) 그대로
+   */
+  private async applyDesignBase(signId: string, file: File, fileName: string, page: number, layers3d: string[]) {
+    if (!layers3d.length) return;
+    try {
+      const { renderPdfPageWithout } = await import('./design/convert');
+      const pg = await renderPdfPageWithout(file, page, layers3d);
+      const assetId = await putAsset(pg.blob);
+      const sourceId = this.project.addSource({ name: `${fileName} ${page + 1}쪽 (입체 제외)`, kind: 'bitmap', fileAssetId: assetId, pages: [{ assetId, w: pg.w, h: pg.h }], author: this.nickname, derived: true });
+      this.editBoundary(); this.project.updateObject(signId, { designBase: { sourceId, page: 0, crop: { x: 0, y: 0, w: pg.w, h: pg.h } } }); this.editBoundary();
+    } catch (e) { crashLog.event(`입체 제외 디자인 실패 ${page + 1}쪽: ${e instanceof Error ? e.message : e}`); }
+  }
+
   private async applyLayerVectors(signId: string, layerParts: Record<string, string>, svgs: Record<string, string>) {
     const o = this.project.object(signId);
     const picked = Object.entries(layerParts).filter(([layer, part]) => part && svgs[layer]);
@@ -1275,14 +1293,14 @@ class AppState {
     const o = this.project.object(objectId);
     if (!o || !this.canEdit) return;
     this.editBoundary();
-    this.project.updateObject(objectId, { design: ref, designHistory: pushHistory(o.designHistory ?? [], ref, { at: Date.now(), author: this.nickname }) });
+    this.project.updateObject(objectId, { design: ref, designBase: undefined, designHistory: pushHistory(o.designHistory ?? [], ref, { at: Date.now(), author: this.nickname }) }); // 입체 제외 그림은 그 디자인에만 (2026-11-07)
     this.editBoundary();
   }
 
   clearDesign(objectId: string) {
     if (!this.canEdit) return;
     this.editBoundary();
-    this.project.updateObject(objectId, { design: undefined });
+    this.project.updateObject(objectId, { design: undefined, designBase: undefined });
     this.editBoundary();
   }
 

@@ -16,7 +16,7 @@ import { loadItemImages, loadItemVectors } from './itemImages';
 const loadImage = (url: string) => new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
 
 async function faceOf(o: SignObject, sources: DesignSource[]): Promise<FaceImage | undefined> {
-  const d = o.design;
+  const d = o.designBase ?? o.design; // 사진보드 3D = 입체 제외 디자인 (2026-11-07)
   const page = d && sources.find((s) => s.id === d.sourceId)?.pages[d.page];
   if (!d || !page) return undefined;
   const url = await assetUrl(page.assetId);

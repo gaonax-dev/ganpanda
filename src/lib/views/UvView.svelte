@@ -17,7 +17,7 @@
   const layout = $derived.by(() => {
     const out: { source: DesignSource; page: number; x: number; y: number; w: number; h: number }[] = [];
     let y = 0;
-    for (const s of app.sources) {
+    for (const s of app.designFiles) {
       let x = 0, rowH = 0;
       s.pages.forEach((pg, i) => { out.push({ source: s, page: i, x: s.x ?? x, y: s.y ?? y, w: pg.w, h: pg.h }); x += pg.w + GAP; rowH = Math.max(rowH, pg.h); });
       y += rowH + GAP * 2;
@@ -108,7 +108,7 @@
       </div>
     {/each}
     {#snippet overlay()}
-      {#if !app.sources.length}
+      {#if !app.designFiles.length}
         <div class="empty">
           <p>디자인 파일을 올리면 아트보드마다 페이지가 됩니다.</p>
           {#if app.canEdit}<label class="btn primary">디자인 파일 올리기<input data-testid="source-input" type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>{/if}
@@ -119,7 +119,7 @@
       <button class="back" data-testid="uv-crop-back" onclick={() => (app.uvCrop = false)}>← 카드 목록</button>
       <div class="tools" class:hidden={app.compact}>
         {#if app.canEdit}
-          <label class="file">＋ 디자인 파일<input data-testid={app.sources.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
+          <label class="file">＋ 디자인 파일<input data-testid={app.designFiles.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
         {/if}
         {#if app.converting}<span class="muted">변환 중…</span>{/if}
         <button onclick={fit} title="전체 보기">⤢</button>

@@ -71,6 +71,29 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   expect(px.bg).toEqual([255, 255, 255]);
   expect(px.green[1]).toBeGreaterThan(100); expect(px.green[0]).toBeLessThan(60);
   expect(px.blue[2]).toBeGreaterThan(200); expect(px.blue[0]).toBeLessThan(60);
+  // 사진보드용 = 입체로 연결한 "채널" 레이어를 뺀 그림 — 채널 자리는 흰 바탕, 디자인(초록)은 그대로. 카드는 전체 그림(o.design) 그대로
+  // (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게")
+  expect(o.designBase).toBeTruthy();
+  const bpx = await page.evaluate(async (o) => {
+    const g = (window as any).__ganpanda; const src = g.sources.find((s: any) => s.id === o.designBase.sourceId); const pg = src.pages[0];
+    const ap = '/src/lib/assets.ts'; const { assetUrl } = await import(/* @vite-ignore */ ap);
+    const img = await createImageBitmap(await (await fetch(await assetUrl(pg.assetId))).blob());
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d')!; x.drawImage(img, 0, 0);
+    const at = (fx: number, fy: number) => [...x.getImageData(Math.round(img.width * fx), Math.round(img.height * fy), 1, 1).data].slice(0, 3);
+    return { derived: src.derived, green: at(0.75, 0.5), blue: at(0.15, 0.5) };
+  }, o);
+  expect(bpx.derived).toBe(true);
+  expect(bpx.blue).toEqual([255, 255, 255]);
+  expect(bpx.green[1]).toBeGreaterThan(100);
+  // 디자인 탭 = 3D (2026-11-07 "디자인은 3d를 표시하게"), 2D 사진 위는 입체 제외 그림, 디자인 파일 목록에 파생 그림은 안 보임
+  await page.getByTestId('view-design').click();
+  expect(await page.evaluate(() => (window as any).__ganpanda.stage)).toBe('3d');
+  await page.getByTestId('stage-2d').click();
+  await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveAttribute('data-source', o.designBase.sourceId);
+  await page.getByTestId('view-design').click();
+  await page.getByTestId('design-bar').getByTestId('view-uv').click();
+  await expect(page.getByTestId('page-card')).toHaveCount(1);
+  await page.getByTestId('view-uv').click();
   // 3D: 채널 벡터 = 바깥 사각형 + 구멍(짝홀), 사인물 mm 로
   const vec = await page.evaluate(async (id) => {
     const ip = '/src/lib/render/itemImages.ts'; const { loadItemVectors } = await import(/* @vite-ignore */ ip);
@@ -120,6 +143,7 @@ test('줌아웃 합성: 다른 사인물의 그림을 못 찾아도(없는 에�
   await upload(page, layeredPdf('1'));
   await page.getByTestId('sync-confirm').click();
   await page.getByTestId('view-design').click();
+  await page.getByTestId('stage-2d').click(); // 합성 그림은 2D 단계 (디자인 탭은 3D — 2026-11-07)
   // 줌아웃(합성 그림) — 디자인이 들어간 합성 그림이 생긴다
   await expect(page.getByTestId('flat-overlay')).toHaveCount(1, { timeout: 15_000 });
   expect(await page.evaluate((id) => !!(window as any).__ganpanda.project.object(id).design, id)).toBe(true);

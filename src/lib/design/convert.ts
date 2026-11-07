@@ -107,3 +107,30 @@ async function renderImage(file: File): Promise<RenderedPage> {
 }
 
 const toBlob = (c: HTMLCanvasElement) => new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new ConvertError('render-failed', '이미지 저장 실패'))), 'image/png'));
+
+/**
+ * PDF 한 쪽을 레이어 몇 개를 더 끈 채 다시 그린다 — 사진보드용 "입체 제외" 디자인 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로
+ * 사인물 카드는 현재와 동일하게"). pageIndex 는 0부터, hide = 끌 레이어 이름(받은 이미지는 늘 끈다). 받을 때와 같은 크기·흰 바탕
+ */
+export async function renderPdfPageWithout(file: Blob, pageIndex: number, hide: string[]): Promise<RenderedPage> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  try {
+    const doc = await task.promise;
+    const oc = await doc.getOptionalContentConfig();
+    for (const [id, g] of oc) if (HIDDEN_LAYERS.includes(g.name ?? '') || hide.includes(g.name ?? '')) oc.setVisibility(id, false);
+    const page = await doc.getPage(pageIndex + 1);
+    const base = page.getViewport({ scale: 1 });
+    const vp = page.getViewport({ scale: Math.min(4, PAGE_MAX_SIDE / Math.max(base.width, base.height)) });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport: vp, canvas, optionalContentConfigPromise: Promise.resolve(oc) }).promise;
+    const out = { blob: await toBlob(canvas), w: canvas.width, h: canvas.height, mm: { w: (base.width * 25.4) / 72, h: (base.height * 25.4) / 72 } };
+    canvas.width = canvas.height = 0;
+    return out;
+  } finally { await task.destroy(); }
+}

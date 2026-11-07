@@ -11,7 +11,7 @@
   $effect(() => { for (const s of app.sources) for (const pg of s.pages) if (!urls[pg.assetId]) assetUrl(pg.assetId).then((u) => u && (urls = { ...urls, [pg.assetId]: u })); });
 
   /** 최근 파일이 위 */
-  const sources = $derived([...app.sources].reverse());
+  const sources = $derived([...app.designFiles].reverse());
   const signName = (o: { name: string; artNo?: number }) => `${o.artNo ? `#${o.artNo} ` : ''}${o.name}`;
   const linked = (sourceId: string, page: number) => app.signs.filter((o) => o.design?.sourceId === sourceId && o.design.page === page);
   const time = (ts?: number) => (ts ? new Date(ts).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
@@ -32,7 +32,7 @@
 <div class="files" data-testid="design-files">
   <header>
     <div>
-      <h2>디자인 파일 <small>{app.sources.length}</small></h2>
+      <h2>디자인 파일 <small>{app.designFiles.length}</small></h2>
       <p class="hint">대지(페이지)마다 어느 사인물에 입혀졌는지 보고, 바로 연결하거나 일부만 잘라 입힙니다. 일러스트·코렐과 주고받기는 [⇄ 디자인 싱크].</p>
     </div>
     {#if app.canEdit}<label class="btn primary">＋ 디자인 파일 올리기<input data-testid="source-input" type="file" accept=".pdf,.ai,.svg,.ganpanda,image/*" hidden onchange={upload} /></label>{/if}

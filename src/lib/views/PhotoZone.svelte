@@ -188,8 +188,10 @@
   const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, o.polygon ? scaled(o.polygon) : undefined, o.corner));
   /** 입힌 디자인 층 — 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) */
   const designLayers = $derived(objects.filter((o) => o.design).map((o) => {
-    const q = scaled(quadOf(o)), c = capBox(o.design!.crop.w, o.design!.crop.h);
-    return { id: 'd|' + o.id, o, q, w: c.w, h: c.h, clip: clipOf(o, q) };
+    // 사진보드는 입체로 연결한 레이어를 뺀 디자인 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게")
+    const ref = o.designBase ?? o.design!;
+    const q = scaled(quadOf(o)), c = capBox(ref.crop.w, ref.crop.h);
+    return { id: 'd|' + o.id, o, ref, q, w: c.w, h: c.h, clip: clipOf(o, q) };
   }));
   /** 구성 요소 층 — 치수가 없으면 추정 치수, 그것도 없으면 외곽선 크기(사진 px) (2026-10-22 "시트가 2d 3d에 적용이 안됐어") */
   const partsLayers = $derived(objects.filter((o) => (o.parts?.some((p) => p.items.length) && o.widthMm && o.heightMm) || hasPartsToDraw(o)).map((o) => {
@@ -761,7 +763,7 @@
       {#if flatMode && flatSrc}<img class="flat-overlay" data-testid="flat-overlay" src={flatSrc} alt={flatAlt} data-colors={flatColors} draggable="false" />{/if}
       {#each designLayers as l (l.id)}
         <div class="design" style:clip-path={l.clip ? `polygon(${l.clip.map((p) => `${p[0]}px ${p[1]}px`).join(',')})` : 'none'}>
-          <BakedDesign design={l.o.design!} w={l.w} h={l.h} transform={layerTransform(l.w, l.h, l.q)} flat={flatMode} onbaked={onbakedFor(l.id)} />
+          <BakedDesign design={l.ref} w={l.w} h={l.h} transform={layerTransform(l.w, l.h, l.q)} flat={flatMode} onbaked={onbakedFor(l.id)} />
         </div>
       {/each}
       <!-- 조합형 글자·그림 배치(정면도)를 사진 위 외곽선 안에 원근 그대로 (2026-10-17 사용자: "글자를 조정해도 반영되지 않는다"). 3D 단계는 합성 그림이 대신 -->
