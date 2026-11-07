@@ -6,7 +6,7 @@ import { insidePoints, spacedPoints } from './bulbs';
 import type { Font } from 'opentype.js';
 import type { Measured, SignSpec } from './types';
 import { shapesToPath2D, textToShapes } from '../core/textShapes';
-import { shapeColor } from '../core/vectorShapes';
+import { shapeColor } from '../core/shapeColor';
 import { solveHomography } from '../core/homography';
 
 /** 후광 채널의 벽 이격(스페이서) 거리 */

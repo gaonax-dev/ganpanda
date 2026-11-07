@@ -2,6 +2,8 @@
 // 후렉스(인쇄) 위에 체널(입체), 스카시(입체+ 시트 또는 도색)의 구성이라면 일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게").
 // 일러스트 스크립트가 구성 요소 레이어를 대지 크기 SVG(글자는 윤곽선)로 내보낸다 → 채운 패스를 사인물 상자(mm, 가운데 원점·위 +)의 THREE.Shape 로.
 // 채널·스카시는 이 윤곽을 재료 층 두께만큼 밀어낸다(sim/signs.ts channelGeometry). 선만 있는 패스는 뺀다(입체가 안 됨 — 일러스트에서 "확장"). → docs/features/illustrator.md
+import { setShapeColor } from './shapeColor';
+export { shapeColor, setShapeColor } from './shapeColor';
 import * as THREE from 'three';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 
@@ -17,11 +19,6 @@ function svgBox(text: string): { x: number; y: number; w: number; h: number } | 
 const DIVISIONS = 12;
 
 /** SVG(대지 크기) → 상자 box(mm) 안의 윤곽들. 가운데 원점, 위 + */
-/** 윤곽의 원본 채움색 (#rrggbb, 2026-11-07) — three Shape 에 자리가 없어 따로 */
-const SHAPE_COLOR = new WeakMap<THREE.Shape, string>();
-export const shapeColor = (s: THREE.Shape): string | undefined => SHAPE_COLOR.get(s);
-export const setShapeColor = (s: THREE.Shape, c: string) => void SHAPE_COLOR.set(s, c);
-
 export function svgShapes(text: string, box: { w: number; h: number }): THREE.Shape[] {
   const vb = svgBox(text);
   if (!vb) return [];
@@ -40,7 +37,7 @@ export function svgShapes(text: string, box: { w: number; h: number }): THREE.Sh
       // y 를 뒤집으면 감기는 방향이 바뀐다 — 점을 옮겨 새 윤곽으로 (구멍도)
       const shape = new THREE.Shape(s.getPoints(DIVISIONS).map(map));
       shape.holes = s.holes.map((h) => new THREE.Path(h.getPoints(DIVISIONS).map(map)));
-      if (color) SHAPE_COLOR.set(shape, color);
+      if (color) setShapeColor(shape, color);
       if (shape.getPoints().length >= 3) out.push(shape);
     }
   }
