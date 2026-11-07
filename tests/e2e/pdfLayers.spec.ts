@@ -186,7 +186,6 @@ test('카드는 모드마다 바뀐다: 실측 = 사진, 2D = 속성 내용, 3D 
   await expect(card(id).getByTestId('design-image')).toHaveCount(0); // 2D = 속성 내용
   await page.getByTestId('stage-3d').click();
   await expect(card(id).getByTestId('card-3d')).toHaveCount(1, { timeout: 60_000 }); // 3D 합성에서 편 그림
-  await page.getByTestId('view-design').click();
-  await expect(card(id).getByTestId('design-image')).toHaveCount(1);
-  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+  await page.getByTestId('view-design').click(); // 디자인 탭(3D 단계)도 3D 렌더링 그림 유지 (2026-11-07)
+  await expect(card(id).getByTestId('card-3d')).toHaveCount(1);
 });

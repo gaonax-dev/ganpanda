@@ -7,6 +7,10 @@ describe('cardLayers — 탭마다 카드에 그리는 층', () => {
   it('2D·3D = 사진 위 속성 내용(바탕색·구성 요소), 디자인은 안 그림', () => {
     for (const t of ['2d', '3d'] as const) expect(cardLayers(t, true)).toEqual({ photo: true, fill: true, parts: true, design: false });
   });
+  it('디자인 탭(3D 단계)도 3D 렌더링 그림이 있으면 그것을 유지 — 없을 때만 대지 이미지 (2026-11-07 "디자인에서 3d 랜더링이 사라진다. 랜더링한 이미지는 유지 돼야")', () => {
+    expect(cardLayers('design', true, { has3d: true })).toEqual({ photo: true, fill: false, parts: false, design: false, d3: true });
+    expect(cardLayers('final', true, { has3d: true })).toEqual({ photo: true, fill: false, parts: false, design: true }); // 보내기 최종 이미지는 대지 이미지
+  });
   it('디자인 = 대지 이미지(디자인)만, 없으면 2D 내용', () => {
     expect(cardLayers('design', true)).toEqual({ photo: true, fill: false, parts: false, design: true });
     expect(cardLayers('design', false)).toEqual({ photo: true, fill: true, parts: true, design: false });
