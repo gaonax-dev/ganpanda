@@ -26,7 +26,11 @@
       if (id && !urls[l.id]) assetUrl(id).then((u) => { if (u) urls = { ...urls, [l.id]: u }; });
     }
   });
-  const ready = $derived(laid.every((l) => l.kind !== 'image' || !!urls[l.id]));
+  // 그림 주소를 못 받는 객체(이 기기·서버에 없는 에셋)가 있어도 2초 뒤엔 그것만 빼고 굽는다 — 영원히 기다리면 사진 전체의 합성 그림이 막혀
+  // 다른 사인물 디자인까지 안 보였다 (2026-11-07 "디자인에서 사진보드에 디자인이 안나온다")
+  let waited = $state(false);
+  $effect(() => { void laid; waited = false; const t = setTimeout(() => (waited = true), 2000); return () => clearTimeout(t); });
+  const ready = $derived(waited || laid.every((l) => l.kind !== 'image' || !!urls[l.id]));
   const key = $derived(fnv1a(JSON.stringify({ laid, w: Math.round(w), h: Math.round(h), u: laid.map((l) => urls[l.id] ?? '') })));
   let baked = $state<string | undefined>(undefined);
   /** 구운 그림에 무엇이 그려졌는지 — 읽기 도구·테스트용 (글자는 alt, 색은 data-colors) */

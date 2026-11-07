@@ -212,13 +212,17 @@
   $effect(() => {
     if (!flatMode || !twoD || overlay) return;
     const all = [...designLayers, ...partsLayers].map((l) => ({ l, url: bakedOf[l.id] }));
-    if (all.some((a) => a.url === undefined)) return; // 다 구울 때까지 앞 그림 그대로
-    const layers: FlatLayer[] = all.filter((a) => a.url).map((a) => ({ url: a.url!, w: a.l.w, h: a.l.h, quad: a.l.q, clip: a.l.clip }));
-    if (!layers.length) { flatSrc = undefined; return; }
-    const W = photo.w * scale, H = photo.h * scale;
-    const max = flatMax ?? 1024;
-    const key = fnv1a(JSON.stringify([W, H, max, layers]));
-    flattenOverlay(key, layers, W, H, max).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
+    const compose = () => {
+      const layers: FlatLayer[] = all.filter((a) => a.url).map((a) => ({ url: a.url!, w: a.l.w, h: a.l.h, quad: a.l.q, clip: a.l.clip }));
+      if (!layers.length) { flatSrc = undefined; return; }
+      const W = photo.w * scale, H = photo.h * scale;
+      const max = flatMax ?? 1024;
+      const key = fnv1a(JSON.stringify([W, H, max, layers]));
+      flattenOverlay(key, layers, W, H, max).then((u) => { if (u && untrack(() => flatMode)) flatSrc = u; });
+    };
+    // 다 구울 때까지 앞 그림 그대로 — 단 3초 넘게 안 끝나는 층이 있으면 된 것만으로 (2026-11-07: 한 층이 영원히 안 구워지면 사진 전체의 디자인이 안 보였다)
+    if (all.some((a) => a.url === undefined)) { const t = setTimeout(compose, 3000); return () => clearTimeout(t); }
+    compose();
   });
 
   /** 요소를 다른 부모(화면 층)로 옮긴다 — 맥 WebKit 에서 편집 층을 보드 밖에 그리기 (2026-11-04). 같은 사진 칸이 살아 있는 동안 대상은 바뀌지 않는다 */

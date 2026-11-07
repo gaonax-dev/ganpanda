@@ -105,3 +105,18 @@ test('맥 앱 엔진처럼 Map.getOrInsertComputed·Math.sumPrecise 가 없어�
   await upload(page, layeredPdf('1'));
   await expect(page.locator(`[data-testid="sync-layer-row"][data-sign="${id}"]`)).toHaveCount(2);
 });
+
+test('줌아웃 합성: 다른 사인물의 그림을 못 찾아도(없는 에셋) 디자인은 사진 위에 나온다 (2026-11-07 "디자인에서 사진보드에 디자인이 안나온다")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await page.setViewportSize({ width: 1300, height: 850 }); // 줌아웃 합성 그림이 쓰이는 크기
+  const id = await sign(page);
+  // 같은 사진에 그림 객체가 있는데 그 그림을 이 기기·서버 어디서도 못 찾는 사인물
+  await page.evaluate(() => { const g = (window as any).__ganpanda; g.project.addObject({ photoId: g.photos[0].id, name: '돌출', shape: 'rect', quad: [[700, 400], [800, 400], [800, 500], [700, 500]], sheetIds: [], widthMm: 800, heightMm: 800,
+    parts: [{ id: 's1', kind: 'sheet', type: 'sh-print', items: [{ id: 'im', kind: 'image', image: { assetId: 'ffffffffffffffffffffffffffffffff' }, x: 0, y: 0, w: 800, h: 800 }] }] }); });
+  await upload(page, layeredPdf('1'));
+  await page.getByTestId('sync-confirm').click();
+  await page.getByTestId('view-design').click();
+  // 줌아웃(합성 그림) — 디자인이 들어간 합성 그림이 생긴다
+  await expect(page.getByTestId('flat-overlay')).toHaveCount(1, { timeout: 15_000 });
+  expect(await page.evaluate((id) => !!(window as any).__ganpanda.project.object(id).design, id)).toBe(true);
+});
