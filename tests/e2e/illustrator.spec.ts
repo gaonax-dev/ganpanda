@@ -173,7 +173,7 @@ test('일러스트 묶음(.ganpanda, 2026-11-06 정의): 디자인 = 대지 이�
   // 카드 표시 (2026-11-06 "사인물카드는 실측(사진), 2d(속성내용), 3d(속성내용 3d추가), 디자인(대지 이미지)")
   const card = page.locator(`[data-testid="board-card"][data-id="${id}"]`);
   await page.getByTestId('view-design').click(); // 디자인 탭 = 3D 단계 — 3D 렌더링 그림이 생기면 그것, 그전엔 대지 이미지 (2026-11-07)
-  await expect(card.getByTestId('design-image').or(card.getByTestId('card-3d'))).toHaveCount(1);
+  await expect(card.getByTestId('design-image')).toHaveCount(1);
   await expect(card.getByTestId('parts-overlay')).toHaveCount(0);
   await page.getByTestId('stage-2d').click();
   await expect(card.getByTestId('design-image')).toHaveCount(0);

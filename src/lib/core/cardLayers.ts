@@ -9,8 +9,7 @@ export interface CardLayers { photo: boolean; fill: boolean; parts: boolean; des
  */
 export function cardLayers(tab: CardTab, hasDesign: boolean, opts: { has3d?: boolean; designIsFace?: boolean } = {}): CardLayers {
   if (tab === 'measure') return { photo: true, fill: false, parts: false, design: false };
-  // 디자인 탭은 3D 단계 — 3D 렌더링 그림이 있으면 그것을 유지 (2026-11-07 "디자인에서 3d 랜더링이 사라진다. 랜더링한 이미지는 유지 돼야")
-  if ((tab === '3d' || tab === 'design') && opts.has3d) return { photo: true, fill: false, parts: false, design: false, d3: true };
+  // 디자인 탭 카드는 전체 디자인 (2026-11-07 "사인물 카드는 전체 디자인이 나와야해" — 앞서 3D 그림을 유지하던 것은 대체됨, 3D 그림 유지는 사진보드에서)
   if ((tab === 'design' || tab === 'final') && hasDesign) return { photo: true, fill: false, parts: false, design: true };
   if (tab === '3d' && opts.has3d) return { photo: true, fill: false, parts: false, design: false, d3: true };
   return { photo: true, fill: true, parts: true, design: hasDesign && !!opts.designIsFace };

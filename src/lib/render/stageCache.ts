@@ -14,13 +14,31 @@ export async function loadSnapshot(photoId: string, stageKey: string): Promise<s
   if (!d || !('blob' in d)) return null;
   const url = URL.createObjectURL(d.blob);
   mem.set(k, url);
+  mem.set(lastOf(photoId), url);
   return url;
 }
-/** 그림을 저장하고 주소를 돌려준다 */
+/**
+ * 그 사진의 마지막 3D 그림 (내용과 상관없이) — 새 그림이 준비될 때까지 보여 준다 (2026-11-07 "3d 랜더링 이미지가 사진보드에서 유지되지 않아":
+ * 내용이 바뀌면 새로 만들 때까지 사진 그대로였고, 맥 앱은 만드는 데 오래 걸렸다)
+ */
+const lastOf = (photoId: string) => `s3last|${photoId}`;
+export async function loadLatestSnapshot(photoId: string): Promise<string | null> {
+  const k = lastOf(photoId);
+  const have = mem.get(k);
+  if (have) return have;
+  const d = await getDerived(k);
+  if (!d || !('blob' in d)) return null;
+  const url = URL.createObjectURL(d.blob);
+  mem.set(k, url);
+  return url;
+}
+/** 그림을 저장하고 주소를 돌려준다 (그 사진의 마지막 그림으로도) */
 export async function saveSnapshot(photoId: string, stageKey: string, blob: Blob): Promise<string> {
   const k = keyOf(photoId, stageKey);
   await putDerived(k, { blob });
+  await putDerived(lastOf(photoId), { blob });
   const url = URL.createObjectURL(blob);
   mem.set(k, url);
+  mem.set(lastOf(photoId), url);
   return url;
 }

@@ -186,6 +186,27 @@ test('카드는 모드마다 바뀐다: 실측 = 사진, 2D = 속성 내용, 3D 
   await expect(card(id).getByTestId('design-image')).toHaveCount(0); // 2D = 속성 내용
   await page.getByTestId('stage-3d').click();
   await expect(card(id).getByTestId('card-3d')).toHaveCount(1, { timeout: 60_000 }); // 3D 합성에서 편 그림
-  await page.getByTestId('view-design').click(); // 디자인 탭(3D 단계)도 3D 렌더링 그림 유지 (2026-11-07)
-  await expect(card(id).getByTestId('card-3d')).toHaveCount(1);
+  await page.getByTestId('view-design').click(); // 디자인 탭 카드 = 전체 디자인 (2026-11-07 "사인물 카드는 전체 디자인이 나와야해")
+  await expect(card(id).getByTestId('design-image')).toHaveCount(1);
+  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+});
+
+test('사진보드 3D: 내용이 바뀌어 새로 만드는 동안 마지막 3D 그림을 그대로 보여 준다 (2026-11-07 "3d 랜더링 이미지가 사진보드에서 유지되지 않아")', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  const pid = await page.evaluate(() => (window as any).__ganpanda.photos[0].id);
+  await page.getByTestId('stage-3d').click();
+  await expect.poll(() => page.evaluate((pid) => (window as any).__ganpanda.stageRenders[pid]?.url ?? '', pid), { timeout: 60_000 }).toMatch(/^blob:/);
+  // 내용을 바꾸고(키가 바뀜) 다시 연다 — 새 그림이 생기기 전에도 마지막 3D 그림이 사진 위에
+  await page.getByTestId('stage-2d').click(); // 2D 에서 바꿔 새 3D 그림은 아직 없음
+  await page.evaluate((id) => (window as any).__ganpanda.project.updateObject(id, { heightMm: 1400 }), id);
+  await page.waitForTimeout(1500);
+  await page.reload();
+  await page.getByTestId('stage-3d').click();
+  const first = await page.waitForFunction((pid) => { const g = (window as any).__ganpanda; const r = g?.stageRenders?.[pid]; return r?.url ? { key: r.key, made: g.stageMade } : null; }, pid, { timeout: 60_000 });
+  const v = await first.jsonValue() as { key: string; made: number };
+  expect(v.made).toBe(0); // 이 화면에서 새로 만들기 전
+  expect(v.key.startsWith('stale|')).toBe(true); // 마지막 그림
+  await expect(page.getByTestId('photo-overlay')).toHaveCount(1);
 });

@@ -25,7 +25,7 @@
   import type { LiveStage, StageRenderer } from '../render/scene';
   import { LIVE_SETTLE_MS, liveBuildDelay, liveView, type LiveView } from '../core/liveView';
   import { needs3d } from '../core/stageFlat';
-  import { loadSnapshot, saveSnapshot } from '../render/stageCache';
+  import { loadLatestSnapshot, loadSnapshot, saveSnapshot } from '../render/stageCache';
   import { app } from '../state.svelte';
   import { defaultProductFor } from '../core/catalog';
   import { assetUrl, imageSize, putAsset, StorageLimitError } from '../assets';
@@ -280,6 +280,8 @@
         if (!plane || !needs3d(objs)) { app.stageRenders[id] = { key, url: '' }; continue; } // 3D 벽면이 없거나 납작한 것뿐 → 사진(2D) 그대로
         const saved = await loadSnapshot(id, key);
         if (saved) { app.stageRenders[id] = { key, url: saved }; continue; }
+        // 새 그림이 준비될 때까지 그 사진의 마지막 3D 그림을 그대로 (2026-11-07 "3d 랜더링 이미지가 사진보드에서 유지되지 않아") — 키는 달라 아래에서 새로 만든다
+        if (!app.stageRenders[id]?.url) { const last = await loadLatestSnapshot(id); if (last) app.stageRenders[id] = { key: `stale|${key}`, url: last }; }
         if (phoneStage) { app.stageRenders[id] = { key, url: '' }; continue; } // 휴대폰은 만들지 않는다 — 가운데 사진의 실시간 화면에서 떠서 채운다(snapshotLater)
         // 실시간 3D 가 먼저 (2026-11-05 "확대할때 3d 업데이트 안되서 깍두기 보임" — 맥 앱 실측: 다른 사진 합성과 함께 지으면 가운데 사진의 실시간 장면이 1분 가까이 늦어
         // 그동안 저장 그림이 늘어나 보였다): 가운데 사진의 실시간 장면이 지어질 때까지 합성을 기다린다 (최대 15초 — 실시간이 실패해도 멈추지 않게)
@@ -289,12 +291,19 @@
         stageFont ??= await loadFont(fontUrl);
         stageRenderer ??= new StageRenderer();
         app.stageBusy++;
+        const t0 = performance.now();
+        crashLog.event(`3D 그림 ${p.name} 만들기 시작`);
         try {
           const dataUrl = await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize);
           app.stageMade++;
           app.stageRenders[id] = { key, url: await saveSnapshot(id, key, await dataUrlToBlob(dataUrl)) };
+          crashLog.event(`3D 그림 ${p.name} 완료 ${Math.round(performance.now() - t0)}ms`);
         }
-        catch (e) { console.warn('3D 단계 합성 실패', e); app.stageRenders[id] = { key, url: '' }; }
+        catch (e) {
+          console.warn('3D 단계 합성 실패', e);
+          crashLog.event(`3D 그림 ${p.name} 실패: ${e instanceof Error ? e.message : e}`);
+          app.stageRenders[id] = { key, url: app.stageRenders[id]?.url ?? '' }; // 실패해도 마지막 그림은 그대로
+        }
         finally { app.stageBusy--; }
       }
     } finally {
