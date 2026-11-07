@@ -55,8 +55,8 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
   class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName) && (!this.fsName.endsWith('.json') || this.fsName in written); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
   class XMPMeta { props: Record<string, string> = {}; constructor(_s: string) {} static registerNamespace() {} setProperty(_ns: string, k: string, v: string) { this.props[k] = v; } serialize() { const [k, v] = Object.entries(this.props)[0]; return `<x:xmpmeta><ganpanda:${k}>${v}</ganpanda:${k}></x:xmpmeta>`; } }
   const ctx: Rec = {
-    app: { documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0], coordinateSystem: null },
-    DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc' },
+    app: { startupPresetsList: ['Print', 'Web'], documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0], coordinateSystem: null },
+    DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, DocumentPreset: function (this: Rec) { this.units = null; }, RulerUnits: { Millimeters: 'mm', Points: 'pt' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc' },
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
     ExportOptionsSVG: function (this: Rec) { this.fontType = null; }, ExportOptionsPNG24: function (this: Rec) { this.transparency = false; },
     ExportType: { SVG: 'SVG', PNG24: 'PNG24' }, SVGFontType: { OUTLINEFONT: 'outline' }, SaveOptions: { DONOTSAVECHANGES: 'no' }, ElementPlacement: { PLACEATEND: 'end', PLACEATBEGINNING: 'begin' },
@@ -84,6 +84,10 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
     expect(r0[0]).toBeCloseTo(0, 6); expect(r0[1]).toBeCloseTo(0, 6); expect(r0[2]).toBeCloseTo(3000 * PT, 4); expect(r0[3]).toBeCloseTo(-600 * PT, 4);
     expect(r1[0]).toBeCloseTo(3500 * PT, 4); expect(r1[1]).toBeCloseTo(-200 * PT, 4); expect(r1[2]).toBeCloseTo(4100 * PT, 4); expect(r1[3]).toBeCloseTo(-1100 * PT, 4);
     expect(doc.layers.map((l: Rec) => l.name)).toEqual(['path', '디자인', '받은 이미지']); // 위 → 아래
+    // 새 문서 단위 = mm (2026-11-07 "일러스트 새문서 치수 단위를 mm으로 설정되게"), 크기는 전체 배치 그대로(pt), RGB
+    expect(doc.rulerUnits).toBe('mm');
+    expect(doc.colorMode).toBe('RGB');
+    expect(doc.width).toBeCloseTo(4100 * PT, 4);
     const recv = doc.layers.find((l: Rec) => l.name === '받은 이미지');
     expect(recv.locked).toBe(true);
     expect(recv.placedItems.map((it: Rec) => it.file.fsName)).toEqual(['/tmp/pkg/images/a1.png', '/tmp/pkg/images/b2.png']); // 폴더의 파일을 연결

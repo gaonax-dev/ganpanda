@@ -145,11 +145,27 @@
   }
 
   // ---------- 대지 만들기 ----------
+  /**
+   * 새 문서 — 단위 mm (2026-11-07 "일러스트 새문서 치수 단위를 mm으로 설정되게"): 문서 프리셋(units = 밀리미터, RGB, 크기 pt)으로 만든다.
+   * 프리셋 이름(인쇄 등)은 일러스트 언어마다 달라 설치된 첫 시작 프리셋을 쓰고, 프리셋으로 못 만들면 예전 방식(기본 단위)
+   */
+  function newDocMm(W, H) {
+    try {
+      var p = new DocumentPreset();
+      p.units = RulerUnits.Millimeters;
+      p.colorMode = DocumentColorSpace.RGB;
+      p.width = W; p.height = H;
+      var startup = app.startupPresetsList && app.startupPresetsList.length ? app.startupPresetsList[0] : 'Print';
+      return app.documents.addDocument(startup, p);
+    } catch (e) {
+      return app.documents.add(DocumentColorSpace.RGB, W, H);
+    }
+  }
   function build(data) {
     if (!data || !data.cards || !data.cards.length) { alert('간판다 데이터에 사인물 카드가 없습니다. 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › [대지 받기 (zip)]로 다시 받아 주세요.'); return; }
     var k = data.scale * PT;
     var W = Math.max(1, data.width * k), H = Math.max(1, data.height * k);
-    var doc = app.documents.add(DocumentColorSpace.RGB, W, H);
+    var doc = newDocMm(W, H);
     try { app.coordinateSystem = CoordinateSystem.DOCUMENTCOORDINATESYSTEM; } catch (e) {}
     // 레이어: 아래부터 받은 이미지(잠금) · 디자인 · path (나중에 만든 것이 위)
     var recv = doc.layers[0];

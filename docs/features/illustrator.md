@@ -18,7 +18,7 @@
 |---|---|---|
 | 카드 | 실측 = 사진 · 2D/3D = 사진 위 속성 내용(바탕색·구성 요소) · 디자인 = 대지 이미지(없으면 2D 내용) | `core/cardLayers.ts`, `views/BoardCard.svelte` |
 | 보내기 | 카드마다 **최종 이미지 한 장**(3D 제외 마지막 단계: 디자인 › 2D 속성 내용 › 사진, 긴 변 1600px PNG) → zip `images/<id>.png` | `render/cardImage.ts cardFinalPng`, `illustratorExport.ts` (패키지 version 2, 카드 `image`) |
-| 스크립트 (대지 만들기) | 사인물마다 크기대로 대지 "이름 #id", 레이어 아래부터 **받은 이미지**(최종 이미지 연결, 잠금) · **디자인** · **path** | `illustrator/ganpanda.jsx build` |
+| 스크립트 (대지 만들기) | 새 문서는 **단위 mm**(문서 프리셋 `units = RulerUnits.Millimeters`, RGB — 2026-11-07 "일러스트 새문서 치수 단위를 mm으로 설정되게", 설치된 첫 시작 프리셋 위에, 못 만들면 기본 단위) · 사인물마다 크기대로 대지 "프로젝트명 #번호", 레이어 아래부터 **받은 이미지**(최종 이미지 연결, 잠금) · **디자인** · **path** | `illustrator/ganpanda.jsx build`·`newDocMm` |
 | 스크립트 (보내기) | 간판다 대지마다 그 대지와 겹치는 **디자인** 레이어 항목 → PNG(대지로 자름, 긴 변 약 2048px), **path** 레이어 항목 → SVG(글자 윤곽선) → `.ganpanda` (version 2, `part: design|path`). 둘 다 비면 묶음 없이 알림 | `ganpanda.jsx sendBack` |
 | 가져오기 | [디자인 싱크] › 받기 → 검토 → [확정]: 대지 이름(#id)으로 사인물을 찾아 **디자인 = 사인물 바탕 디자인으로 바로**(새 디자인 소스, 이력), **path = 사용자가 고른 구성물**(입체 구성 요소 = 채널·스카시. 하나면 미리 골라 둠, 여럿이면 직접, 안 고르면 넣지 않음)의 내용을 벡터 그림 하나로 → 3D 입체 | `core/designSync.ts planBundle`, `state.applyIllustratorBundle`, `ui/SyncReview.svelte`(`sync-path`) |
 
