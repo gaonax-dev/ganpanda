@@ -9,7 +9,7 @@ const PT = 72 / 25.4;
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; failPdf?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][]; nested?: number[][] }[] } } = {}) {
+function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; failPdf?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { texts?: { layer: string; locked?: boolean }[]; names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][]; nested?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -36,11 +36,11 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
       artboards: Object.assign(abs, { add(r: number[]) { const a = { artboardRect: r, name: '' }; abs.push(a); return a; }, remove(i: number) { abs.splice(i, 1); }, setActiveArtboardIndex(i: number) { doc.activeAb = i; } }),
       layers: Object.assign(layers, { add() { const l = mkLayer('새 레이어'); layers.unshift(l); return l; } }),
       saves: [] as Rec[],
-      saveAs(f: { fsName: string }, o: Rec) { if (opts.failPdf && o.kind === 'pdf') throw new Error('PDF 못 씀'); doc.saves.push({ file: f.fsName, ...o }); if (o.kind !== 'pdf') doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
+      saveAs(f: { fsName: string }, o: Rec) { if (opts.failPdf && o.kind === 'pdf') throw new Error('PDF 못 씀'); doc.saves.push({ file: f.fsName, ...o, outlinedNow: doc.outlined ?? 0, textsLeft: (doc.textFrames ?? []).length }); if (o.kind !== 'pdf') doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
       save() { doc.saved = { file: 'same', pdf: true }; },
       exports: [] as Rec[],
       exportFile(f: { fsName: string }, type: string, o: Rec) { if (opts.failPng && type === 'PNG24') throw new Error('MRAP'); doc.coordAtExport = ctx.app.coordinateSystem; written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; doc.exports.push({ type, o, active: doc.activeAb, visible: doc.layers.filter((l: Rec) => l.visible).map((l: Rec) => l.name) }); },
-      close() { doc.closed = true; }, activate() {},
+      close(o: unknown) { doc.closed = true; doc.closedWith = o; }, activate() {},
     };
     return doc;
   };
@@ -53,12 +53,20 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
       for (const b of L.items ?? []) l.pageItems.push(pageItem(b, { typename: 'Layer', name: l.name })); // 실제 일러스트처럼 부모 참조는 매번 다른 객체
       for (const b of (L as Rec).nested ?? []) l.pageItems.push(pageItem(b, { typename: 'GroupItem' })); // 그룹 안 항목
     }
+    // 글자 (2026-11-07): createOutline() 하면 글자 목록에서 빠지고 윤곽선 수가 는다. 잠긴 레이어·글자면 실패(실제 일러스트처럼)
+    d.outlined = 0;
+    d.textFrames = [] as Rec[];
+    for (const t of opts.existing.texts ?? []) {
+      const layer = d.layers.find((x: Rec) => x.name === t.layer);
+      const tf: Rec = { locked: !!t.locked, layer, createOutline() { if (tf.locked || tf.layer?.locked) throw new Error('잠김'); d.textFrames.splice(d.textFrames.indexOf(tf), 1); d.outlined++; return {}; } };
+      d.textFrames.push(tf);
+    }
     docs.push(d);
   }
   class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName) && (!this.fsName.endsWith('.json') || this.fsName in written); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
   class XMPMeta { props: Record<string, string> = {}; constructor(_s: string) {} static registerNamespace() {} setProperty(_ns: string, k: string, v: string) { this.props[k] = v; } serialize() { const [k, v] = Object.entries(this.props)[0]; return `<x:xmpmeta><ganpanda:${k}>${v}</ganpanda:${k}></x:xmpmeta>`; } }
   const ctx: Rec = {
-    app: { startupPresetsList: ['Print', 'Web'], coordinateSystem: 'artboard', documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0] },
+    app: { open(f: { fsName: string }) { const d = mkDoc(1000, 1000, (opts.existing?.names) ?? []); d.fullName = f; d.reopened = true; docs.push(d); ctx.app.activeDocument = d; return d; }, startupPresetsList: ['Print', 'Web'], coordinateSystem: 'artboard', documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0] },
     DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, DocumentPreset: function (this: Rec) { this.units = null; }, RulerUnits: { Millimeters: 'mm', Points: 'pt' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc', ARTBOARDCOORDINATESYSTEM: 'artboard' },
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
     PDFSaveOptions: function (this: Rec) { this.kind = 'pdf'; this.acrobatLayers = false; this.preserveEditability = false; }, PDFCompatibility: { ACROBAT7: 'acrobat7' },
@@ -126,18 +134,24 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
 
 describe('ganpanda.jsx — [내보내기] = 레이어가 살아 있는 PDF 저장 (2026-11-07)', () => {
   // 사용자: "pdf로 내보내면 어떤가?" → "pdf를 직접 편집가능하다면 굿이 path를 따로 둘 이유가 없고 연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로" → 레이어로 고르기
-  it('대지 번호 XMP → .ai 저장 → 같은 이름 .pdf(Acrobat 레이어·일러스트 편집 유지) → 다시 .ai 로. 대지별 내보내기·임시 문서 없음', () => {
-    const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [{ name: '디자인', items: [[10, -10, 50, -50]] }, { name: '채널', items: [[110, -10, 150, -60]] }] } });
+  it('대지 번호 XMP → 원본 .ai 저장(글자 그대로) → 글자를 윤곽선으로 → 같은 이름 .pdf(Acrobat 레이어·편집 유지) → 원본은 저장 없이 닫고 .ai 다시 열기 (2026-11-07 "글자를 아웃라인으로 변경하고 내보내기 하는데 원파일은 아웃라인 변환안된 상태 유지하게")', () => {
+    const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [{ name: '디자인', items: [[10, -10, 50, -50]] }, { name: '채널', items: [[110, -10, 150, -60]] }], texts: [{ layer: '디자인' }, { layer: '채널' }, { layer: '채널', locked: true }] } });
+    f.docs[0].layers.find((l: Rec) => l.name === '채널').locked = true; // 잠긴 레이어의 글자도
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
     const doc = f.docs[0];
     expect(doc.XMPString).toContain('<ganpanda:artboards>1||2</ganpanda:artboards>');
-    expect(doc.saves.map((x: Rec) => [x.file, x.kind ?? 'ai'])).toEqual([['/tmp/existing.ai', 'ai'], ['/tmp/existing.pdf', 'pdf'], ['/tmp/existing.ai', 'ai']]);
-    expect(doc.saves[1]).toMatchObject({ acrobatLayers: true, preserveEditability: true });
-    expect(doc.fullName.fsName).toBe('/tmp/existing.ai'); // 작업 문서는 .ai 그대로
-    expect(f.docs).toHaveLength(1); // 임시 문서 없음
-    expect(doc.exports).toHaveLength(0);
+    expect(doc.saves.map((x: Rec) => [x.file, x.kind ?? 'ai'])).toEqual([['/tmp/existing.ai', 'ai'], ['/tmp/existing.pdf', 'pdf']]);
+    expect(doc.saves[0]).toMatchObject({ outlinedNow: 0, textsLeft: 3 }); // 원본 .ai = 글자 그대로
+    expect(doc.saves[1]).toMatchObject({ acrobatLayers: true, preserveEditability: true, outlinedNow: 3, textsLeft: 0 }); // PDF = 전부 윤곽선
+    expect(doc.closed).toBe(true);
+    expect(doc.closedWith).toBe('no'); // 윤곽선으로 바꾼 문서는 저장하지 않는다
+    const re = f.docs[f.docs.length - 1];
+    expect(re.reopened).toBe(true);
+    expect(re.fullName.fsName).toBe('/tmp/existing.ai'); // 원본을 다시 열어 둔다
+    expect(f.docs.filter((d: Rec) => !d.reopened)).toHaveLength(1); // 임시 문서 없음
     const alert = f.log.find((l) => l.startsWith('alert:'))!;
     expect(alert).toContain('existing.pdf');
+    expect(alert).toContain('글자 3개');
     expect(alert).toContain('채널');
   });
   it('PDF 저장이 실패하면 단계·오류를 알림과 로그 파일로', () => {

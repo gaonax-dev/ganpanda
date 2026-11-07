@@ -95,7 +95,7 @@
           <button class="btn small primary" data-testid="illustrator-download" data-state={st.zip ?? 'idle'} class:done={st.zip === 'done'} class:err={st.zip === 'error'} disabled={busy || !exportable} onclick={zip}>{#if st.zip === 'busy'}<i class="spin"></i>{/if}{label('zip', '대지 받기 (zip)')}</button>
           <button class="btn small" data-testid="illustrator-script" data-state={st.script ?? 'idle'} class:done={st.script === 'done'} class:err={st.script === 'error'} disabled={busy} onclick={script}>{#if st.script === 'busy'}<i class="spin"></i>{/if}{label('script', '설치용 스크립트 (간판다.jsx)')}</button>
         </div>
-        <small class="tip" data-testid="illustrator-define">사인물마다 크기대로 <b>대지</b>(프로젝트명 #번호), 레이어는 <b>받은 이미지</b>(카드의 최종 그림, 잠금) · <b>디자인</b>. 입체로 만들 부분은 맨 위 레이어를 따로 만들어 이름에 <b>"채널"·"스카시"</b>(글자는 윤곽선으로).</small>
+        <small class="tip" data-testid="illustrator-define">사인물마다 크기대로 <b>대지</b>(프로젝트명 #번호), 레이어는 <b>받은 이미지</b>(카드의 최종 그림, 잠금) · <b>디자인</b>. 입체로 만들 부분은 맨 위 레이어를 따로 만들어 이름에 <b>"채널"·"스카시"</b>. [내보내기]하면 PDF 에서만 글자를 윤곽선으로 바꾸고 원본 .ai 는 글자 그대로 둡니다.</small>
         <small class="tip" data-testid="illustrator-install-tip">zip 을 풀면 프로젝트 이름 폴더(ganpanda.json · images · ganpanda.jsx). 한 번만: <b>간판다.jsx</b> 를 일러스트 스크립트 폴더(맥: 응용 프로그램 › Adobe Illustrator › Presets › ko_KR › 스크립트, 윈도우: Program Files › Adobe › Adobe Illustrator › Presets › ko_KR › 스크립트)에 넣고 일러스트를 다시 켜면 <b>파일 › 스크립트 › 간판다</b>. 실행 → <b>[가져오기]</b> → 받은 폴더를 고르면 사인물마다 대지·레이어(받은 이미지·디자인·path). 설치 없이: 폴더 안 ganpanda.jsx 를 <b>파일 › 스크립트 › 기타 스크립트…</b></small>
       {:else}
         {#if program === 'svg'}

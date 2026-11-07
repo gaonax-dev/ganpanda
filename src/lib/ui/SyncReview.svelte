@@ -55,7 +55,7 @@
                 {#each row.pathParts as pid (pid)}<option value={pid}>{partName(row.signId, pid)} 입체</option>{/each}
               </select>
             {:else if l.paths}<span class="fixed">입체 구성물(채널·스카시) 없음</span>
-            {:else}<span class="fixed warn-t" data-testid="sync-layer-text">글자를 윤곽선으로 만들어야 입체가 됩니다</span>{/if}
+            {:else}<span class="fixed warn-t" data-testid="sync-layer-text">글자가 윤곽선이 아니라 입체가 안 됩니다 — 간판다 스크립트 [내보내기]로 저장하면 자동으로 윤곽선</span>{/if}
           </li>
         {/each}
       {/if}

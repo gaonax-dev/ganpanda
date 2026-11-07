@@ -93,7 +93,18 @@
     var target = doc.fullName ? doc.fullName : File.saveDialog('간판다로 보낼 .ai 저장', 'Illustrator:*.ai');
     if (!target) { alert('저장하지 않았습니다.'); return; }
     var base = String(target.fsName).replace(/\.(ai|pdf)$/i, ''), aiFile = new File(base + '.ai'), pdfFile = new File(base + '.pdf');
-    step('.ai 저장', function () { doc.saveAs(aiFile, pdfOptions()); });
+    var aiOk = step('.ai 저장', function () { doc.saveAs(aiFile, pdfOptions()); return true; });
+    // 글자 → 윤곽선은 PDF 에만 (2026-11-07 "글자를 아웃라인으로 변경하고 내보내기 하는데 원파일은 아웃라인 변환안된 상태 유지하게"):
+    // 원본 .ai 를 먼저 저장해 두고, 잠금을 풀어 글자를 윤곽선으로 바꿔 PDF 를 저장한 뒤 문서를 저장 없이 닫고 원본 .ai 를 다시 연다
+    var outlined = 0;
+    if (aiOk) step('글자 윤곽선', function () {
+      var k2;
+      function unlock(ls) { for (var u = 0; u < ls.length; u++) { try { ls[u].locked = false; } catch (e) {} if (ls[u].layers) unlock(ls[u].layers); } }
+      unlock(doc.layers);
+      var tfs = [];
+      for (k2 = 0; k2 < doc.textFrames.length; k2++) tfs.push(doc.textFrames[k2]);
+      for (k2 = tfs.length - 1; k2 >= 0; k2--) { try { tfs[k2].locked = false; tfs[k2].createOutline(); outlined++; } catch (e) {} }
+    });
     var pdfOk = step('PDF 저장', function () {
       var o = new PDFSaveOptions();
       o.acrobatLayers = true; // 맨 위 레이어 = Acrobat 레이어 — 간판다가 레이어별로 읽는다
@@ -103,7 +114,8 @@
       doc.saveAs(pdfFile, o);
       return true;
     });
-    step('.ai 로 되돌리기', function () { doc.saveAs(aiFile, pdfOptions()); }); // 작업 문서는 .ai 그대로
+    // 윤곽선으로 바꾼 문서는 버리고 원본 .ai 를 다시 연다 — 원본을 저장하지 못했으면 닫지 않는다(작업을 잃지 않게)
+    if (aiOk) step('원본 .ai 다시 열기', function () { doc.close(SaveOptions.DONOTSAVECHANGES); doc = app.open(aiFile); });
     var layers = [], k;
     for (k = 0; k < doc.layers.length; k++) { var nm = doc.layers[k].name; if (nm !== RECEIVED && nm !== DESIGN) layers.push(nm); }
     var failText = '';
@@ -112,9 +124,9 @@
       try { var lf = new File(base + '.ganpanda-log.txt'); lf.encoding = 'UTF-8'; lf.open('w'); lf.write('간판다 내보내기 ' + new Date() + '\n' + fails.join('\n') + '\n'); lf.close(); } catch (e) {}
     }
     if (!pdfOk) { alert('PDF 를 저장하지 못했습니다.' + failText); return; }
-    alert('간판다로 보낼 PDF 를 저장했습니다 (간판다 대지 ' + n + '개).\n' + pdfFile.fsName.replace(/^.*[\/\\]/, '') + ' 를 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n\n' +
+    alert('간판다로 보낼 PDF 를 저장했습니다 (간판다 대지 ' + n + '개' + (outlined ? ', 글자 ' + outlined + '개는 PDF 에서만 윤곽선 — 원본 .ai 는 글자 그대로' : '') + ').\n' + pdfFile.fsName.replace(/^.*[\/\\]/, '') + ' 를 간판다 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n\n' +
       '· 디자인: 대지마다 그림으로 사인물 카드에 (받은 이미지 레이어는 빼고)\n' +
-      '· 입체: 맨 위 레이어 이름에 "채널"·"스카시"를 넣으면 그 레이어의 패스가 그 구성물의 입체로 (글자는 윤곽선으로 만들기)' +
+      '· 입체: 맨 위 레이어 이름에 "채널"·"스카시"를 넣으면 그 레이어의 패스가 그 구성물의 입체로' +
       (layers.length ? '\n  지금 레이어: ' + layers.join(', ') : '') + failText);
   }
 
