@@ -3,7 +3,7 @@
 // 일러스트 기준 파일 싱크 (2026-11-06 사용자 정의):
 //  - 대지 만들기: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
 //    → 사인물마다 크기대로 대지("프로젝트명 #번호" — 번호 = 간판다 사인물의 고정 대지 번호), 레이어 아래부터 받은 이미지(잠금 — 카드의 최종 그림) · 디자인 · path → .ai(PDF 호환) 저장
-//  - 간판다로 보내기: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다.
+//  - 실행하면 [가져오기]·[내보내기]·[취소] 단추 창 (2026-11-07). [내보내기] = 간판다로 보내기: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다.
 //    path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
 //    → 간판다 대지(#id)마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → "같은 이름.ganpanda" 묶음
 // ExtendScript(ES3) — let·화살표 함수·JSON 없음. → docs/features/illustrator.md
@@ -137,7 +137,7 @@
   }
   function q(s) { return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; }
 
-  // ---------- 간판다로 보내기 ----------
+  // ---------- [내보내기] 간판다로 보내기 ----------
   // 단계마다 따로 — 하나가 실패해도 나머지는 계속하고, 실패한 단계와 오류를 알림·로그 파일(같은 이름-log.txt)로 (2026-11-07)
   /**
    * 좌표 기준을 문서로 고정하고 보낸 뒤 되돌린다 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명했다 — 일러스트 기본 '대지 기준 좌표'에서는
@@ -224,17 +224,39 @@
     var f = File.saveDialog('간판다 대지 저장 (' + data.project + ')', 'Illustrator:*.ai');
     if (f) doc.saveAs(f, pdfOptions());
     alert('사인물 ' + data.cards.length + '개를 대지로 만들었습니다' + (data.scale !== 1 ? ' (축척 1:' + Math.round(1 / data.scale) + ')' : '') + '.\n' +
-      '"디자인" 레이어에 대지마다 디자인을, "path" 레이어에 입체(채널·스카시)로 만들 패스를 넣고 이 스크립트를 다시 실행하면 [간판다로 보내기]가 됩니다.' +
+      '"디자인" 레이어에 대지마다 디자인을, "path" 레이어에 입체(채널·스카시)로 만들 패스를 넣고 이 스크립트를 다시 실행해 [내보내기]를 누르세요.' +
       (missing ? '\n\n그림 ' + missing + '개를 찾지 못했습니다 — 간판다에서 받은 zip 을 풀고 그 폴더(images 폴더가 있는 곳)를 써 주세요.' : ''));
   }
 
-  // 열린 문서에 간판다 대지(#id)가 있으면 보내기, 아니면 대지 만들기
-  var active = app.documents.length ? app.activeDocument : null;
-  if (active) {
-    var has = false, j;
-    for (j = 0; j < active.artboards.length; j++) if (idOf(active.artboards[j].name)) { has = true; break; }
-    if (has && confirm('지금 문서를 간판다로 보낼까요?\n대지 이름(#사인물)으로 짝을 적어 PDF 호환 .ai 로 저장하고, 대지마다 디자인·path 를 .ganpanda 로 내보냅니다.\n[아니요]를 누르면 간판다 데이터로 새 대지 문서를 만듭니다.')) { sendBack(active); return; }
+  /**
+   * 실행하면 [가져오기]·[내보내기]·[취소] 단추 창 (2026-11-07 "스크립트 버튼에 가져오기 내보내기 버튼으로 변경해줘").
+   * 가져오기 = 간판다 → 일러스트(받은 폴더로 대지 만들기), 내보내기 = 일러스트 → 간판다(.ganpanda) — 열린 문서에 간판다 대지(#번호)가 없으면 꺼짐.
+   * ScriptUI 가 없으면 예전처럼 확인 창
+   */
+  function chooseAction(canExport) {
+    if (typeof Window === 'undefined') return canExport && confirm('지금 문서를 간판다로 내보낼까요?\n[아니요]를 누르면 간판다에서 대지를 가져옵니다.') ? 'export' : 'import';
+    var r = null;
+    var w = new Window('dialog', '간판다');
+    w.orientation = 'column'; w.alignChildren = 'fill';
+    w.add('statictext', undefined, '간판다 디자인 싱크');
+    var bi = w.add('button', undefined, '가져오기 — 간판다에서 받은 폴더로 대지 만들기');
+    var be = w.add('button', undefined, '내보내기 — 이 문서의 디자인·path 를 간판다로');
+    var bc = w.add('button', undefined, '취소', { name: 'cancel' });
+    be.enabled = canExport;
+    if (!canExport) w.add('statictext', undefined, '내보내기: 간판다 대지(이름 끝 #번호)가 있는 문서를 연 채 실행하세요.');
+    bi.onClick = function () { r = 'import'; w.close(); };
+    be.onClick = function () { r = 'export'; w.close(); };
+    bc.onClick = function () { r = null; w.close(); };
+    w.show();
+    return r;
   }
+
+  var active = app.documents.length ? app.activeDocument : null;
+  var has = false, j;
+  if (active) for (j = 0; j < active.artboards.length; j++) if (idOf(active.artboards[j].name)) { has = true; break; }
+  var action = chooseAction(has);
+  if (!action) return;
+  if (action === 'export') { sendBack(active); return; }
   if (DATA) { build(DATA); return; }
   // 설치형 (2026-11-05 "가볍게 일러스트에 스크립트 설치하고 실행하면 폴더 선택가능하게 파인더 띄워주고 가는건"): 데이터 줄이 없으면 받은 폴더를 고른다
   var folder = Folder.selectDialog('간판다에서 받은 폴더를 고르세요 (zip 을 푼 폴더 — ganpanda.json 이 있는 곳)');

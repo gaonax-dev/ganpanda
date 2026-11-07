@@ -9,7 +9,7 @@ const PT = 72 / 25.4;
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
+function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -64,6 +64,14 @@ function fakeIllustrator(opts: { failPng?: boolean; confirm?: boolean; missing?:
     ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' }, selectDialog: (m: string) => { log.push('pick:' + m); return opts.pick ? { fsName: opts.pick } : null; } }, $: { fileName: (opts.scriptDir ?? '/tmp/pkg') + '/ganpanda.jsx' },
     alert: (m: string) => log.push('alert:' + m), confirm: (m: string) => { log.push('confirm:' + m); return opts.confirm ?? true; },
     String, Math, Number, parseInt, isNaN,
+  };
+  // ScriptUI 창 (2026-11-07 "스크립트 버튼에 가져오기 내보내기 버튼으로"): 단추를 기록하고, show() 때 고른 단추(opts.choose, 기본 = 열린 간판다 문서면 내보내기)를 누른다
+  const LABEL = { import: '가져오기', export: '내보내기', cancel: '취소' } as const;
+  ctx.Window = function (this: Rec, type: string, title: string) {
+    const w = this; w.type = type; w.title = title; w.buttons = [] as Rec[]; w.texts = [] as string[]; ctx.lastWindow = w;
+    w.add = (kind: string, _b: unknown, text: string) => { const c: Rec = { kind, text, enabled: true }; if (kind === 'button') w.buttons.push(c); else w.texts.push(text); return c; };
+    w.close = () => { w.closed = true; };
+    w.show = () => { const want = LABEL[opts.choose ?? (opts.existing ? 'export' : 'import')]; const b = w.buttons.find((x: Rec) => String(x.text).startsWith(want)); log.push('window:' + want + (b && !b.enabled ? ':disabled' : '')); if (b && b.enabled && b.onClick) b.onClick(); return 1; };
   };
   ctx.ExternalObject.AdobeXMPScript = undefined;
   return { ctx, docs, log, written };
@@ -185,6 +193,34 @@ describe('ganpanda.jsx — 그림 해독 (예전 data URL)', () => {
     const files = Object.keys(f.written).filter((k) => /ganpanda-\d+\.jpg$/.test(k)).sort((a, b) => Number(/(\d+)\.jpg/.exec(a)![1]) - Number(/(\d+)\.jpg/.exec(b)![1]));
     expect(files).toHaveLength(4);
     files.forEach((k, i) => expect(Buffer.from(f.written[k], 'latin1').equals(bytes[i]), k).toBe(true));
+  });
+});
+
+describe('ganpanda.jsx — 실행하면 [가져오기]·[내보내기] 단추 (2026-11-07 "스크립트 버튼에 가져오기 내보내기 버튼으로 변경해줘")', () => {
+  const data = illustratorPackage({ project: '매장', cards: [{ id: 'a1', no: 1, name: '정면', x: 0, y: 0, w: 1000, h: 500 }] });
+  it('창에 가져오기·내보내기·취소 — 간판다 대지 문서가 없으면 내보내기는 꺼짐', () => {
+    const f = fakeIllustrator({ choose: 'export' });
+    vm.runInNewContext(jsxWithData(TEMPLATE, data), f.ctx);
+    const w = f.ctx.lastWindow;
+    expect(w.buttons.map((b: Rec) => String(b.text).split(' ')[0])).toEqual(['가져오기', '내보내기', '취소']);
+    expect(w.buttons[1].enabled).toBe(false);
+    expect(f.log).toContain('window:내보내기:disabled');
+    expect(f.docs).toHaveLength(0); // 아무것도 안 함
+    expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false); // 예전 확인 창 없음
+  });
+  it('간판다 대지 문서를 연 채 [가져오기] → 새 대지 문서 (보내지 않음)', () => {
+    const f = fakeIllustrator({ choose: 'import', existing: { names: ['매장 #1'] } });
+    vm.runInNewContext(jsxWithData(TEMPLATE, data), f.ctx);
+    expect(f.ctx.lastWindow.buttons[1].enabled).toBe(true);
+    expect(f.docs).toHaveLength(2);
+    expect(f.docs[1].artboards.map((a: Rec) => a.name)).toEqual(['매장 #1']);
+    expect(f.written['/tmp/existing.ganpanda']).toBeUndefined();
+  });
+  it('[취소] → 아무것도 안 함', () => {
+    const f = fakeIllustrator({ choose: 'cancel', existing: { names: ['매장 #1'], layers: [{ name: '디자인', items: [[10, -10, 50, -50]] }] } });
+    vm.runInNewContext(jsxWithData(TEMPLATE, data), f.ctx);
+    expect(f.docs).toHaveLength(1);
+    expect(f.docs[0].saved).toBeNull();
   });
 });
 

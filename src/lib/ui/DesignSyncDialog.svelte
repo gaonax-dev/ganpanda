@@ -96,7 +96,7 @@
           <button class="btn small" data-testid="illustrator-script" data-state={st.script ?? 'idle'} class:done={st.script === 'done'} class:err={st.script === 'error'} disabled={busy} onclick={script}>{#if st.script === 'busy'}<i class="spin"></i>{/if}{label('script', '설치용 스크립트 (간판다.jsx)')}</button>
         </div>
         <small class="tip" data-testid="illustrator-define">사인물마다 크기대로 <b>대지</b>, 레이어는 <b>받은 이미지</b>(카드의 최종 그림 — 디자인 › 2D 속성 내용 › 사진, 잠금) · <b>디자인</b>(여기에 디자인) · <b>path</b>(입체로 만들 패스).</small>
-        <small class="tip" data-testid="illustrator-install-tip">zip 을 풀면 프로젝트 이름 폴더(ganpanda.json · images · ganpanda.jsx). 한 번만: <b>간판다.jsx</b> 를 일러스트 스크립트 폴더(맥: 응용 프로그램 › Adobe Illustrator › Presets › ko_KR › 스크립트, 윈도우: Program Files › Adobe › Adobe Illustrator › Presets › ko_KR › 스크립트)에 넣고 일러스트를 다시 켜면 <b>파일 › 스크립트 › 간판다</b>. 실행 → 받은 폴더를 고르면 사인물마다 대지·레이어(받은 이미지·디자인·path). 설치 없이: 폴더 안 ganpanda.jsx 를 <b>파일 › 스크립트 › 기타 스크립트…</b></small>
+        <small class="tip" data-testid="illustrator-install-tip">zip 을 풀면 프로젝트 이름 폴더(ganpanda.json · images · ganpanda.jsx). 한 번만: <b>간판다.jsx</b> 를 일러스트 스크립트 폴더(맥: 응용 프로그램 › Adobe Illustrator › Presets › ko_KR › 스크립트, 윈도우: Program Files › Adobe › Adobe Illustrator › Presets › ko_KR › 스크립트)에 넣고 일러스트를 다시 켜면 <b>파일 › 스크립트 › 간판다</b>. 실행 → <b>[가져오기]</b> → 받은 폴더를 고르면 사인물마다 대지·레이어(받은 이미지·디자인·path). 설치 없이: 폴더 안 ganpanda.jsx 를 <b>파일 › 스크립트 › 기타 스크립트…</b></small>
       {:else}
         {#if program === 'svg'}
           <div class="choices" role="radiogroup" aria-label="비율">
@@ -129,7 +129,7 @@
         <label class="btn small primary up" data-testid="sync-receive" data-state={st.receive ?? 'idle'} class:done={st.receive === 'done'} class:err={st.receive === 'error'} class:off={busy}>{#if st.receive === 'busy'}<i class="spin"></i>{/if}{label('receive', '파일 고르기')}<input data-testid="sync-receive-input" disabled={busy} type="file" accept={ACCEPT[program]} hidden onchange={(e) => { receive(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} /></label>
       {/if}
       <small class="tip">
-        {#if program === 'illustrator'}스크립트를 다시 실행 → [간판다로 보내기]가 만든 <b>.ganpanda</b> — 대지 이름으로 사인물을 찾아 <b>디자인</b>은 대지 이미지로 카드에 바로, <b>path</b> 는 고른 구성물(채널·스카시)의 입체로. (저장한 .ai 를 올리면 대지 전체가 디자인으로)
+        {#if program === 'illustrator'}스크립트를 다시 실행 → <b>[내보내기]</b>가 만든 <b>.ganpanda</b> — 대지 이름으로 사인물을 찾아 <b>디자인</b>은 대지 이미지로 카드에 바로, <b>path</b> 는 고른 구성물(채널·스카시)의 입체로. (저장한 .ai 를 올리면 대지 전체가 디자인으로)
         {:else if program === 'corel'}사인물마다 한 페이지로 <b>PDF 내보내기</b> — 페이지 크기(1:1·1:10)로 사인물을 찾습니다.
         {:else}SVG·그림은 디자인 파일에 들어갑니다 — 아래 [디자인 파일]에서 영역을 그려 사인물에 연결하세요.{/if}
         받은 뒤 사진보드에서 사인물마다 <b>연결 · 바뀜 · 새로 생김 · 누락</b>을 확인하고 <b>[확정]</b>해야 입혀집니다.
