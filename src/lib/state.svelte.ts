@@ -21,7 +21,7 @@ import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
 import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import { measureQuad, type Calibration } from './core/calibration';
 import { applyHomography } from './core/homography';
-import { loadRoomView } from './core/roomView';
+import { loadRoomView, type WorkTab } from './core/roomView';
 import { alignBlock, blockFits, blockMismatch, blockOutliers, blockIdOf, isSized, measureByBlocks, photoBlocksOf, predictBlock, snapStart, type BlockAxis, type BlockPlane, type PhotoBlock } from './core/blocks';
 import { autoCameraFrom, axesAfterProposal, axesForProposal, calibrationOf, wantedAxes, cameraLevel, proposeAxisLines, signCameraFit, snapSetup, solveCamera, type CameraSetup, type CameraSolution } from './core/camera';
 import { convertFile, ConvertError } from './design/convert';
@@ -240,17 +240,25 @@ class AppState {
   dragHideId = $state<string | null>(null);
   /** 휴대폰: 사인물을 누르고 있는 동안 — 속성창은 뗄 때(탭) 나온다, 벌컥 떴다 사라지지 않게 (2026-10-22 "터치 업에 속성창나오게 현재 벌컥거린다") */
   pressing = $state(false);
-  get tab(): 'measure' | '2d' | '3d' | 'design' | 'list' {
+  /** 완료 탭 — 완료된 결과 사진만 올리는 사진보드 (2026-11-08 "완료된 결과물 올리는 사진보드" → (질문) "결과 사진만"). 작업 사진과 따로 */
+  doneMode = $state(false);
+  /**
+   * 작업 탭 = 실측 · 제안 · 견적 · 디자인 · 완료 (2026-11-08 "2d,3d를 하나로 통합한다. 그리고 제안이다").
+   * 제안 = 3D 기본, 3D 를 못 만드는 사진(원근 없음·납작한 것뿐)은 2D (같은 날 (질문) "3D 기본, 안 되면 2D"). stage '2d' 는 고객 보기용으로만 남는다
+   */
+  get tab(): WorkTab {
     if (this.view === 'list') return 'list';
+    if (this.doneMode) return 'done';
     if (this.view === 'uv' || this.designMode) return 'design';
-    return this.stage === 'original' ? 'measure' : this.stage;
+    return this.stage === 'original' ? 'measure' : 'propose';
   }
-  setTab(t: 'measure' | '2d' | '3d' | 'design' | 'list') {
+  setTab(t: WorkTab) {
     this.proposalMode = false;
     this.designMode = t === 'design';
+    this.doneMode = t === 'done';
     if (t === 'list') { this.view = 'list'; return; }
     this.view = 'board';
-    this.stage = t === 'measure' ? 'original' : t === 'design' ? '3d' : t; // 디자인 탭 = 3D (2026-11-07 "디자인은 3d를 표시하게")
+    this.stage = t === 'measure' || t === 'done' ? 'original' : '3d'; // 디자인 탭 = 3D (2026-11-07 "디자인은 3d를 표시하게")
   }
   /** ?safe=1 — 휴대폰 크래시 원인 가르기용 (2026-10-18): 2D 겹침·카드 얼굴을 그리지 않는다 */
   safeMode = $state(false);
@@ -329,7 +337,8 @@ class AppState {
   canUndo = $derived.by(() => (this.historyVersion, this.canEdit && this.history.canUndo()));
   canRedo = $derived.by(() => (this.historyVersion, this.canEdit && this.history.canRedo()));
 
-  photos = $derived.by(() => (this.version, this.project.allPhotos()));
+  /** 지금 보드의 사진 — 완료 탭은 결과 사진만, 다른 탭은 작업 사진만 (Photo.result) */
+  photos = $derived.by(() => (this.version, this.project.allPhotos().filter((p) => !!p.result === this.doneMode)));
   /** 모든 영역 (연결된 영역은 원본 규격 + 자기 위치로 풀어서) */
   objects = $derived.by(() => (this.version, resolveLinks(this.project.allObjects())));
   /** 사인물 = 원본만 (리스트·견적·UV 대상). 연결된 영역은 제외 */

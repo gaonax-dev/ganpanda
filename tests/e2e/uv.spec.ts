@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openCropCanvas, openDesignFiles, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openCropCanvas, openDesignFiles, openOwnedProject, uploadPhoto, show2d } from './helpers';
 
 /** 2쪽짜리 최소 PDF: 1쪽 빨간 사각형(400×200pt), 2쪽 파란 사각형(200×200pt) */
 function twoPagePdf(): Buffer {
@@ -79,7 +79,7 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
   // 사진 위(디자인 탭 2D)와 전개도에 디자인이 보인다
   await page.getByTestId('view-design').click(); // 사진 위 디자인은 디자인 탭 — 2D 는 디자인 전 임시 설정 (2026-11-07), 원근 없는 사진은 2D 로
   await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveCount(1);
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveCount(0); // 구운 그림 (2026-10-29) // 사진 위 (보드 평면도 카드에도 한 번 더 보인다)
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('list-design')).toHaveCount(1);

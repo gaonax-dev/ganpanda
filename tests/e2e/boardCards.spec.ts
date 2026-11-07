@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openDesignSync, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openDesignSync, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, show2d } from './helpers';
 
 /** 보드 빈 곳(사진 밖)에서 world 좌표로 끌기 */
 async function dragOnBoard(page: import('@playwright/test').Page, from: [number, number], to: [number, number]) {
@@ -101,7 +101,7 @@ test('평면도 카드는 사인물마다 하나(연결된 사진이 여럿이�
   // 같은 사인물이 두 영역에 있어도 평면도 카드는 하나
   await expect(page.getByTestId('board-card')).toHaveCount(1);
   // 배지·바탕색 (2026-10-17 "정면도에도 배경색 나오게 … 제목 왼쪽에 인디케이터 원본·설정·디자인"): 후렉스 몸통 → 설정, 바탕색 면이 있음
-  await page.getByTestId('stage-2d').click(); // 바탕색은 2D 에서 (실측은 원본 사진만, 2026-11-05)
+  await show2d(page); // 바탕색은 2D 에서 (실측은 원본 사진만, 2026-11-05)
   await expect(page.getByTestId('board-card').getByTestId('card-badge')).toHaveText('설정');
   await expect(page.getByTestId('board-card').getByTestId('card-fill')).toHaveCount(1);
   await page.evaluate((id) => { const app = (window as unknown as { __ganpanda: { project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(id, { productId: 'body-none', design: { sourceId: 'none', page: 0, crop: { x: 0, y: 0, w: 100, h: 50 } } }); }, ids.master);
@@ -324,7 +324,7 @@ test('실측 탭의 사인물 카드는 원본 사진만 — 재질(바탕색)·
   await expect(card.locator('img.flat')).toHaveCount(1); // 원본 사진 얼굴
   await expect(card.getByTestId('card-fill')).toHaveCount(0);
   await expect(card.getByTestId('parts-overlay')).toHaveCount(0);
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(card.getByTestId('card-fill')).toHaveCount(1); // 2D 는 재질
 });
 

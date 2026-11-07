@@ -1,7 +1,7 @@
 // PDF 하나로 왕복 (2026-11-07 사용자: "pdf를 직접 편집가능하다면 굿이 path를 따로 둘 이유가 없고 연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로 구현할 수 있겠는데" → 레이어로 고르기)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, test } from '@playwright/test';
-import { openDesignSync, openOwnedProject, uploadPhoto } from './helpers';
+import { openDesignSync, openOwnedProject, uploadPhoto, show2d } from './helpers';
 
 const utf16 = (s: string) => 'þÿ' + Buffer.from(s, 'utf16le').swap16().toString('latin1');
 /** Acrobat 레이어(OC) 3개(받은 이미지 · 디자인 · 채널) + 대지 번호 XMP 의 한 페이지 PDF (일러스트 [내보내기] 모양) */
@@ -88,7 +88,7 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   // 디자인 탭 = 3D, 2D 사진 위는 디자인 전 임시 설정(디자인 없음) (2026-11-07)
   await page.getByTestId('view-design').click();
   expect(await page.evaluate(() => (window as any).__ganpanda.stage)).toBe('3d');
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(page.getByTestId('photo-zone').getByTestId('baked-design')).toHaveCount(0);
   await page.getByTestId('view-design').click();
   await page.getByTestId('design-bar').getByTestId('view-uv').click();
@@ -143,7 +143,7 @@ test('줌아웃 합성: 다른 사인물의 그림을 못 찾아도(없는 에�
   await upload(page, layeredPdf('1'));
   await page.getByTestId('sync-confirm').click();
   await page.getByTestId('view-design').click();
-  await page.getByTestId('stage-2d').click(); // 합성 그림은 2D 단계 (디자인 탭은 3D — 2026-11-07)
+  await show2d(page); // 합성 그림은 2D 단계 (디자인 탭은 3D — 2026-11-07)
   // 줌아웃(합성 그림) — 디자인이 들어간 합성 그림이 생긴다
   await expect(page.getByTestId('flat-overlay')).toHaveCount(1, { timeout: 15_000 });
   expect(await page.evaluate((id) => !!(window as any).__ganpanda.project.object(id).design, id)).toBe(true);
@@ -182,8 +182,8 @@ test('카드는 모드마다: 실측 = 사진, 2D·3D = 디자인 전 임시 설
   await expect(card(sheetId).getByTestId('design-image')).toHaveCount(0);
   await expect(card(sheetId).getByTestId('card-fill')).toHaveCount(0);
   // 2D·3D = 디자인 적용 전 임시 설정 — 디자인 없음, 바탕 시트는 시트 색 (2026-11-07 "이건 일종의 약속과 같은거여서")
-  for (const tab of ['stage-2d', 'stage-3d']) {
-    await page.getByTestId(tab).click();
+  for (const go of [() => show2d(page), () => page.getByTestId('view-propose').click()]) {
+    await go();
     await expect(card(sheetId).getByTestId('design-image')).toHaveCount(0);
     await expect(card(sheetId).getByTestId('parts-overlay')).toHaveCount(1); // 시트 색 면
     await expect(card(id).getByTestId('design-image')).toHaveCount(0);
@@ -203,14 +203,14 @@ test('사진보드 3D: 내용이 바뀌어 새로 만드는 동안 마지막 3D 
   await openOwnedProject(page, request);
   const id = await sign(page);
   const pid = await page.evaluate(() => (window as any).__ganpanda.photos[0].id);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await expect.poll(() => page.evaluate((pid) => (window as any).__ganpanda.stageRenders['p:' + pid]?.url ?? '', pid), { timeout: 60_000 }).toMatch(/^blob:/);
   // 내용을 바꾸고(키가 바뀜) 다시 연다 — 새 그림이 생기기 전에도 마지막 3D 그림이 사진 위에
-  await page.getByTestId('stage-2d').click(); // 2D 에서 바꿔 새 3D 그림은 아직 없음
+  await page.getByTestId('view-board').click(); // 실측에서 바꿔 새 3D 그림은 아직 없음 (다시 열면 실측 — 제안 탭은 눌러서 연다)
   await page.evaluate((id) => (window as any).__ganpanda.project.updateObject(id, { heightMm: 1400 }), id);
   await page.waitForTimeout(1500);
   await page.reload();
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const first = await page.waitForFunction((pid) => { const g = (window as any).__ganpanda; const r = g?.stageRenders?.['p:' + pid]; return r?.url ? { key: r.key, made: g.stageMade } : null; }, pid, { timeout: 60_000 });
   const v = await first.jsonValue() as { key: string; made: number };
   expect(v.made).toBe(0); // 이 화면에서 새로 만들기 전
@@ -227,7 +227,7 @@ test('사진 3D 는 둘: 3D 탭 = 디자인 전 임시 설정, 디자인 탭 = �
   await page.getByTestId('sync-confirm').click();
   await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 }); // 확정이 끝난 뒤
   const r = (v: string) => page.evaluate(([pid, v]) => (window as any).__ganpanda.stageRenders[v + ':' + pid] ?? null, [pid, v]);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const now = (d: boolean) => page.evaluate(([pid, d]) => (window as any).__ganpanda.stageKey(pid, d), [pid, d] as const);
   await expect.poll(async () => (await r('p'))?.key === (await now(false)) && /^blob:/.test((await r('p'))?.url ?? ''), { timeout: 60_000 }).toBe(true);
   await page.getByTestId('view-design').click();
@@ -239,7 +239,7 @@ test('사진 3D 는 둘: 3D 탭 = 디자인 전 임시 설정, 디자인 탭 = �
   await page.reload();
   await page.getByTestId('view-design').click();
   await expect.poll(async () => (await r('d'))?.key ?? '', { timeout: 30_000 }).toBe(d1.key);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await expect.poll(async () => (await r('p'))?.key ?? '', { timeout: 30_000 }).toBe(p1.key);
   expect(await page.evaluate(() => (window as any).__ganpanda.stageMade)).toBe(0);
 });

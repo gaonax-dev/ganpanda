@@ -21,6 +21,15 @@ export async function uploadPhoto(page: Page) {
   await page.getByTestId('photo-zone').first().waitFor();
 }
 
+/**
+ * 2D 단계(평면 겹침) — 작업 탭의 [2D]는 없어졌다(2026-11-08 2D·3D → [제안], 3D 기본). 2D 단계는 보기 초대 고객 화면과
+ * 제안의 평면 대체로 남아 있어, 그 그림(바탕·테·글자 층·LOD)을 시험할 때 제안 탭에서 단계만 2D 로 둔다
+ */
+export async function show2d(page: Page) {
+  await page.getByTestId('view-propose').click();
+  await page.evaluate(() => { (window as unknown as { __ganpanda: { stage: string } }).__ganpanda.stage = '2d'; });
+}
+
 /** 사진 원본 픽셀 좌표로 드래그 */
 export async function dragOnPhoto(page: Page, from: [number, number], to: [number, number]) {
   const img = page.getByTestId('photo-img').first();

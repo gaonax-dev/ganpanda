@@ -12,7 +12,11 @@ describe('프로젝트 화면 기억', () => {
   });
   it('모르는 탭·깨진 뷰포트는 버린다 (나머지는 살린다)', () => {
     expect(parseRoomView(JSON.stringify({ tab: 'nope', viewport: { x: 1, y: 2, zoom: 0 } }))).toEqual({});
-    expect(parseRoomView(JSON.stringify({ tab: '2d', viewport: { x: 'a' } }))).toEqual({ tab: '2d' });
+    expect(parseRoomView(JSON.stringify({ tab: 'propose', viewport: { x: 'a' } }))).toEqual({ tab: 'propose' });
+    // 예전 2D·3D 탭은 제안으로 (2026-11-08 통합)
+    expect(parseRoomView(JSON.stringify({ tab: '2d' }))).toEqual({ tab: 'propose' });
+    expect(parseRoomView(JSON.stringify({ tab: '3d' }))).toEqual({ tab: 'propose' });
+    expect(parseRoomView(JSON.stringify({ tab: 'done' }))).toEqual({ tab: 'done' });
     expect(parseRoomView(JSON.stringify({ viewport: { x: 1, y: 2, zoom: 999 } }))).toEqual({}); // ZOOM_MAX 밖
   });
   it('없거나 JSON 이 아니면 빈 값', () => {

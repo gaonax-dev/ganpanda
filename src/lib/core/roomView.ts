@@ -2,8 +2,11 @@
 // 헤더 텝의 상태를 돌아왔을때 복원하고 뷰도 떠날때 위치로") — 작업 탭 + 보드의 확대·위치. localStorage 'ganpanda.roomView.<프로젝트>'
 import { ZOOM_MAX, ZOOM_MIN, type Viewport } from './viewport';
 
-export type WorkTab = 'measure' | '2d' | '3d' | 'design' | 'list';
-const TABS: readonly WorkTab[] = ['measure', '2d', '3d', 'design', 'list'];
+/** 실측 · 제안(예전 2D·3D 통합, 2026-11-08) · 견적 · 디자인 · 완료 */
+export type WorkTab = 'measure' | 'propose' | 'design' | 'list' | 'done';
+const TABS: readonly WorkTab[] = ['measure', 'propose', 'design', 'list', 'done'];
+/** 예전에 저장된 탭 → 지금 탭 */
+const OLD_TABS: Record<string, WorkTab> = { '2d': 'propose', '3d': 'propose' };
 
 export interface RoomView { tab?: WorkTab; viewport?: Viewport }
 
@@ -17,6 +20,7 @@ export function parseRoomView(s: string | null): RoomView {
   const r = raw as Record<string, unknown>;
   const out: RoomView = {};
   if (typeof r.tab === 'string' && (TABS as readonly string[]).includes(r.tab)) out.tab = r.tab as WorkTab;
+  else if (typeof r.tab === 'string' && OLD_TABS[r.tab]) out.tab = OLD_TABS[r.tab];
   const v = r.viewport as Record<string, unknown> | undefined;
   if (v && typeof v === 'object') {
     const { x, y, zoom } = v;

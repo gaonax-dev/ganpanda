@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openOwnedProject, uploadPhoto, show2d } from './helpers';
 
 /** 합성 건물 사진 + 띠 영역(치수 입력 → 3D 벽면 있음) */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -23,20 +23,20 @@ async function setup(page: import('@playwright/test').Page, request: import('@pl
 
 test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨는다, 내용이 바뀌면 다시 그리고, 원본으로 돌아오면 사라진다', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
+  await show2d(page); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
   // 단계 원본 / 2D / 3D (2026-10-17 "2d가 현재 보여주는 형식이고 원본은 실측만"): 기본 2D 에는 바탕이 그려지고, 원본은 외곽선·치수만
-  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
+  await expect(page.getByTestId('view-propose')).toHaveClass(/on/);
   await expect(page.getByTestId('sign-fill')).toHaveCount(1);
   expect(await page.getByTestId('sign-fill').evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgb(255, 248, 230)'); // 후렉스 기본 바탕
   await page.getByTestId('view-board').click();
   await expect(page.getByTestId('sign-fill')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);
-  await page.getByTestId('stage-2d').click();
-  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
+  await show2d(page);
+  await expect(page.getByTestId('view-propose')).toHaveClass(/on/);
   await expect(page.getByTestId('sign-fill')).toHaveCount(1);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   // 3D 에서는 그리기·존·자동 도구가 흐려지고(비활성), 선택·핀·사진 추가는 그대로 (2026-10-17 "3d에서는 툴바에서 작동하지 않는 기능이 있다")
   for (const t of ['tool-rect', 'tool-zone']) await expect(page.getByTestId(t)).toBeDisabled();
   await expect(page.getByTestId('tool-select')).toBeEnabled();
@@ -89,7 +89,7 @@ test('[실측] 단추에 가로·세로를 아직 넣지 않은 사인물 수가
 // 2026-10-27 사용자: "3d 랜더링보다 실시간이 더 빠르지 않나?" → "확대할때 이상해 화면에서 가운데 있는 사진의 3d만 실시간"
 test('3D 단계: 화면 가운데 사진은 실시간 3D — 보이는 부분만 화면 해상도로, 확대해도 그림이 화면보다 커지지 않는다', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const live = page.getByTestId('live-3d');
   await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
   const photoId = await page.evaluate(() => (window as unknown as { __ganpanda: { photos: { id: string }[] } }).__ganpanda.photos[0].id);
@@ -117,7 +117,7 @@ test('3D 단계: 화면 가운데 사진은 실시간 3D — 보이는 부분만
   await expect.poll(async () => Number(await live.getAttribute('data-builds')), { timeout: 5000 }).toBeGreaterThan(before);
   await expect(live).toHaveAttribute('data-shown', 'true');
   // 원본으로 돌아가면 사라진다
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(live).toHaveCount(0);
 });
 
@@ -130,7 +130,7 @@ test.describe('휴대폰 3D 메모리', () => {
     let maxCanvases = 0;
     await page.exposeFunction('__countCanvas', (n: number) => { maxCanvases = Math.max(maxCanvases, n); });
     await page.evaluate(() => { const w = window as unknown as { __countCanvas(n: number): void }; setInterval(() => w.__countCanvas(document.querySelectorAll('canvas').length), 50); });
-    await page.getByTestId('stage-3d').tap();
+    await page.getByTestId('view-propose').tap();
     const live = page.getByTestId('live-3d');
     await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
     await expect(live).toHaveAttribute('data-light', 'true');
@@ -163,7 +163,7 @@ test('3D 단계: 화면을 이리저리 옮겨 가운데 사진이 빠르게 바
     for (const t of ['둘째 간판 1', '둘째 간판 2']) app.project.addObject({ ...o, id: undefined, photoId: id, text: t, name: t });
   });
   await page.getByTestId('zoom-fit').click();
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const live = page.getByTestId('live-3d');
   await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
   const zones = page.getByTestId('photo-zone');
@@ -197,7 +197,7 @@ test('3D 단계 실시간: 화면을 끄는 동안에도 3D 가 계속 보이고
     app.project.addObject({ ...(app.objects[0] as object), id: undefined, photoId: id, text: '둘째', name: '둘째' });
   });
   await page.getByTestId('zoom-fit').click();
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const live = page.getByTestId('live-3d');
   await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
   const zones = page.getByTestId('photo-zone');
@@ -244,7 +244,7 @@ test.describe('휴대폰 폭 3D', () => {
   test.use({ viewport: { width: 700, height: 900 } });
   test('화면이 움직이는 동안 실시간 3D 는 숨고, 멈추면 다시 보인다', async ({ page, request }) => {
     await setup(page, request);
-    await page.getByTestId('stage-3d').click();
+    await page.getByTestId('view-propose').click();
     const live = page.getByTestId('live-3d');
     await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 20_000 });
     const bb = (await page.getByTestId('board-canvas').boundingBox())!;
@@ -259,7 +259,7 @@ test.describe('휴대폰 폭 3D', () => {
 // 보드 크기를 처음 한 번과 창 크기 바꿈에서만 재어, 앱이 열릴 때 0 으로 재면 실시간 3D 가 영영 안 켜졌다 → 보드 요소 자체의 크기를 지켜본다(ResizeObserver)
 test('3D 실시간: 창 크기 바꿈 없이 보드 크기만 바뀌어도 따라간다 (처음에 0 으로 재도 실시간이 켜진다)', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const live = page.getByTestId('live-3d');
   await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
   const img = (await page.getByTestId('photo-img').boundingBox())!;

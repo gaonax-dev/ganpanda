@@ -1,12 +1,12 @@
 // 출력면 색 vs 프레임 색 (2026-10-17 사용자: "갈바나 후랙스 같이 프레임이 있는 경우 컬러를 넣을 수 있게 … 프레임과 구분지어야한다")
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, show2d } from './helpers';
 
 const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
 
 test('후렉스: 출력면 색과 프레임 색 피커가 따로 있고, 프레임 테는 2D 사진 위 고리로 (평면도 카드에는 테두리 없음)', async ({ page, request }) => {
   await openOwnedProject(page, request, '프레임 색');
-  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
+  await show2d(page); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

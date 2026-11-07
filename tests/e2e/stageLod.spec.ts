@@ -1,7 +1,7 @@
 // 3D 단계 LOD (2026-10-29 사용자: "사인물을 변경한 경우가 아니라면 기존의 저장된 이미지를 사용한다 … 기존이미지와 3d이미지로 변환을 LOD를 접목해
 // 사용자가 눈치채지 못하게 … 시트처럼 2d인 경우는 3d로 변환할 이유가 없다 … 2d도 이동하거나 변경하면 사라졌다 다시 나타난다")
 import { expect, test, type Page } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { openOwnedProject, show2d } from './helpers';
 
 /** 합성 건물 사진 + 띠 영역(치수 입력 → 3D 벽면 있음) */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -29,11 +29,11 @@ const reopen = async (page: Page) => { await page.reload(); await page.getByTest
 
 test('저장된 3D 그림: 한 번 만든 그림은 기기에 두고, 다시 열면 만들지 않고 바로 쓴다 (사인물을 바꾸면 그 사진만 다시)', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 30_000 });
   expect(await made(page)).toBeGreaterThanOrEqual(1);
   await reopen(page);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 10_000 });
   await page.waitForTimeout(1000);
   expect(await made(page)).toBe(0);
@@ -44,7 +44,7 @@ test('저장된 3D 그림: 한 번 만든 그림은 기기에 두고, 다시 열
 
 test('3D 실시간은 저장된 그림 위로 부드럽게 겹쳐 나타난다 (투명도 전환)', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   const live = page.getByTestId('live-3d');
   await expect(live).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
   expect(await live.evaluate((e) => getComputedStyle(e).transitionProperty)).toContain('opacity');
@@ -54,7 +54,7 @@ test('3D 실시간은 저장된 그림 위로 부드럽게 겹쳐 나타난다 (
 test('시트만 있는 사진은 3D 로 바꾸지 않는다 — 합성 그림·실시간 없이 2D 그림 그대로', async ({ page, request }) => {
   await setup(page, request);
   await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; a.project.updateObject(a.objects[0].id, { productId: undefined, sheetIds: ['sh-cut'], parts: undefined }); });
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await page.waitForTimeout(3000);
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('live-3d')).toHaveAttribute('data-photo', '');
@@ -66,12 +66,12 @@ test.describe('휴대폰', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   test('휴대폰도 가운데 사진의 3D 를 그림으로 저장해 두고(실시간 화면에서 떠서), 다시 열면 바로 그 그림', async ({ page, request }) => {
     await setup(page, request);
-    await page.getByTestId('stage-3d').tap();
+    await page.getByTestId('view-propose').tap();
     await expect(page.getByTestId('live-3d')).toHaveAttribute('data-shown', 'true', { timeout: 30_000 });
     await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 15_000 }); // 실시간 화면에서 뜬 그림
     expect(await page.evaluate(() => document.querySelectorAll('canvas').length)).toBe(1);
     await reopen(page);
-    await page.getByTestId('stage-3d').tap();
+    await page.getByTestId('view-propose').tap();
     await expect(page.getByTestId('photo-overlay')).toHaveCount(1, { timeout: 10_000 });
     expect(await made(page)).toBe(0);
   });
@@ -84,7 +84,7 @@ test.describe('휴대폰', () => {
       const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
       a.project.updateObject(a.objects[0].id, addPrintItem(a.objects[0], 'text').patch);
     });
-    await page.getByTestId('stage-2d').tap();
+    await show2d(page);
     const warp = page.locator('.warp, [data-testid="flat-overlay"]').first(); // 작게 보이면 납작한 그림 한 장 (줌아웃 LOD)
     await expect(warp).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => document.querySelector('.ic')!.classList.add('pinching'));
@@ -101,7 +101,7 @@ test('2D 원근 글자·그림 층은 구운 그림 한 장으로 — 내용을 
     const a = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda;
     a.project.updateObject(a.objects[0].id, addPrintItem(a.objects[0], 'text').patch);
   });
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   // 크게 확대해야 사인물별 원근 층 (작으면 납작한 그림 한 장 — 아래 줌아웃 LOD)
   const bb = (await page.getByTestId('board-canvas').boundingBox())!;
   await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
@@ -140,7 +140,7 @@ test('줌아웃 LOD: 작게 보이는 사진은 원근 층 없이 납작한 그�
     for (const p of patch.parts ?? []) for (const it of p.items) if (it.kind === 'text') it.text = '간판다';
     a.project.updateObject(a.objects[0].id, patch);
   });
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   const zone = page.getByTestId('photo-zone');
   const box = (await page.getByTestId('board-canvas').boundingBox())!;
   const wheel = async (dy: number) => { await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.keyboard.down('Control'); await page.mouse.wheel(0, dy); await page.keyboard.up('Control'); await page.waitForTimeout(300); };
@@ -174,7 +174,7 @@ test.describe('휴대폰 폭', () => {
       for (const p of patch.parts ?? []) for (const it of p.items) if (it.kind === 'text') it.text = '간판다';
       a.project.updateObject(a.objects[0].id, patch);
     });
-    await page.getByTestId('stage-2d').click();
+    await show2d(page);
     const zone = page.getByTestId('photo-zone');
     const bb = (await page.getByTestId('board-canvas').boundingBox())!;
     await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);

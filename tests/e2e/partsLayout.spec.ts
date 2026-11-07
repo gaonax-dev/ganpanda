@@ -1,6 +1,6 @@
 // 조합형 4단계: 정면도 배치를 3D·실사 합성·평면도 카드·리스트·PDF 에 반영 (2026-10-16 사용자: "4단계 진행해")
 import { expect, test, type Page } from '@playwright/test';
-import { openOwnedProject } from './helpers';
+import { openOwnedProject, show2d } from './helpers';
 
 /** 합성 건물 사진 + 9000×1000 갈바 간판: 왼쪽(-3000)에 전광 채널 글자, 오른쪽(+3000)에 파란 그림(UV 출력 시트) */
 async function setup(page: Page, request: Parameters<typeof openOwnedProject>[1]) {
@@ -72,7 +72,7 @@ test('실사 합성: 채널 글자는 정면도의 왼쪽 자리에 입체로, �
 
 test('평면도 카드·리스트 카드·PDF 에 정면도 배치가 보인다', async ({ page, request }) => {
   await setup(page, request);
-  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
+  await show2d(page); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   // 사진 위 외곽선 안에도 같은 배치 (원본 단계, 2026-10-17)
   await expect(page.getByTestId('photo-zone').locator('[data-testid="flat-overlay"], [data-testid="baked-parts"]').first()).toHaveAttribute('alt', /간판/); // 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29)
   const card = page.getByTestId('board-card').first();

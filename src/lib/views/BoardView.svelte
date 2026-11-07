@@ -182,9 +182,9 @@
       app.editBoundary();
       // 이름 = 프로젝트 이름_img_번호 (2026-10-20 "이미지 이름이 모두 같아" — 휴대폰 사진은 대개 image.jpg)
       const name = nextPhotoName(app.access.status === 'ok' ? app.access.projectName : '', app.project.allPhotos().map((p) => p.name));
-      const pid = app.project.addPhoto({ name, assetId, w, h, x: right + i * 40, y: 0, width });
+      const pid = app.project.addPhoto({ name, assetId, w, h, x: right + i * 40, y: 0, width, ...(app.doneMode ? { result: true as const } : {}) }); // 완료 탭 = 결과 사진
       app.editBoundary();
-      void app.autoCameraOnAdd(pid); // 등록 즉시 자동 원근 (2026-10-19)
+      if (!app.doneMode) void app.autoCameraOnAdd(pid); // 등록 즉시 자동 원근 (2026-10-19) — 결과 사진은 원근이 필요 없다
       i++;
     }
     fitted = false;
@@ -456,12 +456,12 @@
   function shiftReset() { if (shiftHeld) { shiftHeld = false; if (app.multiMode) app.setMultiMode(false, true); } }
   // [다중]은 선택 도구에서만 — 다른 도구를 고르면 꺼진다 (2026-10-22 "다중버튼 선택일때만 체크로 켜지고 다른 툴 선택하면 체크해제해줘")
   $effect(() => { if (app.tool !== 'select' && untrack(() => app.multiMode)) app.setMultiMode(false); });
-  $effect(() => { if (app.stage === '3d' && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
+  $effect(() => { if ((app.stage === '3d' || app.doneMode) && app.tool !== 'select' && app.tool !== 'pin') app.tool = 'select'; });
   // 다른 도구를 고르면 연속 그리기 리셋 (2026-10-24)
   $effect(() => { if (app.tool !== 'rect' && app.tool !== 'ellipse' && app.tool !== 'block') app.drawContinuous = false; }); // 치수 블록도 사각과 같은 [연속] (2026-11-04)
   /** 3D 단계에서는 영역 그리기·존·자동 분리가 동작하지 않는다 → 도구 막대에서 흐리게 (2026-10-17 사용자: "3d에서는 툴바에서 작동하지 않는 기능이 있다. 해당 기능을 어둡게") */
-  const no3d = $derived(app.stage === '3d');
-  const NO3D = ' — 3D 단계에서는 사용할 수 없습니다 (원본·2D 에서)';
+  const no3d = $derived(app.stage === '3d' || app.doneMode); // 완료 탭은 결과 사진만 — 영역·존·블록을 그리지 않는다
+  const NO3D = $derived(app.doneMode ? ' — 완료 탭은 결과 사진만 올립니다' : ' — 실측 탭에서 그립니다');
 
   // ---------- 평면 구역: 모든 사진 아래, 리스트 뷰와 같은 목록·배치(listX/listY mm × 축척 px/mm). 사인물(원본)마다 카드 하나 — 사진마다 중복되지 않는다 ----------
   const origin = $derived(flatOrigin(app.photos, 80, app.flatOffset));
@@ -692,7 +692,7 @@
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[slot(p.id)]?.url || undefined : undefined}
-        twoD={(app.stage === '2d' || (app.stage === '3d' && (flatPhoto(p.id) || (app.designView && !planeOf(p.id))))) && !app.safeMode} /* 디자인 탭에서 3D 를 못 만드는 사진(원근 없음)은 2D 로 디자인을 (2026-11-07) */
+        twoD={(app.stage === '2d' || (app.stage === '3d' && (flatPhoto(p.id) || !planeOf(p.id) || (!app.stageRenders[slot(p.id)]?.url && live?.id !== p.id)))) && !app.safeMode} /* 제안·디자인 탭: 3D 기본, 3D 를 못 만드는 사진(원근 없음)·3D 그림이 아직 없거나 실패한 사진은 2D 로 (2026-11-07 디자인, 2026-11-08 제안 "3D 기본, 안 되면 2D") */
         onduplicate={(id) => { const b = parseBlockId(id); if (b) return app.duplicateBlock(b.id, b.i, false); app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
@@ -798,7 +798,7 @@
         <div class="empty loading" data-testid="board-loading"><span class="spin"></span><p>{app.hadPhotos ? '사진을 불러오는 중…' : '불러오는 중…'}</p>{#if app.sync === 'offline' || app.sync === 'connecting'}<small>서버에 연결하는 중입니다</small>{/if}</div>
       {:else if app.ready && !app.photos.length && app.canEdit}
         <div class="empty" data-testid="photo-empty">
-          <p>건물 사진을 올려 시작하세요</p>
+          <p>{app.doneMode ? '시공을 마친 결과 사진을 올리세요' : '건물 사진을 올려 시작하세요'}</p>
           {#if touchDevice}
             <!-- 휴대폰: 카메라와 앨범을 따로 (2026-10-24 "어떤 안드로이드 기계의 경우엔 사진라이브러로 바로 이동해 사진을 찍을 수 없게") -->
             <div class="pick2"><button class="btn primary" data-testid="photo-camera" onclick={() => cameraInput?.click()}><Icon name="camera" /> 사진 찍기</button><button class="btn" data-testid="photo-album" onclick={() => photoInput?.click()}><Icon name="image" /> 사진 보관함</button></div>

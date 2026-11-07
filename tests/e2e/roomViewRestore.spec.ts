@@ -1,16 +1,16 @@
 // 기기별 프로젝트 화면 기억 (2026-10-25 사용자: "기기별로 사용자 설정을 기록해서 다시 돌아올때 해당 셋팅으로 돌아오게 해줘
 // 헤더 텝의 상태를 돌아왔을때 복원하고 뷰도 떠날때 위치로") — 작업 탭과 보드의 확대·위치를 이 기기에 남겨 두고, 다시 열면 그대로
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openOwnedProject, uploadPhoto, show2d } from './helpers';
 
 test('작업 탭을 바꾸고 떠났다 돌아오면 그 탭 — 주소의 view 가 있으면 주소가 우선', async ({ page, request }) => {
   const { projectId } = await openOwnedProject(page, request);
   await uploadPhoto(page);
   await expect(page.getByTestId('view-board')).toHaveClass(/on/);
-  await page.getByTestId('stage-2d').click();
-  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
+  await show2d(page);
+  await expect(page.getByTestId('view-propose')).toHaveClass(/on/);
   await page.reload();
-  await expect(page.getByTestId('stage-2d')).toHaveClass(/on/);
+  await expect(page.getByTestId('view-propose')).toHaveClass(/on/);
   await page.getByTestId('view-list').click();
   await page.goto('/');
   await page.goto(`/?room=${projectId}`);

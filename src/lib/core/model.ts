@@ -29,6 +29,8 @@ export interface Photo {
   autoCamera?: false;
   /** 이미지 조절(크롭·밝기)의 기준 원본 (2026-10-21, core/photoEdit.ts). 없으면 조절 안 함 = assetId 가 원본 */
   source?: PhotoSource;
+  /** 완료 탭의 결과 사진 (2026-11-08) — 작업 사진보드(실측·제안·디자인)에는 안 나온다 */
+  result?: true;
 }
 
 /** 조절 전 원본 에셋과 지금 적용된 크롭(원본 px, 원본 밖도 가능 = 여백)·밝기(1 = 그대로) */

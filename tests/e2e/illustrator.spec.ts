@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'child_process';
-import { openDesignSync, openOwnedProject, uploadPhoto } from './helpers';
+import { openDesignSync, openOwnedProject, uploadPhoto, show2d } from './helpers';
 
 const PT = 72 / 25.4;
 /** 대지(페이지)마다 크기(pt)를 주고, xmp 가 있으면 카탈로그 /Metadata 로 넣은 최소 PDF (일러스트 PDF 호환 .ai 와 같은 모양) */
@@ -175,7 +175,7 @@ test('일러스트 묶음(.ganpanda, 2026-11-06 정의): 디자인 = 대지 이�
   await page.getByTestId('view-design').click(); // 디자인 탭 = 3D 단계 — 3D 렌더링 그림이 생기면 그것, 그전엔 대지 이미지 (2026-11-07)
   await expect(card.getByTestId('design-image')).toHaveCount(1);
   await expect(card.getByTestId('parts-overlay')).toHaveCount(0);
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(card.getByTestId('design-image')).toHaveCount(0);
   await expect(card.locator('[data-testid="parts-overlay"] image')).toHaveCount(1);
   await page.getByTestId('view-board').click(); // 실측

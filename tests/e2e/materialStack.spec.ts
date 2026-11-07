@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearAutoCamera, openOwnedProject, openSignDetail, uploadPhoto } from './helpers';
+import { clearAutoCamera, openOwnedProject, openSignDetail, uploadPhoto, show2d } from './helpers';
 
 type G = { __ganpanda: { photos: { id: string }[]; objects: { id: string; parts?: { id: string; kind: string; on?: string; stack?: { material: string; thickness: number }[] }[] }[]; selectObject(id: string): void; project: { addObject(o: unknown): string } } };
 
@@ -193,7 +193,7 @@ test('글자 없는 시트(UV·안개·재질 시트 컷팅 없음·옛 시트)�
     a.project.addObject({ photoId: pid, name: '폴딩시트', shape: 'rect', quad: q(750), sheetIds: [], widthMm: 410, heightMm: 2010, parts: [{ id: 'c', kind: 'sheet', type: 'sh-cut', on: 'frame', options: { cut: '컷팅 없음', sheetSystem: '기본색', sheetCode: '검정' }, items: [] }] });
     a.project.addObject({ photoId: pid, name: '정면문시트', shape: 'rect', quad: q(1100), sheetIds: ['sh-cut'], widthMm: 870, heightMm: 2010 });
   });
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   // 2D 는 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29) — 그린 색은 data-colors
   const fills = async () => page.locator('[data-testid="photo-zone"] [data-colors]').evaluateAll((es) => es.flatMap((e) => (e.getAttribute('data-colors') ?? '').split(' ')));
   await expect.poll(fills).toEqual(expect.arrayContaining(['#d9d9d9', '#e9f0f5', '#141414', '#ffffff']));
@@ -222,7 +222,7 @@ test('재질 시트: 제작사·시트 코드는 구성내역에, 미리보기 �
   await expect(dlg.getByTestId('part-spec')).toContainText('3M 7725-12');
   await expect(dlg.getByTestId('part-spec')).not.toContainText('#ff0000');
   await page.getByTestId('close-object-settings').click();
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(page.getByTestId('photo-zone').getByTestId('baked-parts')).toHaveAttribute('data-colors', /#ff0000/); // 2D 는 구운 그림 (2026-10-29)
 });
 
@@ -241,7 +241,7 @@ test('치수 없는 시트 사인물도 2D 에 면·글자가 칠해진다 (추�
     a.project.addObject({ photoId: pid, name: '윗창2', shape: 'rect', quad: q(700, 300), sheetIds: [], parts: [{ id: 'c', kind: 'sheet', type: 'sh-print', on: 'frame', items: [] }] });
     a.project.addObject({ photoId: pid, name: '도어', shape: 'rect', quad: q(1050, 200), sheetIds: ['sh-cut'], widthMm: 900, heightMm: 2100 });
   });
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   // 2D 는 구운 그림 (작게 보이면 사진마다 한 장, 2026-10-29) — 색은 data-colors, 글자는 alt
   const fills = () => page.locator('[data-testid="photo-zone"] [data-colors]').evaluateAll((es) => es.flatMap((e) => (e.getAttribute('data-colors') ?? '').split(' ')));
   await expect.poll(fills).toEqual(expect.arrayContaining(['#ffffff', '#d9d9d9']));
@@ -261,14 +261,14 @@ test('안개 시트는 2D·3D 에서 뒤를 흐리게(블러) — 다른 시트�
   });
   await page.getByTestId('view-board').click();
   await expect(page.getByTestId('frost')).toHaveCount(0); // 실측(원본)에는 없음
-  await page.getByTestId('stage-2d').click();
+  await show2d(page);
   await expect(page.getByTestId('frost')).toHaveCount(1);
   // 흐림은 미리 만든 흐린 그림으로 — CSS 블러 필터를 쓰지 않는다 (2026-10-29 아이폰 줌 오류: 필터 층이 확대 배율만큼 커졌다). 흐림 정도는 그대로 30px 상당
   const frost = page.getByTestId('frost');
   await expect(frost).toHaveAttribute('data-blurred', 'true');
   expect(await frost.evaluate((e) => getComputedStyle(e).filter)).toBe('none');
   expect(await frost.evaluate((e) => (e as HTMLImageElement).naturalWidth)).toBeLessThanOrEqual(400); // 작은 흐린 그림을 늘려 쓴다
-  await page.getByTestId('stage-3d').click();
+  await page.getByTestId('view-propose').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0); // 시트뿐인 사진은 3D 로 바꾸지 않고 2D 그대로 (2026-10-29 "시트처럼 2d인 경우는 3d로 변환할 이유가 없다")
   await expect(page.getByTestId('frost')).toHaveCount(1);
 });

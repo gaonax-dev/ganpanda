@@ -1,12 +1,12 @@
 // 컬러 피커 (2026-10-17 사용자: "후랙스 갈바 모두 컬러피커로 색상지정할 수 있게해줘 컬러가 필요한 곳에 컬러피커 간단모드와 확장모드")
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, show2d } from './helpers';
 
 const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
 
 test('후렉스 바탕색: 간단 모드 견본 → 기본색, 확장 모드 피커 → 직접 #hex, 체계 RAL 코드. 칩·요약·3D 색에 반영', async ({ page, request }) => {
   await openOwnedProject(page, request, '컬러');
-  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
+  await show2d(page); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);

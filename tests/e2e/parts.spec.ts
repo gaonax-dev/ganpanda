@@ -1,6 +1,6 @@
 // 조합형 사인물 2단계: 설정 창의 구성 요소 UI (2026-10-16 사용자: "조합형으로 구성할 수 있을까 사인물 간판프레임+체널,스카시,시트…", "5.1~2 단계 진행")
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, makePhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, show2d } from './helpers';
 
 const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
 
@@ -269,7 +269,7 @@ test('스카시 재료 층: 고무 스카시 = 철판 + 고무 묶음, 철판을
 test('UV 후렉스 출력: 몸통에 배경색(미리보기), [+ 글자]·[+ 그림]은 미리보기 구성 요소(디자이너 참고 — 컷팅 옵션·견적 줄 없음)로, 2D 사진 위에 글자가 보인다 (2026-10-21)', async ({ page, request }) => {
   // 2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"
   await openOwnedProject(page, request);
-  await page.getByTestId('stage-2d').click(); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
+  await show2d(page); // 2D 탭 (2026-10-22 작업 탭 실측·2D·3D·디자인·리스트)
   await uploadPhoto(page);
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
