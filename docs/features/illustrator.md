@@ -19,7 +19,7 @@
 | 카드 | 실측 = 사진 · 2D/3D = 사진 위 속성 내용(바탕색·구성 요소) · 디자인 = 대지 이미지(없으면 2D 내용) | `core/cardLayers.ts`, `views/BoardCard.svelte` |
 | 보내기 | 카드마다 **최종 이미지 한 장**(3D 제외 마지막 단계: 디자인 › 2D 속성 내용 › 사진, 긴 변 1600px PNG) → zip `images/<id>.png` | `render/cardImage.ts cardFinalPng`, `illustratorExport.ts` (패키지 version 2, 카드 `image`) |
 | 스크립트 (대지 만들기) | 새 문서는 **단위 mm**(문서 프리셋 `units = RulerUnits.Millimeters`, RGB — 2026-11-07 "일러스트 새문서 치수 단위를 mm으로 설정되게", 설치된 첫 시작 프리셋 위에, 못 만들면 기본 단위) · 사인물마다 크기대로 대지 "프로젝트명 #번호", 레이어 아래부터 **받은 이미지**(최종 이미지 연결, 잠금) · **디자인** · **path** | `illustrator/ganpanda.jsx build`·`newDocMm` |
-| 스크립트 (보내기) | 간판다 대지마다 그 대지와 겹치는 **디자인** 레이어 항목 → PNG(대지로 자름, 긴 변 약 2048px), **path** 레이어 항목 → SVG(글자 윤곽선) → `.ganpanda` (version 2, `part: design|path`). 둘 다 비면 묶음 없이 알림 | `ganpanda.jsx sendBack` |
+| 스크립트 (보내기) | 간판다 대지마다 그 대지와 겹치는 **디자인** → PNG(**문서 그대로 디자인 레이어만 보이게 하고 그 대지를 내보냄**, 긴 변 약 2048px, 보이기 상태는 되돌림), **path** 레이어 항목 → 임시 문서로 복제해 SVG(글자 윤곽선) → `.ganpanda` (version 2, `part: design|path`). 단계(XMP·저장·대지별 디자인/path·묶음 쓰기)마다 따로 — 실패해도 나머지는 계속하고 실패한 단계·오류를 알림과 `<이름>.ganpanda-log.txt` 로. 둘 다 비면 묶음 없이 알림 (2026-11-07 일러스트 "알 수 없는 오류가 감지되었습니다" — 전엔 디자인도 임시 문서로 복제했는데 연결 그림 등의 문서 간 복제가 의심) | `ganpanda.jsx sendBack`·`exportDesign`·`exportPath` |
 | 가져오기 | [디자인 싱크] › 받기 → 검토 → [확정]: 대지 이름(#id)으로 사인물을 찾아 **디자인 = 사인물 바탕 디자인으로 바로**(새 디자인 소스, 이력), **path = 사용자가 고른 구성물**(입체 구성 요소 = 채널·스카시. 하나면 미리 골라 둠, 여럿이면 직접, 안 고르면 넣지 않음)의 내용을 벡터 그림 하나로 → 3D 입체 | `core/designSync.ts planBundle`, `state.applyIllustratorBundle`, `ui/SyncReview.svelte`(`sync-path`) |
 
 앞선 2026-11-05 방식(사인물 레이어 안 바탕·구성 요소별 하위 레이어, 카드 사진·디자인을 따로 보내기)은 **대체됨**. 예전 묶음(frame·구성 요소 id)은 계속 읽는다.

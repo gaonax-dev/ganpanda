@@ -103,45 +103,70 @@
     }
     return out;
   }
-  /** 항목들을 그 대지 크기의 임시 문서로 복제해 내보내고 base64 로 (path = SVG 글자 윤곽선, 디자인 = PNG 대지로 자름) */
-  function exportItems(items, r, svg) {
+  function readB64(f) { f.encoding = 'BINARY'; f.open('r'); var bin = f.read(); f.close(); try { f.remove(); } catch (e) {} return b64encode(bin); }
+  function pngOptions(W, H) { var p = new ExportOptionsPNG24(); p.transparency = true; p.antiAliasing = true; p.artBoardClipping = true; var sc = Math.max(10, Math.min(400, (2048 / Math.max(W, H)) * 100)); p.horizontalScale = sc; p.verticalScale = sc; return p; }
+  /**
+   * 디자인 → PNG: 문서 그대로, 디자인 레이어만 보이게 하고 그 대지를 내보낸다(artBoardClipping = 지금 대지). 보이기 상태는 늘 되돌린다.
+   * (2026-11-07 일러스트 "알 수 없는 오류가 감지되었습니다" — 전엔 항목을 임시 문서로 복제했는데, 연결 그림 등을 다른 문서로 복제하다 일러스트가 멈출 수 있다)
+   */
+  function exportDesign(doc, i, layer) {
+    var r = doc.artboards[i].artboardRect, vis = [], k;
+    for (k = 0; k < doc.layers.length; k++) vis.push(doc.layers[k].visible);
+    try {
+      for (k = 0; k < doc.layers.length; k++) doc.layers[k].visible = doc.layers[k] === layer;
+      doc.artboards.setActiveArtboardIndex(i);
+      var f = new File(Folder.temp.fsName + '/ganpanda-out-' + (tmpCount++) + '.png');
+      doc.exportFile(f, ExportType.PNG24, pngOptions(r[2] - r[0], r[1] - r[3]));
+      return readB64(f);
+    } finally {
+      for (k = 0; k < doc.layers.length; k++) { try { doc.layers[k].visible = vis[k]; } catch (e) {} }
+    }
+  }
+  /** path → SVG(글자 윤곽선): 그 대지 안 path 항목(벡터)만 대지 크기의 임시 문서로 복제해 내보낸다 */
+  function exportPath(items, r) {
     var W = r[2] - r[0], H = r[1] - r[3];
     var t = app.documents.add(DocumentColorSpace.RGB, W, H);
-    var tr = t.artboards[0].artboardRect, i;
-    for (i = 0; i < items.length; i++) { var d = items[i].duplicate(t.layers[0], ElementPlacement.PLACEATEND); d.translate(tr[0] - r[0], tr[1] - r[1]); }
-    var f = new File(Folder.temp.fsName + '/ganpanda-out-' + (tmpCount++) + (svg ? '.svg' : '.png'));
-    if (svg) { var o = new ExportOptionsSVG(); o.fontType = SVGFontType.OUTLINEFONT; o.embedRasterImages = true; t.exportFile(f, ExportType.SVG, o); }
-    else { var p = new ExportOptionsPNG24(); p.transparency = true; p.antiAliasing = true; p.artBoardClipping = true; var sc = Math.max(10, Math.min(400, (2048 / Math.max(W, H)) * 100)); p.horizontalScale = sc; p.verticalScale = sc; t.exportFile(f, ExportType.PNG24, p); }
-    t.close(SaveOptions.DONOTSAVECHANGES);
-    f.encoding = 'BINARY'; f.open('r'); var bin = f.read(); f.close();
-    return b64encode(bin);
+    try {
+      var tr = t.artboards[0].artboardRect, i;
+      for (i = 0; i < items.length; i++) { var d = items[i].duplicate(t.layers[0], ElementPlacement.PLACEATEND); d.translate(tr[0] - r[0], tr[1] - r[1]); }
+      var f = new File(Folder.temp.fsName + '/ganpanda-out-' + (tmpCount++) + '.svg');
+      var o = new ExportOptionsSVG(); o.fontType = SVGFontType.OUTLINEFONT; o.embedRasterImages = true;
+      t.exportFile(f, ExportType.SVG, o);
+      return readB64(f);
+    } finally { try { t.close(SaveOptions.DONOTSAVECHANGES); } catch (e) {} }
   }
   function q(s) { return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; }
 
   // ---------- 간판다로 보내기 ----------
+  // 단계마다 따로 — 하나가 실패해도 나머지는 계속하고, 실패한 단계와 오류를 알림·로그 파일(같은 이름-log.txt)로 (2026-11-07)
   function sendBack(doc) {
-    var ids = [], n = 0, i;
+    var ids = [], n = 0, i, fails = [];
+    function step(name, fn) { try { return fn(); } catch (e) { fails.push(name + ': ' + (e && e.message ? e.message : e) + (e && e.line ? ' (줄 ' + e.line + ')' : '')); return null; } }
     for (i = 0; i < doc.artboards.length; i++) { var id = idOf(doc.artboards[i].name); ids.push(id || ''); if (id) n++; }
-    writeXmp(doc, ids);
+    step('XMP 짝 적기', function () { writeXmp(doc, ids); });
     var target = doc.fullName ? doc.fullName : File.saveDialog('간판다로 보낼 .ai 저장', 'Illustrator:*.ai');
     if (!target) { alert('저장하지 않았습니다.'); return; }
-    doc.saveAs(target, pdfOptions());
+    step('.ai 저장', function () { doc.saveAs(target, pdfOptions()); });
     // 대지마다 디자인(PNG)·path(SVG) → 묶음 (.ganpanda)
     var D = layerNamed(doc, DESIGN), P = layerNamed(doc, PATH), items = [], nd = 0, np = 0;
     for (i = 0; i < doc.artboards.length; i++) {
       var sid = idOf(doc.artboards[i].name), r = doc.artboards[i].artboardRect;
       if (!sid) continue;
-      var di = itemsIn(D, r), pi = itemsIn(P, r);
-      try { if (di.length) { items.push('{"sign":' + q(sid) + ',"part":"design","kind":"png","data":"' + exportItems(di, r, false) + '"}'); nd++; } } catch (e) {}
-      try { if (pi.length) { items.push('{"sign":' + q(sid) + ',"part":"path","kind":"svg","data":"' + exportItems(pi, r, true) + '"}'); np++; } } catch (e) {}
+      var di = itemsIn(D, r), pi = itemsIn(P, r), data;
+      if (di.length) { data = step('#' + sid + ' 디자인', function () { return exportDesign(doc, i, D); }); if (data) { items.push('{"sign":' + q(sid) + ',"part":"design","kind":"png","data":"' + data + '"}'); nd++; } }
+      if (pi.length) { data = step('#' + sid + ' path', function () { return exportPath(pi, r); }); if (data) { items.push('{"sign":' + q(sid) + ',"part":"path","kind":"svg","data":"' + data + '"}'); np++; } }
     }
     try { doc.activate(); } catch (e) {}
-    var bundlePath = String(target.fsName).replace(/\.ai$/i, '') + '.ganpanda';
-    if (!items.length) { alert('간판다 대지 ' + n + '개에 디자인·path 레이어 내용이 없습니다.\n대지 안 "디자인" 레이어에 디자인을, "path" 레이어에 입체로 만들 패스를 넣어 주세요.'); return; }
-    var bf = new File(bundlePath);
-    bf.encoding = 'UTF-8'; bf.open('w'); bf.write('{"format":"ganpanda-illustrator-bundle","version":2,"items":[' + items.join(',') + ']}'); bf.close();
+    var base = String(target.fsName).replace(/\.ai$/i, ''), bundlePath = base + '.ganpanda';
+    if (items.length) step('묶음 쓰기', function () { var bf = new File(bundlePath); bf.encoding = 'UTF-8'; bf.open('w'); bf.write('{"format":"ganpanda-illustrator-bundle","version":2,"items":[' + items.join(',') + ']}'); bf.close(); });
+    var failText = '';
+    if (fails.length) {
+      failText = '\n\n실패한 단계 ' + fails.length + '개:\n- ' + fails.join('\n- ') + '\n(기록: ' + base.replace(/^.*[\/\\]/, '') + '.ganpanda-log.txt)';
+      try { var lf = new File(base + '.ganpanda-log.txt'); lf.encoding = 'UTF-8'; lf.open('w'); lf.write('간판다로 보내기 ' + new Date() + '\n' + fails.join('\n') + '\n'); lf.close(); } catch (e) {}
+    }
+    if (!items.length) { alert('간판다 대지 ' + n + '개에서 보낼 디자인·path 가 없습니다.\n대지 안 "디자인" 레이어에 디자인을, "path" 레이어에 입체로 만들 패스를 넣어 주세요.' + failText); return; }
     alert('간판다로 보낼 준비가 되었습니다 (대지 ' + n + '개 — 디자인 ' + nd + ' · path ' + np + ').\n' +
-      bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n디자인은 사인물 카드에 바로 들어가고, path 는 어느 구성물(채널·스카시)에 쓸지 고르면 입체가 됩니다.');
+      bundlePath.replace(/^.*[\/\\]/, '') + ' (.ganpanda) 를 간판다 디자인 탭 [⇄ 디자인 싱크] › 일러스트레이터 › 받기로 올리세요.\n디자인은 사인물 카드에 바로 들어가고, path 는 어느 구성물(채널·스카시)에 쓸지 고르면 입체가 됩니다.' + failText);
   }
 
   // ---------- 대지 만들기 ----------

@@ -9,7 +9,7 @@ const PT = 72 / 25.4;
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
+function fakeIllustrator(opts: { failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -21,7 +21,7 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
   };
   const pageItem = (bounds: number[] = [0, 0, 1, -1], parent?: Rec): Rec => ({ geometricBounds: bounds, parent, duplicate(target: Rec) { const d: Rec = { translated: [0, 0], translate(dx: number, dy: number) { d.translated = [dx, dy]; } }; target.pageItems.push(d); return d; } });
   const mkLayer = (name: string): Rec => {
-    const l: Rec = { name, locked: false, pageItems: [] as Rec[] };
+    const l: Rec = { name, locked: false, visible: true, pageItems: [] as Rec[] };
     l.placedItems = mkItems('placed', l); l.groupItems = mkItems('group', l);
     l.pathItems = Object.assign([], { rectangle(top: number, left: number, w: number, h: number) { return { top, left, w, h, clipping: false }; } });
     const subs: Rec[] = [];
@@ -33,11 +33,12 @@ function fakeIllustrator(opts: { confirm?: boolean; missing?: string[]; scriptDi
     const layers: Rec[] = [mkLayer('레이어 1')];
     const doc: Rec = {
       width: w, height: h, XMPString: '<x:xmpmeta/>', saved: null, fullName: names.length ? { fsName: '/tmp/existing.ai' } : undefined, closed: false,
-      artboards: Object.assign(abs, { add(r: number[]) { const a = { artboardRect: r, name: '' }; abs.push(a); return a; }, remove(i: number) { abs.splice(i, 1); } }),
+      artboards: Object.assign(abs, { add(r: number[]) { const a = { artboardRect: r, name: '' }; abs.push(a); return a; }, remove(i: number) { abs.splice(i, 1); }, setActiveArtboardIndex(i: number) { doc.activeAb = i; } }),
       layers: Object.assign(layers, { add() { const l = mkLayer('새 레이어'); layers.unshift(l); return l; } }),
       saveAs(f: { fsName: string }, o: { pdfCompatible: boolean }) { doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
       save() { doc.saved = { file: 'same', pdf: true }; },
-      exportFile(f: { fsName: string }, type: string, o: Rec) { written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; },
+      exports: [] as Rec[],
+      exportFile(f: { fsName: string }, type: string, o: Rec) { if (opts.failPng && type === 'PNG24') throw new Error('MRAP'); written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; doc.exports.push({ type, o, active: doc.activeAb, visible: doc.layers.filter((l: Rec) => l.visible).map((l: Rec) => l.name) }); },
       close() { doc.closed = true; }, activate() {},
     };
     return doc;
@@ -133,15 +134,35 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정
       { sign: '1', part: 'design', kind: 'png', data: b64('PNGDATA') },
       { sign: '2', part: 'path', kind: 'svg', data: b64('SVGDATA') },
     ]);
+    // 디자인 PNG = 문서 그대로, 디자인 레이어만 보이게 하고 그 대지를 내보낸다 — 다른 문서로 복제하지 않는다 (2026-11-07 일러스트 "알 수 없는 오류")
+    expect(doc.exports).toHaveLength(1);
+    expect(doc.exports[0]).toMatchObject({ type: 'PNG24', active: 0, visible: ['디자인'] });
+    expect(doc.exports[0].o.artBoardClipping).toBe(true);
+    expect(doc.layers.every((l: Rec) => l.visible)).toBe(true); // 보이기 상태는 되돌린다
+    // path SVG = 그 대지 안 path 항목만 임시 문서로 (벡터만)
     const temps = f.docs.slice(1);
-    expect(temps).toHaveLength(2);
-    expect(temps.every((t: Rec) => t.closed)).toBe(true);
-    const pngDoc = temps.find((t: Rec) => t.exported.type === 'PNG24')!, svgDoc = temps.find((t: Rec) => t.exported.type === 'SVG')!;
-    expect(pngDoc.layers[0].pageItems).toHaveLength(2); // 그 대지 안 디자인만
-    expect(pngDoc.exported.o.artBoardClipping).toBe(true);
+    expect(temps).toHaveLength(1);
+    expect(temps[0].closed).toBe(true);
+    const svgDoc = temps[0];
+    expect(svgDoc.exported.type).toBe('SVG');
     expect(svgDoc.layers[0].pageItems).toHaveLength(1);
     expect(svgDoc.exported.o.fontType).toBe('outline');
     expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인 1') && l.includes('path 1'))).toBe(true);
+  });
+  it('한 단계가 실패해도 나머지는 계속하고, 실패한 단계·오류를 알림과 로그 파일로 (2026-11-07 일러스트 "알 수 없는 오류")', () => {
+    const f = fakeIllustrator({ failPng: true, existing: { names: ['매장 #1', '매장 #2'], layers: [
+      { name: '디자인', items: [[10, -10, 50, -50]] },
+      { name: 'path', items: [[110, -10, 150, -60]] },
+    ] } });
+    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
+    const doc = f.docs[0];
+    expect(doc.layers.every((l: Rec) => l.visible)).toBe(true); // 실패해도 보이기 되돌림
+    const bundle = JSON.parse(f.written['/tmp/existing.ganpanda']);
+    expect(bundle.items).toEqual([{ sign: '2', part: 'path', kind: 'svg', data: b64('SVGDATA') }]); // path 는 나감
+    const alert = f.log.find((l) => l.startsWith('alert:'))!;
+    expect(alert).toContain('#1 디자인');
+    expect(alert).toContain('MRAP');
+    expect(f.written['/tmp/existing.ganpanda-log.txt']).toContain('#1 디자인');
   });
   it('디자인·path 가 비었으면 묶음을 만들지 않고 알린다', () => {
     const f = fakeIllustrator({ existing: { names: ['정면 #a1'], layers: [{ name: '디자인' }, { name: 'path' }] } });
