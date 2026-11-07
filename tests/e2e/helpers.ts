@@ -166,9 +166,14 @@ export async function openDesignSync(page: Page, program: 'illustrator' | 'corel
   await page.getByTestId(`sync-program-${program}`).click();
 }
 
-/** 디자인 싱크 › 디자인 파일 화면 (예전 디자인 탭 [디자인 파일 n]) */
+/** 디자인 탭 막대 [디자인 파일] — 대지 카드 목록 (2026-11-07) */
 export async function openDesignFiles(page: Page) {
   await page.getByTestId('view-design').click();
-  await page.getByTestId('design-bar').getByTestId('design-sync-open').click();
-  await page.getByTestId('sync-design-files').click();
+  await page.getByTestId('design-bar').getByTestId('view-uv').click();
+  await expect(page.getByTestId('design-files')).toBeVisible();
+}
+/** 대지 카드의 [영역 고르기] → 캔버스 (일부 잘라 입히기) */
+export async function openCropCanvas(page: Page, card = 0) {
+  await page.getByTestId('page-crop').nth(card).click();
+  await expect(page.getByTestId('uv-canvas')).toBeVisible();
 }

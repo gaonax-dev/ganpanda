@@ -1,4 +1,4 @@
-<!-- 디자인 파일 화면 (옛 'UV 뷰', 3차): 디자인 소스 페이지 위에서 영역을 잘라 사인물에 입힌다 -->
+<!-- 디자인 파일 › [영역 고르기] (옛 'UV 뷰', 3차 — 2026-11-07부터 기본 화면은 대지 카드 목록 DesignFilesView): 디자인 소스 페이지 위에서 영역을 잘라 사인물에 입힌다 -->
 <script lang="ts">
   import InfiniteCanvas from '../ui/InfiniteCanvas.svelte';
   import { app } from '../state.svelte';
@@ -115,6 +115,8 @@
           <small>일러스트레이터(.ai, PDF 호환 저장) · PDF · SVG · PNG · JPG</small>
         </div>
       {/if}
+      <!-- 대지 카드 목록으로 (2026-11-07) -->
+      <button class="back" data-testid="uv-crop-back" onclick={() => (app.uvCrop = false)}>← 카드 목록</button>
       <div class="tools" class:hidden={app.compact}>
         {#if app.canEdit}
           <label class="file">＋ 디자인 파일<input data-testid={app.sources.length ? 'source-input' : 'source-input-2'} type="file" accept=".ai,.pdf,.svg,.ganpanda,image/*" hidden onchange={(e) => { const f = e.currentTarget.files?.[0]; if (f) app.addSourceFile(f); e.currentTarget.value = ''; }} /></label>
@@ -177,6 +179,7 @@
   .empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); padding-right: 300px; pointer-events: none; }
   .empty > * { pointer-events: auto; }
   .empty p { color: var(--text); margin: 0; }
+  .back { position: absolute; left: 14px; top: 14px; z-index: 6; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
   .tools { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 8px 30px rgba(0,0,0,0.4); margin-right: 150px; }
   .tools .file, .tools button { background: none; border: 0; color: var(--text); padding: 7px 11px; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; }
   .tools .file:hover, .tools button:hover { background: var(--hover); }

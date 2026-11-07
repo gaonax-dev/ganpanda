@@ -497,6 +497,8 @@ class AppState {
   sources = $derived.by(() => (this.version, this.project.allSources()));
   /** UV 뷰에서 고른 사인물 */
   uvObjectId = $state<string | null>(null);
+  /** 디자인 파일 화면의 [영역 고르기] — 대지 카드 목록 대신 캔버스(UvView)로 일부를 잘라 입힌다 (2026-11-07) */
+  uvCrop = $state(false);
   converting = $state(false);
   settings = $derived.by<ProjectSettings>(() => (this.version, this.project.settings()));
   /** 프로젝트 컬러 (2026-10-31, core/projectColors.ts) — 없으면 메인·배경·포인트 빈 칸 (저장은 처음 고칠 때) */

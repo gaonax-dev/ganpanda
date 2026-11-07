@@ -131,15 +131,11 @@
       <small class="tip">
         {#if program === 'illustrator'}스크립트를 다시 실행 → <b>[내보내기]</b>가 저장한 <b>PDF</b> — 대지 번호로 사인물을 찾아 <b>디자인</b>은 대지 그림으로 카드에 바로(받은 이미지 레이어는 빼고), <b>"채널"·"스카시" 레이어</b>의 패스는 그 구성물의 입체로. (예전 .ganpanda 도 받습니다)
         {:else if program === 'corel'}사인물마다 한 페이지로 <b>PDF 내보내기</b> — 페이지 크기(1:1·1:10)로 사인물을 찾습니다.
-        {:else}SVG·그림은 디자인 파일에 들어갑니다 — 아래 [디자인 파일]에서 영역을 그려 사인물에 연결하세요.{/if}
+        {:else}SVG·그림은 디자인 파일에 들어갑니다 — 막대의 [디자인 파일]에서 대지 카드로 사인물에 연결하세요.{/if}
         받은 뒤 사진보드에서 사인물마다 <b>연결 · 바뀜 · 새로 생김 · 누락</b>을 확인하고 <b>[확정]</b>해야 입혀집니다.
       </small>
     </section>
 
-    <footer>
-      <button class="btn small" data-testid="sync-design-files" title="올린 디자인 파일을 보고 영역을 그려 사인물에 연결" onclick={() => { app.view = 'uv'; close(); }}>디자인 파일 {app.sources.length}</button>
-      {#if app.selected && app.canEdit}<button class="btn small" data-testid="sync-link-selected" title="이 사인물에 디자인 파일 영역 연결" onclick={() => { app.view = 'uv'; close(); }}>고른 사인물에 연결</button>{/if}
-    </footer>
   </div>
 </div>
 
@@ -162,7 +158,6 @@
   .tip { display: block; color: var(--muted); line-height: 1.45; font-size: 12px; }
   .tip b { color: var(--text); }
   .unconfirmed { margin: 0; color: #fb923c; font-size: 12px; line-height: 1.4; }
-  footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* 버튼 상태 (2026-11-06): 만드는 중 스피너 · ✓ 완료 초록 · 실패 주황 */
   .saved { border: 1px solid var(--ok); border-radius: 10px; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
   .saved ul { margin: 0; padding-left: 18px; word-break: break-all; }

@@ -15,8 +15,8 @@ test('탭은 실측 · 2D · 3D · 디자인 · 사인물리스트 — 처음은
   await expect(page.getByTestId('view-design')).toHaveClass(/on/);
   await expect(page.getByTestId('photo-zone')).toBeVisible(); // 사진보드 그대로
   await expect(page.getByTestId('design-bar')).toBeVisible();
-  // 디자인 탭 막대 = [디자인 싱크] · [컬러셋] 만 (2026-11-06 "최종적으로 디자인 탭은 디자인싱크 컬러셋 만 남게")
-  await expect(page.getByTestId('design-bar').locator('button')).toHaveText(['⇄ 디자인 싱크', '컬러셋']);
+  // 디자인 탭 막대 = [디자인 파일] · [디자인 싱크] · [컬러셋] (2026-11-07 "디자인 싱크버튼을 따로 때내고 그자리에 디자인파일로 변경해줘")
+  await expect(page.getByTestId('design-bar').locator('button')).toHaveText(['디자인 파일 0', '⇄ 디자인 싱크', '컬러셋']);
   // 작업 탭은 [제안 보내기] 바로 뒤, 디자인 막대는 그 뒤 (2026-11-06 "데스크탑에서 실측 2d 3d 디자인 견적은 제안보내기 버튼 다음에 위치하게")
   const px = async (id: string) => (await page.getByTestId(id).boundingBox())!.x;
   expect(await px('proposal-button')).toBeLessThan(await px('work-tabs'));
@@ -24,11 +24,13 @@ test('탭은 실측 · 2D · 3D · 디자인 · 사인물리스트 — 처음은
   await page.getByTestId('design-sync-open').click();
   await expect(page.getByTestId('design-sync-dialog')).toBeVisible();
   for (const p of ['illustrator', 'corel', 'svg']) await expect(page.getByTestId(`sync-program-${p}`)).toBeVisible();
-  await expect(page.getByTestId('sync-design-files')).toContainText('디자인 파일 0');
-  await page.getByTestId('sync-design-files').click(); // 디자인 파일 화면 — 여전히 디자인 탭
-  await expect(page.getByTestId('design-sync-dialog')).toHaveCount(0);
+  await expect(page.getByTestId('sync-design-files')).toHaveCount(0); // 디자인 파일은 막대로 (2026-11-07)
+  await page.getByTestId('design-sync-close').click();
+  await page.getByTestId('view-uv').click(); // 디자인 파일 화면(대지 카드 목록) — 여전히 디자인 탭
+  await expect(page.getByTestId('design-files')).toBeVisible();
   await expect(page.getByTestId('view-design')).toHaveClass(/on/);
-  await page.getByTestId('view-uv-back').click();
+  await expect(page.getByTestId('view-uv')).toContainText('사진보드');
+  await page.getByTestId('view-uv').click();
   await expect(page.getByTestId('photo-zone')).toBeVisible();
   await page.getByTestId('view-list').click();
   await expect(page.getByTestId('design-bar')).toHaveCount(0);

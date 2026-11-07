@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openDesignFiles, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, dragOnPhoto, openInvited, openObjectSettings, openCropCanvas, openDesignFiles, openOwnedProject, uploadPhoto } from './helpers';
 
 /** 2쪽짜리 최소 PDF: 1쪽 빨간 사각형(400×200pt), 2쪽 파란 사각형(200×200pt) */
 function twoPagePdf(): Buffer {
@@ -48,9 +48,11 @@ async function dragOnSource(page: Page, pageIndex: number, from: [number, number
 test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가 되고, 영역을 그려 사인물에 입힌다', async ({ page, request, browser }) => {
   const { session, projectId } = await openOwnedProject(page, request);
   await makeSign(page);
-  await openDesignFiles(page); // 디자인 파일은 [디자인 싱크] 안 (2026-11-06)
+  await openDesignFiles(page); // 막대 [디자인 파일] = 대지 카드 목록 (2026-11-07)
   await page.getByTestId('source-input').setInputFiles({ name: '간판 시안.ai', mimeType: 'application/postscript', buffer: twoPagePdf() });
-  await expect(page.getByTestId('source-page')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.getByTestId('page-card')).toHaveCount(2, { timeout: 30_000 });
+  await openCropCanvas(page); // [영역 고르기] → 캔버스
+  await expect(page.getByTestId('source-page')).toHaveCount(2);
   await expect(page.getByTestId('source-page').first()).toHaveAttribute('data-w', /\d+/);
 
   // 사인물 선택 → 1쪽 왼쪽 절반을 잘라 입힌다
@@ -61,7 +63,7 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
   await expect(page.getByTestId('crop-rect')).toHaveCount(1);
   await expect(page.getByTestId('design-history-item')).toHaveCount(1);
   // 선택 해제: 빈 곳 클릭 → 강조 상자가 사라진다. 목록을 다시 누르면 선택, 한 번 더 누르면 해제, Esc 도 해제
-  await page.getByTestId('uv-canvas').click({ position: { x: 20, y: 20 } });
+  await page.getByTestId('uv-canvas').click({ position: { x: 20, y: 300 } }); // 왼쪽 위는 [← 카드 목록]
   await expect(page.getByTestId('crop-rect')).toHaveCount(0);
   await expect(page.getByTestId('crop-rect-other')).toHaveCount(1);
   await expect(page.getByTestId('uv-object').first()).not.toHaveClass(/on/);
@@ -89,9 +91,11 @@ test('.ai(PDF 호환) 파일을 올리면 아트보드마다 소스 페이지가
 test('영역을 바꾸면 히스토리가 쌓이고, 이전 것을 눌러 되돌릴 수 있다', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await makeSign(page);
-  await openDesignFiles(page); // 디자인 파일은 [디자인 싱크] 안 (2026-11-06)
+  await openDesignFiles(page);
   await page.getByTestId('source-input').setInputFiles({ name: '시안.pdf', mimeType: 'application/pdf', buffer: twoPagePdf() });
-  await expect(page.getByTestId('source-page')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.getByTestId('page-card')).toHaveCount(2, { timeout: 30_000 });
+  await openCropCanvas(page);
+  await expect(page.getByTestId('source-page')).toHaveCount(2);
   await page.getByTestId('uv-object').first().click();
   const w = Number(await page.getByTestId('source-page').first().getAttribute('data-w'));
   const h = Number(await page.getByTestId('source-page').first().getAttribute('data-h'));
@@ -106,11 +110,34 @@ test('영역을 바꾸면 히스토리가 쌓이고, 이전 것을 눌러 되돌
 
 test('PDF 호환이 아닌 .ai 는 안내하고, 이미지 파일은 바로 소스가 된다', async ({ page, request }) => {
   await openOwnedProject(page, request);
-  await openDesignFiles(page); // 디자인 파일은 [디자인 싱크] 안 (2026-11-06)
+  await openDesignFiles(page);
   await page.getByTestId('source-input').setInputFiles({ name: '옛날.ai', mimeType: 'application/postscript', buffer: Buffer.from('%!PS-Adobe-3.0 not a pdf') });
   await expect(page.getByTestId('notice')).toContainText('PDF 호환');
   const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 300; c.height = 100; c.getContext('2d')!.fillStyle = '#0a0'; c.getContext('2d')!.fillRect(0, 0, 300, 100); return c.toDataURL(); });
   await page.getByTestId('source-input').setInputFiles({ name: '로고.png', mimeType: 'image/png', buffer: Buffer.from(png.split(',')[1], 'base64') });
-  await expect(page.getByTestId('source-page')).toHaveCount(1);
-  await expect(page.getByTestId('source-page').first()).toHaveAttribute('data-w', '300');
+  await expect(page.getByTestId('page-card')).toHaveCount(1);
+  await expect(page.getByTestId('page-card').first()).toContainText('300×100');
+});
+
+test('디자인 파일 = 대지 카드 목록: 카드마다 연결된 사인물, [사인물에 연결]로 대지 전체, ×로 해제, [영역 고르기]↔[← 카드 목록] (2026-11-07 "현재 디자인파일 화면을 이해하기 어렵다")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await makeSign(page);
+  const id = await page.evaluate(() => (window as any).__ganpanda.signs[0].id); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await openDesignFiles(page);
+  await page.getByTestId('source-input').setInputFiles({ name: '시안.pdf', mimeType: 'application/pdf', buffer: twoPagePdf() });
+  const cards = page.getByTestId('page-card');
+  await expect(cards).toHaveCount(2, { timeout: 30_000 });
+  await expect(cards.nth(1)).toContainText('연결된 사인물 없음');
+  await cards.nth(1).getByTestId('page-link').selectOption(id);
+  await expect(cards.nth(1).getByTestId('page-linked')).toHaveCount(1);
+  expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).design.page, id)).toBe(1); // eslint-disable-line @typescript-eslint/no-explicit-any
+  await cards.nth(1).getByTestId('page-unlink').click();
+  await expect(cards.nth(1).getByTestId('page-linked')).toHaveCount(0);
+  await cards.first().getByTestId('page-crop').click();
+  await expect(page.getByTestId('uv-canvas')).toBeVisible();
+  await page.getByTestId('uv-crop-back').click();
+  await expect(page.getByTestId('design-files')).toBeVisible();
+  // 막대 [← 사진보드]
+  await page.getByTestId('view-uv').click();
+  await expect(page.getByTestId('photo-zone')).toBeVisible();
 });

@@ -184,7 +184,10 @@ test('휴대폰 디자인 파일 화면: 하단 탭 [사인물 연결]을 누르
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string } } }).__ganpanda;
     app.project.addObject({ photoId: app.photos[0].id, name: '정면 간판', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-flex' });
   });
-  await openDesignFiles(page); // [디자인 싱크] › 디자인 파일 (2026-11-06)
+  await openDesignFiles(page); // 막대 [디자인 파일] (2026-11-07) → 그림 하나 올리고 [영역 고르기]
+  const png = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 300; c.height = 100; c.getContext('2d')!.fillRect(0, 0, 300, 100); return c.toDataURL(); });
+  await page.getByTestId('source-input').setInputFiles({ name: '로고.png', mimeType: 'image/png', buffer: Buffer.from(png.split(',')[1], 'base64') });
+  await page.getByTestId('page-crop').first().click();
   const panel = page.getByTestId('link-panel');
   await expect(panel).toBeHidden();
   await page.getByTestId('link-toggle').click();
