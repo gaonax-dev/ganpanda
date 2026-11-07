@@ -144,6 +144,8 @@ export interface SignObject {
   designHistory?: DesignHistoryEntry[];
   /** 일러스트 대지 번호 — 대지 이름 "프로젝트명 #번호"로 추적 (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게"). 처음 보낼 때 매긴다 */
   artNo?: number;
+  /** PDF 레이어 → 입체 구성물 id ('' = 입체 안 함) — 다음에 받을 때 미리 고른다 (2026-11-07 "다시 불렀을때 이전 연결을 유지할 수 있나?") */
+  layerLinks?: Record<string, string>;
   /** 평면도 위치 (mm) — 리스트 뷰와 보드의 평면 구역이 같은 배치를 쓴다. 없으면 자동 배치 */
   listX?: number;
   listY?: number;

@@ -54,7 +54,7 @@ export function defaultLayerPart(layer: string, parts: { id: string; kind: strin
   for (const [word, kind] of [['채널', 'channel'], ['체널', 'channel'], ['스카시', 'scashi']] as const) if (layer.includes(word)) return parts.find((p) => p.kind === kind)?.id ?? '';
   return '';
 }
-export function planArtboards(pages: { w: number; h: number }[], ids: (string | null)[] | null, signs: { id: string; w: number; h: number; hasDesign: boolean; parts?: { id: string; kind: string; label: string }[] }[], pageInfo?: ({ layers: PageLayer[]; blank?: boolean } | undefined)[]): SyncRow[] {
+export function planArtboards(pages: { w: number; h: number }[], ids: (string | null)[] | null, signs: { id: string; w: number; h: number; hasDesign: boolean; parts?: { id: string; kind: string; label: string }[]; /** 지난번 확정한 레이어 → 구성물 ('' = 입체 안 함) */ layerLinks?: Record<string, string> }[], pageInfo?: ({ layers: PageLayer[]; blank?: boolean } | undefined)[]): SyncRow[] {
   const byXmp = !!ids && ids.length === pages.length;
   const known = new Map(signs.map((s) => [s.id, s]));
   const pairs: { page: number; id: string }[] = [];
@@ -75,7 +75,9 @@ export function planArtboards(pages: { w: number; h: number }[], ids: (string | 
       const info = pageInfo?.[page];
       const layers = info ? info.layers.filter((l) => l.paths > 0 || l.texts > 0) : [];
       const parts = s.parts ?? [];
-      const extra = info ? { layers, layerParts: Object.fromEntries(layers.map((l) => [l.name, l.paths > 0 ? defaultLayerPart(l.name, parts) : ''])), pathParts: parts.map((p) => p.id), ...(info.blank ? { designBlank: true } : {}) } : {};
+      // 지난번 연결을 먼저 (2026-11-07 "다시 불렀을때 이전 연결을 유지할 수 있나?") — 그 구성물이 없어졌으면 이름으로 추측
+      const remembered = (name: string) => { const v = s.layerLinks?.[name]; return v !== undefined && (v === '' || parts.some((p) => p.id === v)) ? v : undefined; };
+      const extra = info ? { layers, layerParts: Object.fromEntries(layers.map((l) => [l.name, l.paths > 0 ? remembered(l.name) ?? defaultLayerPart(l.name, parts) : ''])), pathParts: parts.map((p) => p.id), ...(info.blank ? { designBlank: true } : {}) } : {};
       const nothing = !!info?.blank && !layers.some((l) => l.paths > 0);
       rows.push(row({ key: `p${page}`, status: s.hasDesign ? 'update' : 'link', signId: id, page, ...extra, ...(nothing ? { action: 'skip' as const } : s.hasDesign && !byXmp ? { action: 'keep' as const } : {}) }));
     } else rows.push(row({ key: `p${page}`, status: 'new', page, w: Math.round(p.w / k), h: Math.round(p.h / k), ...(byXmp ? {} : { action: 'skip' as const }) }));

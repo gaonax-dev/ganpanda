@@ -1129,7 +1129,7 @@ class AppState {
   private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number }; layers?: { name: string; paths: number; texts: number; svg: string }[]; blank?: boolean }[], xmp: string | undefined) {
     const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
     // 입체 구성물 = 밀어내는 구성 요소(채널·스카시) — PDF 레이어 벡터를 연결 (2026-11-07 "레이어로 고르기")
-    const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design, parts: partsOfSign(o).filter((p) => componentOf(p.kind).extrude).map((p) => ({ id: p.id, kind: p.kind, label: partLabel(p) })) }] : []; });
+    const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design, parts: partsOfSign(o).filter((p) => componentOf(p.kind).extrude).map((p) => ({ id: p.id, kind: p.kind, label: partLabel(p) })), ...(o.layerLinks ? { layerLinks: o.layerLinks } : {}) }] : []; });
     // 대지 추적 값(# 뒤 — 대지 번호 또는 예전 사인물 id) → 사인물 id (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게")
     const ids = xmpArtboardIds(xmp)?.map((r) => (r ? artRef(r, this.signs) ?? r : null)) ?? null;
     const rows = planArtboards(pagesMm, ids, signs, pages.map((p) => (p.layers ? { layers: p.layers, blank: p.blank } : undefined)));
@@ -1192,6 +1192,9 @@ class AppState {
         if (row.action === 'apply' && row.signId) {
           if (!row.designBlank) this.setDesign(row.signId, full(row.page));
           await this.applyLayerVectors(row.signId, row.layerParts ?? {}, r.pageSvgs?.[row.page] ?? {});
+          // 고른 연결을 기억 — 다음에 받을 때 미리 고른다 (2026-11-07)
+          const o = this.project.object(row.signId);
+          if (o && row.layerParts && Object.keys(row.layerParts).length) { this.editBoundary(); this.project.updateObject(o.id, { layerLinks: { ...(o.layerLinks ?? {}), ...row.layerParts } }); this.editBoundary(); }
           applied++;
         }
         if (row.action === 'create' && row.w && row.h) {

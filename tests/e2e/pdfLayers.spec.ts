@@ -124,3 +124,21 @@ test('줌아웃 합성: 다른 사인물의 그림을 못 찾아도(없는 에�
   await expect(page.getByTestId('flat-overlay')).toHaveCount(1, { timeout: 15_000 });
   expect(await page.evaluate((id) => !!(window as any).__ganpanda.project.object(id).design, id)).toBe(true);
 });
+
+test('다시 받으면 지난번 레이어 연결을 미리 골라 둔다 (2026-11-07 "다시 불렀을때 이전 연결을 유지할 수 있나?")', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  const layerSel = (name: string) => page.locator(`[data-testid="sync-layer-row"][data-layer="${name}"] [data-testid="sync-layer"]`);
+  // 1번째: 이름으로 "채널" → 채널이 골라져 있지만, 입체 안 함으로 바꾸고 "디자인" 레이어를 채널로
+  await upload(page, layeredPdf('1'));
+  await expect(layerSel('채널')).toHaveValue('ch1');
+  await layerSel('채널').selectOption('');
+  await layerSel('디자인').selectOption('ch1');
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('sync-review')).toHaveCount(0);
+  expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).layerLinks, id)).toEqual({ 디자인: 'ch1', 채널: '' });
+  // 2번째: 지난번 고른 대로
+  await upload(page, layeredPdf('1'));
+  await expect(layerSel('채널')).toHaveValue('');
+  await expect(layerSel('디자인')).toHaveValue('ch1');
+});

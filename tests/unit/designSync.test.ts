@@ -88,3 +88,14 @@ describe('planArtboards + PDF 레이어 — 대지 페이지의 레이어 벡터
     expect(r.action).toBe('skip'); // 넣을 것이 없다
   });
 });
+
+// 2026-11-07 사용자: "다시 불렀을때 이전 연결을 유지할 수 있나?"
+describe('planArtboards — 지난번 레이어 연결을 기억해 미리 고름', () => {
+  const parts = [{ id: 'ch', kind: 'channel', label: '전광 채널' }, { id: 'sc', kind: 'scashi', label: '아크릴 스카시' }];
+  const layers = [{ name: '체널', paths: 2, texts: 0 }, { name: '로고', paths: 3, texts: 0 }, { name: '디자인', paths: 5, texts: 0 }];
+  it('기억한 연결(입체 안 함 포함)이 이름 추측보다 먼저, 없어진 구성물이면 이름 추측으로', () => {
+    const signs = [{ id: 'a', w: 3000, h: 600, hasDesign: true, parts, layerLinks: { 체널: '', 로고: 'sc', 디자인: 'gone' } }];
+    const r = planArtboards([{ w: 3000, h: 600 }], ['a'], signs, [{ layers }]).find((x) => x.signId === 'a')!;
+    expect(r.layerParts).toEqual({ 체널: '', 로고: 'sc', 디자인: '' });
+  });
+});
