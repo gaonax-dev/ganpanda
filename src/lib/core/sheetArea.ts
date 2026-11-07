@@ -35,6 +35,11 @@ export function hasPartsToDraw(o: SignObject): boolean { // 치수는 따지지 
   return partsOf(o).some((p) => !p.items.length && !!componentOf(p.kind).areaFill?.(p) && !(o.design && (!p.on || p.on === 'frame')));
 }
 
+/** 디자인이 면인 사인물: 바탕(frame) 위 면 시트 + 디자인 — 시트는 디자인을 따른다 (2026-11-07) */
+export function designIsFace(o: SignObject): boolean {
+  return !!o.design && partsOf(o).some((p) => !p.items.length && (!p.on || p.on === 'frame') && !!componentOf(p.kind).areaFill?.(p));
+}
+
 /** 안개 시트처럼 뒤를 흐리게 하는 면 시트가 있나 (프레임 면 위 — 사인물 외곽선 전체를 블러) */
 export function hasFrost(o: SignObject): boolean {
   return partsOf(o).some((p) => !p.items.length && (!p.on || p.on === 'frame') && !!componentOf(p.kind).areaBlur?.(p));

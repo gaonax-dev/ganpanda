@@ -166,3 +166,27 @@ test('다시 받으면 지난번 레이어 연결을 미리 골라 둔다 (2026-
   await expect(layerSel('채널')).toHaveValue('');
   await expect(layerSel('디자인')).toHaveValue('ch1');
 });
+
+test('카드는 모드마다 바뀐다: 실측 = 사진, 2D = 속성 내용, 3D = 3D 합성에서 편 사인물 자리, 디자인 = 디자인 (2026-11-07 "핀볼에서 모든 모드 확인해줘 사이물 카드가 모드 변화에 이미지 교체가 안된다")', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  // 바탕 위 면 시트 + 디자인인 사인물(큰시트처럼)도 하나
+  const sheetId = await page.evaluate(() => { const g = (window as any).__ganpanda; return g.project.addObject({ photoId: g.photos[0].id, name: '큰시트', shape: 'rect', quad: [[700, 350], [900, 350], [900, 550], [700, 550]], sheetIds: [], widthMm: 2100, heightMm: 2100, parts: [{ id: 'sh', kind: 'sheet', type: 'sh-cut', on: 'frame', items: [] }] }); });
+  await page.evaluate(() => { const g = (window as any).__ganpanda; const o = g.signs.find((x: any) => x.name === '큰시트'); g.project.updateObject(o.id, { artNo: 2 }); });
+  await upload(page, layeredPdf('1'));
+  await page.getByTestId('sync-confirm').click();
+  await page.evaluate((sheetId) => { const g = (window as any).__ganpanda; const o = g.project.object(g.signs.find((x: any) => x.artNo === 1).id); g.project.updateObject(sheetId, { design: o.design }); }, sheetId);
+  const card = (cid: string) => page.locator(`[data-testid="board-card"][data-id="${cid}"]`);
+  await page.getByTestId('view-board').click(); // 실측
+  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+  await expect(card(sheetId).getByTestId('design-image')).toHaveCount(0);
+  await page.getByTestId('stage-2d').click();
+  await expect(card(sheetId).getByTestId('design-image')).toHaveCount(1); // 시트는 디자인을 따른다
+  await expect(card(id).getByTestId('design-image')).toHaveCount(0); // 2D = 속성 내용
+  await page.getByTestId('stage-3d').click();
+  await expect(card(id).getByTestId('card-3d')).toHaveCount(1, { timeout: 60_000 }); // 3D 합성에서 편 그림
+  await page.getByTestId('view-design').click();
+  await expect(card(id).getByTestId('design-image')).toHaveCount(1);
+  await expect(card(id).getByTestId('card-3d')).toHaveCount(0);
+});

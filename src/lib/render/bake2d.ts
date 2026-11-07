@@ -15,10 +15,12 @@ const fonts = () => (fontsReady ??= typeof document !== 'undefined' && document.
 /** 표시 w×h 를 몇 배로 구울지 */
 export function bakeScale(w: number, h: number): number { return Math.max(0.1, Math.min(2, BAKE_MAX / Math.max(w, h, 1))); }
 
+/** 마지막 굽기 실패 이유 (키 → 이유) — 맥 앱 진단 기록용 (2026-11-07 "디자인탭에서 3d 안나와": 굽기 실패만 남고 이유가 없었다) */
+export const bakeErrors = new Map<string, string>();
 function remember(key: string, make: () => Promise<Blob | null>): Promise<string | undefined> {
   let p = cache.get(key);
   if (!p) {
-    p = make().then((b) => (b ? URL.createObjectURL(b) : undefined)).catch(() => undefined);
+    p = make().then((b) => { if (!b) bakeErrors.set(key, '빈 그림(toBlob null)'); return b ? URL.createObjectURL(b) : undefined; }).catch((e) => { bakeErrors.set(key, e instanceof Error ? `${e.name}: ${e.message}` : e instanceof Event ? `이미지 불러오기 실패(${e.type})` : String(e)); return undefined; });
     cache.set(key, p);
     p.then((u) => { if (!u) cache.delete(key); });
   }

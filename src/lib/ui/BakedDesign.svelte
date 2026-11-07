@@ -3,7 +3,7 @@
   import { app } from '../state.svelte';
   import { displayUrl } from '../photoDisplay';
   import type { DesignRef } from '../core/design';
-  import { bakeDesign } from '../render/bake2d';
+  import { bakeDesign, bakeErrors } from '../render/bake2d';
   import DesignFace from './DesignFace.svelte';
   import { crashLog } from '../crashLog';
 
@@ -21,7 +21,7 @@
   $effect(() => {
     if (!page || !pageUrl) return;
     const k = key;
-    bakeDesign(k, pageUrl, design.crop, page.w, page.h, w, h).then((u) => { if (k !== key) return; baked = u ?? null; if (!u) crashLog.event(`디자인 굽기 실패 ${page.assetId.slice(0, 8)}`); });
+    bakeDesign(k, pageUrl, design.crop, page.w, page.h, w, h).then((u) => { if (k !== key) return; baked = u ?? null; if (!u) crashLog.event(`디자인 굽기 실패 ${page.assetId.slice(0, 8)} ${page.w}×${page.h} → ${Math.round(w)}×${Math.round(h)} · ${(pageUrl ?? '').slice(0, 5)} · ${bakeErrors.get(`d|${k}`) ?? '이유 없음'}`); });
   });
   // 디자인 페이지를 못 찾으면(소스·그림 없음) 기다리지 않는다
   $effect(() => { if (!page) baked = null; });
