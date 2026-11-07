@@ -42,7 +42,22 @@
         {:else}<span class="fixed">{SYNC_ACTION_LABEL[row.action]}</span>{/if}
       </li>
       {#if row.designBlank}
-        <li class="sub warn" data-testid="sync-blank" data-sign={row.signId}>⚠ 받은 디자인이 빈(투명) 이미지라 넣지 않습니다 — 일러스트에서 대지 안 "디자인" 레이어 내용을 확인하고 새 스크립트로 다시 보내 주세요.</li>
+        <li class="sub warn" data-testid="sync-blank" data-sign={row.signId}>⚠ 받은 디자인이 비어 있어(투명하거나 받은 이미지 말고 그린 것이 없음) 넣지 않습니다 — 일러스트에서 대지 안 디자인을 확인하고 다시 보내 주세요.</li>
+      {/if}
+      {#if row.layers && row.action === 'apply'}
+        <!-- PDF 레이어 → 구성물 (2026-11-07 "연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로" → 레이어로 고르기) -->
+        {#each row.layers as l (l.name)}
+          <li class="sub" data-testid="sync-layer-row" data-sign={row.signId} data-layer={l.name}>
+            <span class="arrow">레이어 "{l.name}"{l.paths ? ` · 모양 ${l.paths}` : ''} →</span>
+            {#if l.paths && row.pathParts?.length}
+              <select data-testid="sync-layer" value={row.layerParts?.[l.name] ?? ''} onchange={(e) => app.setSyncLayer(row.key, l.name, e.currentTarget.value)}>
+                <option value="">입체 안 함 (그림만)</option>
+                {#each row.pathParts as pid (pid)}<option value={pid}>{partName(row.signId, pid)} 입체</option>{/each}
+              </select>
+            {:else if l.paths}<span class="fixed">입체 구성물(채널·스카시) 없음</span>
+            {:else}<span class="fixed warn-t" data-testid="sync-layer-text">글자를 윤곽선으로 만들어야 입체가 됩니다</span>{/if}
+          </li>
+        {/each}
       {/if}
       {#if row.path && row.action === 'apply'}
         <li class="sub" data-testid="sync-path-row" data-sign={row.signId}>
@@ -80,6 +95,7 @@
   .fixed { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); }
   li.sub { padding-left: 22px; justify-content: flex-end; }
+  .warn-t { color: #fb923c; }
   li.warn { color: #fb923c; font-size: 12px; line-height: 1.4; justify-content: flex-start; }
   .arrow { flex: 1; color: var(--muted); font-size: 12px; }
   .tip { color: var(--muted); line-height: 1.4; font-size: 11px; }

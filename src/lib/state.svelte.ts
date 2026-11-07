@@ -1105,7 +1105,7 @@ class AppState {
    * 디자인 싱크 받기 검토 (2026-11-06 사용자: "받은 다음 사진보드에서 연결상태 확인 후 확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요"):
    * 받은 파일을 바로 입히지 않고 사인물마다 상태·처리를 정해 사진보드에 보여 준다. [확정] 해야 입혀진다. core/designSync.ts
    */
-  syncReview = $state<{ kind: 'artboards' | 'bundle'; fileName: string; sourceId?: string; pagesMm?: { w: number; h: number }[]; bundle?: BundleItem[]; rows: SyncRow[] } | null>(null);
+  syncReview = $state<{ kind: 'artboards' | 'bundle'; fileName: string; sourceId?: string; pagesMm?: { w: number; h: number }[]; /** PDF 대지 페이지별 레이어 벡터 SVG (2026-11-07) */ pageSvgs?: Record<string, string>[]; bundle?: BundleItem[]; rows: SyncRow[] } | null>(null);
   /** 사인물 id → 검토 줄 (보드 카드 표시) */
   syncRowOf = $derived(new Map((this.syncReview?.rows ?? []).filter((r) => r.signId).map((r) => [r.signId!, r])));
   /** 보낸(치수 있는) 사인물 — 대지·묶음의 짝 상대 */
@@ -1115,15 +1115,16 @@ class AppState {
    * 일러스트 왕복 (2026-11-05 "일러스트에서 내보내고 이것을 간판다에서 연결하는 악순을 피하려는 거지"): 올린 .ai/PDF 의 대지(페이지) ↔ 사인물.
    * 간판다 일러스트 스크립트가 적은 XMP 짝(ganpanda:artboards)이 있으면 그대로, 없으면 대지 크기(1:1·1:10)·순서로 — 검토 뒤 [확정]
    */
-  private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number } }[], xmp: string | undefined) {
+  private reviewArtboards(fileName: string, sourceId: string, pages: { w: number; h: number; mm?: { w: number; h: number }; layers?: { name: string; paths: number; texts: number; svg: string }[]; blank?: boolean }[], xmp: string | undefined) {
     const pagesMm = pages.map((p) => p.mm ?? { w: 0, h: 0 });
-    const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design }] : []; });
+    // 입체 구성물 = 밀어내는 구성 요소(채널·스카시) — PDF 레이어 벡터를 연결 (2026-11-07 "레이어로 고르기")
+    const signs = this.syncSigns().flatMap((o) => { const s = this.sizeOf(o); return s ? [{ id: o.id, w: s.w, h: s.h, hasDesign: !!o.design, parts: partsOfSign(o).filter((p) => componentOf(p.kind).extrude).map((p) => ({ id: p.id, kind: p.kind, label: partLabel(p) })) }] : []; });
     // 대지 추적 값(# 뒤 — 대지 번호 또는 예전 사인물 id) → 사인물 id (2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게")
     const ids = xmpArtboardIds(xmp)?.map((r) => (r ? artRef(r, this.signs) ?? r : null)) ?? null;
-    const rows = planArtboards(pagesMm, ids, signs);
+    const rows = planArtboards(pagesMm, ids, signs, pages.map((p) => (p.layers ? { layers: p.layers, blank: p.blank } : undefined)));
     // 짝 정보도 크기 짝도 없으면 검토할 것이 없다 — 디자인 파일에만 (영역을 그려 연결)
     if (!(ids && ids.length === pages.length) && !rows.some((r) => r.signId)) { if (this.view !== 'uv') this.notice = `${fileName} 을 디자인 파일에 넣었습니다 — 크기가 맞는 사인물이 없어 [디자인 싱크] › 디자인 파일에서 영역을 그려 연결하세요.`; return; }
-    this.syncReview = { kind: 'artboards', fileName, sourceId, pagesMm, rows };
+    this.syncReview = { kind: 'artboards', fileName, sourceId, pagesMm, pageSvgs: pages.map((p) => Object.fromEntries((p.layers ?? []).filter((l) => l.paths > 0).map((l) => [l.name, l.svg]))), rows };
     this.view = 'board';
   }
 
@@ -1150,6 +1151,12 @@ class AppState {
     if (!r) return;
     this.syncReview = { ...r, rows: r.rows.map((x) => (x.key === key && (partId === '' || x.pathParts?.includes(partId)) ? { ...x, pathPart: partId } : x)) };
   }
+  /** PDF 레이어 → 연결할 구성물 ('' = 안 씀) */
+  setSyncLayer(key: string, layer: string, partId: string) {
+    const r = this.syncReview;
+    if (!r) return;
+    this.syncReview = { ...r, rows: r.rows.map((x) => (x.key === key && x.layerParts && layer in x.layerParts && (partId === '' || x.pathParts?.includes(partId)) ? { ...x, layerParts: { ...x.layerParts, [layer]: partId } } : x)) };
+  }
   setSyncAction(key: string, action: SyncAction) {
     const r = this.syncReview;
     if (!r) return;
@@ -1171,7 +1178,11 @@ class AppState {
       let x = Math.max(0, ...[...this.flatPlaced.values()].map((p) => p.x + p.w)) + this.flatGap;
       for (const row of r.rows) {
         if (row.page === undefined) continue;
-        if (row.action === 'apply' && row.signId) { this.setDesign(row.signId, full(row.page)); applied++; }
+        if (row.action === 'apply' && row.signId) {
+          if (!row.designBlank) this.setDesign(row.signId, full(row.page));
+          await this.applyLayerVectors(row.signId, row.layerParts ?? {}, r.pageSvgs?.[row.page] ?? {});
+          applied++;
+        }
         if (row.action === 'create' && row.w && row.h) {
           const id = this.createStandalone(x, 0, { widthMm: row.w, heightMm: row.h });
           if (id) { this.setDesign(id, full(row.page)); created++; x += row.w + this.flatGap; }
@@ -1189,6 +1200,28 @@ class AppState {
    * 묶음 적용 (2026-11-06 정의): 디자인(PNG) → 사인물 바탕 디자인(새 디자인 소스, 이력에 남음), path(SVG) → 고른 구성물의 내용을 벡터 그림 하나로(채널·스카시 입체).
    * 예전 묶음의 frame = 디자인, 구성 요소 id = 그 구성 요소. 적용한 사인물 수
    */
+  /**
+   * PDF 레이어 벡터 → 고른 구성물의 입체 (2026-11-07 "연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로"): 레이어 SVG(페이지 = 대지 = 사인물)를
+   * 벡터 그림 객체(사인물 크기 전체)로 그 구성물에 — 같은 구성물에 레이어가 여럿이면 객체가 여럿. 고른 구성물의 내용은 이것으로 바뀐다
+   */
+  private async applyLayerVectors(signId: string, layerParts: Record<string, string>, svgs: Record<string, string>) {
+    const o = this.project.object(signId);
+    const picked = Object.entries(layerParts).filter(([layer, part]) => part && svgs[layer]);
+    if (!o || !picked.length) return;
+    const size = this.sizeOf(o) ?? { w: o.widthMm ?? 1000, h: o.heightMm ?? 1000 };
+    let parts = partsOfSign(o);
+    const fresh = new Set<string>();
+    for (const [layer, partId] of picked) {
+      const part = parts.find((p) => p.id === partId);
+      if (!part) continue;
+      const assetId = await putAsset(new Blob([svgs[layer]], { type: 'image/svg+xml' }));
+      const item = { ...newItem('image'), image: { assetId, name: `${o.name} ${layer} (PDF 레이어)` }, vector: true, x: 0, y: 0, w: size.w, h: size.h };
+      parts = parts.map((p) => (p.id === partId ? { ...p, items: fresh.has(partId) ? [...p.items, item] : [item] } : p));
+      fresh.add(partId);
+    }
+    this.editBoundary(); this.project.updateObject(o.id, commitParts(o, parts)); this.editBoundary();
+  }
+
   private async applyIllustratorBundle(items: BundleItem[], rows: SyncRow[]): Promise<number> {
     const bytesOf = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     let n = 0;

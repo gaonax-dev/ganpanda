@@ -29,6 +29,8 @@ export interface SyncRow {
   path?: boolean; pathPart?: string; pathParts?: string[];
   /** 예전 묶음: 구성 요소 id 로 온 것 */
   parts?: string[];
+  /** PDF 대지 페이지의 레이어 (벡터·글자가 있는 것) · 레이어 → 연결할 구성물 id('' = 안 씀) */
+  layers?: PageLayer[]; layerParts?: Record<string, string>;
 }
 
 const row = (r: Omit<SyncRow, 'actions' | 'action'> & { action?: SyncAction; actions?: SyncAction[] }): SyncRow => {
@@ -43,7 +45,16 @@ const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); retu
  * 짝 정보(XMP, 대지 수와 같을 때)가 있으면 짝대로 — 짝 없는·지워진·겹친 대지는 새로 생김(새 사인물로), 파일에 없는 사인물은 누락(기존 유지).
  * 없으면 크기로 — 우연히 맞은 기존 디자인은 기본 '기존 유지', 남는 대지는 기본 '건너뛰기', 누락은 따지지 않는다
  */
-export function planArtboards(pages: { w: number; h: number }[], ids: (string | null)[] | null, signs: { id: string; w: number; h: number; hasDesign: boolean }[]): SyncRow[] {
+/** PDF 페이지(대지)의 레이어 (core/pdfVectors) — paths = 채운 경로 수, texts = 윤곽선 아닌 글자 수 */
+export interface PageLayer { name: string; paths: number; texts: number }
+/** 레이어 이름으로 구성물 미리 고르기: 구성물 이름이 들어 있으면 그것, "채널"·"스카시"가 들어 있으면 그 종류의 첫 구성물, 아니면 '' (2026-11-07 "레이어로 고르기") */
+export function defaultLayerPart(layer: string, parts: { id: string; kind: string; label: string }[]): string {
+  const byLabel = parts.find((p) => p.label && layer.includes(p.label));
+  if (byLabel) return byLabel.id;
+  for (const [word, kind] of [['채널', 'channel'], ['스카시', 'scashi']] as const) if (layer.includes(word)) return parts.find((p) => p.kind === kind)?.id ?? '';
+  return '';
+}
+export function planArtboards(pages: { w: number; h: number }[], ids: (string | null)[] | null, signs: { id: string; w: number; h: number; hasDesign: boolean; parts?: { id: string; kind: string; label: string }[] }[], pageInfo?: ({ layers: PageLayer[]; blank?: boolean } | undefined)[]): SyncRow[] {
   const byXmp = !!ids && ids.length === pages.length;
   const known = new Map(signs.map((s) => [s.id, s]));
   const pairs: { page: number; id: string }[] = [];
@@ -60,7 +71,13 @@ export function planArtboards(pages: { w: number; h: number }[], ids: (string | 
     const id = paired.get(page);
     if (id) {
       const s = known.get(id)!;
-      rows.push(row({ key: `p${page}`, status: s.hasDesign ? 'update' : 'link', signId: id, page, ...(s.hasDesign && !byXmp ? { action: 'keep' as const } : {}) }));
+      // PDF 레이어 (2026-11-07): 벡터·글자가 있는 레이어 → 구성물(입체) 고르기, 빈 페이지면 디자인을 넣지 않음
+      const info = pageInfo?.[page];
+      const layers = info ? info.layers.filter((l) => l.paths > 0 || l.texts > 0) : [];
+      const parts = s.parts ?? [];
+      const extra = info ? { layers, layerParts: Object.fromEntries(layers.map((l) => [l.name, l.paths > 0 ? defaultLayerPart(l.name, parts) : ''])), pathParts: parts.map((p) => p.id), ...(info.blank ? { designBlank: true } : {}) } : {};
+      const nothing = !!info?.blank && !layers.some((l) => l.paths > 0);
+      rows.push(row({ key: `p${page}`, status: s.hasDesign ? 'update' : 'link', signId: id, page, ...extra, ...(nothing ? { action: 'skip' as const } : s.hasDesign && !byXmp ? { action: 'keep' as const } : {}) }));
     } else rows.push(row({ key: `p${page}`, status: 'new', page, w: Math.round(p.w / k), h: Math.round(p.h / k), ...(byXmp ? {} : { action: 'skip' as const }) }));
   });
   if (byXmp) {

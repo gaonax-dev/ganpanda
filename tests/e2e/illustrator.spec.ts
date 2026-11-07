@@ -85,8 +85,8 @@ test('디자인 탭 [일러스트] = 일러스트레이터 스크립트(.jsx) �
   const scriptText = (await import('fs')).readFileSync((await script.path())!, 'utf8');
   expect(scriptText.startsWith('var GANPANDA_DATA')).toBe(false);
   expect(scriptText).toContain('selectDialog');
-  expect(jsx).toContain('간판다로 보내기');
-  expect(jsx).toContain('.ganpanda'); // 구성 요소 묶음으로 돌아온다
+  expect(jsx).toContain('내보내기');
+  expect(jsx).toContain('PDFSaveOptions'); // [내보내기] = 레이어가 살아 있는 PDF (2026-11-07)
 });
 
 test('스크립트가 저장한 .ai(XMP 짝)를 올리면 대지가 짝지은 사인물에 자동으로 입혀진다 — 순서가 바뀌어도, 수정본은 새 디자인으로', async ({ page, request }) => {

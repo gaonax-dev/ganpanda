@@ -1,0 +1,89 @@
+// PDF 하나로 왕복 (2026-11-07 사용자: "pdf를 직접 편집가능하다면 굿이 path를 따로 둘 이유가 없고 연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로 구현할 수 있겠는데" → 레이어로 고르기)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { expect, test } from '@playwright/test';
+import { openDesignSync, openOwnedProject, uploadPhoto } from './helpers';
+
+const utf16 = (s: string) => 'þÿ' + Buffer.from(s, 'utf16le').swap16().toString('latin1');
+/** Acrobat 레이어(OC) 3개(받은 이미지 · 디자인 · 채널) + 대지 번호 XMP 의 한 페이지 PDF (일러스트 [내보내기] 모양) */
+function layeredPdf(ref: string, opts: { withChannel?: boolean; channelText?: boolean } = {}): Buffer {
+  const xmp = `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:ganpanda="http://ns.ganpanda.co.kr/1.0/"><ganpanda:artboards>${ref}</ganpanda:artboards></rdf:Description></rdf:RDF></x:xmpmeta>`;
+  const ch = opts.channelText ? '/OC /MC2 BDC BT /F1 40 Tf 10 30 Td (AB) Tj ET EMC' : opts.withChannel === false ? '' : '/OC /MC2 BDC 0 0 1 rg 20 20 m 80 20 l 80 80 l 20 80 l h 40 40 m 60 40 l 60 60 l 40 60 l h f* EMC';
+  const content = `/OC /MC0 BDC 1 0 0 rg 0 0 200 100 re f EMC /OC /MC1 BDC 0 0.6 0 rg 120 20 60 60 re f EMC ${ch}`;
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R /OCProperties << /OCGs [5 0 R 6 0 R 7 0 R] /D << /Order [5 0 R 6 0 R 7 0 R] /ON [5 0 R 6 0 R 7 0 R] >> >> >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Properties << /MC0 5 0 R /MC1 6 0 R /MC2 7 0 R >> /Font << /F1 9 0 R >> >> >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    `<< /Type /OCG /Name (${utf16('받은 이미지')}) >>`, `<< /Type /OCG /Name (${utf16('디자인')}) >>`, `<< /Type /OCG /Name (${utf16('채널')}) >>`,
+    `<< /Type /Metadata /Subtype /XML /Length ${Buffer.byteLength(xmp, 'utf8')} >>\nstream\n${xmp}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.6\n'; const off: number[] = [];
+  objs.forEach((o, i) => { off.push(Buffer.byteLength(out, 'latin1')); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const x = Buffer.byteLength(out, 'latin1');
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + off.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
+  return Buffer.from(out, 'latin1');
+}
+
+async function sign(page: any) {
+  await uploadPhoto(page);
+  return page.evaluate(() => {
+    const g = (window as any).__ganpanda; const pid = g.photos[0].id;
+    const id = g.project.addObject({ photoId: pid, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 1500,
+      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', items: [{ id: 't1', kind: 'text', text: '카페', x: 0, y: 0, h: 400 }] }] });
+    g.project.updateObject(id, { artNo: 1 });
+    return id;
+  });
+}
+const upload = async (page: any, buf: Buffer) => {
+  await openDesignSync(page, 'illustrator');
+  await page.getByTestId('sync-receive-input').setInputFiles({ name: '정면 대지.pdf', mimeType: 'application/pdf', buffer: buf });
+  await expect(page.getByTestId('sync-review')).toBeVisible({ timeout: 30_000 });
+};
+
+test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레이어 벡터는 채널 구성물로 미리 골라져 확정하면 입체', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  await upload(page, layeredPdf('1'));
+  const row = page.locator(`[data-testid="sync-layer-row"][data-sign="${id}"]`);
+  await expect(row).toHaveCount(2); // 디자인 · 채널 (받은 이미지는 빠짐)
+  await expect(page.locator(`[data-testid="sync-layer-row"][data-layer="채널"] [data-testid="sync-layer"]`)).toHaveValue('ch1');
+  await expect(page.locator(`[data-testid="sync-layer-row"][data-layer="디자인"] [data-testid="sync-layer"]`)).toHaveValue('');
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
+  const o = await page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
+  expect(o.design).toBeTruthy();
+  const ch = o.parts.find((p: any) => p.id === 'ch1');
+  expect(ch.items).toEqual([expect.objectContaining({ kind: 'image', vector: true, x: 0, y: 0, w: 3000, h: 1500 })]);
+  // 디자인 그림: 받은 이미지(빨강 전체)는 꺼져 흰 바탕, 디자인(초록)·채널(파랑)은 보인다
+  const px = await page.evaluate(async (o) => {
+    const g = (window as any).__ganpanda; const src = g.sources.find((s: any) => s.id === o.design.sourceId); const pg = src.pages[o.design.page];
+    const ap = '/src/lib/assets.ts'; const { assetUrl } = await import(/* @vite-ignore */ ap);
+    const img = await createImageBitmap(await (await fetch(await assetUrl(pg.assetId))).blob());
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d')!; x.drawImage(img, 0, 0);
+    const at = (fx: number, fy: number) => [...x.getImageData(Math.round(img.width * fx), Math.round(img.height * fy), 1, 1).data].slice(0, 3);
+    return { bg: at(0.02, 0.05), green: at(0.75, 0.5), blue: at(0.15, 0.5) };
+  }, o);
+  expect(px.bg).toEqual([255, 255, 255]);
+  expect(px.green[1]).toBeGreaterThan(100); expect(px.green[0]).toBeLessThan(60);
+  expect(px.blue[2]).toBeGreaterThan(200); expect(px.blue[0]).toBeLessThan(60);
+  // 3D: 채널 벡터 = 바깥 사각형 + 구멍(짝홀), 사인물 mm 로
+  const vec = await page.evaluate(async (id) => {
+    const ip = '/src/lib/render/itemImages.ts'; const { loadItemVectors } = await import(/* @vite-ignore */ ip);
+    const g = (window as any).__ganpanda; const v = await loadItemVectors(g.project.object(id), g.sources);
+    const shapes = Object.values(v)[0] as any[]; const xs = shapes[0].getPoints(4).map((p: any) => p.x);
+    return { n: shapes.length, holes: shapes[0].holes.length, minX: Math.min(...xs), maxX: Math.max(...xs) };
+  }, id);
+  expect(vec).toMatchObject({ n: 1, holes: 1 });
+  expect(vec.minX).toBeCloseTo((20 / 200) * 3000 - 1500, 0);
+  expect(vec.maxX).toBeCloseTo((80 / 200) * 3000 - 1500, 0);
+});
+
+test('PDF 레이어: 윤곽선 아닌 글자만 있는 레이어는 안내, 받은 이미지 말고 아무것도 없으면 디자인을 넣지 않음', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  await upload(page, layeredPdf('1', { channelText: true }));
+  await expect(page.locator(`[data-testid="sync-layer-row"][data-layer="채널"] [data-testid="sync-layer-text"]`)).toContainText('윤곽선');
+  await page.getByTestId('sync-cancel').click();
+  expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).design ?? null, id)).toBeNull();
+});

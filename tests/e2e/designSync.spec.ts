@@ -64,7 +64,7 @@ test('빈(투명) 디자인을 받으면 검토에 경고하고 넣지 않는다
   await openDesignSync(page, 'illustrator');
   await page.getByTestId('sync-receive-input').setInputFiles({ name: 'a.ganpanda', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 2, items: [{ sign: id, part: 'design', kind: 'png', data: blank }] })) });
   await expect(page.getByTestId('sync-review')).toBeVisible();
-  await expect(page.locator(`[data-testid="sync-blank"][data-sign="${id}"]`)).toContainText('빈(투명)');
+  await expect(page.locator(`[data-testid="sync-blank"][data-sign="${id}"]`)).toContainText('비어 있어');
   await expect(page.locator(`[data-testid="sync-row"][data-sign="${id}"] [data-testid="sync-action"]`)).toHaveValue('skip');
   await page.getByTestId('sync-confirm').click();
   await expect(page.getByTestId('sync-review')).toHaveCount(0);

@@ -9,7 +9,7 @@ const PT = 72 / 25.4;
 
 /** 아주 작은 가짜 일러스트레이터 DOM — 레이어 안 하위 레이어, 페이지 항목 복제·이동, 내보내기, 파일 읽기 */
 type Rec = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][]; nested?: number[][] }[] } } = {}) {
+function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPng?: boolean; failPdf?: boolean; confirm?: boolean; missing?: string[]; scriptDir?: string; pick?: string | null; files?: Record<string, string>; existing?: { names: string[]; layers?: { name: string; subs?: { name: string; items: number }[]; items?: number[][]; nested?: number[][] }[] } } = {}) {
   const log: string[] = [];
   const written: Record<string, string> = { ...(opts.files ?? {}) };
   const mkItems = (kind: string, layer: Rec) => {
@@ -35,7 +35,8 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
       width: w, height: h, XMPString: '<x:xmpmeta/>', saved: null, fullName: names.length ? { fsName: '/tmp/existing.ai' } : undefined, closed: false,
       artboards: Object.assign(abs, { add(r: number[]) { const a = { artboardRect: r, name: '' }; abs.push(a); return a; }, remove(i: number) { abs.splice(i, 1); }, setActiveArtboardIndex(i: number) { doc.activeAb = i; } }),
       layers: Object.assign(layers, { add() { const l = mkLayer('새 레이어'); layers.unshift(l); return l; } }),
-      saveAs(f: { fsName: string }, o: { pdfCompatible: boolean }) { doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
+      saves: [] as Rec[],
+      saveAs(f: { fsName: string }, o: Rec) { if (opts.failPdf && o.kind === 'pdf') throw new Error('PDF 못 씀'); doc.saves.push({ file: f.fsName, ...o }); if (o.kind !== 'pdf') doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
       save() { doc.saved = { file: 'same', pdf: true }; },
       exports: [] as Rec[],
       exportFile(f: { fsName: string }, type: string, o: Rec) { if (opts.failPng && type === 'PNG24') throw new Error('MRAP'); doc.coordAtExport = ctx.app.coordinateSystem; written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; doc.exports.push({ type, o, active: doc.activeAb, visible: doc.layers.filter((l: Rec) => l.visible).map((l: Rec) => l.name) }); },
@@ -60,6 +61,7 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
     app: { startupPresetsList: ['Print', 'Web'], coordinateSystem: 'artboard', documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0] },
     DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, DocumentPreset: function (this: Rec) { this.units = null; }, RulerUnits: { Millimeters: 'mm', Points: 'pt' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc', ARTBOARDCOORDINATESYSTEM: 'artboard' },
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
+    PDFSaveOptions: function (this: Rec) { this.kind = 'pdf'; this.acrobatLayers = false; this.preserveEditability = false; }, PDFCompatibility: { ACROBAT7: 'acrobat7' },
     ExportOptionsSVG: function (this: Rec) { this.fontType = null; }, ExportOptionsPNG24: function (this: Rec) { this.transparency = false; },
     ExportType: { SVG: 'SVG', PNG24: 'PNG24' }, SVGFontType: { OUTLINEFONT: 'outline' }, SaveOptions: { DONOTSAVECHANGES: 'no' }, ElementPlacement: { PLACEATEND: 'end', PLACEATBEGINNING: 'begin' },
     ExternalObject: function () {}, XMPMeta, File: FakeFile, Folder: { temp: { fsName: '/tmp' }, selectDialog: (m: string) => { log.push('pick:' + m); return opts.pick ? { fsName: opts.pick } : null; } }, $: { fileName: (opts.scriptDir ?? '/tmp/pkg') + '/ganpanda.jsx' },
@@ -77,7 +79,6 @@ function fakeIllustrator(opts: { choose?: 'import' | 'export' | 'cancel'; failPn
   ctx.ExternalObject.AdobeXMPScript = undefined;
   return { ctx, docs, log, written };
 }
-const b64 = (s: string) => Buffer.from(s, 'latin1').toString('base64');
 
 describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11-06 정의)', () => {
   // 사용자: "일러스트 스크립트는 크기별로 대지를 생성하고 레이어를 생성한다. 받은이미지(최종이미지), 디자인(일러스트에서 작성된 이미지), path(3d 변환용)"
@@ -85,7 +86,7 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
     { id: 'a1', no: 1, name: '정면 간판', x: 1000, y: 500, w: 3000, h: 600, image: 'images/a1.png' },
     { id: 'b2', no: 2, name: '돌출', x: 4500, y: 700, w: 600, h: 900, image: 'images/b2.png' },
   ] });
-  it('사인물마다 크기대로 대지("프로젝트명 #번호" — 2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게") — 레이어는 아래부터 받은 이미지(잠금, 최종 이미지) · 디자인 · path, XMP, PDF 호환 .ai', () => {
+  it('사인물마다 크기대로 대지("프로젝트명 #번호" — 2026-11-06 "대지 #id로 추적하고 프로젝트명+숫자 간단하게") — 레이어는 아래부터 받은 이미지(잠금, 최종 이미지) · 디자인, XMP, PDF 호환 .ai', () => {
     const f = fakeIllustrator();
     vm.runInNewContext(jsxWithData(TEMPLATE, pkg), f.ctx);
     const doc = f.docs[0];
@@ -93,7 +94,7 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
     const [r0, r1] = doc.artboards.map((a: Rec) => a.artboardRect);
     expect(r0[0]).toBeCloseTo(0, 6); expect(r0[1]).toBeCloseTo(0, 6); expect(r0[2]).toBeCloseTo(3000 * PT, 4); expect(r0[3]).toBeCloseTo(-600 * PT, 4);
     expect(r1[0]).toBeCloseTo(3500 * PT, 4); expect(r1[1]).toBeCloseTo(-200 * PT, 4); expect(r1[2]).toBeCloseTo(4100 * PT, 4); expect(r1[3]).toBeCloseTo(-1100 * PT, 4);
-    expect(doc.layers.map((l: Rec) => l.name)).toEqual(['path', '디자인', '받은 이미지']); // 위 → 아래
+    expect(doc.layers.map((l: Rec) => l.name)).toEqual(['디자인', '받은 이미지']); // 위 → 아래 (입체는 디자이너가 "채널"·"스카시" 레이어로 — 2026-11-07)
     // 새 문서 단위 = mm (2026-11-07 "일러스트 새문서 치수 단위를 mm으로 설정되게"), 크기는 전체 배치 그대로(pt), RGB
     expect(doc.rulerUnits).toBe('mm');
     expect(doc.colorMode).toBe('RGB');
@@ -105,7 +106,6 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
     expect(recv.placedItems[1].position).toEqual([3500 * PT, -200 * PT].map((v) => expect.closeTo(v, 4)));
     expect(recv.placedItems[1].width).toBeCloseTo(600 * PT, 4);
     expect(doc.layers.find((l: Rec) => l.name === '디자인').pageItems).toHaveLength(0);
-    expect(doc.layers.find((l: Rec) => l.name === 'path').pageItems).toHaveLength(0);
     expect(doc.XMPString).toContain('<ganpanda:artboards>1|2</ganpanda:artboards>');
     expect(doc.saved).toEqual({ file: '/tmp/out.ai', pdf: true });
     expect(f.log.some((l) => l.startsWith('confirm:'))).toBe(false);
@@ -124,73 +124,29 @@ describe('ganpanda.jsx — 간판다 → 일러스트 (대지 만들기, 2026-11
   });
 });
 
-describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정의)', () => {
-  // 사용자: "가져오기는 대지를 기준으로 디자인과 path를 가져오는데 디자인은 대지 이름별로 이미지로 변환해 사인물 카드에 바로 적용한다. path는 대지 이름을 통해 사인물을 찾고 해당 구성물의 path에 사용자가 연결한다"
-  it('대지마다 그 안의 디자인 레이어 = PNG(대지로 자름), path 레이어 = SVG(글자 윤곽선) → .ganpanda. 대지 밖·간판다 대지 아닌 곳은 빠짐', () => {
-    // 대지(가짜): i번째 = [i*100, 0, i*100+90, -90]
-    const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [
-      { name: '받은 이미지', items: [[0, 0, 90, -90], [200, 0, 290, -90]] },
-      { name: '디자인', items: [[10, -10, 50, -50], [60, -5, 80, -40], [110, -10, 150, -50]], nested: [[20, -20, 30, -30]] }, // a1 에 둘(+그룹 안 하나는 그룹째), '대지 3' 에 하나
-      { name: 'path', items: [[205, -10, 250, -60]] }, // b2 에 하나
-    ] } });
+describe('ganpanda.jsx — [내보내기] = 레이어가 살아 있는 PDF 저장 (2026-11-07)', () => {
+  // 사용자: "pdf로 내보내면 어떤가?" → "pdf를 직접 편집가능하다면 굿이 path를 따로 둘 이유가 없고 연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로" → 레이어로 고르기
+  it('대지 번호 XMP → .ai 저장 → 같은 이름 .pdf(Acrobat 레이어·일러스트 편집 유지) → 다시 .ai 로. 대지별 내보내기·임시 문서 없음', () => {
+    const f = fakeIllustrator({ existing: { names: ['매장 #1', '대지 3', '매장 #2'], layers: [{ name: '디자인', items: [[10, -10, 50, -50]] }, { name: '채널', items: [[110, -10, 150, -60]] }] } });
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
     const doc = f.docs[0];
     expect(doc.XMPString).toContain('<ganpanda:artboards>1||2</ganpanda:artboards>');
-    expect(doc.saved).toEqual({ file: '/tmp/existing.ai', pdf: true });
-    const bundle = JSON.parse(f.written['/tmp/existing.ganpanda']);
-    expect(bundle).toMatchObject({ format: 'ganpanda-illustrator-bundle', version: 2 });
-    expect(bundle.items).toEqual([
-      { sign: '1', part: 'design', kind: 'png', data: b64('PNGDATA') },
-      { sign: '2', part: 'path', kind: 'svg', data: b64('SVGDATA') },
-    ]);
-    // 디자인 PNG = 문서 그대로, 디자인 레이어만 보이게 하고 그 대지를 내보낸다 — 다른 문서로 복제하지 않는다 (2026-11-07 일러스트 "알 수 없는 오류")
-    expect(doc.exports).toHaveLength(1);
-    expect(doc.exports[0]).toMatchObject({ type: 'PNG24', active: 0, visible: ['디자인'] });
-    expect(doc.exports[0].o.artBoardClipping).toBe(true);
-    expect(doc.layers.every((l: Rec) => l.visible)).toBe(true); // 보이기 상태는 되돌린다
-    // path SVG = 그 대지 안 path 항목만 임시 문서로 (벡터만)
-    const temps = f.docs.slice(1);
-    expect(temps).toHaveLength(1);
-    expect(temps[0].closed).toBe(true);
-    const svgDoc = temps[0];
-    expect(svgDoc.exported.type).toBe('SVG');
-    expect(svgDoc.layers[0].pageItems).toHaveLength(1);
-    // 좌표 기준 = 문서 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명 — 일러스트 기본 '대지 기준 좌표'에서 옮긴 항목이 대지 밖으로 밀렸다). 끝나면 되돌린다
-    expect(svgDoc.coordAtExport).toBe('doc');
-    expect(doc.exports[0]).toBeTruthy();
-    expect(f.ctx.app.coordinateSystem).toBe('artboard');
-    expect(svgDoc.exported.o.fontType).toBe('outline');
-    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인 1') && l.includes('path 1'))).toBe(true);
-  });
-  it('한 단계가 실패해도 나머지는 계속하고, 실패한 단계·오류를 알림과 로그 파일로 (2026-11-07 일러스트 "알 수 없는 오류")', () => {
-    const f = fakeIllustrator({ failPng: true, existing: { names: ['매장 #1', '매장 #2'], layers: [
-      { name: '디자인', items: [[10, -10, 50, -50]] },
-      { name: 'path', items: [[110, -10, 150, -60]] },
-    ] } });
-    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
-    const doc = f.docs[0];
-    expect(doc.layers.every((l: Rec) => l.visible)).toBe(true); // 실패해도 보이기 되돌림
-    const bundle = JSON.parse(f.written['/tmp/existing.ganpanda']);
-    expect(bundle.items).toEqual([{ sign: '2', part: 'path', kind: 'svg', data: b64('SVGDATA') }]); // path 는 나감
+    expect(doc.saves.map((x: Rec) => [x.file, x.kind ?? 'ai'])).toEqual([['/tmp/existing.ai', 'ai'], ['/tmp/existing.pdf', 'pdf'], ['/tmp/existing.ai', 'ai']]);
+    expect(doc.saves[1]).toMatchObject({ acrobatLayers: true, preserveEditability: true });
+    expect(doc.fullName.fsName).toBe('/tmp/existing.ai'); // 작업 문서는 .ai 그대로
+    expect(f.docs).toHaveLength(1); // 임시 문서 없음
+    expect(doc.exports).toHaveLength(0);
     const alert = f.log.find((l) => l.startsWith('alert:'))!;
-    expect(alert).toContain('#1 디자인');
-    expect(alert).toContain('MRAP');
-    expect(f.written['/tmp/existing.ganpanda-log.txt']).toContain('#1 디자인');
+    expect(alert).toContain('existing.pdf');
+    expect(alert).toContain('채널');
   });
-  it('보낼 것이 없으면 레이어별 항목 수를 알려 원인을 보인다 (2026-11-07 "일러스트에서 내보내기하는데 아무것도 안나왔어")', () => {
-    const f = fakeIllustrator({ existing: { names: ['매장 #1'], layers: [{ name: '디자인', items: [[500, -10, 550, -50]] }, { name: '내 작업', items: [[10, -10, 50, -50]] }] } });
+  it('PDF 저장이 실패하면 단계·오류를 알림과 로그 파일로', () => {
+    const f = fakeIllustrator({ failPdf: true, existing: { names: ['매장 #1'] } });
     vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
     const alert = f.log.find((l) => l.startsWith('alert:'))!;
-    expect(alert).toContain('디자인 레이어 항목 1개');
-    expect(alert).toContain('대지 안 0개');
-    expect(alert).toContain('path 레이어 없음');
-    expect(alert).toContain('내 작업');
-  });
-  it('디자인·path 가 비었으면 묶음을 만들지 않고 알린다', () => {
-    const f = fakeIllustrator({ existing: { names: ['정면 #a1'], layers: [{ name: '디자인' }, { name: 'path' }] } });
-    vm.runInNewContext(jsxWithData(TEMPLATE, illustratorPackage({ project: 'p', cards: [] })), f.ctx);
-    expect(f.written['/tmp/existing.ganpanda']).toBeUndefined();
-    expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인·path'))).toBe(true);
+    expect(alert).toContain('PDF 저장');
+    expect(alert).toContain('PDF 못 씀');
+    expect(f.written['/tmp/existing.ganpanda-log.txt']).toContain('PDF 저장');
   });
 });
 

@@ -2,7 +2,17 @@
 import { sourceKind, type SourceKind } from '../core/design';
 
 /** 변환된 페이지 (PNG) */
-export interface RenderedPage { blob: Blob; w: number; h: number; /** PDF 페이지(= 일러스트 대지) 실제 크기 mm — 일러스트 왕복의 크기 짝맞춤 (2026-11-05) */ mm?: { w: number; h: number } }
+export interface RenderedPage {
+  blob: Blob; w: number; h: number;
+  /** PDF 페이지(= 일러스트 대지) 실제 크기 mm — 일러스트 왕복의 크기 짝맞춤 (2026-11-05) */ mm?: { w: number; h: number };
+  /** PDF 레이어(Acrobat 레이어 = 일러스트 맨 위 레이어)별 벡터 — 입체용 (2026-11-07 "연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로"). svg = 채운 경로(viewBox = 페이지 pt) */
+  layers?: { name: string; paths: number; texts: number; svg: string }[];
+  /** 숨긴 레이어(받은 이미지) 말고 그린 것이 없음 — 디자인으로 넣지 않는다 */
+  blank?: boolean;
+}
+
+/** 디자인 그림에서 끄는 레이어 — 간판다가 보낸 참고 그림 (일러스트 스크립트의 레이어 이름) */
+export const HIDDEN_LAYERS = ['받은 이미지', '간판다 사진'];
 
 /** 긴 변 최대 px (너무 큰 아트보드는 줄여서 저장) */
 export const PAGE_MAX_SIDE = 2048;
@@ -36,9 +46,24 @@ async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: str
   // 문서 XMP — 간판다 일러스트 스크립트가 대지 순서대로 사인물 id 를 적어 둔다(ganpanda:artboards, core/illustrator.ts)
   let xmp: string | undefined;
   try { xmp = (await doc.getMetadata()).metadata?.getRaw() ?? undefined; } catch { xmp = undefined; }
+  // 레이어(OC): 받은 이미지는 끄고 그린다 (2026-11-07)
+  const { pdfLayerVectors, layerSvg } = await import('../core/pdfVectors');
+  let oc: Awaited<ReturnType<typeof doc.getOptionalContentConfig>> | null = null;
+  try { oc = await doc.getOptionalContentConfig(); } catch { oc = null; }
+  const ocNames = new Map<string, string>();
+  if (oc) for (const [id, g] of oc) { ocNames.set(String(id), g.name ?? ''); if (HIDDEN_LAYERS.includes(g.name ?? '')) oc.setVisibility(id, false); }
   const pages: RenderedPage[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
+    let layers: RenderedPage['layers'], blank: boolean | undefined;
+    if (ocNames.size) {
+      const ol = await page.getOperatorList();
+      const view = page.view as [number, number, number, number];
+      const L = pdfLayerVectors(ol.fnArray, ol.argsArray, (id) => ocNames.get(String(id)) ?? null, view);
+      const pw = view[2] - view[0], ph = view[3] - view[1];
+      layers = [...L.values()].filter((l) => l.name && !HIDDEN_LAYERS.includes(l.name)).map((l) => ({ name: l.name, paths: l.paths.length, texts: l.texts, svg: layerSvg(l.paths, pw, ph) }));
+      blank = ![...L.values()].some((l) => !HIDDEN_LAYERS.includes(l.name) && l.marks > 0);
+    }
     const base = page.getViewport({ scale: 1 });
     const scale = Math.min(4, PAGE_MAX_SIDE / Math.max(base.width, base.height));
     const vp = page.getViewport({ scale });
@@ -46,8 +71,8 @@ async function renderPdf(file: File): Promise<{ pages: RenderedPage[]; xmp?: str
     canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); // 투명 배경 → 흰색
-    await page.render({ canvasContext: ctx, viewport: vp, canvas }).promise;
-    pages.push({ blob: await toBlob(canvas), w: canvas.width, h: canvas.height, mm: { w: (base.width * 25.4) / 72, h: (base.height * 25.4) / 72 } });
+    await page.render({ canvasContext: ctx, viewport: vp, canvas, ...(oc ? { optionalContentConfigPromise: Promise.resolve(oc) } : {}) }).promise;
+    pages.push({ blob: await toBlob(canvas), w: canvas.width, h: canvas.height, mm: { w: (base.width * 25.4) / 72, h: (base.height * 25.4) / 72 }, ...(layers ? { layers } : {}), ...(blank !== undefined ? { blank } : {}) });
   }
   await task.destroy();
   return { pages, xmp };

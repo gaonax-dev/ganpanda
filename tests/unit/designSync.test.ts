@@ -65,3 +65,23 @@ describe('planBundle — 일러스트 묶음(.ganpanda) ↔ 사인물 (2026-11-0
     expect(r).toMatchObject({ design: true, parts: ['ch'] });
   });
 });
+
+// PDF 하나로 왕복 (2026-11-07 "연결된 pdf를 통해 path를 추출해 바로 연결 후 3d로" → 레이어로 고르기)
+describe('planArtboards + PDF 레이어 — 대지 페이지의 레이어 벡터를 구성물에', () => {
+  const signs = [{ id: 'a', w: 3000, h: 600, hasDesign: false, parts: [{ id: 'ch', kind: 'channel', label: '전광 채널' }, { id: 'sc', kind: 'scashi', label: '아크릴 스카시' }] }];
+  it('벡터가 있는 레이어만 줄에, 이름으로 구성물을 미리 고름(채널·스카시·구성물 이름), 모르면 안 고름', () => {
+    const rows = planArtboards([{ w: 3000, h: 600 }], ['a'], signs, [{ layers: [
+      { name: '디자인', paths: 3, texts: 0 }, { name: '채널', paths: 2, texts: 0 }, { name: '아크릴 스카시', paths: 1, texts: 0 }, { name: '로고', paths: 4, texts: 0 }, { name: '빈 레이어', paths: 0, texts: 0 },
+    ] }]);
+    const r = rows.find((x) => x.signId === 'a')!;
+    expect(r.layers!.map((l) => l.name)).toEqual(['디자인', '채널', '아크릴 스카시', '로고']);
+    expect(r.layerParts).toEqual({ 디자인: '', 채널: 'ch', '아크릴 스카시': 'sc', 로고: '' });
+    expect(r.pathParts).toEqual(['ch', 'sc']);
+  });
+  it('윤곽선이 아닌 글자만 있는 레이어도 줄에(안내용), 빈 페이지면 디자인을 넣지 않음', () => {
+    const r = planArtboards([{ w: 3000, h: 600 }], ['a'], signs, [{ blank: true, layers: [{ name: '채널', paths: 0, texts: 5 }] }]).find((x) => x.signId === 'a')!;
+    expect(r.layers).toEqual([{ name: '채널', paths: 0, texts: 5 }]);
+    expect(r.designBlank).toBe(true);
+    expect(r.action).toBe('skip'); // 넣을 것이 없다
+  });
+});
