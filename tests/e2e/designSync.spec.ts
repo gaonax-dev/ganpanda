@@ -55,3 +55,18 @@ test('받기: 파일을 고르면 창에 받는 중 표시, 끝나면 창이 닫
   await expect(page.getByTestId('sync-review')).toBeVisible();
   await expect(page.getByTestId('design-sync-dialog')).toHaveCount(0);
 });
+
+test('빈(투명) 디자인을 받으면 검토에 경고하고 넣지 않는다 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명)', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const id = await page.evaluate(() => { const g = (window as any).__ganpanda; return g.project.addObject({ photoId: g.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], widthMm: 3000, heightMm: 600 }); });
+  const blank = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 40; c.height = 8; return c.toDataURL('image/png').split(',')[1]; }); // 아무것도 안 그린 = 투명
+  await openDesignSync(page, 'illustrator');
+  await page.getByTestId('sync-receive-input').setInputFiles({ name: 'a.ganpanda', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ format: 'ganpanda-illustrator-bundle', version: 2, items: [{ sign: id, part: 'design', kind: 'png', data: blank }] })) });
+  await expect(page.getByTestId('sync-review')).toBeVisible();
+  await expect(page.locator(`[data-testid="sync-blank"][data-sign="${id}"]`)).toContainText('빈(투명)');
+  await expect(page.locator(`[data-testid="sync-row"][data-sign="${id}"] [data-testid="sync-action"]`)).toHaveValue('skip');
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('sync-review')).toHaveCount(0);
+  expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).design ?? null, id)).toBeNull();
+});

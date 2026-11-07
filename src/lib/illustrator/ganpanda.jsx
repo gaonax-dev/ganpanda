@@ -139,7 +139,16 @@
 
   // ---------- 간판다로 보내기 ----------
   // 단계마다 따로 — 하나가 실패해도 나머지는 계속하고, 실패한 단계와 오류를 알림·로그 파일(같은 이름-log.txt)로 (2026-11-07)
+  /**
+   * 좌표 기준을 문서로 고정하고 보낸 뒤 되돌린다 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명했다 — 일러스트 기본 '대지 기준 좌표'에서는
+   * 대지 사각형·항목 위치가 지금 대지 기준이라, 임시 문서로 옮긴 항목이 대지 밖으로 밀려 잘린 그림이 비었다)
+   */
   function sendBack(doc) {
+    var prev = null;
+    try { prev = app.coordinateSystem; app.coordinateSystem = CoordinateSystem.DOCUMENTCOORDINATESYSTEM; } catch (e) {}
+    try { sendBackIn(doc); } finally { try { if (prev !== null) app.coordinateSystem = prev; } catch (e) {} }
+  }
+  function sendBackIn(doc) {
     var ids = [], n = 0, i, fails = [];
     function step(name, fn) { try { return fn(); } catch (e) { fails.push(name + ': ' + (e && e.message ? e.message : e) + (e && e.line ? ' (줄 ' + e.line + ')' : '')); return null; } }
     for (i = 0; i < doc.artboards.length; i++) { var id = idOf(doc.artboards[i].name); ids.push(id || ''); if (id) n++; }

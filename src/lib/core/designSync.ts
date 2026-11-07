@@ -23,6 +23,8 @@ export interface SyncRow {
   w?: number; h?: number;
   /** 묶음: 디자인(대지 이미지) 있음 */
   design?: boolean;
+  /** 묶음: 받은 디자인이 빈(투명) 이미지라 넣지 않음 */
+  designBlank?: boolean;
   /** 묶음: path(입체용 벡터) 있음 — pathPart = 연결할 구성물 id('' = 아직 안 고름), pathParts = 고를 수 있는 입체 구성 요소 */
   path?: boolean; pathPart?: string; pathParts?: string[];
   /** 예전 묶음: 구성 요소 id 로 온 것 */
@@ -73,18 +75,20 @@ export function planArtboards(pages: { w: number; h: number }[], ids: (string | 
  * 사인물(대지 이름의 #id)별 한 줄 — design = 바탕 디자인으로 입힘, path = 고른 구성물(pathPart, 입체 구성 요소 하나면 그것)의 벡터.
  * 간판다에 없는 사인물은 새로 생김(건너뛰기만), 묶음에 없는 사인물은 누락. 예전 묶음(frame = 디자인, 구성 요소 id = 그 구성 요소)도 읽는다
  */
-export function planBundle(items: { sign: string; part: string }[], signs: { id: string; hasDesign: boolean; pathParts: string[]; parts?: string[] }[]): SyncRow[] {
+export function planBundle(items: { sign: string; part: string; blank?: boolean }[], signs: { id: string; hasDesign: boolean; pathParts: string[]; parts?: string[] }[]): SyncRow[] {
   const known = new Map(signs.map((s) => [s.id, s]));
   const bySign = new Map<string, string[]>();
-  for (const it of items) bySign.set(it.sign, [...(bySign.get(it.sign) ?? []), it.part]);
+  for (const it of items) bySign.set(it.sign, [...(bySign.get(it.sign) ?? []), it.blank ? 'design:blank' : it.part]);
   const rows: SyncRow[] = [];
   for (const [id, got] of bySign) {
     const s = known.get(id);
     if (!s) { rows.push(row({ key: `b${id}`, status: 'new', signId: id, actions: ['skip'] })); continue; }
     const design = got.includes('design') || got.includes('frame'), path = got.includes('path');
-    const legacy = got.filter((p) => p !== 'design' && p !== 'frame' && p !== 'path' && (s.parts ?? s.pathParts).includes(p));
-    if (!design && !path && !legacy.length) continue;
-    rows.push(row({ key: `b${id}`, status: design && s.hasDesign ? 'update' : 'link', signId: id, design, path, ...(path ? { pathParts: s.pathParts, pathPart: s.pathParts.length === 1 ? s.pathParts[0] : '' } : {}), ...(legacy.length ? { parts: legacy } : {}) }));
+    // 빈(투명) 디자인 — 넣지 않고 알린다 (2026-11-07 핀볼: 일러스트 좌표 문제로 받은 디자인이 모두 투명이었다)
+    const designBlank = !design && got.includes('design:blank');
+    const legacy = got.filter((p) => p !== 'design' && p !== 'frame' && p !== 'path' && p !== 'design:blank' && (s.parts ?? s.pathParts).includes(p));
+    if (!design && !path && !legacy.length && !designBlank) continue;
+    rows.push(row({ key: `b${id}`, status: design && s.hasDesign ? 'update' : 'link', signId: id, design, path, ...(designBlank ? { designBlank } : {}), ...(!design && !path && !legacy.length ? { action: 'skip' as const } : {}), ...(path ? { pathParts: s.pathParts, pathPart: s.pathParts.length === 1 ? s.pathParts[0] : '' } : {}), ...(legacy.length ? { parts: legacy } : {}) }));
   }
   for (const s of signs) if (!bySign.has(s.id)) rows.push(row({ key: `m${s.id}`, status: 'missing', signId: s.id }));
   return rows;

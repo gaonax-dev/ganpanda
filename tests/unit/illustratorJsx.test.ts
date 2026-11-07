@@ -38,7 +38,7 @@ function fakeIllustrator(opts: { failPng?: boolean; confirm?: boolean; missing?:
       saveAs(f: { fsName: string }, o: { pdfCompatible: boolean }) { doc.saved = { file: f.fsName, pdf: o.pdfCompatible }; doc.fullName = f; },
       save() { doc.saved = { file: 'same', pdf: true }; },
       exports: [] as Rec[],
-      exportFile(f: { fsName: string }, type: string, o: Rec) { if (opts.failPng && type === 'PNG24') throw new Error('MRAP'); written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; doc.exports.push({ type, o, active: doc.activeAb, visible: doc.layers.filter((l: Rec) => l.visible).map((l: Rec) => l.name) }); },
+      exportFile(f: { fsName: string }, type: string, o: Rec) { if (opts.failPng && type === 'PNG24') throw new Error('MRAP'); doc.coordAtExport = ctx.app.coordinateSystem; written[f.fsName] = type === 'SVG' ? 'SVGDATA' : 'PNGDATA'; doc.exported = { type, o }; doc.exports.push({ type, o, active: doc.activeAb, visible: doc.layers.filter((l: Rec) => l.visible).map((l: Rec) => l.name) }); },
       close() { doc.closed = true; }, activate() {},
     };
     return doc;
@@ -56,8 +56,8 @@ function fakeIllustrator(opts: { failPng?: boolean; confirm?: boolean; missing?:
   class FakeFile { fsName: string; encoding = ''; constructor(p: string) { this.fsName = p; } get exists() { return !(opts.missing ?? []).includes(this.fsName) && (!this.fsName.endsWith('.json') || this.fsName in written); } get parent() { return { fsName: this.fsName.replace(/\/[^/]*$/, '') }; } open() { return true; } write(s: string) { written[this.fsName] = (written[this.fsName] ?? '') + s; } read() { return written[this.fsName] ?? ''; } close() {} remove() {} static saveDialog() { return new FakeFile('/tmp/out.ai'); } }
   class XMPMeta { props: Record<string, string> = {}; constructor(_s: string) {} static registerNamespace() {} setProperty(_ns: string, k: string, v: string) { this.props[k] = v; } serialize() { const [k, v] = Object.entries(this.props)[0]; return `<x:xmpmeta><ganpanda:${k}>${v}</ganpanda:${k}></x:xmpmeta>`; } }
   const ctx: Rec = {
-    app: { startupPresetsList: ['Print', 'Web'], documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0], coordinateSystem: null },
-    DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, DocumentPreset: function (this: Rec) { this.units = null; }, RulerUnits: { Millimeters: 'mm', Points: 'pt' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc' },
+    app: { startupPresetsList: ['Print', 'Web'], coordinateSystem: 'artboard', documents: Object.assign(docs, { add(_cs: unknown, w: number, h: number) { const d = mkDoc(w, h); docs.push(d); ctx.app.activeDocument = d; return d; }, addDocument(startup: string, p: Rec) { const d = mkDoc(p.width, p.height); d.rulerUnits = p.units; d.colorMode = p.colorMode; d.startup = startup; docs.push(d); ctx.app.activeDocument = d; return d; } }), activeDocument: docs[0] },
+    DocumentColorSpace: { RGB: 'RGB', CMYK: 'CMYK' }, DocumentPreset: function (this: Rec) { this.units = null; }, RulerUnits: { Millimeters: 'mm', Points: 'pt' }, CoordinateSystem: { DOCUMENTCOORDINATESYSTEM: 'doc', ARTBOARDCOORDINATESYSTEM: 'artboard' },
     IllustratorSaveOptions: function (this: Rec) { this.pdfCompatible = false; },
     ExportOptionsSVG: function (this: Rec) { this.fontType = null; }, ExportOptionsPNG24: function (this: Rec) { this.transparency = false; },
     ExportType: { SVG: 'SVG', PNG24: 'PNG24' }, SVGFontType: { OUTLINEFONT: 'outline' }, SaveOptions: { DONOTSAVECHANGES: 'no' }, ElementPlacement: { PLACEATEND: 'end', PLACEATBEGINNING: 'begin' },
@@ -146,6 +146,10 @@ describe('ganpanda.jsx — 일러스트 → 간판다 (보내기, 2026-11-06 정
     const svgDoc = temps[0];
     expect(svgDoc.exported.type).toBe('SVG');
     expect(svgDoc.layers[0].pageItems).toHaveLength(1);
+    // 좌표 기준 = 문서 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명 — 일러스트 기본 '대지 기준 좌표'에서 옮긴 항목이 대지 밖으로 밀렸다). 끝나면 되돌린다
+    expect(svgDoc.coordAtExport).toBe('doc');
+    expect(doc.exports[0]).toBeTruthy();
+    expect(f.ctx.app.coordinateSystem).toBe('artboard');
     expect(svgDoc.exported.o.fontType).toBe('outline');
     expect(f.log.some((l) => l.startsWith('alert:') && l.includes('디자인 1') && l.includes('path 1'))).toBe(true);
   });

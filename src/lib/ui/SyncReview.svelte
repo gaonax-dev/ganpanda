@@ -41,6 +41,9 @@
           </select>
         {:else}<span class="fixed">{SYNC_ACTION_LABEL[row.action]}</span>{/if}
       </li>
+      {#if row.designBlank}
+        <li class="sub warn" data-testid="sync-blank" data-sign={row.signId}>⚠ 받은 디자인이 빈(투명) 이미지라 넣지 않습니다 — 일러스트에서 대지 안 "디자인" 레이어 내용을 확인하고 새 스크립트로 다시 보내 주세요.</li>
+      {/if}
       {#if row.path && row.action === 'apply'}
         <li class="sub" data-testid="sync-path-row" data-sign={row.signId}>
           <span class="arrow">path →</span>
@@ -77,6 +80,7 @@
   .fixed { color: var(--muted); font-size: 12px; }
   .empty { color: var(--muted); }
   li.sub { padding-left: 22px; justify-content: flex-end; }
+  li.warn { color: #fb923c; font-size: 12px; line-height: 1.4; justify-content: flex-start; }
   .arrow { flex: 1; color: var(--muted); font-size: 12px; }
   .tip { color: var(--muted); line-height: 1.4; font-size: 11px; }
   footer { display: flex; justify-content: flex-end; gap: 8px; }

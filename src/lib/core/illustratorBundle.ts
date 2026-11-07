@@ -7,7 +7,7 @@ export const BUNDLE_FORMAT = 'ganpanda-illustrator-bundle';
 export const BUNDLE_EXT = '.ganpanda';
 export const FRAME_PART = 'frame';
 
-export interface BundleItem { sign: string; part: string; kind: 'svg' | 'png'; /** base64 */ data: string }
+export interface BundleItem { sign: string; part: string; kind: 'svg' | 'png'; /** base64 */ data: string; /** 받을 때 표시: 빈(투명) 그림 (2026-11-07) */ blank?: boolean }
 export interface Bundle { format: typeof BUNDLE_FORMAT; version: number; items: BundleItem[] }
 
 export const isBundleName = (name: string) => name.toLowerCase().endsWith(BUNDLE_EXT);

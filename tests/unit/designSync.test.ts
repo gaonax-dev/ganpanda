@@ -52,6 +52,11 @@ describe('planBundle — 일러스트 묶음(.ganpanda) ↔ 사인물 (2026-11-0
     expect(rows.find((r) => r.signId === 'x')).toMatchObject({ status: 'new', action: 'skip', actions: ['skip'] });
     expect(rows.find((r) => r.signId === 'c')).toMatchObject({ status: 'missing', action: 'keep' });
   });
+  it('빈(투명) 디자인은 넣지 않고 표시 — path 가 없으면 줄 기본 처리는 건너뛰기 (2026-11-07 핀볼: 받은 디자인 PNG 가 모두 투명)', () => {
+    const rows = planBundle([{ sign: 'a', part: 'design', blank: true }, { sign: 'b', part: 'design', blank: true }, { sign: 'b', part: 'path' }], signs);
+    expect(rows.find((r) => r.signId === 'a')).toMatchObject({ design: false, designBlank: true, action: 'skip', status: 'link' });
+    expect(rows.find((r) => r.signId === 'b')).toMatchObject({ design: false, designBlank: true, path: true, action: 'apply' });
+  });
   it('디자인이 있던 사인물에 새 디자인 = 바뀜', () => {
     expect(planBundle([{ sign: 'b', part: 'design' }], signs)[0]).toMatchObject({ status: 'update', action: 'apply', design: true, path: false });
   });

@@ -1135,6 +1135,9 @@ class AppState {
     const b = parseBundle(await file.text());
     if (!b) { this.notice = '간판다 일러스트 묶음(.ganpanda) 파일이 아닙니다.'; return; }
     b.items = b.items.map((it) => ({ ...it, sign: artRef(it.sign, this.signs) ?? it.sign })); // 대지 번호 → 사인물 id
+    // 빈(투명) 디자인은 넣지 않는다 (2026-11-07 핀볼)
+    const { isBlankImage } = await import('./render/blankImage');
+    for (const it of b.items) if ((it.part === 'design' || it.part === FRAME_PART) && it.kind === 'png' && (await isBlankImage(new Blob([Uint8Array.from(atob(it.data), (c) => c.charCodeAt(0))], { type: 'image/png' })))) it.blank = true;
     // path 를 받을 수 있는 구성물 = 밀어내는(입체) 구성 요소 — 채널·스카시 (2026-11-06 "path는 … 해당 구성물의 path에 사용자가 연결한다")
     const signs = this.syncSigns().map((o) => { const parts = partsOfSign(o); return { id: o.id, parts: parts.map((p) => p.id), pathParts: parts.filter((p) => componentOf(p.kind).extrude).map((p) => p.id), hasDesign: !!o.design }; });
     this.syncReview = { kind: 'bundle', fileName: file.name, bundle: b.items, rows: planBundle(b.items, signs) };
@@ -1198,6 +1201,7 @@ class AppState {
       const asItem = (assetId: string, label: string, svg: boolean) => ({ ...newItem('image'), image: { assetId, name: label }, ...(svg ? { vector: true } : {}), x: 0, y: 0, w: size.w, h: size.h });
       for (const it of its) {
         const toPart = it.part === 'path' ? row.pathPart : it.part !== 'design' && it.part !== FRAME_PART ? it.part : undefined;
+        if (it.blank) continue; // 빈(투명) 디자인
         const isDesign = it.part === 'design' || it.part === FRAME_PART;
         if (!isDesign && !(toPart && parts.some((p) => p.id === toPart))) continue; // path 는 구성물을 골라야 넣는다
         const bytes = bytesOf(it.data);
