@@ -8,7 +8,7 @@ export const PDF_OPS = {
   showText: 44, showSpacedText: 45, nextLineShowText: 46, nextLineSetSpacingShowText: 47,
   beginMarkedContent: 69, beginMarkedContentProps: 70, endMarkedContent: 71, paintFormXObjectBegin: 74, paintFormXObjectEnd: 75,
   paintImageMaskXObject: 83, paintImageMaskXObjectGroup: 84, paintImageXObject: 85, paintInlineImageXObject: 86, paintInlineImageXObjectGroup: 87, paintImageXObjectRepeat: 88, paintImageMaskXObjectRepeat: 89, paintSolidColorImageMask: 90,
-  constructPath: 91,
+  constructPath: 91, setFillRGBColor: 59,
 } as const;
 /** pdf.js DrawOPS (경로 데이터 안의 명령) */
 const DRAW = { moveTo: 0, lineTo: 1, curveTo: 2, quadraticCurveTo: 3, closePath: 4 };
@@ -23,7 +23,7 @@ const IMAGES = new Set<number>([O.paintImageMaskXObject, O.paintImageMaskXObject
 export interface LayerVectors {
   name: string;
   /** 채운 경로 (페이지 좌표, 위 → 아래, pt) */
-  paths: { d: string; evenOdd: boolean }[];
+  paths: { d: string; evenOdd: boolean; /** 원본 채움색 #rrggbb (2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨") */ fill?: string }[];
   /** 그린 것 수(채움·선·그림·글자) — 0 이면 빈 레이어 */
   marks: number;
   /** 윤곽선이 아닌 글자 수 — 입체가 안 되므로 "윤곽선 만들기" 안내 */
@@ -42,7 +42,9 @@ export function pdfLayerVectors(fnArray: ArrayLike<number>, argsArray: ArrayLike
   const out = new Map<string, LayerVectors>();
   const layer = (name: string) => { let l = out.get(name); if (!l) out.set(name, (l = { name, paths: [], marks: 0, texts: 0 })); return l; };
   let ctm: M = [1, 0, 0, 1, 0, 0];
-  const stack: M[] = [];
+  // 채움색 — pdf.js 는 회색·CMYK 도 setFillRGBColor(#rrggbb)로 바꿔 준다. 패턴(그러데이션)은 앞 색 그대로
+  let fill = '#000000';
+  const stack: { ctm: M; fill: string }[] = [];
   const marked: (string | null)[] = [];
   const current = () => { for (let i = marked.length - 1; i >= 0; i--) if (marked[i] !== null) return marked[i]!; return ''; };
   const [x0, , , y1] = view;
@@ -50,11 +52,12 @@ export function pdfLayerVectors(fnArray: ArrayLike<number>, argsArray: ArrayLike
   for (let i = 0; i < fnArray.length; i++) {
     const fn = fnArray[i], a = (argsArray[i] ?? []) as unknown[];
     switch (fn) {
-      case O.save: stack.push(ctm); break;
-      case O.restore: ctm = stack.pop() ?? ctm; break;
+      case O.save: stack.push({ ctm, fill }); break;
+      case O.restore: { const s = stack.pop(); if (s) { ctm = s.ctm; fill = s.fill; } break; }
+      case O.setFillRGBColor: if (typeof a[0] === 'string') fill = a[0] as string; break;
       case O.transform: ctm = mul(ctm, a as unknown as M); break;
-      case O.paintFormXObjectBegin: stack.push(ctm); if (Array.isArray(a[0]) || ArrayBuffer.isView(a[0])) ctm = mul(ctm, Array.from(a[0] as ArrayLike<number>) as M); break;
-      case O.paintFormXObjectEnd: ctm = stack.pop() ?? ctm; break;
+      case O.paintFormXObjectBegin: stack.push({ ctm, fill }); if (Array.isArray(a[0]) || ArrayBuffer.isView(a[0])) ctm = mul(ctm, Array.from(a[0] as ArrayLike<number>) as M); break;
+      case O.paintFormXObjectEnd: { const s = stack.pop(); if (s) { ctm = s.ctm; fill = s.fill; } break; }
       case O.beginMarkedContent: marked.push(null); break;
       // OC 속성 = pdf.js 6 은 {type: 'OCG', id: '5R'} — id 로
       case O.beginMarkedContentProps: { const p = a[1] as { id?: unknown } | string | null; marked.push(a[0] === 'OC' ? ocName(p && typeof p === 'object' && 'id' in p ? p.id : p) ?? null : null); break; }
@@ -77,7 +80,7 @@ export function pdfLayerVectors(fnArray: ArrayLike<number>, argsArray: ArrayLike
           else if (c === DRAW.closePath) d += 'Z';
           else break; // 모르는 명령
         }
-        if (d) L.paths.push({ d, evenOdd: EVENODD.has(op) });
+        if (d) L.paths.push({ d, evenOdd: EVENODD.has(op), fill });
         break;
       }
       default:
@@ -89,8 +92,8 @@ export function pdfLayerVectors(fnArray: ArrayLike<number>, argsArray: ArrayLike
 }
 
 /** 레이어 벡터 → SVG (viewBox = 페이지 pt) — 3D 벡터 그림(core/vectorShapes svgShapes)이 읽는다 */
-export function layerSvg(paths: { d: string; evenOdd: boolean }[], w: number, h: number): string {
+export function layerSvg(paths: { d: string; evenOdd: boolean; fill?: string }[], w: number, h: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n(w)} ${n(h)}" width="${n(w)}" height="${n(h)}">`
-    + paths.map((p) => `<path d="${p.d}" fill="#000"${p.evenOdd ? ' fill-rule="evenodd"' : ''}/>`).join('')
+    + paths.map((p) => `<path d="${p.d}" fill="${/^#[0-9a-f]{3,8}$/i.test(p.fill ?? '') ? p.fill : '#000'}"${p.evenOdd ? ' fill-rule="evenodd"' : ''}/>`).join('')
     + '</svg>';
 }

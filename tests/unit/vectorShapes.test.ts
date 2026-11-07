@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // 일러스트 패스 → 입체 윤곽 (2026-11-05 사용자: "일러스트 패스로 입체 사인물이 가능한가?" → "내가 디자이너야 사인물에 각각의 디자인이 연결되어야해 … 일러스트 레이어를 생성하고 이걸 내보내서 자동으로 간판다에서 보여질 수 있게")
 import { describe, expect, it } from 'vitest';
-import { svgShapes } from '../../src/lib/core/vectorShapes';
+import { shapeColor, svgShapes } from '../../src/lib/core/vectorShapes';
 
 // 대지 = 300×100pt, 안에 사각형(10,10 ~ 110,90)과 구멍 있는 'O'(원 안에 원) — 일러스트 SVG 내보내기 모양
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100" width="300" height="100">
@@ -29,3 +29,14 @@ describe('svgShapes — SVG(대지 크기) → 사인물 상자 mm 의 윤곽 (�
     expect(svgShapes('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0,0 L10,10" stroke="#000" fill="none"/></svg>', { w: 1, h: 1 })).toEqual([]);
   });
 });
+
+// 2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨"
+describe('svgShapes — 채움색을 윤곽에 (3D 앞면 = 원본 색)', () => {
+  it('채움을 적은 패스는 userData.color(#rrggbb), 안 적은 패스는 없음', () => {
+    const shapes = svgShapes(SVG, { w: 3000, h: 1000 });
+    expect(shapes.map((s) => shapeColor(s)).sort()).toEqual(['#0000ff', '#ee0000']);
+    const plain = svgShapes('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0,0L10,0L10,10Z"/></svg>', { w: 10, h: 10 });
+    expect(shapeColor(plain[0])).toBeUndefined();
+  });
+});
+

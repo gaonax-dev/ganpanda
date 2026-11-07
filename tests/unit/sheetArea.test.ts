@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasFrost, withSheetAreas } from '../../src/lib/core/sheetArea';
+import { hasFrost, hasPartsToDraw, withSheetAreas } from '../../src/lib/core/sheetArea';
 import { renderSpecOf } from '../../src/lib/core/render';
 import type { SignObject, SignPart } from '../../src/lib/core/model';
 
@@ -84,5 +84,22 @@ describe('2D: 안개 시트 반투명', () => {
     const laid = layoutParts(o([{ id: 'f', kind: 'sheet', type: 'sh-frost', on: 'frame', items: [] }]), 2100, 2100, 210, 210);
     expect(laid[0].opacity).toBe(0);
     expect(partsSvg(laid, () => undefined)).toContain('fill-opacity="0.00"');
+  });
+});
+
+// 2026-11-07 사용자: "시트는 디자인을 따르지 않는다" (핀볼: 큰시트·폴딩시트에 디자인을 받았는데 시트 색 면이 덮었다)
+describe('디자인이 있으면 바탕 위 전체 면 시트는 디자인이 그 면', () => {
+  const sheet = (on: string): SignPart => ({ id: 'sh', kind: 'sheet', type: 'sh-cut', on, options: { sheetSystem: '기본색', sheetCode: '검정' }, items: [] });
+  const withDesign = (parts: SignPart[]) => ({ ...o(parts), design: { sourceId: 's', page: 0, crop: { x: 0, y: 0, w: 10, h: 10 } } } as SignObject);
+  it('바탕(frame) 위 빈 시트는 시트 색 사각형을 넣지 않는다 — 2D·3D 모두 디자인이 보인다', () => {
+    const [p] = withSheetAreas(withDesign([sheet('frame')]));
+    expect(p.items).toEqual([]);
+    expect(hasPartsToDraw(withDesign([sheet('frame')]))).toBe(false);
+    expect(renderSpecOf(withDesign([sheet('frame')]), { cx: 0, cy: 0, w: 2100, h: 2100 })?.faceItems ?? []).toEqual([]);
+  });
+  it('디자인이 없으면 그대로 시트 색, 구성 요소 위 시트는 디자인이 있어도 그 자리만', () => {
+    expect(withSheetAreas(o([sheet('frame')]))[0].items).toHaveLength(1);
+    const ps = withSheetAreas(withDesign([{ id: 'ch', kind: 'channel', type: 'ch-front', items: [{ id: 't', kind: 'text', text: 'AB', x: 0, y: 0, h: 200 }] }, sheet('ch')]));
+    expect(ps[1].items).toHaveLength(1);
   });
 });

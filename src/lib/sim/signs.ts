@@ -6,6 +6,7 @@ import { insidePoints, spacedPoints } from './bulbs';
 import type { Font } from 'opentype.js';
 import type { Measured, SignSpec } from './types';
 import { shapesToPath2D, textToShapes } from '../core/textShapes';
+import { shapeColor } from '../core/vectorShapes';
 import { solveHomography } from '../core/homography';
 
 /** 후광 채널의 벽 이격(스페이서) 거리 */
@@ -265,19 +266,33 @@ function bakeOffset(group: THREE.Group, x: number, y: number, z: number) {
  * 조합형 4단계 (2026-10-16): 글자 객체마다 입체 글자를 정면도 자리에 (상자 앞면 위, 몸통 없음이면 벽 위). 크기는 정한 높이 그대로.
  * 폰트에 없는 글자 등으로 못 만든 객체는 건너뛴다
  */
+/** 벡터 윤곽을 원본 색별로 — 색마다 입체 하나(앞면 = 그 색). 색이 없으면 하나로 묶어 구성 요소 색 (2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨") */
+export function vectorColorGroups(shapes: THREE.Shape[]): { color: string | undefined; shapes: THREE.Shape[] }[] {
+  const out: { color: string | undefined; shapes: THREE.Shape[] }[] = [];
+  for (const s of shapes) {
+    const c = shapeColor(s);
+    const g = out.find((x) => x.color === c);
+    if (g) g.shapes.push(s); else out.push({ color: c, shapes: [s] });
+  }
+  return out;
+}
+
 function withLetterItems(box: BuiltSign, spec: SignSpec, font: Font, vectors?: Record<string, THREE.Shape[]>): BuiltSign {
   const built: BuiltSign[] = [];
   for (const L of spec.letterItems ?? []) {
-    let b: BuiltSign;
-    // 벡터 그림(일러스트 입체 레이어): 윤곽을 못 받았으면 건너뜀
+    // 벡터 그림(일러스트 입체 레이어): 윤곽을 못 받았으면 건너뜀. 원본 색별로 입체 하나씩 — 앞면 = 원본 색 (2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨")
     const vec = L.vectorId ? vectors?.[L.vectorId] : undefined;
     if (L.vectorId && !vec?.length) continue;
-    try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(vec ? { vectorShapes: vec, vectorScale: L.vectorScale } : L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
-    catch { continue; }
-    if (L.partId) b.group.userData.partId = L.partId; // 간판 속성 클로즈업용 (2026-10-31)
-    bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
-    box.group.add(b.group);
-    built.push(b);
+    const groups: { color: string | undefined; shapes?: THREE.Shape[] }[] = vec ? vectorColorGroups(vec) : [{ color: undefined }];
+    for (const g of groups) {
+      let b: BuiltSign;
+      try { b = buildChannel({ ...spec, kind: 'channel', text: L.text, heightMm: L.heightMm, ...(g.shapes ? { vectorShapes: g.shapes, vectorScale: L.vectorScale } : L.widthMm ? { fitBox: { w: L.widthMm, h: L.heightMm } } : {}), depthMm: L.depthMm, lighting: L.lighting, faceColor: g.color ?? L.faceColor, sideColor: L.sideColor, letterSpacing: L.letterSpacing, x: 0, y: 0, finish: L.finish, standoffMm: L.standoffMm, backLit: L.backLit, haloColor: L.haloColor, sideLit: L.sideLit, bulbPitchMm: L.bulbPitchMm }, font); }
+      catch { continue; }
+      if (L.partId) b.group.userData.partId = L.partId; // 간판 속성 클로즈업용 (2026-10-31)
+      bakeOffset(b.group, L.x, L.y, (spec.bodyless ? 0 : spec.depthMm) + (L.z ?? 0)); // z = 깊이 누적 (2단계: 시트 위에 선 채널)
+      box.group.add(b.group);
+      built.push(b);
+    }
   }
   return {
     group: box.group,

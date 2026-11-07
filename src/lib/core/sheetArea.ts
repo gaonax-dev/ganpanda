@@ -13,6 +13,8 @@ export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o), si
   return parts.map((p) => {
     const fill = componentOf(p.kind).areaFill?.(p);
     if (!fill || p.items.length) return p;
+    // 디자인이 있으면 바탕 위 전체 면 시트는 디자인이 그 면 — 시트 색으로 덮지 않는다 (2026-11-07 "시트는 디자인을 따르지 않는다": 핀볼 큰시트·폴딩시트)
+    if (o.design && (!p.on || p.on === 'frame')) return p;
     const host = p.on && p.on !== 'frame' ? parts.find((x) => x.id === p.on) : undefined;
     let box = { x: 0, y: 0, w: W, h: H };
     if (host?.items.length) {
@@ -30,7 +32,7 @@ export function withSheetAreas(o: SignObject, parts: SignPart[] = partsOf(o), si
 /** 사진 위(2D)에 그릴 구성 요소가 있나: 글자·그림이 있는 구성 요소, 또는 면 전체 시트 (옛 시트 sheetIds 포함) */
 export function hasPartsToDraw(o: SignObject): boolean { // 치수는 따지지 않는다 — 그리는 쪽이 추정 치수·그린 자리 크기를 넘긴다
   if (o.parts?.some((p) => p.items.length)) return true;
-  return partsOf(o).some((p) => !p.items.length && !!componentOf(p.kind).areaFill?.(p));
+  return partsOf(o).some((p) => !p.items.length && !!componentOf(p.kind).areaFill?.(p) && !(o.design && (!p.on || p.on === 'frame')));
 }
 
 /** 안개 시트처럼 뒤를 흐리게 하는 면 시트가 있나 (프레임 면 위 — 사인물 외곽선 전체를 블러) */

@@ -51,7 +51,7 @@ export interface PageLayer { name: string; paths: number; texts: number }
 export function defaultLayerPart(layer: string, parts: { id: string; kind: string; label: string }[]): string {
   const byLabel = parts.find((p) => p.label && layer.includes(p.label));
   if (byLabel) return byLabel.id;
-  for (const [word, kind] of [['채널', 'channel'], ['스카시', 'scashi']] as const) if (layer.includes(word)) return parts.find((p) => p.kind === kind)?.id ?? '';
+  for (const [word, kind] of [['채널', 'channel'], ['체널', 'channel'], ['스카시', 'scashi']] as const) if (layer.includes(word)) return parts.find((p) => p.kind === kind)?.id ?? '';
   return '';
 }
 export function planArtboards(pages: { w: number; h: number }[], ids: (string | null)[] | null, signs: { id: string; w: number; h: number; hasDesign: boolean; parts?: { id: string; kind: string; label: string }[] }[], pageInfo?: ({ layers: PageLayer[]; blank?: boolean } | undefined)[]): SyncRow[] {

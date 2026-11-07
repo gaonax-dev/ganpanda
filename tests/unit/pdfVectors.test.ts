@@ -14,8 +14,8 @@ describe('pdfLayerVectors — 그리기 명령을 따라 레이어(OC)별로 채
     const fn = [O.beginMarkedContentProps, O.constructPath, O.endMarkedContent, O.beginMarkedContentProps, O.constructPath, O.constructPath, O.constructPath, O.endMarkedContent];
     const args = [['OC', 'oc2'], [O.fill, [rect(0, 0, 200, 100)], null], [], ['OC', { type: 'OCG', id: 'oc3' }], [O.eoFill, [rect(10, 20, 30, 40)], null], [O.stroke, [rect(0, 0, 5, 5)], null], [O.endPath, [rect(0, 0, 1, 1)], null], []];
     const L = pdfLayerVectors(fn, args, ocName, view);
-    expect(L.get('디자인')!.paths).toEqual([{ d: 'M0,100L200,100L200,0L0,0Z', evenOdd: false }]);
-    expect(L.get('채널')!.paths).toEqual([{ d: 'M10,80L40,80L40,40L10,40Z', evenOdd: true }]);
+    expect(L.get('디자인')!.paths).toEqual([{ d: 'M0,100L200,100L200,0L0,0Z', evenOdd: false, fill: '#000000' }]);
+    expect(L.get('채널')!.paths).toEqual([{ d: 'M10,80L40,80L40,40L10,40Z', evenOdd: true, fill: '#000000' }]);
     expect(L.get('채널')!.marks).toBe(2); // 채움 + 선
   });
   it('변환(cm)·저장/복원·그룹(Form) 행렬을 적용하고, 곡선도', () => {
@@ -37,11 +37,19 @@ describe('pdfLayerVectors — 그리기 명령을 따라 레이어(OC)별로 채
   });
 });
 
+describe('pdfLayerVectors — 채움색 (2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨")', () => {
+  it('경로마다 그때의 채움색(pdf.js 는 회색·CMYK 도 RGB 로 바꿔 준다), 저장/복원으로 되돌림', () => {
+    const fn = [O.beginMarkedContentProps, PDF_OPS.setFillRGBColor, O.constructPath, O.save, PDF_OPS.setFillRGBColor, O.constructPath, O.restore, O.constructPath, O.endMarkedContent];
+    const args = [['OC', 'oc3'], ['#a01c2e'], [O.fill, [rect(0, 0, 1, 1)], null], [], ['#f4eedc'], [O.fill, [rect(2, 2, 1, 1)], null], [], [O.fill, [rect(4, 4, 1, 1)], null], []];
+    expect(pdfLayerVectors(fn, args, ocName, view).get('채널')!.paths.map((p) => p.fill)).toEqual(['#a01c2e', '#f4eedc', '#a01c2e']);
+  });
+});
+
 describe('layerSvg — 레이어 벡터 → SVG (3D 입체 svgShapes 가 읽는 모양)', () => {
   it('viewBox = 페이지(pt), 채운 경로, 짝홀 규칙', () => {
-    const svg = layerSvg([{ d: 'M0,0L1,0L1,1Z', evenOdd: true }, { d: 'M2,2L3,2L3,3Z', evenOdd: false }], 200, 100);
+    const svg = layerSvg([{ d: 'M0,0L1,0L1,1Z', evenOdd: true, fill: '#a01c2e' }, { d: 'M2,2L3,2L3,3Z', evenOdd: false }], 200, 100);
     expect(svg).toContain('viewBox="0 0 200 100"');
-    expect(svg).toContain('<path d="M0,0L1,0L1,1Z" fill="#000" fill-rule="evenodd"/>');
+    expect(svg).toContain('<path d="M0,0L1,0L1,1Z" fill="#a01c2e" fill-rule="evenodd"/>'); // 원본 색
     expect(svg).toContain('<path d="M2,2L3,2L3,3Z" fill="#000"/>');
   });
 });

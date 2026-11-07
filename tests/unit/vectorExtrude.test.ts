@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import type { SignObject, SignPart } from '../../src/lib/core/model';
 import { renderSpecOf } from '../../src/lib/core/render';
-import { channelGeometry } from '../../src/lib/sim/signs';
+import { channelGeometry, vectorColorGroups } from '../../src/lib/sim/signs';
+import { setShapeColor } from '../../src/lib/core/vectorShapes';
 import { channel, font } from './fixtures';
 
 const vec = { id: 'v', kind: 'image' as const, image: { assetId: 'svg1' }, vector: true, x: 0, y: 0, w: 3000, h: 600 };
@@ -33,3 +34,14 @@ describe('벡터 그림 객체', () => {
     expect(measured.widthMm).toBeCloseTo(2000, 3);
   });
 });
+
+// 2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨"
+describe('vectorColorGroups — 벡터 윤곽을 원본 색별로 (색마다 입체 하나, 앞면 = 그 색)', () => {
+  const sq = (c?: string) => { const s = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1)]); if (c) setShapeColor(s, c); return s; };
+  it('색이 적힌 윤곽은 색별로, 색이 없으면 하나(구성 요소 색)', () => {
+    const g = vectorColorGroups([sq('#a01c2e'), sq('#f4eedc'), sq('#a01c2e')]);
+    expect(g.map((x) => [x.color, x.shapes.length])).toEqual([['#a01c2e', 2], ['#f4eedc', 1]]);
+    expect(vectorColorGroups([sq(), sq()])).toEqual([{ color: undefined, shapes: [expect.anything(), expect.anything()] }]);
+  });
+});
+

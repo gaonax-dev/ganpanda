@@ -55,6 +55,10 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   expect(o.design).toBeTruthy();
   const ch = o.parts.find((p: any) => p.id === 'ch1');
   expect(ch.items).toEqual([expect.objectContaining({ kind: 'image', vector: true, x: 0, y: 0, w: 3000, h: 1500 })]);
+  // 패스 색 = 원본(채널 레이어는 파랑 0 0 1 rg) — 2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨"
+  const svgText = await page.evaluate(async (assetId) => { const ap = '/src/lib/assets.ts'; const { assetUrl } = await import(/* @vite-ignore */ ap); return (await fetch(await assetUrl(assetId))).text(); }, ch.items[0].image.assetId);
+  expect(svgText).toContain('fill="#0000ff"');
+  expect(svgText).not.toContain('fill="#000"');
   // 디자인 그림: 받은 이미지(빨강 전체)는 꺼져 흰 바탕, 디자인(초록)·채널(파랑)은 보인다
   const px = await page.evaluate(async (o) => {
     const g = (window as any).__ganpanda; const src = g.sources.find((s: any) => s.id === o.design.sourceId); const pg = src.pages[o.design.page];

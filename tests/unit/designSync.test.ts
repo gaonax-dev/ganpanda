@@ -1,6 +1,6 @@
 // 디자인 싱크 받기 검토 (2026-11-06 사용자: "받은 다음 사진보드에서 연결상태 확인 후 확정 버튼으로 파일연결 누락이나 새로 생긴 경우 처리방안 필요")
 import { describe, expect, it } from 'vitest';
-import { planArtboards, planBundle, SYNC_ACTIONS } from '../../src/lib/core/designSync';
+import { defaultLayerPart, planArtboards, planBundle, SYNC_ACTIONS } from '../../src/lib/core/designSync';
 
 const signs = [
   { id: 'a', w: 3000, h: 600, hasDesign: false },
@@ -77,6 +77,9 @@ describe('planArtboards + PDF 레이어 — 대지 페이지의 레이어 벡터
     expect(r.layers!.map((l) => l.name)).toEqual(['디자인', '채널', '아크릴 스카시', '로고']);
     expect(r.layerParts).toEqual({ 디자인: '', 채널: 'ch', '아크릴 스카시': 'sc', 로고: '' });
     expect(r.pathParts).toEqual(['ch', 'sc']);
+  });
+  it('"체널"(흔한 오타)도 채널로', () => {
+    expect(defaultLayerPart('체널', [{ id: 'ch', kind: 'channel', label: '전광 채널' }])).toBe('ch');
   });
   it('윤곽선이 아닌 글자만 있는 레이어도 줄에(안내용), 빈 페이지면 디자인을 넣지 않음', () => {
     const r = planArtboards([{ w: 3000, h: 600 }], ['a'], signs, [{ blank: true, layers: [{ name: '채널', paths: 0, texts: 5 }] }]).find((x) => x.signId === 'a')!;
