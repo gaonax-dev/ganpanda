@@ -489,7 +489,9 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
   const spread = haloish ? Math.min(2, Math.max(0.6, (spec.standoffMm ?? HALO_STANDOFF) / HALO_STANDOFF)) : 1;
   const glowColor = new THREE.Color(spec.haloColor ?? spec.faceColor);
   let glow: THREE.Mesh | null = null;
-  if (spec.lighting !== 'none') {
+  // 번짐은 후광(뒤 벽을 밝히는 빛)만 — 전광 캡은 빛이 앞면으로 나와 판에 번지지 않는다: 판 위 번짐은 후광처럼 보여 오해를 샀고, 앞면 뒤·앞에 둔 번짐은 옆면을 덮거나 글자를 흐렸다
+  // (2026-11-09 "프레임에 라이트 글로우가 발생한다. 후광에서는 좋은 효과인데 전광캡의 경우 오해를 일으킬 수 있다" — 앞선 "전광 번짐 높여줘"(같은 날)는 대체됨, 전광은 앞면 채도로 보인다)
+  if (haloish) {
     const pad = spec.heightMm * 0.8;
     const gw = widthMm + pad * 2, gh = spec.heightMm + pad * 2;
     const tex = glowTexture((ctx, s) => {
@@ -498,10 +500,8 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
         (gh / 2 - (v.y - center.y) * k) * s,
       ]);
       ctx.fill(path, 'evenodd');
-    }, gw, gh, '#' + glowColor.getHexString(), haloish ? [spec.heightMm * 0.2 * spread, spec.heightMm * 0.06 * spread] : [spec.heightMm * 0.3, spec.heightMm * 0.12, spec.heightMm * 0.04], haloish ? 1 : 3); // 전광: 넓고 진하게 (2026-11-08)
+    }, gw, gh, '#' + glowColor.getHexString(), [spec.heightMm * 0.2 * spread, spec.heightMm * 0.06 * spread]);
     glow = glowPlane(tex, gw, gh, 0.5);
-    // 전광 번짐은 색을 덮는다(보통 섞기) — 빛을 더하면 밝은 판 위에서 흰+빨강 = 분홍으로 바랬다. 후광은 벽을 밝히는 빛이라 더하기 그대로 (2026-11-08 "전광은 라이팅 글로우 높여줘")
-    if (!haloish) (glow.material as THREE.MeshBasicMaterial).blending = THREE.NormalBlending;
     group.add(glow);
   }
 
@@ -518,7 +518,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
       // 옆면은 일체형(sideLit)만 빛난다 — 그 밖의 채널 옆면은 도장 금속으로 주변 빛만 받는다. 잠깐 넣었던 옆면 제 색 빛(0.18)은 빛나는 면과 구분을 없앴다 (2026-11-09 "체널의 경우 빛이나는 면이 있는데 현재는 구분이 없다")
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 1 : 0; // 전광 색 번짐 1 (후광도 1) (2026-11-08 "전광은 라이팅 글로우 높여줘" — 보통 섞기라 분홍으로 바래지 않는다)
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 1 : 0; // 후광 번짐 (2026-11-08 "전광은 라이팅 글로우 높여줘" — 보통 섞기라 분홍으로 바래지 않는다)
     },
     dispose() {
       geo.dispose(); side.dispose(); face.dispose();
