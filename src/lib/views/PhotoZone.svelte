@@ -914,7 +914,7 @@
           stroke-width={2 * u}
           role="button"
           tabindex="-1"
-          pointer-events={tool === 'magic' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'}
+          pointer-events={tool === 'magic' || tool === 'pin' || tool === 'block' || tool === 'mask' ? 'none' : 'auto'} /* 마스크 도구: 사인물 위에서 시작해도 그린다 (2026-11-08 "마스크 누르고 그릴때 사인물 위로 가면 선택이 된다") */
           onpointerdown={(e) => shapeDown(e, o, 'move')}
         />
         <!-- 정보 글자(이름·치수)는 보드 밖 화면 층(views/BoardLabels.svelte) — 맥 앱(WebKit)에서 확대하면 보드 층 글자가 뭉개졌다 (2026-11-04) -->

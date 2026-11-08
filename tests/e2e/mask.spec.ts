@@ -205,3 +205,15 @@ test('고른 마스크는 사인물 외곽선보다 위: 겹친 자리를 눌러
   await clickPhoto(page, 300, 250);
   expect((await sel()).sign).not.toBeNull();
 });
+
+// 2026-11-08 사용자: "마스크 누르고 그릴때 사인물 위로 가면 선택이 된다"
+test('마스크 도구로 사인물 위에서 끌기 시작해도 사인물이 골라지지 않고 마스크가 그려진다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[200, 200], [1400, 200], [1400, 600], [200, 600]], sheetIds: [] }); a.selectObject(null); });
+  await page.keyboard.press('z');
+  await dragOnPhoto(page, [500, 300], [900, 800]); // 사인물 안에서 시작
+  await expect(page.getByTestId('mask-shape')).toHaveCount(1);
+  expect(await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string | null } }).__ganpanda.selectedId)).toBeNull();
+  expect((await page.evaluate(() => (window as unknown as G).__ganpanda.photos[0].masks![0].pts))[0]).toEqual([500, 300]);
+});
