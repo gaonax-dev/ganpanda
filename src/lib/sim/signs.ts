@@ -62,6 +62,15 @@ function glowTexture(
   return tex;
 }
 
+/**
+ * 발광 앞면의 빛 색 = 같은 색상을 가장 밝게 (가장 큰 채널을 1 로). 어두운 금색 글자가 제 색 그대로 빛나 흐릿했다 → 밝은 금색으로 빛난다
+ * (2026-11-08 "전광은 잘 안보이고")
+ */
+function litColor(c: THREE.Color): THREE.Color {
+  const m = Math.max(c.r, c.g, c.b);
+  return m > 0.001 ? new THREE.Color(c.r / m, c.g / m, c.b / m) : new THREE.Color(1, 1, 1);
+}
+
 /** 둥근 사각형 경로 (r = 0 이면 사각, 짧은 변의 반이면 알약·원) */
 function roundedRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   const k = Math.min(r, w / 2, h / 2);
@@ -95,7 +104,7 @@ export function recessBox(group: THREE.Group, depthMm: number) {
     const m = obj as THREE.Mesh;
     if (!m.isMesh || done.has(m.geometry)) return;
     // 벽 번짐(glow)은 벽(상자 뒤, -두께)으로 — 앞면 자리(z=0)에 남겨 두면 앞면 위에 더해져 야간에 앞면·디자인이 하얗게 씻겼다 (2026-11-08 "야간 상태확인하고 쉐이딩 라이팅 조절")
-    if (m.userData.part === 'glow') { m.position.z -= depthMm; return; }
+    if (m.userData.part === 'glow') { if (!m.userData.rim) m.position.z -= depthMm; return; } // 앞면 둘레 번짐(rim)은 앞면에 붙어 있다
     done.add(m.geometry);
     m.geometry.translate(0, 0, -depthMm);
   });
@@ -373,7 +382,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     spec.bulbPitchMm // 벌브: 앞면은 도장, 빛은 전구가
       ? new THREE.MeshStandardMaterial({ color: led, metalness: 0.3, roughness: 0.55 })
       : spec.lighting === 'front'
-      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
+      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: litColor(led), roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
         ? new THREE.MeshStandardMaterial({ color: spec.sideColor, ...(spec.finish ? metal : { metalness: 0.7, roughness: 0.45 }) })
         : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.7, clearcoat: 0.05 });
@@ -435,7 +444,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     group,
     measured,
     setNight(night) {
-      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 1.2 : 0.12; // 1.7 → 1.2 (2026-11-08 초저녁)
+      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 2 : 0.12; // 전광 앞면: 빨강 전광이 1.2~1.3 에선 검붉고 3 은 분홍으로 바랬다 → 2, 빛 색은 litColor (2026-11-08 "전광은 잘 안보이고")
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
       else if (side instanceof THREE.MeshStandardMaterial) { side.emissive.set(spec.sideColor); side.emissiveIntensity = night ? 0.18 : 0; } // 채널 옆면도 까맣지 않게 (2026-11-08)
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
@@ -610,7 +619,10 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     const gw = w + pad * 2, gh = h + pad * 2;
     const r = Math.max(0, Math.min(0.5, spec.corner ?? 0)) * Math.min(w, h); // 둥근 사각·원은 그 모양으로 번진다 (전엔 늘 사각)
     const gt = glowTexture((c, sc) => { roundedRectPath(c, pad * sc, pad * sc, w * sc, h * sc, r * sc); c.fill(); }, gw, gh, spec.faceColor, [pad * 0.4, pad * 0.12]);
-    glow = glowPlane(gt, gw, gh, 0.5);
+    // 앞면 바로 뒤(1mm) — 앞면이 가운데를 가리고 둘레로만 번진다: 돌출(벽에서 튀어나온) 간판도 앞면 테두리에서 빛난다 (2026-11-08 "돌출의 라이팅림이 뒤에서만 나와").
+    // 벽에 두면 돌출은 뒤 벽에서만 빛났고, 앞면 위(z=0.5)에 두면 앞면이 하얗게 씻겼다
+    glow = glowPlane(gt, gw, gh, -1);
+    glow.userData.rim = true;
     group.add(glow);
   }
 
