@@ -516,7 +516,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
         if (face instanceof THREE.MeshPhysicalMaterial) { face.clearcoat = night ? 0 : 0.05; face.envMapIntensity = night ? 0 : 1; face.specularIntensity = night ? 0 : 1; } // 흰 반사광(분홍기)을 빼고 제 빛만
       }
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
-      else if (side instanceof THREE.MeshStandardMaterial) { side.emissive.set(spec.sideColor); side.emissiveIntensity = night ? 0.18 : 0; } // 채널 옆면도 까맣지 않게 (2026-11-08)
+      // 옆면은 일체형(sideLit)만 빛난다 — 그 밖의 채널 옆면은 도장 금속으로 주변 빛만 받는다. 잠깐 넣었던 옆면 제 색 빛(0.18)은 빛나는 면과 구분을 없앴다 (2026-11-09 "체널의 경우 빛이나는 면이 있는데 현재는 구분이 없다")
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 1 : 0; // 전광 색 번짐 1 (후광도 1) (2026-11-08 "전광은 라이팅 글로우 높여줘" — 보통 섞기라 분홍으로 바래지 않는다)
     },
