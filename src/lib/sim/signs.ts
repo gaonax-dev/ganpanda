@@ -44,6 +44,19 @@ function glowTexture(
     draw(ctx, s);
     ctx.restore();
   }
+  // 가장자리로 갈수록 0 — 번짐이 판보다 넓어도 판 끝에서 딱 끊기지 않게 (2026-11-08 측면간판 채널 번짐이 세로선으로 잘림)
+  ctx.globalCompositeOperation = 'destination-out';
+  const fx = canvas.width * 0.14, fy = canvas.height * 0.14;
+  const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
+  };
+  edge(0, 0, fx, 0, 0, 0, fx, canvas.height);
+  edge(canvas.width, 0, canvas.width - fx, 0, canvas.width - fx, 0, fx, canvas.height);
+  edge(0, 0, 0, fy, 0, 0, canvas.width, fy);
+  edge(0, canvas.height, 0, canvas.height - fy, 0, canvas.height - fy, canvas.width, fy);
+  ctx.globalCompositeOperation = 'source-over';
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -424,6 +437,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     setNight(night) {
       if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 1.2 : 0.12; // 1.7 → 1.2 (2026-11-08 초저녁)
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
+      else if (side instanceof THREE.MeshStandardMaterial) { side.emissive.set(spec.sideColor); side.emissiveIntensity = night ? 0.18 : 0; } // 채널 옆면도 까맣지 않게 (2026-11-08)
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.4) : 0;
     },
@@ -605,6 +619,8 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     measured: { widthMm: w, heightMm: h, charCount: [...text].filter((c) => c.trim()).length },
     setNight(night) {
       front.emissiveIntensity = night ? 0.6 : 0.1; // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
+      // 옆면(테)은 금속이라 초저녁의 약한 주변 빛을 거의 못 받아 까맣게 보였다 → 제 색을 조금 (앞면 빛·주변 불빛 대신, 2026-11-08 돌출 원형)
+      frame.emissive.set(spec.sideColor); frame.emissiveIntensity = night ? 0.15 : 0;
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.35 : 0;
     },
     dispose() {
