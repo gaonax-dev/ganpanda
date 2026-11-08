@@ -4,13 +4,12 @@
      사인물 이름·치수(외곽선 왼쪽 위 꼭짓점 바로 위), 존 이름(첫 꼭짓점 위), 블록 치수(가운데). 화면 밖은 그리지 않는다 -->
 <script lang="ts">
   import { app } from '../state.svelte';
-  import { zonesOf } from '../core/zone';
   import type { Pt } from '../core/homography';
 
   let { viewport, screenW, screenH }: { viewport: { x: number; y: number; zoom: number }; screenW: number; screenH: number } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
   const M = 300; // 화면 밖 여유 (px)
-  type Label = { hide?: boolean; key: string; kind: 'sign' | 'zone' | 'block'; x: number; y: number; id?: string; index?: number; o?: (typeof app.objects)[number]; text?: string; need?: boolean; fit?: boolean; bad?: boolean };
+  type Label = { hide?: boolean; key: string; kind: 'sign' | 'block'; x: number; y: number; id?: string; index?: number; o?: (typeof app.objects)[number]; text?: string; need?: boolean; fit?: boolean; bad?: boolean };
   const labels = $derived.by((): Label[] => {
     if (app.stage === '3d') return []; // 3D 합성 위에는 정보 글자 없음 (전과 같게)
     const out: Label[] = [];
@@ -21,7 +20,6 @@
       const at = (q: Pt) => ({ x: (p.x + q[0] * s) * z + viewport.x, y: (p.y + q[1] * s) * z + viewport.y });
       const inView = (a: { x: number; y: number }) => a.x > -M && a.x < screenW + M && a.y > -M && a.y < screenH + M;
       const hideInfo = !!app.photoHide[p.id]?.info;
-      zonesOf(p).forEach((zone, zi, all) => { const a = at(zone[0]); if (inView(a) || hide) out.push({ hide, key: `z${p.id}${zi}`, kind: 'zone', ...a, text: `작업 존${all.length > 1 ? ` ${zi + 1}` : ''}` }); });
       for (const o of app.objects) {
         if (o.photoId !== p.id || !o.quad.length) continue;
         const sel = app.selectionKind !== 'card' && o.id === app.selectedId, multi = !sel && app.photoHighlightIds.includes(o.id);
@@ -52,8 +50,6 @@
       {@const m = app.measures.get(o.id)}
       {@const warn = app.warnMeasure && (m?.warnings.length ?? 0) > 0}
       <span class="hl sl" class:hide={l.hide} data-testid="sign-label" data-id={o.id} style:left="{l.x}px" style:top="{l.y}px">{#if warn}<b data-testid="sign-warning-icon" class="w">⚠ </b>{/if}{#if app.unread[o.sameAs ?? o.id]}<b data-testid="sign-unread" class="u">💬 {app.unread[o.sameAs ?? o.id]} </b>{/if}{#if o.sameAs}<b data-testid="sign-linked" class="l">⇄ </b>{/if}{o.name}{#if o.widthMm && o.heightMm} · {fmt(o.widthMm)}×{fmt(o.heightMm)}{:else if m?.estimate} · ≈{fmt(m.estimate.widthMm)}×{fmt(m.estimate.heightMm)}{/if}</span>
-    {:else if l.kind === 'zone'}
-      <span class="hl zl" class:hide={l.hide} data-testid="zone-label" style:left="{l.x}px" style:top="{l.y}px">{l.text}</span>
     {:else}
       <span class="hl bl" class:hide={l.hide} class:need={l.need} class:fit={l.fit} class:bad={l.bad} data-testid="block-size" data-index={l.index} data-mismatch={l.bad ? '1' : undefined} style:left="{l.x}px" style:top="{l.y}px">{l.text}</span>
     {/if}
@@ -66,7 +62,6 @@
   .hl.hide { display: none; }
   .hl b { font-weight: inherit; }
   .hl .w { color: var(--warn); } .hl .u { color: var(--accent); } .hl .l { color: var(--blue); }
-  .hl.zl { color: #7ef0a0; transform: translateY(calc(-100% - 8px)); }
   .hl.bl { color: #39ff14; transform: translate(-50%, -50%); }
   .hl.bl.need { color: #ef4444; } .hl.bl.fit { color: #a855f7; } .hl.bl.bad { color: #fb923c; }
 </style>

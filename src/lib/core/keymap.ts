@@ -3,7 +3,7 @@
 
 export type Action =
   | 'zoomIn' | 'zoomOut' | 'zoomFit' | 'panHold'
-  | 'toolSelect' | 'toolRect' | 'toolEllipse' | 'toolPin' | 'toolMagic' | 'toolZone'
+  | 'toolSelect' | 'toolRect' | 'toolEllipse' | 'toolPin' | 'toolMagic' | 'toolMask'
   | 'gizmoMove' | 'gizmoRotate' | 'gizmoScale'
   | 'deleteSelection' | 'undo' | 'redo' | 'copy' | 'paste' | 'duplicate';
 
@@ -29,7 +29,7 @@ export const ACTIONS: { id: Action; label: string; group: '화면' | '도구' | 
   { id: 'toolEllipse', label: '원형 영역', group: '도구' },
   { id: 'toolPin', label: '위치 번호 (말풍선 숫자)', group: '도구' },
   { id: 'toolMagic', label: '자동 분리 (AI)', group: '도구' },
-  { id: 'toolZone', label: '작업 존', group: '도구' },
+  { id: 'toolMask', label: '앞가림 마스크', group: '도구' }, // 작업 존(Z)은 2026-11-08 폐지 — 같은 키
   { id: 'gizmoMove', label: '매니퓰레이터: 기본 (면 직각 막대)', group: '도구' },
   { id: 'gizmoRotate', label: '매니퓰레이터: 회전', group: '도구' },
   { id: 'gizmoScale', label: '매니퓰레이터: 크기', group: '도구' },
@@ -54,7 +54,7 @@ export const DEFAULT_KEYMAP: Keymap = {
   toolEllipse: ['O'],
   toolPin: ['P'],
   toolMagic: ['A'],
-  toolZone: ['Z'],
+  toolMask: ['Z'],
   gizmoMove: ['W'],
   gizmoRotate: ['E'],
   gizmoScale: ['R'],

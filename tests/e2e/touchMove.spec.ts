@@ -60,20 +60,20 @@ test('보드 카드도: 안 고른 카드를 끌면 그대로, 탭 → 손 뗌 �
   await expect.poll(placed).toBeGreaterThan(x0 + 1);
 });
 
-test('존: 손가락으로 끌면 존이 골라지지 않고 화면이 움직인다, 탭하면 골라진다 (2026-10-24 "터치 드래그에 존이 선택된다")', async ({ page, request }) => {
+test('마스크: 손가락으로 끌면 마스크가 골라지지 않고 화면이 움직인다, 탭하면 골라진다 (2026-10-24 존 규칙 그대로 — 존은 2026-11-08 마스크로)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; addZone(p: string, z: number[][]): void } }).__ganpanda; a.addZone(a.photos[0].id, [[300, 300], [1200, 300], [1200, 800], [300, 800]]); (a as unknown as { selectZone(z: null): void }).selectZone(null); }); // 만들면 골라지므로 비우고 시작
-  const zone = page.getByTestId('zone-shape').first();
-  const zsel = () => page.evaluate(() => (window as unknown as { __ganpanda: { zoneSel: unknown } }).__ganpanda.zoneSel);
-  const b = (await zone.boundingBox())!;
+  await page.evaluate(() => { const a = (window as unknown as { __ganpanda: { photos: { id: string }[]; addMask(p: string, m: unknown): void; selectMask(z: null): void } }).__ganpanda; a.addMask(a.photos[0].id, { pts: [[300, 300], [1200, 300], [1200, 800], [300, 800]] }); a.selectMask(null); }); // 만들면 골라지므로 비우고 시작
+  const mask = page.getByTestId('mask-shape').first();
+  const msel = () => page.evaluate(() => (window as unknown as { __ganpanda: { maskSel: unknown } }).__ganpanda.maskSel);
+  const b = (await mask.boundingBox())!;
   const c = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   await drag(page, c, 60);
-  expect(await zsel()).toBeNull();
-  expect((await zone.boundingBox())!.x - b.x).toBeGreaterThan(40);
-  const b2 = (await zone.boundingBox())!;
+  expect(await msel()).toBeNull();
+  expect((await mask.boundingBox())!.x - b.x).toBeGreaterThan(40);
+  const b2 = (await mask.boundingBox())!;
   const c2 = { x: b2.x + b2.width / 2, y: b2.y + b2.height / 2 };
   await touch(page, 'pointerdown', c2.x, c2.y);
   await touch(page, 'pointerup', c2.x, c2.y);
-  await expect.poll(zsel).not.toBeNull();
+  await expect.poll(msel).not.toBeNull();
 });

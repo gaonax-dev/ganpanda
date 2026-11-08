@@ -23,7 +23,7 @@
 | 마스크 → 다각형 | `src/lib/core/mask.ts`: 가장 큰 연결 조각의 바깥 윤곽을 픽셀 모서리 좌표로 따라간 뒤 Douglas–Peucker 단순화(허용 오차 1.5px) |
 | 메인 스레드 | `src/lib/segment/segmenter.ts`(모델 로드·임베딩·분리 요청), `state.svelte.ts`(`prepareSegment`, `segmentAt`, `createFromSegment`) |
 
-## 작업 존과 함께 (2026-10-13, 사용자 요청 "AI가 효과적으로 작업하기 위한 것")
+## ~~작업 존과 함께~~ (2026-10-13 — **대체됨 2026-11-08**: 작업 존 폐지, AI 는 사진 전체를 분석. `segmenter.embed` 의 범위·자르기 옵션(`region`·`clip`)은 남아 있지만 쓰지 않는다 → [photo-board.md](photo-board.md#경로-편집--앞가림-마스크-2026-11-08--작업-존은-폐지))
 - 사진에 작업 존이 있으면 **존마다 외곽 사각형(+16px 여유)만 잘라서** 따로 분석합니다(`zoneBounds`, 키 `photoId#번호`). 마우스가 들어간 존(`zoneIndexAt`)의 분석 결과를 씁니다. SAM 은 입력을 긴 변 1024px 로 줄이므로 벽면만 넣으면 해상도가 그 영역에 집중돼 작은 간판 자리도 더 정확히 잡힙니다.
 - 분리 결과는 존 다각형 래스터(`rasterizePolygon`, 스캔라인)와 AND 해 **존 안으로만** 남깁니다(`clipMask`). 존 밖에 마우스를 올리면 미리보기가 없습니다.
 - 존을 바꾸면 그 사진의 존 분석을 모두 버리고 다시 합니다(`embeddedZone` 키 비교 → `segmenter.forget`).
@@ -38,7 +38,7 @@
 - 임베딩은 워커 메모리에만 있고 저장하지 않습니다(새로고침하면 다시 분석).
 
 ## 관련 테스트
-- `tests/unit/mask.test.ts`, `tests/unit/zoneMask.test.ts`, `server/test/models.test.ts`, `tests/e2e/magic.spec.ts`(실제 추론 2건: 전체 사진 / 존 제한, 최대 3분)
+- `tests/unit/mask.test.ts`, `tests/unit/zoneMask.test.ts`, `server/test/models.test.ts`, `tests/e2e/magic.spec.ts`(실제 추론: 전체 사진 — 존 제한 시험은 2026-11-08 존 폐지로 없앰; 옛 표기: 전체 사진 / 존 제한, 최대 3분)
 
 ## 남은 일
 - WebGPU 백엔드(지원 브라우저에서 수 배 빠름), 임베딩 캐시(IndexedDB), 클릭 여러 점으로 윤곽 보정

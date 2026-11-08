@@ -97,13 +97,18 @@
 - ~~3단계: 벽에서 돌려 세우기~~ (UI 대체됨 2026-10-15 → 박스 매니퓰레이터, 저장된 `turn` 은 읽음)(2026-10-15 사용자: "3단계도 진행해줘", 원근 설정(카메라)이 있는 사진만): 한쪽 변(경첩)을 벽에 붙인 채 수직축으로 0~90° 돌립니다(90° = 돌출 간판 직각). 매니퓰레이터의 **초록 손잡이**(`gizmo-turn`)를 끌면 경첩 높이의 수평면에서 각도가 정해지고(85° 넘으면 90°, 3° 안이면 0°로 붙음), **[⟂ 벽에 직각]**(`gizmo-perp`)은 바로 90°(경첩 = 왼쪽 변). 돌린 사인물은 전용 매니퓰레이터(`data-turn`, `data-hinge`): 빨강·파랑·가운데로 경첩을 벽 위에서 옮기고, 초록으로 각도, **[경첩 바꾸기]**(`gizmo-hinge`), **[벽에 붙이기]**(`gizmo-flat`). 꼭짓점 편집·원근 매니퓰레이터는 숨김. 데이터 `SignObject.turn = {deg, hinge}`(사진마다의 배치, 규격 아님), `quad` 는 그 투영. 계산: `turnedQuad`(3D 꼭짓점 → 카메라 투영), `readTurn`(경첩 변은 벽 위, 먼 변은 돌린 면과 시선의 교점), `turnAngleAt`. 경첩은 실제 꼭짓점에서 시작해 어긋나지 않음; 경첩을 바꿀 때 먼 변은 풀린 카메라로 다시 계산되어 몇 px 차이가 날 수 있음. 3D·렌더링은 외곽선 면 그대로라 직각 사인물이 옆면까지 보임. 실측 추정·축척 보정에서는 벽 위가 아니므로 제외(`measurePhoto`).
 - 테스트: `tests/unit/manipulator.test.ts`(합성 카메라: 왕복·원근 이동·회전·크기·어긋남·맞추기·축 맞춤·자기 면), `tests/e2e/manipulator.spec.ts`(원근 설정 사진에서 X 이동·회전 → 원근 매니퓰레이터 → 맞추기, 비튼 외곽선 맞추기, 원근 없는 사진, 3D 단계에서 고르기·옮기기·다시 그리기).
 
-## 작업 존 (`src/lib/core/zone.ts`, 2026-10-13 사용자 요청)
-- 사진마다 **실제 작업할 벽면 영역**을 다각형으로 표시합니다(`Photo.zones`, 사진 px, 정수. 옛 데이터의 `zone` 하나도 `zonesOf()`로 읽음). 존 밖은 어둡게 처리됩니다.
-- 만들기: 존 도구(Z 또는 ▱ 존) → 사진 위 드래그 → 사각형 존이 **추가**됩니다(사진당 여러 개, 예: 정면 벽 + 옆면 벽). 라벨은 "작업 존 1, 2…".
-- 편집(편집 권한): 존을 선택하면 꼭짓점 핸들(○)과 **변 중간 핸들(□)**이 보입니다. 중간 핸들을 누르면 그 자리에 꼭짓점이 추가되고, 꼭짓점을 눌러 선택한 뒤 **Delete/Backspace**로 지웁니다(3개 미만으로는 줄지 않음). 꼭짓점 선택 없이 존만 선택한 채 Delete 를 누르면 **그 존이 삭제**됩니다. 꼭짓점은 드래그로 이동. 모두 ⌘Z 로 되돌릴 수 있습니다.
-- 고객(viewer)은 존을 보지만 핸들은 없습니다.
-- **목적**: AI 자동 분리가 존 안에만 집중하게 하는 것 → [auto-segment.md](auto-segment.md). 존마다 따로 분석하고, 존을 바꾸면 다시 분석합니다.
-- 다음 단계 후보: 존의 실제 가로·세로(mm)를 넣어 실측 기준으로 쓰기, 5차 실사 합성의 벽면 기준, 다각형 사인물에 같은 꼭짓점 편집 적용.
+## 경로 편집 · 앞가림 마스크 (2026-11-08) — 작업 존은 폐지
+사용자: "존의 작동 원리를 다각형에 적용한다. 존을 폐지하고 존의 작동원리에 베지어곡선 컨트롤러를 추가하고 마스크를 추가한다" → (질문) 마스크 = **앞가림 마스크**, 곡선 = **꼭짓점 두 번 누르기**.
+- **경로 편집**(`core/pathEdit.ts`, `views/PathEdit.svelte`): 닫힌 경로 = 꼭짓점 + 꼭짓점마다 베지어 손잡이(`Curve {in, out}`, 없으면 직선 모서리). 존에서 옮긴 규칙 — 꼭짓점(○) 끌기, **변 가운데 □**를 누르면 꼭짓점 추가(곡선 변은 모양 그대로 둘로 나눔), 꼭짓점을 골라 **Delete/Backspace**(3개 미만으로는 안 줄어듦), ⌘Z. 더한 것 — **꼭짓점 두 번 누르기 = 곡선 손잡이 켜기/끄기**(이웃을 잇는 방향, 변 길이 1/3), 손잡이 끌기 = 반대쪽 대칭, **Alt** = 그쪽만. 두 번 누르기는 같은 자리의 같은 꼭짓점을 350ms 안에(터치도).
+- **다각형 사인물**: 고르면 외곽 사각 손잡이 대신 경로 편집(`poly-vertex`·`poly-mid`·`poly-handle-in/out`, `app.polyVertex` → Delete 는 고른 꼭짓점만 지움). 곡선은 `SignObject.curves`, 점 목록이 필요한 곳(2D 겹침·카드·면적·말풍선 대상·발행 기하)은 `polygonPts(o)` = 펼친 점. 외곽 사각(`quad`)은 윤곽의 바운드 박스(`boundsQuad`). 안쪽을 끌어 통째로 옮기면 윤곽·손잡이도 같은 원근 변환으로 따라간다(`followQuad` — 전에는 다각형이 제자리에 남았다).
+- **앞가림 마스크**(`Photo.masks: Path[]`): 간판 앞의 나무·전봇대·차양을 따라 그리면 **제안·디자인(2D·3D) 화면에서 그 부분은 원래 사진이 사인물 위에** 덮인다.
+  - 그리기·고치기는 **실측 탭**: 하단 [▨ 마스크](`tool-mask`, 단축키 Z — 존 자리) → 사각으로 끌면 마스크가 생기고 선택 도구로 돌아와 바로 경로 편집(`mask-shape`·`mask-vertex`·`mask-mid`). 마스크를 누르면 고르고, 빈 곳을 누르면 풀림, 고른 채 Delete = 마스크 삭제. 휴대폰은 탭으로 고르고 끌면 화면 이동(존과 같음).
+  - 보이기: 보드의 마스크 층(`views/PhotoMasks.svelte`, `photo-masks`) — 사진 칸과 실시간 3D(`live-3d`) 위에 사진을 마스크 모양으로 잘라 덮는다(누르기는 통과). 실측에서는 층 없이 빗금 윤곽만.
+  - 렌더링 PNG(제안 이미지 주간·야간)에도(`render/maskComposite.ts` `withMasks`) — 야간은 뷰어 배경과 같은 어둡기를 곱한다. 사진 크롭·교체 때 마스크도 같은 자리로(`mapPhotoPts`).
+  - 고객(보기 초대)은 편집 없이 덮인 결과만.
+- **작업 존 폐지**: 존 도구·라벨·존 밖 어둡게·AI 존 제한 분석을 없앴다. AI 자동 분리는 사진 전체(→ [auto-segment.md](auto-segment.md)). 옛 데이터의 `zones`·`zone` 은 남아 있어도 쓰지 않는다. ~~작업 존 (2026-10-13)~~ 대체됨.
+- 아직 안 한 것: 사인물 카드(정면도)·평면 배치 카드에는 마스크를 적용하지 않는다(사진 위 화면·렌더링 그림만).
+- 테스트: `tests/unit/pathEdit.test.ts`, `tests/unit/photoEdit.test.ts`, `tests/e2e/mask.spec.ts`(마스크 만들기·꼭짓점·곡선·여러 개·제안 덮기·다각형 편집·렌더링 합성), `tests/e2e/touchMove.spec.ts`
 
 ## 화면 조작과 단축키
 마우스 휠 = 확대·축소, 트랙패드 스크롤 = 이동 등 xlpop과 같은 조작을 씁니다. 단축키(기본 V·R·O, ⌘/Ctrl + = − 0, 스페이스)는 설정에서 바꿀 수 있습니다. → [shortcuts.md](shortcuts.md)
@@ -128,7 +133,7 @@
 - `src/lib/core/perspective.ts` (`quadFromDrag`, `ellipseInQuad`)
 
 ## 관련 테스트
-- `tests/e2e/board.spec.ts`, `tests/e2e/objectPanel.spec.ts`, `tests/unit/category.test.ts`, `tests/e2e/zone.spec.ts`, `tests/unit/zone.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
+- `tests/e2e/board.spec.ts`, `tests/e2e/objectPanel.spec.ts`, `tests/unit/category.test.ts`, `tests/e2e/mask.spec.ts`, `tests/unit/pathEdit.test.ts`, `tests/e2e/undo.spec.ts`, `tests/unit/perspective.test.ts`, `tests/unit/viewport.test.ts`, `tests/unit/history.test.ts`
 
 ## 휴대폰 폭 (≤ 720px, 2026-10-14)
 사용자: "핀치줌 안되는거 해결… 텍스트도 자리가 넘치거나 모자란데 단축어로 표시".

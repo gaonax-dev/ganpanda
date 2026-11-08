@@ -6,7 +6,8 @@
   import type { Pt } from '../core/homography';
   import type { Photo, Pin, SignObject, ShapeKind } from '../core/model';
   import { colorFor } from '../core/presence';
-  import { midpoints, zonesOf } from '../core/zone';
+  import { followQuad, flattenPath, pathD, type Path } from '../core/pathEdit';
+  import PathEdit from './PathEdit.svelte';
   import { AXIS_COLOR, REF_COLOR, pairAxes, refLineOf, solveCamera } from '../core/camera';
   import { BLOCK_COLOR, BLOCK_FIT_COLOR, blockGrid, blockIdOf, type PhotoBlock } from '../core/blocks';
   import type { MeasureResult } from '../core/measure';
@@ -39,7 +40,7 @@
     onpick, moving = false,
     pins = [], selectedPinId = null, oncreatepin, onselectpin, onpinpatch, onbubble, onpinmoveend,
     segmentState, hoverPolygon = null, onmagicenter, onmagichover, onmagicleave, onmagicclick,
-    zoneSel, oncreatezone, onselectzone, onmovezonevertex, onzonemoveend, onaddzonevertex,
+    maskSel, oncreatemask, onselectmask, onmaskchange, onmaskdragend, polyVertex = null, onpolyvertex, onpolygon, onpolydragend,
     overlay, twoD = true, onduplicate, calib, onbox, gizmoPx = 48,
     clip = null, screenRect = null, portal = null, toPhoto, oncreate, onblock, onselect, onchat, onquad, onmove, ondelete, onreplace, onadjust, onrender, oncamera, oncameraauto, cameraBusy = false, cameraSet = false, threeD = 'none', showWarnings = false,
   }: {
@@ -60,14 +61,18 @@
     onmagichover?: (x: number, y: number) => void;
     onmagicleave?: () => void;
     onmagicclick?: () => void;
-    /** 작업 존 선택: undefined = 없음, { zone, vertex(null = 존만) } */
-    zoneSel?: { zone: number; vertex: number | null };
-    oncreatezone?: (zone: Pt[]) => void;
-    /** zone = null 이면 선택 해제 */
-    onselectzone?: (zone: number | null, vertex: number | null) => void;
-    onmovezonevertex?: (zone: number, index: number, p: Pt) => void;
-    onzonemoveend?: () => void;
-    onaddzonevertex?: (zone: number, edge: number, p: Pt) => void;
+    /** 앞가림 마스크 선택 (2026-11-08): undefined = 없음, { index, vertex(null = 마스크만) } */
+    maskSel?: { index: number; vertex: number | null };
+    oncreatemask?: (pts: Pt[]) => void;
+    /** index = null 이면 선택 해제 */
+    onselectmask?: (index: number | null, vertex: number | null) => void;
+    onmaskchange?: (index: number, m: Path, boundary: boolean) => void;
+    onmaskdragend?: () => void;
+    /** 고른 다각형 사인물의 고른 꼭짓점 */
+    polyVertex?: number | null;
+    onpolyvertex?: (i: number | null) => void;
+    onpolygon?: (id: string, m: Path, boundary: boolean) => void;
+    onpolydragend?: () => void;
     /** false = 보기 전용 (영역 이동·모서리·사진 이동·삭제 불가) */
     editable?: boolean;
     /** 사인물별 안 읽은 메시지 수 */
@@ -186,7 +191,7 @@
   const flatMax = $derived(flatMaxFor(phone, flatEnough(photo.width * zoom, worldH * zoom, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)));
   const flatMode = $derived(flatMax !== null);
   const scaled = (pts: Pt[]) => pts.map((p) => [p[0] * scale, p[1] * scale] as Pt);
-  const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, o.polygon ? scaled(o.polygon) : undefined, o.corner));
+  const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, polyOf(o) ? scaled(polyOf(o)!) : undefined, o.corner));
   /** 입힌 디자인 층 — 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) */
   // 2D 탭은 디자인 적용 전 임시 설정 — 디자인을 뗀 사본으로 그린다, 디자인 탭만 디자인 (2026-11-07 "2d, 3d는 디자인이 적용되기 전의 임시 설정")
   const drawObjs = $derived(app.designView ? objects : objects.map(withoutDesign));
@@ -443,44 +448,33 @@
 
 
   // ---- 작업 존 (여러 개) ----
-  const zones = $derived(zonesOf(photo));
-  let zoneDraft: { start: Pt; end: Pt } | null = $state(null);
-  let zoneDrag: { zone: number; index: number; moved: boolean } | null = null;
-  function zoneDown(e: PointerEvent, zi: number) {
+  // ---- 앞가림 마스크 (2026-11-08, 폐지한 작업 존 자리): 실측 탭에서 [마스크] 도구로 사각을 끌어 만들고, 고르면 꼭짓점·곡선 편집(PathEdit) ----
+  const masks = $derived(photo.masks ?? []);
+  /** 마스크 편집은 실측 단계에서만 — 제안·디자인에서는 보드의 마스크 층(PhotoMasks)이 사진을 앞에 덮는다 */
+  const maskUi = $derived(app.stage === 'original');
+  let maskDraft: { start: Pt; end: Pt } | null = $state(null);
+  function maskDown(e: PointerEvent, mi: number) {
     if (e.button !== 0) return;
-    // 터치: 존은 탭으로만 고른다 — 끌면 화면 이동 (2026-10-24 "터치 드래그에 존이 선택된다")
-    if (e.pointerType === 'touch' && tool === 'select') { signTouch.add(e); panThrough(e); app.whenTap(e, () => onselectzone?.(zi, null)); return; }
+    if (e.pointerType === 'touch' && tool === 'select') { signTouch.add(e); panThrough(e); app.whenTap(e, () => onselectmask?.(mi, null)); return; }
     e.stopPropagation();
-    if (tool === 'zone' && editable) { // 존 도구로 존 위를 눌러도 새로 그린다
+    if (tool === 'mask' && editable) { // 마스크 도구로 마스크 위를 눌러도 새로 그린다
       const p = clamp(toPhoto(e.clientX, e.clientY));
-      zoneDraft = { start: p, end: p };
+      maskDraft = { start: p, end: p };
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       return;
     }
-    onselectzone?.(zi, null);
+    onselectmask?.(mi, null);
   }
-  function zoneVertexDown(e: PointerEvent, zi: number, i: number) {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    onselectzone?.(zi, i);
-    if (!editable) return;
-    zoneDrag = { zone: zi, index: i, moved: false };
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  const toPhotoIn = (cx: number, cy: number) => clamp(toPhoto(cx, cy));
+  /** 다각형 사인물 윤곽(곡선 포함) — 통째로 끄는 동안은 외곽 사각을 따라간다 */
+  function polyPathOf(o: SignObject): Path | undefined {
+    if (o.shape !== 'polygon' || !o.polygon?.length) return undefined;
+    const base: Path = { pts: o.polygon, curves: o.curves };
+    if (editing?.id !== o.id || editing.quad === o.quad || editing.quad.length !== 4) return base;
+    const f = followQuad(o, o.quad, editing.quad);
+    return { pts: f.polygon!, curves: f.curves };
   }
-  function zoneVertexMove(e: PointerEvent) {
-    if (!zoneDrag) return;
-    zoneDrag.moved = true;
-    const [x, y] = clamp(toPhoto(e.clientX, e.clientY));
-    onmovezonevertex?.(zoneDrag.zone, zoneDrag.index, [Math.round(x), Math.round(y)]);
-  }
-  function zoneVertexUp() { if (zoneDrag?.moved) onzonemoveend?.(); zoneDrag = null; }
-  function zoneMidDown(e: PointerEvent, zi: number, edge: number, p: Pt) {
-    if (e.button !== 0 || !editable) return;
-    e.stopPropagation();
-    onaddzonevertex?.(zi, edge, [Math.round(p[0]), Math.round(p[1])]);
-  }
-  /** 존 밖을 어둡게: 사진 전체 사각형 + 존 구멍들 (evenodd) */
-  const dimPath = $derived(zones.length ? `M0 0H${photo.w}V${photo.h}H0Z ` + zones.map((z) => `M${z.map((p) => p.join(' ')).join(' L')}Z`).join(' ') : '');
+  const polyOf = (o: SignObject): Pt[] | undefined => { const p = polyPathOf(o); return p ? flattenPath(p) : undefined; };
 
   let magicTimer = 0;
   function magicMove(e: PointerEvent) {
@@ -496,11 +490,11 @@
   const signTouch = new WeakSet<Event>();
   function bgDown(e: PointerEvent) {
     if (e.button !== 0 || signTouch.has(e)) return;
-    if (tool === 'zone') {
+    if (tool === 'mask') {
       if (!editable) return;
       e.stopPropagation();
       const p = clamp(toPhoto(e.clientX, e.clientY));
-      zoneDraft = { start: p, end: p };
+      maskDraft = { start: p, end: p };
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       return;
     }
@@ -534,7 +528,7 @@
   }
 
   function move(e: PointerEvent) {
-    if (zoneDraft) { zoneDraft = { ...zoneDraft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
+    if (maskDraft) { maskDraft = { ...maskDraft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
@@ -570,13 +564,13 @@
   }
 
   /** 두 번째 손가락이 닿거나(두 손가락 화면 조작이 먼저 — 2026-10-20) 브라우저가 취소하면: 진행 중인 편집을 저장하지 않고 되돌린다 */
-  function cancelEdit() { editing = null; draft = null; zoneDraft = null; }
+  function cancelEdit() { editing = null; draft = null; maskDraft = null; }
 
   function up() {
-    if (zoneDraft) {
-      const q = quadFromDrag(zoneDraft.start, zoneDraft.end).map(([x, y]) => [Math.round(x), Math.round(y)] as Pt);
-      if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) oncreatezone?.(q);
-      zoneDraft = null;
+    if (maskDraft) {
+      const q = quadFromDrag(maskDraft.start, maskDraft.end).map(([x, y]) => [Math.round(x), Math.round(y)] as Pt);
+      if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) oncreatemask?.(q);
+      maskDraft = null;
     }
     if (draft) {
       const q = quadFromDrag(draft.start, draft.end);
@@ -735,7 +729,7 @@
         {#each objects.filter((o) => hasFrost(o)) as o (o.id)}
           <!-- 같은 그림(2D 사진 · 3D 합성)을 흐리게 해 외곽선 모양으로 자른다 — backdrop-filter 는 확대 변환 안·아이폰에서 불안정.
                흐린 그림은 미리 만든 작은 그림(blurredUrl) — CSS 블러 필터는 확대하면 층이 커져 아이폰 웹뷰가 멈췄다 (2026-10-29). 만들기 전엔 그리지 않는다 -->
-          {#if frostSrc}<img class="frost" data-testid="frost" data-blurred="true" src={frostSrc} alt="" draggable="false" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" />{/if}
+          {#if frostSrc}<img class="frost" data-testid="frost" data-blurred="true" src={frostSrc} alt="" draggable="false" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), polyOf(o), o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" />{/if}
         {/each}
       </div>
     {/if}
@@ -746,12 +740,12 @@
       <!-- 2D 단계 (2026-10-17 "사인물 바탕색 원본에 보이게 … 투명도"): 바탕(종류 기본 겉모습 또는 고른 색·투명도) → 입힌 디자인 → 글자·그림 순으로 겹친다 -->
       {#each objects.filter((o) => bodyLook(o)) as o (o.id)}
         {@const look = bodyLook(o)!}
-        <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), o.polygon, o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
+        <div class="design fill" data-testid="sign-fill" style:clip-path="polygon({outlinePts(o.shape, quadOf(o), polyOf(o), o.corner).map((p) => `${p[0] * scale}px ${p[1] * scale}px`).join(',')})" style:background={look.color} style:opacity={look.opacity}></div>
       {/each}
       <!-- 프레임 테 (2026-10-17 "3d에서 프레임과 판을 구별하나?"): 바탕 위에 테 폭(mm)만큼 안으로 들어간 고리. 원근은 중심 기준 축소로 근사 -->
       {#each objects.filter((o) => frameLook(o)?.mm && o.widthMm && o.heightMm) as o (o.id)}
         {@const fl = frameLook(o)!}
-        {@const outer = outlinePts(o.shape, quadOf(o), o.polygon, o.corner)}
+        {@const outer = outlinePts(o.shape, quadOf(o), polyOf(o), o.corner)}
         <!-- 안쪽 선 = 사인물 좌표(0~1)에서 테 폭(mm)만큼 들어간 사각형을 외곽선 호모그래피로 투영 → 원근에서도 폭이 고른 테 (2026-10-18 캡처: 중심 기준 축소 근사는 비뚤어진 외곽선에서 테가 한쪽만 두꺼웠다) -->
         {@const fx = Math.min(0.4, fl.mm / o.widthMm!)}
         {@const fy = Math.min(0.4, fl.mm / o.heightMm!)}
@@ -805,7 +799,7 @@
     class:drawing={tool !== 'select'}
     class:pinning={tool === 'pin'}
     class:magicking={tool === 'magic'}
-    class:zoning={tool === 'zone'}
+    class:masking={tool === 'mask'}
     data-bg={tool === 'select' ? '' : undefined}
     role="presentation"
     onpointerdown={bgDown}
@@ -815,27 +809,20 @@
     onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
     onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
-    {#if zones.length}
-      <path class="zone-dim" d={dimPath} fill-rule="evenodd" />
-      {#each zones as zone, zi (zi)}
-        {@const selected = zoneSel?.zone === zi}
-        <polygon class="zone" class:sel={selected} data-testid="zone-shape" points={zone.map((p) => p.join(',')).join(' ')}
-          stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" role="button" tabindex="-1"
-          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'} onpointerdown={(e) => zoneDown(e, zi)} onpointermove={move} onpointerup={up} />
-        {#if selected && editable}
-          {#each midpoints(zone) as m, i (i)}
-            <rect data-testid="zone-mid" class="zone-mid" x={m[0] - 4 * u} y={m[1] - 4 * u} width={8 * u} height={8 * u} stroke-width={1.5 * u} role="button" tabindex="-1" onpointerdown={(e) => zoneMidDown(e, zi, i, m)} />
-          {/each}
-          {#each zone as v, i (i)}
-            <circle class="hit" data-testid="hit-zone-vertex" cx={v[0]} cy={v[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => zoneVertexDown(e, zi, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
-            <circle data-testid="zone-vertex" class="zone-vertex" class:sel={zoneSel?.vertex === i} cx={v[0]} cy={v[1]} r={6 * u} stroke-width={2 * u} role="button" tabindex="-1"
-              onpointerdown={(e) => zoneVertexDown(e, zi, i)} onpointermove={zoneVertexMove} onpointerup={zoneVertexUp} />
-          {/each}
+    <!-- 앞가림 마스크 (실측): 빗금 윤곽, 고르면 꼭짓점·곡선 손잡이 -->
+    {#if maskUi}
+      {#each masks as m, mi (mi)}
+        {@const selected = maskSel?.index === mi}
+        <path class="mask" class:sel={selected} data-testid="mask-shape" d={pathD(m)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" role="button" tabindex="-1"
+          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'} onpointerdown={(e) => maskDown(e, mi)} onpointermove={move} onpointerup={up} />
+        {#if selected && editable && tool === 'select'}
+          <PathEdit path={m} {u} hit={HIT} testid="mask" selVertex={maskSel?.vertex ?? null} toPhoto={toPhotoIn}
+            onchange={(next, b) => onmaskchange?.(mi, next, b)} onselect={(v) => onselectmask?.(mi, v)} ondragend={() => onmaskdragend?.()} />
         {/if}
       {/each}
     {/if}
-    {#if zoneDraft}
-      <polygon class="zone draft" points={quadFromDrag(zoneDraft.start, zoneDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{8 * u} {5 * u}" />
+    {#if maskDraft}
+      <polygon class="mask draft" points={quadFromDrag(maskDraft.start, maskDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
     {#if photo.camera}
       {@const refL = refLineOf(photo.camera, false, solveCamera(photo.camera, photo.w, photo.h) ?? undefined)}
@@ -923,7 +910,7 @@
           data-selected={sel || undefined}
           data-unmeasured={unmeasured ? '1' : undefined}
           data-same={(!sel && sameIds.includes(o.id)) || undefined}
-          points={outline(o.shape, q, o.polygon, o.corner)}
+          points={outline(o.shape, q, polyOf(o), o.corner)}
           data-corner={o.shape === 'rect' ? (o.corner ?? 0) : undefined}
           stroke-width={2 * u}
           role="button"
@@ -964,12 +951,18 @@
       {@const sel = true}
       {@const turned = !!o.turn}
       {@const blk = app.selectedBlock && o.id === blockIdOf(app.selectedBlock.photoId, app.selectedBlock.i) ? app.selectedBlock : null}
+      {@const pp = o.shape === 'polygon' && !blk ? polyPathOf(o) : undefined}
       <g class="sign sel ctl" data-testid="sign-controls" data-block={blk ? blk.i : undefined}>
         <!-- 고른 치수 블록도 사인물과 똑같은 손잡이만 — ✕ 없음, 지우기는 Delete 키 (2026-11-04 "x마크는 제거 … 사인물과 같은 컨트롤로가 되어야 이질감이 없다") -->
         <!-- 변 손잡이 = 꼭짓점과 같은 컨트롤 (2026-10-18 사용자: "변도 코너와 같은 컨트롤로 사용해줘", "선만 움직여야지"): 변 가운데에 같은 모양·같은 터치 영역의 손잡이, 끌면 그 변(양 끝 꼭짓점)만 옮긴다. 휴대폰은 외곽선을 따라 굵은(보이지 않는) 터치 띠도 — 누른 자리에서 가장 가까운 변 -->
-        {#if sel && editable && tool === 'select' && !turned}
+        <!-- 다각형 = 꼭짓점·변 가운데 □·곡선 손잡이 (2026-11-08 "존의 작동 원리를 다각형에 적용한다") — 외곽 사각 손잡이는 쓰지 않는다. 통째 이동은 안쪽을 끌기 -->
+        {#if pp && sel && editable && tool === 'select' && !turned && editing?.id !== o.id}
+          <PathEdit path={pp} {u} hit={HIT} testid="poly" selVertex={polyVertex} toPhoto={toPhotoIn}
+            onchange={(next, b) => onpolygon?.(o.id, next, b)} onselect={(v) => onpolyvertex?.(v)} ondragend={() => onpolydragend?.()} />
+        {/if}
+        {#if sel && editable && tool === 'select' && !turned && !pp}
           {#if app.compact}
-            <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, o.polygon, o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
+            <polygon class="touch-outline" data-testid="sign-touch-outline" points={outline(o.shape, q, polyOf(o), o.corner)} stroke-width={22 * u} role="button" tabindex="-1" onpointerdown={(e) => edgeDown(e, o, q)} />
           {/if}
           {#each [0, 1, 2, 3] as i (i)}
             {@const a = q[i]}
@@ -979,7 +972,7 @@
           {/each}
         {/if}
         <!-- 꼭짓점 손잡이는 매니퓰레이터보다 아래 층 (메뉴·손잡이를 가리지 않게) -->
-        {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale'}
+        {#if sel && editable && tool === 'select' && !turned && gizmoMode !== 'scale' && !pp}
           {#each q as p, i (i)}
             <!-- 보이는 핸들보다 두 배 넓은 투명 터치 영역 (2026-10-14 사용자: "꼭짓점 컨트롤러 터치 영역을 두 배로") -->
             <circle class="hit" data-testid="sign-handle-hit" cx={p[0]} cy={p[1]} r={HIT * u} role="button" tabindex="-1" onpointerdown={(e) => shapeDown(e, o, i)} />
@@ -1224,7 +1217,7 @@
   /* 3D 단계: 합성 그림 위에서 사인물은 보이지 않게 눌러 고르고, 고른 것만 외곽선·매니퓰레이터 */
   svg.ghost .sign polygon { fill: transparent; stroke: transparent; }
   svg.ghost .sign.sel polygon:not(.touch-outline) { stroke: var(--accent); } /* 3D 에서도 실선 (2026-10-22 "모두 진하게") — 휴대폰 터치 띠는 빼고 (같은 날 "3d에서 사인물 선택하면 선택상태가 이상": 굵은 노란 띠) */
-  svg.ghost .zone, svg.ghost .zone-dim, svg.ghost .camera { display: none; }
+  svg.ghost .mask, svg.ghost .camera { display: none; }
   .hit { fill: transparent; stroke: none; cursor: grab; }
   .poly-catch { fill: transparent; cursor: crosshair; }
   .poly-draft polyline { fill: none; stroke: var(--accent); }
@@ -1232,15 +1225,10 @@
   .poly-draft circle.first { fill: var(--accent); }
   .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); pointer-events: none; }
   .magic { fill: rgba(47, 139, 255, 0.28); stroke: #7fd3ff; pointer-events: none; }
-  svg.zoning { cursor: crosshair; }
-  .zone-dim { fill: rgba(0, 0, 0, 0.28); pointer-events: none; }
-  .zone { fill: transparent; stroke: #7ef0a0; cursor: pointer; }
-  .zone.sel { stroke: var(--accent); }
-  .zone.draft { stroke: var(--accent); pointer-events: none; }
-  .zone-label { fill: #7ef0a0; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; font-weight: 600; pointer-events: none; }
-  .zone-vertex { fill: #fff; stroke: #7ef0a0; cursor: grab; }
-  .zone-vertex.sel { fill: var(--accent); stroke: #fff; }
-  .zone-mid { fill: #7ef0a0; stroke: #fff; cursor: copy; }
+  svg.masking { cursor: crosshair; }
+  .mask { fill: rgba(255, 255, 255, 0.18); stroke: #f0a0e0; cursor: pointer; }
+  .mask.sel { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .mask.draft { stroke: var(--accent); fill: none; pointer-events: none; }
   .status { fill: #fff; stroke: rgba(0, 0, 0, 0.75); paint-order: stroke; pointer-events: none; font-weight: 600; }
   svg.magicking { cursor: cell; }
   /* 옵션 아이콘 (네모 두 개, 2026-10-19): 매니퓰레이터 칩의 .ico 와 이름이 겹쳐 머리글을 덮었다 → 따로 */

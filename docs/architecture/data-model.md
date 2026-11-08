@@ -25,7 +25,8 @@
 | `assetId` | 이미지 에셋 ID (내용 SHA-256 앞 16바이트 hex) |
 | `w`, `h` | 원본 픽셀 크기 |
 | `x`, `y`, `width` | 사진 보드(world) 위 위치와 표시 폭 |
-| `zones?` | 작업 존 다각형들 (사진 px) |
+| `masks?` | **앞가림 마스크** 닫힌 경로들 `{pts, curves?}` (사진 px, 곡선 가능 — 2026-11-08, `core/pathEdit.ts`). 제안·디자인 화면·렌더링 그림에서 그 부분은 원래 사진이 사인물 위에 |
+| `zones?`, `zone?` | ~~작업 존~~ — 폐지(2026-11-08). 옛 데이터로 남아도 쓰지 않음 |
 | `camera?` | **카메라 설정** `{x, y, z?, origin, ref?, principal?}` — 축 선 두 쌍·원점·기준 길이 → 벽면 평면 (`core/camera.ts`). 사인물과 무관 → [../features/measurement.md](../features/measurement.md) |
 | `source?` | 이미지 조절(크롭·밝기)의 기준 원본 `{assetId, w, h, crop{x,y,w,h}, brightness}` (2026-10-21, `core/photoEdit.ts`). `assetId` 는 조절을 구운 새 에셋, `source.assetId` 가 원본. 없으면 조절 안 함. 크롭은 원본 px(원본 밖 = 흰 여백) → [../features/photo-board.md](../features/photo-board.md#사진-설정-교체--이미지-조절--삭제-2026-10-21) |
 
@@ -45,6 +46,7 @@
 | `shape` | `rect` / `ellipse`(옛 형식, 새 원형은 rect + corner) / `polygon` |
 | `quad` | 외곽 사각 영역 4점 (좌상, 우상, 우하, 좌하), **사진 원본 px**. 원근 반영 |
 | `polygon?` | `shape = polygon`일 때 윤곽 (사진 px) |
+| `curves?` | `polygon` 꼭짓점마다 베지어 손잡이 `{in, out}` 또는 null(직선) — 2026-11-08. 점 목록은 `polygonPts(o)`(펼친 점), `quad` 는 윤곽의 바운드 박스 |
 | `corner?` | 사각형 모서리 둥글기 (짧은 변 대비 반지름 비율 0~0.5, 0.5 = 원·알약). 원형 도구가 0.5 로 만듦. 규격 필드(연결 시 원본 것) |
 | `turn?` | 벽에서 돌려 세움 `{deg 0~90, hinge left\|right}` (사진마다의 배치, quad 는 그 투영) |
 | `blocks?`, `blockAxes?` | **옛 데이터**(2026-11-03~04): 사인물에 붙인 치수 블록. 이제 `Photo.blocks` — 읽을 때 그 사인물 치수의 사진 블록으로 보이고, 고치면 옮겨진다 → [../features/size-blocks.md](../features/size-blocks.md) |

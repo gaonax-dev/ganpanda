@@ -171,7 +171,7 @@ test('하단 도구 막대 순서: 선택·다중(2026-10-22)·말풍선 | 존·
   // 2026-10-20 사용자: "하단 툴바 위치를 변경한다. 자동은 삭제 존,undo,redo, 사각,원(타원으로 변경), 사진, 전체보기 / 언두 리두 아이콘 일반적인 모양으로 사진은 사진기 아이콘으로"
   await uploadPhoto(page);
   const ids = await page.locator('.tools[role="toolbar"] > [data-testid]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-zone', 'undo', 'redo', 'tool-rect', 'tool-block', 'tool-photo', 'zoom-fit', 'zoom-label']); // 원(타원) 도구는 사각 안으로 (2026-10-24), 치수 블록은 사각 옆 (2026-11-03)
+  expect(ids).toEqual(['tool-select', 'tool-multi', 'tool-mask', 'undo', 'redo', 'tool-rect', 'tool-block', 'tool-photo', 'zoom-fit', 'zoom-label']); // 원(타원) 도구는 사각 안으로 (2026-10-24), 치수 블록은 사각 옆 (2026-11-03)
   await expect(page.getByTestId('tool-magic')).toHaveCount(0);
   await expect(page.getByTestId('tool-ellipse')).toHaveCount(0);
   // 사각·전체 보기도 같은 선 두께의 아이콘, 사각은 정사각 (2026-10-24 "사각형 툴 아이콘 정사각으로 하고 다른 툴 아이콘과 같은 두께로 해줘 확대도 마찮가지로")

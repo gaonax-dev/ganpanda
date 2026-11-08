@@ -85,8 +85,8 @@ test('[다중]은 선택 도구에서만 켜진다 — 켜면 ✓, 다른 도구
   await expect(multi).toHaveCount(0);
   await expect(page.getByTestId('tool-continuous')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { multiMode: boolean } }).__ganpanda.multiMode)).toBe(false);
-  // 다른 도구(존) 중에 [다중]을 누르면 선택 도구로 바뀌며 켜진다
-  await page.getByTestId('tool-zone').click();
+  // 다른 도구(마스크) 중에 [다중]을 누르면 선택 도구로 바뀌며 켜진다
+  await page.getByTestId('tool-mask').click();
   await expect(multi).not.toHaveClass(/on/);
   await expect(multi).not.toContainText('✓');
   await multi.click();
@@ -116,7 +116,7 @@ test('선택 도구에서 Shift 를 누르는 동안만 [다중]이 켜지고(�
   await expect(multi).toHaveClass(/on/);
   await multi.click();
   // 다른 도구에서는 Shift 로 켜지지 않는다, 입력 칸에서도
-  await page.getByTestId('tool-zone').click();
+  await page.getByTestId('tool-mask').click();
   await page.keyboard.down('Shift');
   await expect(multi).not.toHaveClass(/on/);
   expect(await mode()).toBe(false);

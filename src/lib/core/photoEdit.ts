@@ -1,6 +1,7 @@
 // 사진 설정 (2026-10-21 사용자: "현재 x 마크 대신 설정버튼으로 사진교체, 이미지 조절(크롭(크게도 가능하게),밝기), 삭제")
 // 이미지 조절은 **원본 에셋에서 새 그림을 구워**(크롭 + 밝기, 화면 쪽 photoBake.ts) 새 에셋으로 바꾼다 — 사진 px 좌표를 쓰는 모든 곳
 // (영역·존·축 선·말풍선·3D·렌더링)은 그대로 두고, 좌표만 크롭만큼 옮긴다. 조절 전 원본은 `Photo.source` 에 남겨 다시 조절해도 화질이 쌓여 줄지 않는다.
+import { mapPath } from './pathEdit';
 import type { Photo, Pin, SignObject, PhotoSource } from './model';
 import type { Pt } from './homography';
 import type { CameraSetup, Line } from './camera';
@@ -86,9 +87,10 @@ function mapCamera(c: CameraSetup, f: PtMap): CameraSetup {
   return out;
 }
 
-/** 사진의 존·축 선·원점·기준 길이 핸들 */
-export function mapPhotoPts(p: Photo, f: PtMap): Pick<Photo, 'zones' | 'zone' | 'camera'> {
-  const out: Pick<Photo, 'zones' | 'zone' | 'camera'> = {};
+/** 사진의 앞가림 마스크·(옛) 존·축 선·원점·기준 길이 핸들 */
+export function mapPhotoPts(p: Photo, f: PtMap): Pick<Photo, 'zones' | 'zone' | 'camera' | 'masks'> {
+  const out: Pick<Photo, 'zones' | 'zone' | 'camera' | 'masks'> = {};
+  if (p.masks) out.masks = p.masks.map((m) => mapPath(m, f));
   if (p.zones) out.zones = p.zones.map((z) => z.map(f));
   if (p.zone) out.zone = p.zone.map(f);
   if (p.camera) out.camera = mapCamera(p.camera, f);
@@ -96,9 +98,10 @@ export function mapPhotoPts(p: Photo, f: PtMap): Pick<Photo, 'zones' | 'zone' | 
 }
 
 /** 사인물의 영역·윤곽 */
-export function mapObjectPts(o: SignObject, f: PtMap): Pick<SignObject, 'quad' | 'polygon'> {
-  const out: Pick<SignObject, 'quad' | 'polygon'> = { quad: o.quad.map(f) };
+export function mapObjectPts(o: SignObject, f: PtMap): Pick<SignObject, 'quad' | 'polygon' | 'curves'> {
+  const out: Pick<SignObject, 'quad' | 'polygon' | 'curves'> = { quad: o.quad.map(f) };
   if (o.polygon) out.polygon = o.polygon.map(f);
+  if (o.curves) out.curves = o.curves.map((c) => (c ? { in: f(c.in), out: f(c.out) } : null));
   return out;
 }
 

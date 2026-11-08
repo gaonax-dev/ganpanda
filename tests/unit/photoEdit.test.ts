@@ -15,11 +15,18 @@ describe('사진 px 좌표 옮기기 (크롭·교체 후에도 영역·존·축 
     expect((p.camera!.ref as { from: [number, number] }).from).toEqual([15, 83]);
     expect(photo.camera!.origin).toEqual([10, 90]); // 원본은 그대로
   });
+  it('앞가림 마스크(곡선 손잡이 포함)도 같은 자리에 (2026-11-08)', () => {
+    const p = mapPhotoPts({ ...photo, masks: [{ pts: [[0, 0], [10, 0], [10, 10]], curves: [null, { in: [8, -2], out: [12, 2] }, null] }] }, shift);
+    expect(p.masks![0].pts[1]).toEqual([15, -7]);
+    expect(p.masks![0].curves![1]).toEqual({ in: [13, -9], out: [17, -5] });
+  });
   it('사인물: quad·polygon, 말풍선: 꼭지·몸통 오프셋은 그대로', () => {
     const o = { id: 'o', photoId: 'p', quad: [[0, 0], [10, 0], [10, 10], [0, 10]], polygon: [[1, 1], [2, 2], [3, 1]] } as unknown as SignObject;
     const m = mapObjectPts(o, shift);
     expect(m.quad[2]).toEqual([15, 3]);
     expect(m.polygon![0]).toEqual([6, -6]);
+    const c = mapObjectPts({ ...o, curves: [{ in: [0, 1], out: [2, 1] }, null, null] } as SignObject, shift);
+    expect(c.curves![0]).toEqual({ in: [5, -6], out: [7, -6] }); // 곡선 손잡이도
     const pin = { id: 'n', photoId: 'p', x: 10, y: 10, bx: 30, by: -20 } as Pin;
     expect(mapPinPts(pin, shift)).toEqual({ x: 15, y: 3, bx: 30, by: -20 });
   });

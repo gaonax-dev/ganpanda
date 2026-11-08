@@ -1,5 +1,7 @@
 <!-- 사진 보드: 사진(구역)들이 놓인 무한 캔버스 -->
 <script lang="ts">
+  import PhotoMasks from './PhotoMasks.svelte';
+  import { followQuad } from '../core/pathEdit';
   import { withoutDesign } from '../core/parts';
   import { paymentsShown } from '../auth';
   import { askConfirm } from '../ui/ask.svelte';
@@ -227,11 +229,12 @@
     if (action === 'copy') { if (app.copySelected()) e.preventDefault(); return; }
     if (action === 'paste') { if (app.clipboard) { e.preventDefault(); app.pasteClipboard(); } return; }
     if (action === 'duplicate') { e.preventDefault(); if (app.selectedBlock) app.duplicateBlock(app.selectedBlock.photoId, app.selectedBlock.i, true); else app.duplicateSelected(); return; } // 블록도 ⌘D (2026-11-04)
-    if (no3d && (action === 'toolMagic' || action === 'toolZone' || action === 'toolRect' || action === 'toolEllipse')) return; // 3D 단계에서는 그리기 도구 없음
+    if (no3d && (action === 'toolMagic' || action === 'toolMask' || action === 'toolRect' || action === 'toolEllipse')) return; // 3D 단계에서는 그리기 도구 없음
     if (action === 'toolMagic') { app.tool = 'magic'; return; }
-    if (action === 'toolZone') { app.tool = 'zone'; return; }
+    if (action === 'toolMask') { app.tool = 'mask'; return; }
     if (action === 'deleteSelection' && app.selectedBlock) { e.preventDefault(); app.removeBlock(app.selectedBlock.photoId, app.selectedBlock.i); return; } // 고른 치수 블록 지우기 (2026-11-04)
-    if (action === 'deleteSelection' && app.zoneSel) { e.preventDefault(); app.deleteZoneSelection(); return; }
+    if (action === 'deleteSelection' && app.maskSel) { e.preventDefault(); app.deleteMaskSelection(); return; }
+    if (action === 'deleteSelection' && app.polyVertex !== null && app.deletePolyVertex()) { e.preventDefault(); return; } // 다각형의 고른 꼭짓점 (없으면 사인물 지우기로)
     if (action === 'gizmoMove') { app.tool = 'select'; app.gizmoMode = 'none'; return; } // W = 기본(면 직각 막대) — 이동 매니퓰레이터는 없앰 (2026-10-19)
     if (action === 'gizmoRotate' || action === 'gizmoScale') { app.tool = 'select'; app.gizmoMode = action === 'gizmoRotate' ? 'rotate' : 'scale'; return; } // 단추는 숨겼지만 단축키로는
     if (action === 'toolSelect') app.tool = 'select';
@@ -711,12 +714,15 @@
         onmagichover={(x, y) => app.segmentAt(p.id, x, y)}
         onmagicleave={() => app.clearHoverSegment()}
         onmagicclick={() => app.createFromSegment()}
-        zoneSel={app.zoneSel?.photoId === p.id ? { zone: app.zoneSel.zone, vertex: app.zoneSel.vertex } : undefined}
-        oncreatezone={(zone) => app.addZone(p.id, zone)}
-        onselectzone={(zone, vertex) => (zone === null ? app.selectZone(null) : app.selectZone(p.id, zone, vertex))}
-        onmovezonevertex={(zone, i, pt) => app.moveZoneVertex(p.id, zone, i, pt)}
-        onzonemoveend={() => app.editBoundary()}
-        onaddzonevertex={(zone, edge, pt) => app.addZoneVertex(p.id, zone, edge, pt)}
+        maskSel={app.maskSel?.photoId === p.id ? { index: app.maskSel.index, vertex: app.maskSel.vertex } : undefined}
+        oncreatemask={(pts) => { app.addMask(p.id, { pts }); app.tool = 'select'; }}
+        onselectmask={(i, vertex) => (i === null ? app.selectMask(null) : app.selectMask(p.id, i, vertex))}
+        onmaskchange={(i, m, b) => app.setMask(p.id, i, m, b)}
+        onmaskdragend={() => app.editBoundary()}
+        polyVertex={app.polyVertex}
+        onpolyvertex={(i) => (app.polyVertex = i)}
+        onpolygon={(id, m, b) => app.setPolygon(id, m, b)}
+        onpolydragend={() => app.editBoundary()}
         toPhoto={toPhotoFor(p.id)}
         oncreate={(shape, quad, polygon) => create(p.id, shape, quad, polygon)}
         onblock={(quad, start, end, r) => { if (app.addBlock(p.id, quad, start, end, r) && !app.drawContinuous) app.tool = 'select'; }} /* 사각과 같게: 그리면 [선택]으로, [연속]이면 블록 도구 유지 (2026-11-04) */
@@ -726,7 +732,7 @@
         moving={app.movingPhotoId === p.id}
         onpick={() => { app.movingPhotoId = app.movingPhotoId === p.id ? null : p.id; if (app.movingPhotoId) { app.selectObject(null); app.selectPin(null); } }}
         onbox={(id, patch) => { const b = parseBlockId(id); if (b) { if (patch.faceAxis) app.setBlockAxis(b.id, b.i, patch.faceAxis); return; } app.project.updateObject(id, patch); app.editBoundary(); }}
-        onquad={(id, quad) => { const b = parseBlockId(id); if (b) { app.updateBlock(b.id, b.i, quad); return; } app.project.updateObject(id, { quad }); app.editBoundary(); }}
+        onquad={(id, quad) => { const b = parseBlockId(id); if (b) { app.updateBlock(b.id, b.i, quad); return; } const o = app.project.object(id); app.project.updateObject(id, { quad, ...(o?.shape === 'polygon' ? followQuad(o, o.quad, quad) : {}) }); app.editBoundary(); }} /* 다각형은 윤곽·곡선도 따라간다 (2026-11-08, 전에는 제자리에 남았다) */
         onmove={(dx, dy) => app.project.updatePhoto(p.id, { x: p.x + dx, y: p.y + dy })}
         onrender={() => (app.renderPhotoId = p.id)}
         oncamera={() => app.openCamera(p.id)}
@@ -748,6 +754,8 @@
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>
     {/if}
+    <!-- 앞가림 마스크 (2026-11-08): 제안·디자인에서 사진 칸·실시간 3D 위에 마스크 모양대로 원래 사진 -->
+    {#if app.stage !== 'original'}<PhotoMasks photos={app.photos} />{/if}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
       <!-- 글·단추(재정렬·간격·고정·축척·완료)는 상단 헤더 막대로 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동") — App.svelte flat-bar -->
@@ -838,10 +846,10 @@
           {:else}
             <button data-testid="tool-multi" class:on={app.multiMode} title={app.multiMode ? '다중 선택 끄기' : '다중 선택 — 누를 때마다 더하기/빼기'} onclick={() => { if (shiftHeld) { shiftHeld = false; return; } /* Shift 로 켠 채 누르면 켠 상태로 고정 */ if (!app.multiMode) app.tool = 'select'; app.setMultiMode(!app.multiMode); }}>{app.multiMode ? '✓ ' : ''}다중</button>
           {/if}
-          {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·존이 없다 -->
+          {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·마스크가 없다 (작업 존은 2026-11-08 폐지 → 앞가림 마스크) -->
           <!-- 말풍선 단추는 상단 [톡]으로 (2026-10-22 "툴의 말풍선은 톡으로 변경한다") — 위치 번호는 톡의 📍 또는 단축키 -->
           <span class="sep"></span>
-          <button data-testid="tool-zone" class:on={app.tool === 'zone'} disabled={no3d} title="작업 존 ({hint('toolZone')}){no3d ? NO3D : ''}" onclick={() => (app.tool = 'zone')}>▱<span class="lbl"> 존</span></button>
+          <button data-testid="tool-mask" class:on={app.tool === 'mask'} disabled={no3d} title="앞가림 마스크 ({hint('toolMask')}) — 사인물 앞에 있는 나무·전봇대·차양을 따라 그리면 제안·디자인 화면에서 그 부분은 사진이 사인물을 덮습니다. 사각으로 끌어 만들고, 고르면 꼭짓점 끌기·변 가운데 □로 추가·꼭짓점 두 번 누르기로 곡선{no3d ? NO3D : ''}" onclick={() => (app.tool = 'mask')}>▨<span class="lbl"> 마스크</span></button>
           {/if}
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>

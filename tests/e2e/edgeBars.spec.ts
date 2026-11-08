@@ -5,29 +5,21 @@ import { dragOnPhoto, openOwnedProject, uploadPhoto } from './helpers';
 type Pt = [number, number];
 const quads = (page: Page) => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { id: string; quad: Pt[] }[] } }).__ganpanda.objects.map((o) => ({ id: o.id, quad: o.quad })));
 
-test('다각형(매니퓰레이터 없음)에도 변 손잡이가 있고 끌면 그 변만 옮겨진다 (2026-10-18 "선만 움직여야지")', async ({ page, request }) => {
+// 다각형은 2026-11-08 부터 경로 편집 (사용자: "존의 작동 원리를 다각형에 적용한다") — 변 가운데 □ 는 꼭짓점 추가. 앞선 "다각형도 외곽 사각의 변 손잡이로 그 변만"(2026-10-18)은 대체됨
+// (그때는 외곽 사각만 움직이고 다각형 윤곽은 제자리였다)
+test('다각형(매니퓰레이터 없음): 외곽 사각의 변 손잡이 대신 경로 편집 — 변 가운데 □ 는 꼭짓점 추가 (2026-11-08)', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  const id = await page.evaluate(() => {
+  await page.evaluate(() => {
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
     const id = app.project.addObject({ photoId: app.photos[0].id, name: '다각', shape: 'polygon', quad: [[300, 200], [700, 200], [700, 400], [300, 400]], polygon: [[300, 200], [700, 230], [650, 400], [320, 380]], sheetIds: [] });
     app.selectObject(id);
-    return id;
   });
   await expect(page.getByTestId('gizmo')).toHaveCount(0); // 다각형에는 매니퓰레이터가 없다
-  await expect(page.locator('[data-testid^="edge-handle-"]')).toHaveCount(4); // 변 막대는 기본 컨트롤
-  const before = (await quads(page)).find((o) => o.id === id)!;
-  const bar = (await page.getByTestId('edge-handle-2').boundingBox())!;
-  await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(bar.x + bar.width / 2 + 60, bar.y + bar.height / 2 + 30, { steps: 5 });
-  await page.mouse.up();
-  const after = (await quads(page)).find((o) => o.id === id)!;
-  // 변 2 = 꼭짓점 2→3 만 움직인다
-  expect(after.quad[2][0]).toBeGreaterThan(before.quad[2][0] + 20);
-  expect(after.quad[3][0]).toBeGreaterThan(before.quad[3][0] + 20);
-  expect(after.quad[0]).toEqual(before.quad[0]);
-  expect(after.quad[1]).toEqual(before.quad[1]);
+  await expect(page.locator('[data-testid^="edge-handle-"]')).toHaveCount(0);
+  await expect(page.getByTestId('poly-mid')).toHaveCount(4);
+  await page.getByTestId('poly-mid').nth(2).click();
+  await expect(page.getByTestId('poly-vertex')).toHaveCount(5);
 });
 
 test('변 손잡이: 네 변에 꼭짓점과 같은 손잡이, 끌면 그 변만 옮겨진다; Alt 는 안쪽 끌기(전체 이동)에서 복사본', async ({ page, request }) => {

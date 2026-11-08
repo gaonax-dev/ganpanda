@@ -27,13 +27,13 @@ const stripUndefined = <T extends object>(o: T): Partial<T> => Object.fromEntrie
 export function pastedObject(clip: ClipSign, target: { id: string; w: number; h: number }, n: number, hasSource: (id: string) => boolean): Omit<SignObject, 'id' | 'createdAt'> {
   const sx = target.w / clip.photo.w, sy = target.h / clip.photo.h, step = Math.round(target.w * 0.03) * n;
   const map = (p: Pt): Pt => [Math.round(p[0] * sx) + step, Math.round(p[1] * sy) + step];
-  let quad = clip.fields.quad.map(map), polygon = clip.fields.polygon?.map(map);
+  let quad = clip.fields.quad.map(map), polygon = clip.fields.polygon?.map(map), curves = clip.fields.curves?.map((c) => (c ? { in: map(c.in), out: map(c.out) } : null));
   if (quad.length) {
     // 사진 밖이면 안으로
     const dx = Math.min(0, target.w - Math.max(...quad.map((p) => p[0]))) - Math.min(0, Math.min(...quad.map((p) => p[0])));
     const dy = Math.min(0, target.h - Math.max(...quad.map((p) => p[1]))) - Math.min(0, Math.min(...quad.map((p) => p[1])));
     const shift = (p: Pt): Pt => [p[0] + dx, p[1] + dy];
-    quad = quad.map(shift); polygon = polygon?.map(shift);
+    quad = quad.map(shift); polygon = polygon?.map(shift); curves = curves?.map((c) => (c ? { in: shift(c.in), out: shift(c.out) } : null));
   }
   const f = copyJson(clip.fields);
   const same = target.id === clip.photo.id;
@@ -41,7 +41,7 @@ export function pastedObject(clip: ClipSign, target: { id: string; w: number; h:
     ...f,
     photoId: clip.fields.quad.length ? target.id : '',
     name: `${f.name} 복사`,
-    quad, ...(polygon ? { polygon } : {}),
+    quad, ...(polygon ? { polygon } : {}), ...(curves ? { curves } : {}),
     faceAxis: same ? f.faceAxis : undefined,
     boxDir: same ? f.boxDir : undefined,
     turn: same ? f.turn : undefined,

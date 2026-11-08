@@ -17,10 +17,15 @@ export interface Photo {
   x: number;
   y: number;
   width: number;
-  /** 작업 존들: 실제 작업할 벽면 영역 (사진 px 다각형, 3점 이상). AI 는 존 안만 분석 */
+  /** @deprecated 작업 존 — 폐지 (2026-11-08 "존을 폐지하고 …"). 옛 데이터로 남아 있어도 쓰지 않는다 (AI 는 사진 전체) */
   zones?: Pt[][];
-  /** @deprecated 옛 데이터 (존 하나). zonesOf() 로 읽는다 */
+  /** @deprecated 옛 데이터 (존 하나) */
   zone?: Pt[];
+  /**
+   * 앞가림 마스크 (2026-11-08 "마스크를 추가한다" → (질문) "앞가림 마스크"): 사인물 앞에 있는 것(나무·전봇대·차양)을 따라 그린 닫힌 경로(사진 px, 곡선 가능).
+   * 제안·디자인(2D·3D) 화면에서 그 부분만 원래 사진을 사인물 위에 다시 덮는다. 실측 탭에서 그리고 고친다 → core/pathEdit.ts
+   */
+  masks?: import('./pathEdit').Path[];
   /** 카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 벽면 평면 (core/camera.ts). 사인물과 무관 */
   camera?: CameraSetup;
   /** 치수 블록 (2026-11-04 "블록 치수는 사용자가 입력한 값 … 여러 값과 방향"): 외곽선 + 입력한 가로·세로(mm) + 축(면). 있으면 이 사진 사인물들의 예상 크기는 블록이 기준 → core/blocks.ts */
@@ -108,6 +113,8 @@ export interface SignObject {
   quad: Pt[];
   /** shape = polygon 일 때 윤곽 (사진 픽셀) */
   polygon?: Pt[];
+  /** polygon 꼭짓점마다 베지어 곡선 손잡이 (없거나 null = 직선 모서리, 2026-11-08) → core/pathEdit.ts. 점 목록이 필요한 곳은 polygonPts(o) */
+  curves?: (import('./pathEdit').Curve | null)[];
   /** 사각형 모서리 둥글기: 짧은 변 대비 반지름 비율 0~0.5 (0.5 = 알약/원). 원형 도구는 0.5 로 만든다 */
   corner?: number;
   /** 벽에서 돌려 세운 사인물 (3단계 매니퓰레이터, 2026-10-15): 경첩 변을 벽에 붙인 채 수직축으로 deg° (90 = 돌출 간판 직각). 사진마다의 배치 — quad 는 그 투영 */

@@ -1,4 +1,5 @@
 // 앱 전역 상태: Yjs 프로젝트 문서 + Svelte 반응성 연결, 계정·방 접근·동기화
+import { boundsQuad, polygonPts, removeVertex, type Path } from './core/pathEdit';
 import { newProjectColors, refreshColorPatches } from './core/projectColors';
 import { participantsOf, pinVisibleTo } from './core/pins';
 import { loadLocalColors, saveLocalColors, validColorLibrary, type ColorCard } from './core/colorLibrary';
@@ -17,8 +18,6 @@ import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms 
 import { mergePrices, type Markup, type PriceTable } from './core/pricing';
 import { applyMarkup } from './core/markup';
 import { pushHistory, type DesignRef } from './core/design';
-import { insertVertex, removeVertex, zoneIndexAt, zonesOf } from './core/zone';
-import { rasterizePolygon, zoneBounds } from './core/zoneMask';
 import { measureQuad, type Calibration } from './core/calibration';
 import { applyHomography } from './core/homography';
 import { loadRoomView, type WorkTab } from './core/roomView';
@@ -73,7 +72,7 @@ import type { Pt } from './core/homography';
 export interface Toast { id: string; objectId: string; author: string; text: string }
 
 export type ViewKind = 'board' | 'list' | 'uv';
-export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'zone' | 'block';
+export type Tool = 'select' | 'rect' | 'ellipse' | 'pin' | 'magic' | 'mask' | 'block';
 /** 방 접근 상태: 확인 중 / 허용 / 거부(이유) */
 export type Access =
   | { status: 'loading' }
@@ -89,8 +88,10 @@ class AppState {
   selectedId = $state<string | null>(null);
   /** 선택한 핀 (사인물 선택과 배타적) */
   selectedPinId = $state<string | null>(null);
-  /** 선택한 작업 존(사진 id, 존 번호)과 꼭짓점 번호 */
-  zoneSel = $state<{ photoId: string; zone: number; vertex: number | null } | null>(null);
+  /** 선택한 앞가림 마스크(사진 id, 마스크 번호)와 꼭짓점 번호 */
+  maskSel = $state<{ photoId: string; index: number; vertex: number | null } | null>(null);
+  /** 고른 다각형 사인물의 고른 꼭짓점 (Delete 로 지움) */
+  polyVertex = $state<number | null>(null);
   nickname = $state(load('ganpanda.nickname') ?? '');
   ready = $state(false);
   /** 서버와 첫 동기화 끝 (2026-10-25) — 보드 로딩 표시용 */
@@ -276,7 +277,7 @@ class AppState {
   /** 사진 3D 그림의 내용 키 — design = 디자인 탭(디자인을 입힌 3D, 예전 키 그대로), 아니면 임시 설정 3D(디자인 빼고 'p' 표시 — 디자인이 바뀌어도 그대로) */
   stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
-    const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
+    const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
     return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, ...(design ? {} : { v: 'p' }) })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
@@ -328,7 +329,6 @@ class AppState {
   segmentError = $state('');
   embeddedPhotos = $state<Record<string, 'embedding' | 'ready' | 'error'>>({});
   /** 사진별로 분석에 쓴 존 (바뀌면 다시 분석) */
-  private embeddedZone = new Map<string, string>();
   hoverSegment = $state<{ photoId: string; polygon: Pt[] } | null>(null);
   private segmentSeq = 0;
   /** 실행 취소 (내 편집만) */
@@ -602,7 +602,7 @@ class AppState {
   /** 지금 내용을 발행본 모양으로 (비교용, 아직 발행 안 함) */
   draftIssue = $derived<IssuedQuote>(issueOf({ id: 'draft', no: (this.latestIssue?.no ?? 0) + 1, at: 0, by: this.nickname, snapshot: snapshotOf(this.signs, (o) => this.sizeOf(o), this.quote, this.sources), lines: this.quote.lines, hash: this.contentHash, ph: this.partsHash,
     // 사진 위 사인물 자리 (2026-10-26 사진 위 변경 표시) — 내용 해시에는 안 들어간다(자리만 옮겨도 변경 아님)
-    geo: Object.fromEntries(this.signs.filter((o) => o.photoId && o.quad.length === 4).map((o) => [o.id, { photoId: o.photoId!, quad: o.quad as [number, number][], ...(o.shape ? { shape: o.shape } : {}), ...(o.polygon?.length ? { polygon: o.polygon as [number, number][] } : {}) }])) }));
+    geo: Object.fromEntries(this.signs.filter((o) => o.photoId && o.quad.length === 4).map((o) => [o.id, { photoId: o.photoId!, quad: o.quad as [number, number][], ...(o.shape ? { shape: o.shape } : {}), ...(polygonPts(o) ? { polygon: polygonPts(o) as [number, number][] } : {}) }])) }));
   /** 발행 뒤 사장이 고쳐 지금 내용이 마지막 발행본과 다름 — 고객에게는 안 보인다, 다시 발행해야 */
   issueChanged = $derived(!!this.latestIssue && !this.sameAsIssue(this.latestIssue));
   /** 고객이 보는 견적: 발행본·계약 견적·변경 견적 대기·거절 */
@@ -1570,29 +1570,12 @@ class AppState {
     if (!this.segmenter) this.segmenter = new Segmenter(SERVER_URL, (st, detail) => { this.segmentStatus = st; this.segmentError = detail ?? ''; });
     const photo = this.project.photo(photoId);
     if (!photo) return;
-    // 존이 바뀌었으면 이전 분석을 버린다 (존마다 따로 분석: 키 = photoId#번호)
-    const zones = zonesOf(photo).filter((z) => z.length >= 3);
-    const zoneKey = JSON.stringify(zones);
-    if (this.embeddedPhotos[photoId] && this.embeddedZone.get(photoId) !== zoneKey) {
-      this.segmenter.forget(photoId);
-      for (let i = 0; i < 64; i++) this.segmenter.forget(`${photoId}#${i}`);
-      const { [photoId]: _, ...rest } = this.embeddedPhotos; this.embeddedPhotos = rest;
-    }
     if (this.embeddedPhotos[photoId]) return;
     const url = await assetUrl(photo.assetId);
     if (!url) return;
-    this.embeddedZone.set(photoId, zoneKey);
     this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'embedding' };
     try {
-      if (!zones.length) await this.segmenter.embed(photoId, url);
-      else {
-        // 존마다 외곽만 잘라 분석(해상도 집중), 결과는 그 존 안으로만
-        for (let i = 0; i < zones.length; i++) {
-          const region = zoneBounds(zones[i], photo.w, photo.h, 16);
-          const local = zones[i].map(([x, y]) => [x - region.x, y - region.y] as Pt);
-          await this.segmenter.embed(`${photoId}#${i}`, url, { region, clip: rasterizePolygon(local, region.w, region.h) });
-        }
-      }
+      await this.segmenter.embed(photoId, url); // 사진 전체 (작업 존은 폐지 2026-11-08)
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'ready' };
     } catch {
       this.embeddedPhotos = { ...this.embeddedPhotos, [photoId]: 'error' };
@@ -1602,14 +1585,7 @@ class AppState {
   /** 호버 지점의 물체 윤곽 미리보기 (최신 요청만 반영) */
   async segmentAt(photoId: string, x: number, y: number) {
     if (!this.segmenter || this.embeddedPhotos[photoId] !== 'ready') return;
-    const photo = this.project.photo(photoId);
-    const zones = photo ? zonesOf(photo).filter((z) => z.length >= 3) : [];
-    let key = photoId;
-    if (zones.length) {
-      const zi = zoneIndexAt(zones, [x, y]);
-      if (zi < 0) { this.clearHoverSegment(); return; } // 존 밖
-      key = `${photoId}#${zi}`;
-    }
+    const key = photoId;
     const seq = ++this.segmentSeq;
     const r = await this.segmenter.segment(key, x, y);
     if (seq !== this.segmentSeq) return;
@@ -1691,7 +1667,7 @@ class AppState {
   /** 카드 묶음(대지) 누르기: 배열 모드 켜고 끔. 켤 때는 사인물·말풍선·존 선택을 푼다 — 대지를 고른 것이 새 선택 (2026-10-24 "사인물카드 대지선택하면 이전에 선택이 있는 경우 대지 툴이 나오지 않는다": 휴대폰은 사인물 도구가 대지 도구 자리를 차지했다) */
   toggleFlatArrange() {
     const on = !this.flatArrange;
-    if (on) { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.panelOpen = false; }
+    if (on) { this.selectObject(null); this.selectPin(null); this.selectMask(null); this.panelOpen = false; }
     this.flatArrange = on;
   }
   /** 상단 막대의 축척 −/+ 요청 (보드가 피봇을 지키며 적용) — 2026-10-23 도구를 헤더로 */
@@ -1935,7 +1911,7 @@ class AppState {
       all.delete(id);
       if (!this.selectedId) this.selectionKind = kind;
       this.multi = [...all]; this.selectedId = id;
-      this.selectedPinId = null; this.zoneSel = null;
+      this.selectedPinId = null; this.maskSel = null;
       return;
     }
     if (id !== this.selectedId) { this.objectSettingsOpen = false; this.panelOpen = false; this.chatObjectId = null; }
@@ -1943,7 +1919,8 @@ class AppState {
     this.selectionKind = kind;
     this.selectedId = id;
     if (!id) this.multiMode = false;
-    if (id) { this.selectedPinId = null; this.zoneSel = null; }
+    if (id) { this.selectedPinId = null; this.maskSel = null; }
+    this.polyVertex = null;
   }
 
   /** 다중 선택 모드는 켠 채 다른 종류(카드↔외곽선)로 새로 시작 */
@@ -1954,7 +1931,7 @@ class AppState {
    * 취소되면 그대로. 전에는 누르는 순간 풀고 팬을 시작해 화면만 옮겨도 선택이 사라졌다
    */
   clearSelectionOnTap(e: PointerEvent, onTap?: () => void) {
-    this.whenTap(e, () => { this.selectObject(null); this.selectPin(null); this.selectZone(null); this.flatArrange = false; this.movingPhotoId = null; onTap?.(); }); // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
+    this.whenTap(e, () => { this.selectObject(null); this.selectPin(null); this.selectMask(null); this.flatArrange = false; this.movingPhotoId = null; onTap?.(); }); // 빈 곳 탭 = 카드 배열 모드도 끈다 (2026-10-23 "터치업에서 선택 해제")
   }
 
   /** 이 누르기가 탭(6px 안, 손가락 하나)으로 끝나면 fn — 끌기·핀치면 아무것도 안 한다 */
@@ -1971,61 +1948,74 @@ class AppState {
 
   selectPin(id: string | null) {
     this.selectedPinId = id;
-    if (id && !this.multiMode) { this.selectedId = null; this.zoneSel = null; } // 다중 선택 중 말풍선을 눌러도 선택 유지 (2026-10-22)
+    if (id && !this.multiMode) { this.selectedId = null; this.maskSel = null; } // 다중 선택 중 말풍선을 눌러도 선택 유지 (2026-10-22)
   }
 
-  selectZone(photoId: string | null, zone = 0, vertex: number | null = null) {
-    this.zoneSel = photoId ? { photoId, zone, vertex } : null;
-    if (photoId) { this.selectedId = null; this.selectedPinId = null; }
+  selectMask(photoId: string | null, index = 0, vertex: number | null = null) {
+    this.maskSel = photoId ? { photoId, index, vertex } : null;
+    if (photoId) { this.selectedId = null; this.selectedPinId = null; this.polyVertex = null; }
   }
 
-  // ---------- 작업 존 (사진마다 여러 개) ----------
+  // ---------- 앞가림 마스크 (사진마다 여러 개, 2026-11-08 — 폐지한 작업 존의 편집 방식 + 곡선) → core/pathEdit.ts ----------
 
-  private writeZones(photoId: string, zones: Pt[][], boundary = true) {
+  /** 마스크 목록을 쓴다. boundary = 실행 취소 한 단계 (끄는 동안은 false, 놓을 때 editBoundary) */
+  private writeMasks(photoId: string, masks: Path[], boundary = true) {
     if (boundary) this.editBoundary();
-    this.project.updatePhoto(photoId, { zones, zone: undefined });
+    this.project.updatePhoto(photoId, { masks: masks.length ? masks : undefined });
     if (boundary) this.editBoundary();
   }
+  private masksOf(photoId: string): Path[] { return this.project.photo(photoId)?.masks ?? []; }
 
-  /** 존 추가 → 새 존을 선택 */
-  addZone(photoId: string, zone: Pt[]) {
-    const photo = this.project.photo(photoId);
-    if (!photo || !this.canEdit) return;
-    const zones = [...zonesOf(photo), zone];
-    this.writeZones(photoId, zones);
-    this.selectZone(photoId, zones.length - 1);
+  /** 마스크 추가 → 새 마스크를 선택 */
+  addMask(photoId: string, m: Path) {
+    if (!this.project.photo(photoId) || !this.canEdit) return;
+    const masks = [...this.masksOf(photoId), m];
+    this.writeMasks(photoId, masks);
+    this.selectMask(photoId, masks.length - 1);
   }
 
-  moveZoneVertex(photoId: string, zone: number, index: number, p: Pt) {
-    const photo = this.project.photo(photoId);
-    const zones = photo ? zonesOf(photo) : [];
-    if (!zones[zone] || !this.canEdit) return;
-    this.writeZones(photoId, zones.map((z, zi) => (zi === zone ? z.map((v, i) => (i === index ? p : v)) : z)), false);
+  /** 마스크 하나를 바꾼다 (꼭짓점·손잡이 끌기 = boundary false, 꼭짓점 추가·곡선 켜기 = true) */
+  setMask(photoId: string, index: number, m: Path, boundary = true) {
+    const masks = this.masksOf(photoId);
+    if (!masks[index] || !this.canEdit) return;
+    this.writeMasks(photoId, masks.map((x, i) => (i === index ? m : x)), boundary);
   }
 
-  /** 변 중간 클릭 → 꼭짓점 추가, 추가된 꼭짓점을 선택 */
-  addZoneVertex(photoId: string, zone: number, edge: number, p: Pt) {
-    const photo = this.project.photo(photoId);
-    const zones = photo ? zonesOf(photo) : [];
-    if (!zones[zone] || !this.canEdit) return;
-    this.writeZones(photoId, zones.map((z, zi) => (zi === zone ? insertVertex(z, edge, p) : z)));
-    this.selectZone(photoId, zone, edge + 1);
-  }
-
-  /** Delete: 꼭짓점이 선택돼 있으면 꼭짓점(3개 미만으로는 안 줄어듦), 아니면 존 자체를 지운다 */
-  deleteZoneSelection(): boolean {
-    const s = this.zoneSel;
-    const photo = s && this.project.photo(s.photoId);
-    const zones = photo ? zonesOf(photo) : [];
-    if (!s || !zones[s.zone] || !this.canEdit) return false;
+  /** Delete: 꼭짓점이 선택돼 있으면 꼭짓점(3개 미만으로는 안 줄어듦), 아니면 마스크 자체를 지운다 */
+  deleteMaskSelection(): boolean {
+    const s = this.maskSel;
+    const masks = s ? this.masksOf(s.photoId) : [];
+    if (!s || !masks[s.index] || !this.canEdit) return false;
     if (s.vertex !== null) {
-      const next = removeVertex(zones[s.zone], s.vertex);
-      if (next !== zones[s.zone]) this.writeZones(s.photoId, zones.map((z, zi) => (zi === s.zone ? next : z)));
-      this.selectZone(s.photoId, s.zone, null);
+      const next = removeVertex(masks[s.index], s.vertex);
+      if (next !== masks[s.index]) this.setMask(s.photoId, s.index, next);
+      this.selectMask(s.photoId, s.index, null);
     } else {
-      this.writeZones(s.photoId, zones.filter((_, zi) => zi !== s.zone));
-      this.selectZone(null);
+      this.writeMasks(s.photoId, masks.filter((_, i) => i !== s.index));
+      this.selectMask(null);
     }
+    return true;
+  }
+
+  // ---------- 다각형 사인물 윤곽 (마스크와 같은 편집 + 곡선, 2026-11-08 "존의 작동 원리를 다각형에 적용한다") ----------
+
+  /** 다각형 윤곽을 바꾼다 — 외곽 사각(quad)은 윤곽의 바운드 박스로 */
+  setPolygon(id: string, path: Path, boundary = true) {
+    const o = this.project.object(id);
+    if (!o || o.shape !== 'polygon' || !this.canEdit) return;
+    if (boundary) this.editBoundary();
+    this.project.updateObject(id, { polygon: path.pts, curves: path.curves, quad: boundsQuad(path) });
+    if (boundary) this.editBoundary();
+  }
+
+  /** Delete: 고른 다각형 사인물의 고른 꼭짓점을 지운다 (3개 미만으로는 안 줄어듦) */
+  deletePolyVertex(): boolean {
+    const o = this.selectedId ? this.project.object(this.selectedId) : undefined;
+    if (!o || o.shape !== 'polygon' || !o.polygon || this.polyVertex === null || !this.canEdit) return false;
+    const path = { pts: o.polygon, curves: o.curves };
+    const next = removeVertex(path, this.polyVertex);
+    if (next !== path) this.setPolygon(o.id, next);
+    this.polyVertex = null;
     return true;
   }
 

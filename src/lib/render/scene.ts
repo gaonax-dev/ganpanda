@@ -10,6 +10,7 @@ import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf,
 import { Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
+import { withMasks } from './maskComposite';
 import { displayUrl } from '../photoDisplay';
 import { loadItemImages, loadItemVectors } from './itemImages';
 
@@ -132,6 +133,9 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
     const day = v.exportPng(photo.w, photo.h);
     v.setNight(true); for (const b of built) b.setNight(true);
     const night = v.exportPng(photo.w, photo.h);
+    // 앞가림 마스크: 마스크 부분은 원래 사진이 사인물 위에 (2026-11-08)
+    const photoUrl = photo.masks?.length ? await assetUrl(photo.assetId) : null;
+    if (photoUrl) return { day: await withMasks(day, photoUrl, photo.masks!, photo.w, photo.h), night: await withMasks(night, photoUrl, photo.masks!, photo.w, photo.h, true) };
     return { day, night };
   } finally {
     for (const b of built) b.dispose();

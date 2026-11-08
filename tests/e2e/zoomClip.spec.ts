@@ -47,7 +47,6 @@ test('정보 글자(사인물 이름표·존 이름·블록 치수)는 확대되
   const ph = await page.evaluate(() => {
     const g = (window as any).__ganpanda, p = g.photos[0];
     g.project.addObject({ photoId: p.id, name: '정면간판', shape: 'rect', quad: [[700, 400], [900, 400], [900, 500], [700, 500]], sheetIds: [], widthMm: 3600, heightMm: 600 });
-    g.addZone(p.id, [[600, 300], [1000, 300], [1000, 600], [600, 600]]);
     g.project.updatePhoto(p.id, { blocks: [{ q: [[100, 600], [300, 600], [300, 700], [100, 700]], w: 2000 }] });
     return { x: p.x, y: p.y, s: p.width / p.w, room: g.room };
   });
@@ -67,7 +66,7 @@ test('정보 글자(사인물 이름표·존 이름·블록 치수)는 확대되
     const cv = (await page.getByTestId('board-canvas').boundingBox())!;
     expect(Math.abs(info.r.left - (cv.x + 600))).toBeLessThan(3); // 왼쪽 = 꼭짓점
     expect(info.r.bottom).toBeLessThanOrEqual(cv.y + 400); expect(info.r.bottom).toBeGreaterThan(cv.y + 400 - 12); // 꼭짓점 바로 위
-    if (Z === 1) for (const id of ['zone-label', 'block-size']) expect(await page.getByTestId(id).first().evaluate((e) => !e.closest('svg') && !e.closest('[data-testid="photo-zone"]'))).toBe(true); // 보드 밖 화면 층 (1200% 에선 화면 밖이라 그리지 않음)
+    if (Z === 1) for (const id of ['block-size']) expect(await page.getByTestId(id).first().evaluate((e) => !e.closest('svg') && !e.closest('[data-testid="photo-zone"]'))).toBe(true); // 보드 밖 화면 층 (1200% 에선 화면 밖이라 그리지 않음)
   }
 });
 
