@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clickOnPhoto, dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettings } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettings } from './helpers';
 
 test.beforeEach(async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -40,20 +40,22 @@ test('사각 도구 안에서 모양 고르기: 원은 진짜 타원(라운드�
   await expect(page.getByTestId('draw-shape-ellipse')).toHaveClass(/on/);
 });
 
-test('다각형: 점을 차례로 누르고 첫 점을 다시 누르면 닫힌다 (3점 이상)', async ({ page }) => {
+// 2026-11-08 사용자: "그리는 방식이 마스크와 다각형이 바뀌면 좋겠다" — 다각형은 사각으로 끌어 만들고 바로 꼭짓점 편집 (앞선 점 찍기는 마스크로)
+test('다각형: 사각으로 끌면 꼭짓점 4개 다각형 사인물이 생기고 바로 꼭짓점·변 가운데 □ 로 고친다', async ({ page }) => {
   await uploadPhoto(page);
   await page.getByTestId('tool-rect').click();
   await page.getByTestId('draw-shape-polygon').click();
-  for (const p of [[300, 150], [700, 120], [760, 330], [320, 360]] as [number, number][]) await clickOnPhoto(page, p);
-  await expect(page.getByTestId('poly-draft')).toBeVisible();
-  await clickOnPhoto(page, [302, 152]); // 첫 점 근처
+  await dragOnPhoto(page, [300, 150], [760, 360]);
   const shape = page.getByTestId('sign-shape');
   await expect(shape).toHaveCount(1);
   await expect(shape).toHaveAttribute('data-shape', 'polygon');
-  await expect(page.getByTestId('poly-draft')).toHaveCount(0);
   const o = await page.evaluate(() => (window as unknown as { __ganpanda: { objects: { polygon?: number[][]; quad: number[][] }[] } }).__ganpanda.objects[0]);
   expect(o.polygon).toHaveLength(4);
+  expect(o.polygon![0]).toEqual([300, 150]);
   expect(o.quad).toHaveLength(4);
+  await expect(page.getByTestId('poly-vertex')).toHaveCount(4);
+  await expect(page.getByTestId('poly-mid')).toHaveCount(4);
+  await expect(page.getByTestId('poly-draft')).toHaveCount(0); // 점 찍기는 다각형에 없다
 });
 
 test('사각 도구를 켜면 [다중] 자리가 [연속] — 켜면 그린 뒤에도 사각 도구 유지, 다른 도구를 고르면 꺼짐 (2026-10-24 "사각툴을 켜면 다중버튼은 연속으로변경하고 계속 사각툴이 유지되게 그리고 다른 툴이 선택되면 리셋")', async ({ page }) => {

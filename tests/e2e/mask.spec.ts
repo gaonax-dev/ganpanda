@@ -10,6 +10,14 @@ async function clickPhoto(page: Page, x: number, y: number) {
   const k = b.width / 1600;
   await page.mouse.click(b.x + x * k, b.y + y * k);
 }
+/** 마스크 도구(Z)로 점을 차례로 찍는다 (2026-11-08 다각형과 바꾼 그리기). end = 끝내기: first(첫 점 다시) · dbl(마지막 점 두 번) · enter */
+async function drawMask(page: Page, pts: [number, number][], end: 'first' | 'dbl' | 'enter' = 'first') {
+  await page.keyboard.press('z');
+  for (const p of pts) await clickPhoto(page, p[0], p[1]);
+  if (end === 'first') await clickPhoto(page, pts[0][0] + 2, pts[0][1] + 2);
+  else if (end === 'enter') await page.keyboard.press('Enter');
+  else { const b = (await page.getByTestId('photo-img').first().boundingBox())!; const k = b.width / 1600; const l = pts.at(-1)!; await page.mouse.dblclick(b.x + l[0] * k, b.y + l[1] * k); }
+}
 const center = async (page: Page, testid: string, n: number) => { const b = (await page.getByTestId(testid).nth(n).boundingBox())!; return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
 
 test('마스크 도구(Z)로 사각을 끌어 만들고, 변 가운데 □로 꼭짓점 추가, 끌기, 고른 꼭짓점 Delete(최소 3개), 두 번 누르면 곡선', async ({ page, request, browser }) => {
@@ -17,7 +25,8 @@ test('마스크 도구(Z)로 사각을 끌어 만들고, 변 가운데 □로 �
   await uploadPhoto(page);
   await page.keyboard.press('z');
   await expect(page.getByTestId('tool-mask')).toHaveClass(/on/);
-  await dragOnPhoto(page, [200, 100], [1400, 900]);
+  await page.keyboard.press('Escape');
+  await drawMask(page, [[200, 100], [1400, 100], [1400, 900], [200, 900]]);
   await expect(page.getByTestId('mask-shape')).toHaveCount(1);
   await expect(page.getByTestId('tool-select')).toHaveClass(/on/); // 그리면 선택 도구로 — 바로 고친다
   await expect(page.getByTestId('mask-vertex')).toHaveCount(4);
@@ -71,10 +80,8 @@ test('마스크 도구(Z)로 사각을 끌어 만들고, 변 가운데 □로 �
 test('마스크는 여러 개: 끌 때마다 추가, 마스크를 골라 Delete 하면 그것만, 빈 곳 클릭은 선택 해제', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await page.keyboard.press('z');
-  await dragOnPhoto(page, [100, 100], [600, 400]);
-  await page.keyboard.press('z');
-  await dragOnPhoto(page, [700, 500], [1500, 900]);
+  await drawMask(page, [[100, 100], [600, 100], [600, 400], [100, 400]]);
+  await drawMask(page, [[700, 500], [1500, 500], [1500, 900], [700, 900]], 'enter');
   await expect(page.getByTestId('mask-shape')).toHaveCount(2);
   await expect(page.getByTestId('mask-vertex')).toHaveCount(4); // 새 것만 고른 상태
   await clickPhoto(page, 300, 200); // 첫 마스크 안 → 첫 마스크
@@ -211,9 +218,30 @@ test('마스크 도구로 사인물 위에서 끌기 시작해도 사인물이 �
   await openOwnedProject(page, request);
   await uploadPhoto(page);
   await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; a.project.addObject({ photoId: a.photos[0].id, name: '간판', shape: 'rect', quad: [[200, 200], [1400, 200], [1400, 600], [200, 600]], sheetIds: [] }); a.selectObject(null); });
-  await page.keyboard.press('z');
-  await dragOnPhoto(page, [500, 300], [900, 800]); // 사인물 안에서 시작
+  await drawMask(page, [[500, 300], [900, 300], [900, 800]], 'enter'); // 사인물 안에서 시작
   await expect(page.getByTestId('mask-shape')).toHaveCount(1);
   expect(await page.evaluate(() => (window as unknown as { __ganpanda: { selectedId: string | null } }).__ganpanda.selectedId)).toBeNull();
   expect((await page.evaluate(() => (window as unknown as G).__ganpanda.photos[0].masks![0].pts))[0]).toEqual([500, 300]);
+});
+
+// 2026-11-08 사용자: "마스크가 다각형 그리는 방식 되면 열린 상태에서도 작동하게"
+test('마스크는 점을 찍어 그리고, 첫 점을 다시 누르지 않아도(열린 채) 두 번 누르기·Enter 로 끝내면 마스크 — 그리는 동안에도 모양을 미리 보여 준다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.keyboard.press('z');
+  for (const p of [[200, 200], [600, 150], [700, 600]] as [number, number][]) await clickPhoto(page, p[0], p[1]);
+  await expect(page.getByTestId('mask-draft')).toBeVisible();
+  await expect(page.getByTestId('mask-draft-fill')).toHaveCount(1); // 열린 채로도 면 미리보기
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('mask-shape')).toHaveCount(1);
+  await expect(page.getByTestId('mask-draft')).toHaveCount(0);
+  await drawMask(page, [[900, 200], [1300, 200], [1300, 700], [1000, 800]], 'dbl');
+  await expect(page.getByTestId('mask-shape')).toHaveCount(2);
+  const masks = await page.evaluate(() => (window as unknown as G).__ganpanda.photos[0].masks!.map((m) => m.pts.length));
+  expect(masks).toEqual([3, 4]);
+  // 사각 끌기로는 마스크가 생기지 않는다 (다각형으로 옮김)
+  await page.keyboard.press('z');
+  await dragOnPhoto(page, [100, 700], [400, 900]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('mask-shape')).toHaveCount(2);
 });

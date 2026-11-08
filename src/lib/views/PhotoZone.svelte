@@ -411,7 +411,8 @@
 
   const drawShape = $derived<ShapeKind>(tool === 'ellipse' ? 'ellipse' : app.drawShape === 'ellipse' ? 'ellipse' : 'rect');
   // ---------- 다각형 그리기 (2026-10-24): 점을 차례로 누르고 첫 점을 다시 누르거나 두 번 누르기·Enter 로 닫는다(3점 이상), Esc 취소 ----------
-  const polyMode = $derived(tool === 'rect' && app.drawShape === 'polygon' && editable);
+  // 점 찍기는 앞가림 마스크 (2026-11-08 "그리는 방식이 마스크와 다각형이 바뀌면 좋겠다" — 다각형 사인물은 사각 끌기). 첫 점 다시·두 번 누르기·Enter 로 끝(열린 채로 끝내도 닫힌 마스크)
+  const polyMode = $derived(tool === 'mask' && editable);
   let polyDraft = $state<Pt[] | null>(null);
   let polyHover = $state<Pt | null>(null);
   $effect(() => { if (!polyMode) { polyDraft = null; polyHover = null; } });
@@ -420,9 +421,8 @@
     polyDraft = null; polyHover = null;
     if (!pts || pts.length < 3) return;
     const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-    const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
-    if ((x1 - x0) / u < 8 || (y1 - y0) / u < 8) return;
-    oncreate('polygon', [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], pts.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt));
+    if ((Math.max(...xs) - Math.min(...xs)) / u < 8 || (Math.max(...ys) - Math.min(...ys)) / u < 8) return;
+    oncreatemask?.(pts.map((p) => [Math.round(p[0]), Math.round(p[1])] as Pt));
   }
   function polyDown(e: PointerEvent) {
     if (e.button !== 0) return;
@@ -452,17 +452,10 @@
   const masks = $derived(photo.masks ?? []);
   /** 마스크 편집은 실측 단계에서만 — 제안·디자인에서는 보드의 마스크 층(PhotoMasks)이 사진을 앞에 덮는다 */
   const maskUi = $derived(app.stage === 'original');
-  let maskDraft: { start: Pt; end: Pt } | null = $state(null);
   function maskDown(e: PointerEvent, mi: number) {
     if (e.button !== 0) return;
     if (e.pointerType === 'touch' && tool === 'select') { signTouch.add(e); panThrough(e); app.whenTap(e, () => onselectmask?.(mi, null)); return; }
     e.stopPropagation();
-    if (tool === 'mask' && editable) { // 마스크 도구로 마스크 위를 눌러도 새로 그린다
-      const p = clamp(toPhoto(e.clientX, e.clientY));
-      maskDraft = { start: p, end: p };
-      (e.currentTarget as Element).setPointerCapture(e.pointerId);
-      return;
-    }
     onselectmask?.(mi, null);
   }
   const toPhotoIn = (cx: number, cy: number) => clamp(toPhoto(cx, cy));
@@ -490,14 +483,6 @@
   const signTouch = new WeakSet<Event>();
   function bgDown(e: PointerEvent) {
     if (e.button !== 0 || signTouch.has(e)) return;
-    if (tool === 'mask') {
-      if (!editable) return;
-      e.stopPropagation();
-      const p = clamp(toPhoto(e.clientX, e.clientY));
-      maskDraft = { start: p, end: p };
-      (e.currentTarget as Element).setPointerCapture(e.pointerId);
-      return;
-    }
     if (tool === 'magic') { e.stopPropagation(); onmagicclick?.(); return; }
     if (tool === 'pin') {
       e.stopPropagation();
@@ -528,7 +513,6 @@
   }
 
   function move(e: PointerEvent) {
-    if (maskDraft) { maskDraft = { ...maskDraft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (draft) { draft = { ...draft, end: clamp(toPhoto(e.clientX, e.clientY)) }; return; }
     if (!editing) return;
     const [x, y] = toPhoto(e.clientX, e.clientY);
@@ -564,18 +548,14 @@
   }
 
   /** 두 번째 손가락이 닿거나(두 손가락 화면 조작이 먼저 — 2026-10-20) 브라우저가 취소하면: 진행 중인 편집을 저장하지 않고 되돌린다 */
-  function cancelEdit() { editing = null; draft = null; maskDraft = null; }
+  function cancelEdit() { editing = null; draft = null; }
 
   function up() {
-    if (maskDraft) {
-      const q = quadFromDrag(maskDraft.start, maskDraft.end).map(([x, y]) => [Math.round(x), Math.round(y)] as Pt);
-      if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) oncreatemask?.(q);
-      maskDraft = null;
-    }
     if (draft) {
       const q = quadFromDrag(draft.start, draft.end);
       if ((q[1][0] - q[0][0]) / u > 8 && (q[2][1] - q[1][1]) / u > 8) {
         if (tool === 'block') onblock?.(q, draft.start, draft.end, 14 * u); // 치수 블록 — 고른 사인물의 같은 크기 사각 (2026-11-03)
+        else if (tool === 'rect' && app.drawShape === 'polygon') { const pts = q.map(([x, y]) => [Math.round(x), Math.round(y)] as Pt); oncreate('polygon', pts, pts); } // 다각형 = 사각으로 끌어 꼭짓점 4개, 그다음 꼭짓점 편집 (2026-11-08)
         else oncreate(drawShape, q);
       }
       draft = null;
@@ -819,9 +799,6 @@
       {#each masks as m, mi (mi)}
         {#if maskSel?.index !== mi}{@render maskShape(m, mi)}{/if}
       {/each}
-    {/if}
-    {#if maskDraft}
-      <polygon class="mask draft" points={quadFromDrag(maskDraft.start, maskDraft.end).map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
     {#if photo.camera}
       {@const refL = refLineOf(photo.camera, false, solveCamera(photo.camera, photo.w, photo.h) ?? undefined)}
@@ -1086,12 +1063,13 @@
     {#if draft}
       <polygon class="draft" class:block={tool === 'block'} style:stroke={tool === 'block' ? BLOCK_COLOR : undefined} points={outline(drawShape === 'ellipse' && tool !== 'block' ? 'ellipse' : 'rect', quadFromDrag(draft.start, draft.end))} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
     {/if}
-    <!-- 다각형 그리기: 사진 전체를 덮는 투명 층이 누르기를 받는다(기존 사인물 위에도 점을 찍게) -->
+    <!-- 마스크 점 찍기: 사진 전체를 덮는 투명 층이 누르기를 받는다(사인물·마스크 위에도 점을 찍게). 그리는 동안 면을 미리 — 열린 채로도 닫힌 모양 -->
     {#if polyMode}
       <rect class="poly-catch" data-testid="poly-catch" x="0" y="0" width={photo.w} height={photo.h} role="button" tabindex="-1"
         onpointerdown={polyDown} onpointermove={(e) => { if (polyDraft) polyHover = clamp(toPhoto(e.clientX, e.clientY)); }} ondblclick={finishPoly} />
       {#if polyDraft}
-        <g class="poly-draft" data-testid="poly-draft" pointer-events="none">
+        <g class="poly-draft" data-testid="mask-draft" pointer-events="none">
+          {#if polyDraft.length + (polyHover ? 1 : 0) >= 3}<polygon class="mask" data-testid="mask-draft-fill" points={[...polyDraft, ...(polyHover ? [polyHover] : [])].map((p) => p.join(',')).join(' ')} stroke="none" />{/if}
           <polyline points={[...polyDraft, ...(polyHover ? [polyHover] : [])].map((p) => p.join(',')).join(' ')} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" />
           {#each polyDraft as p, i (i)}<circle cx={p[0]} cy={p[1]} r={(i === 0 && polyDraft.length >= 3 ? 8 : 4) * u} class:first={i === 0} stroke-width={1.5 * u} />{/each}
         </g>

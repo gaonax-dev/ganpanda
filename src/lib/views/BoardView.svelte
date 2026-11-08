@@ -849,7 +849,7 @@
           {#if !app.consumer}<!-- 소비자 견적 요청 모드(2026-10-21)에는 말풍선·마스크가 없다 (작업 존은 2026-11-08 폐지 → 앞가림 마스크) -->
           <!-- 말풍선 단추는 상단 [톡]으로 (2026-10-22 "툴의 말풍선은 톡으로 변경한다") — 위치 번호는 톡의 📍 또는 단축키 -->
           <span class="sep"></span>
-          <button data-testid="tool-mask" class:on={app.tool === 'mask'} disabled={no3d} title="앞가림 마스크 ({hint('toolMask')}) — 사인물 앞에 있는 나무·전봇대·차양을 따라 그리면 제안·디자인 화면에서 그 부분은 사진이 사인물을 덮습니다. 사각으로 끌어 만들고, 고르면 꼭짓점 끌기·변 가운데 □로 추가·꼭짓점 두 번 누르기로 곡선{no3d ? NO3D : ''}" onclick={() => (app.tool = 'mask')}>▨<span class="lbl"> 마스크</span></button>
+          <button data-testid="tool-mask" class:on={app.tool === 'mask'} disabled={no3d} title="앞가림 마스크 ({hint('toolMask')}) — 사인물 앞에 있는 나무·전봇대·차양을 따라 그리면 제안·디자인 화면에서 그 부분은 사진이 사인물을 덮습니다. 점을 차례로 찍고 첫 점을 다시 누르거나 두 번 누르기·Enter 로 끝(열린 채로 끝내도 됨). 고르면 꼭짓점 끌기·변 가운데 □로 추가·꼭짓점 두 번 누르기로 곡선{no3d ? NO3D : ''}" onclick={() => (app.tool = 'mask')}>▨<span class="lbl"> 마스크</span></button>
           {/if}
           <button data-testid="undo" title="실행 취소 ({hint('undo')})" disabled={!app.canUndo} onclick={() => app.undo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg></button>
           <button data-testid="redo" title="다시 실행 ({hint('redo')})" disabled={!app.canRedo} onclick={() => app.redo()}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></svg></button>
@@ -877,7 +877,7 @@
             <div class="draw-shapes" data-testid="draw-shapes" role="group" aria-label="그릴 모양" style:left="{shapesAt?.x ?? 0}px" style:top="{shapesAt?.y ?? 0}px">
               <button data-testid="draw-shape-rect" class:on={app.drawShape === 'rect'} title="사각" onclick={() => (app.drawShape = 'rect')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="4.5" y="4.5" width="15" height="15" rx="1.5" /></svg></button>
               <button data-testid="draw-shape-ellipse" class:on={app.drawShape === 'ellipse'} title="원 ({hint('toolEllipse')})" onclick={() => (app.drawShape = 'ellipse')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="7.5" /></svg></button>
-              <button data-testid="draw-shape-polygon" class:on={app.drawShape === 'polygon'} title="다각형 — 점을 차례로, 첫 점을 다시 누르거나 두 번 누르면 완성" onclick={() => (app.drawShape = 'polygon')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4 L20 10 L17 19.5 L7 19.5 L4 10 Z" /></svg></button>
+              <button data-testid="draw-shape-polygon" class:on={app.drawShape === 'polygon'} title="다각형 — 사각으로 끌어 만들고, 꼭짓점 끌기·변 가운데 □로 추가·꼭짓점 두 번 누르기로 곡선" onclick={() => (app.drawShape = 'polygon')}><svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4 L20 10 L17 19.5 L7 19.5 L4 10 Z" /></svg></button>
             </div>
           {/if}
     {/snippet}
