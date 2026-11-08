@@ -24,7 +24,7 @@ export interface BuiltSign {
 
 /** blurMm: [넓은 번짐, 좁은 번짐] 반경 (mm) */
 function glowTexture(
-  draw: (ctx: CanvasRenderingContext2D, s: number) => void, w: number, h: number, color: string, blurMm: [number, number],
+  draw: (ctx: CanvasRenderingContext2D, s: number) => void, w: number, h: number, color: string, blurMm: number[], passes = 1,
 ) {
   const s = 512 / Math.max(w, h);
   const canvas = document.createElement('canvas');
@@ -35,7 +35,7 @@ function glowTexture(
   // 흐림은 그림자로 — 캔버스 filter(blur)는 WebKit(맥 앱·사파리)이 지원하지 않아 번짐이 딱딱한 사각형으로 보였다 (2026-11-08 핀볼 야간 점검).
   // 모양은 캔버스 밖에 그리고 그 그림자만 캔버스 안으로 (shadowOffset) — 흐린 번짐만 남는다
   const off = canvas.width + canvas.height;
-  for (const b of blurMm) {
+  for (let k = 0; k < passes; k++) for (const b of blurMm) { // passes = 겹쳐 그려 진하게 (전광 번짐)
     ctx.save();
     ctx.shadowColor = color;
     ctx.shadowBlur = Math.max(1, b * s * 2);
@@ -429,8 +429,10 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
         (gh / 2 - (v.y - center.y) * k) * s,
       ]);
       ctx.fill(path, 'evenodd');
-    }, gw, gh, '#' + glowColor.getHexString(), [spec.heightMm * 0.2 * spread, spec.heightMm * 0.06 * spread]);
+    }, gw, gh, '#' + glowColor.getHexString(), haloish ? [spec.heightMm * 0.2 * spread, spec.heightMm * 0.06 * spread] : [spec.heightMm * 0.3, spec.heightMm * 0.12, spec.heightMm * 0.04], haloish ? 1 : 3); // 전광: 넓고 진하게 (2026-11-08)
     glow = glowPlane(tex, gw, gh, 0.5);
+    // 전광 번짐은 색을 덮는다(보통 섞기) — 빛을 더하면 밝은 판 위에서 흰+빨강 = 분홍으로 바랬다. 후광은 벽을 밝히는 빛이라 더하기 그대로 (2026-11-08 "전광은 라이팅 글로우 높여줘")
+    if (!haloish) (glow.material as THREE.MeshBasicMaterial).blending = THREE.NormalBlending;
     group.add(glow);
   }
 
@@ -447,7 +449,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
       else if (side instanceof THREE.MeshStandardMaterial) { side.emissive.set(spec.sideColor); side.emissiveIntensity = night ? 0.18 : 0; } // 채널 옆면도 까맣지 않게 (2026-11-08)
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.3) : 0; // 전광 색 번짐 0.4 → 0.3: 밝은 판 위에 더해지면 분홍빛(흰+빨강)이 되어 전광이 바랬다 (2026-11-08)
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 1 : 0; // 전광 색 번짐 1 (후광도 1) (2026-11-08 "전광은 라이팅 글로우 높여줘" — 보통 섞기라 분홍으로 바래지 않는다)
     },
     dispose() {
       geo.dispose(); side.dispose(); face.dispose();
@@ -632,7 +634,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
       front.emissiveIntensity = night ? 0.6 : 0.1; // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
       // 옆면(테)은 금속이라 초저녁의 약한 주변 빛을 거의 못 받아 까맣게 보였다 → 제 색을 조금 (앞면 빛·주변 불빛 대신, 2026-11-08 돌출 원형)
       frame.emissive.set(spec.sideColor); frame.emissiveIntensity = night ? 0.15 : 0;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.35 : 0;
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.15 : 0; // 상자(돌출 등) 테두리 번짐 0.35 → 0.15 (2026-11-08 "돌출간판 라이팅 글로우 줄여주고")
     },
     dispose() {
       geo.dispose(); tex.dispose(); front.dispose(); frame.dispose();
