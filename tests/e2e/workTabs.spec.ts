@@ -7,7 +7,12 @@ import { openOwnedProject, uploadPhoto } from './helpers';
 test('탭은 실측 · 제안 · 견적 · 디자인 · 완료 — 처음은 실측, 디자인은 사진보드 그대로 + 디자인 싱크·컬러셋, 컨펌 없음', async ({ page, request }) => {
   await openOwnedProject(page, request);
   await uploadPhoto(page);
-  await expect(page.getByTestId('work-tabs').locator('button')).toHaveText(['실측', '제안', '견적', '디자인', '완료']);
+  // 순서 실측 · 제안 · 디자인 · 완료 | 견적 (2026-11-08 "실측 제안 디자인 완료 | 견적") — 견적 앞에 구분선
+  await expect(page.getByTestId('work-tabs').locator('button')).toHaveText(['실측', '제안', '디자인', '완료', '견적']);
+  const tx = async (id: string) => (await page.getByTestId(id).boundingBox())!.x;
+  const sep = (await page.getByTestId('work-tabs-sep').boundingBox())!;
+  expect(sep.x).toBeGreaterThan(await tx('view-done'));
+  expect(sep.x).toBeLessThan(await tx('view-list'));
   await expect(page.getByTestId('view-confirm')).toHaveCount(0);
   await expect(page.getByTestId('stage-2d')).toHaveCount(0);
   await expect(page.getByTestId('stage-3d')).toHaveCount(0);

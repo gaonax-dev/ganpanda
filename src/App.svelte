@@ -131,14 +131,14 @@
   });
 
   /** 휴대폰 폭에서는 짧은 라벨 (short) */
-  // 작업 탭 = 실측 · 제안 · 견적 · 디자인 · 완료 (2026-11-08 "2d,3d를 하나로 통합한다. 그리고 제안이다. 실측, 제안, 견적, 디자인 + 완료된 결과물 올리는 사진보드").
+  // 작업 탭 = 실측 · 제안 · 디자인 · 완료 | 견적 (2026-11-08 "실측 제안 디자인 완료 | 견적" — 견적 앞에 구분선; 그 앞 순서 실측·제안·견적·디자인·완료는 대체됨) (2026-11-08 "2d,3d를 하나로 통합한다. 그리고 제안이다. 실측, 제안, 견적, 디자인 + 완료된 결과물 올리는 사진보드").
   // 예전 [실측·2D·3D·디자인·견적](2026-10-22)은 대체됨. 테스트 이름: 실측 view-board, 제안 view-propose, 견적 view-list, 디자인 view-design, 완료 view-done
   const TABS: { id: WorkTab; tid: string; label: string; short: string; title: string }[] = [
     { id: 'measure', tid: 'view-board', label: '실측', short: '실측', title: '실측 — 사진 그대로, 외곽선·치수만' },
     { id: 'propose', tid: 'view-propose', label: '제안', short: '제안', title: '제안 — 디자인 전 임시 설정을 사진 위 입체로 (원근이 없는 사진은 평면)' },
-    { id: 'list', tid: 'view-list', label: '견적', short: '견적', title: '견적 — 사인물 목록과 금액' }, // 2026-10-26 "헤더의 리스트를 견적으로 변경한다"
     { id: 'design', tid: 'view-design', label: '디자인', short: '디자인', title: '디자이너와 소통 — 디자인 싱크(일러스트·코렐·SVG 보내기·받기)·컬러셋' },
     { id: 'done', tid: 'view-done', label: '완료', short: '완료', title: '완료 — 시공을 마친 결과 사진' },
+    { id: 'list', tid: 'view-list', label: '견적', short: '견적', title: '견적 — 사인물 목록과 금액' }, // 2026-10-26 "헤더의 리스트를 견적으로 변경한다"
   ];
   const SYNC_LABEL = { local: '로컬 저장', connecting: '연결 중…', online: '실시간 연결됨', offline: '오프라인 · 재연결 중', paused: '쉬는 중 · 손대면 다시 연결' } as const; // paused (2026-10-27 실시간 방 비용)
   const warnCount = $derived(app.warnMeasure ? [...app.measures.values()].filter((m) => m.warnings.length).length : 0);
@@ -198,6 +198,7 @@
     <!-- 휴대폰: 사인물을 고르면 편집 막대(복사·붙여넣기·복제·정리)가 작업 탭 자리에 — 상단 바 높이가 그대로라 사진이 밀리지 않는다 (2026-10-22 "터치에 속성외에 화면 팬이 있는데 이것도 제거해줘") -->
     <div class="views" data-testid="work-tabs" class:hidden={!app.room || app.access.status !== 'ok' || (app.proposalMode && !app.canEdit) || app.boardOnly || (app.compact && !!app.selected && app.canEdit && app.view === 'board' && !app.proposalMode)}>
       {#each TABS.filter((t) => (app.isCustomer ? t.id !== 'design' && (t.id !== 'list' || !!app.requestView) : true)) as t (t.id)}
+        {#if t.id === 'list'}<span class="tab-sep" data-testid="work-tabs-sep" aria-hidden="true"></span>{/if}
         <button data-testid={t.tid} class:on={app.tab === t.id} title={t.id === 'measure' && app.unmeasuredCount ? `${t.title} · 미실측 ${app.unmeasuredCount}개 (가로·세로 미입력)` : t.title} onclick={() => app.setTab(t.id)}>
           {app.compact ? t.short : t.label}
           {#if t.id === 'measure' && app.unreadTotal}<span class="dot chat" data-testid="unread-total" title="안 읽은 메시지">💬 {app.unreadTotal}</span>{/if}
@@ -450,6 +451,7 @@
   .views button.rec.on { background: rgba(255, 70, 70, 0.22); color: #ff8080; font-variant-numeric: tabular-nums; }
   .views button .n { font-size: 11px; background: var(--accent); color: #fff; border-radius: 8px; padding: 0 5px; }
   .views { display: flex; gap: 2px; background: var(--input); padding: 3px; border-radius: 9px; }
+  .tab-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--line); flex: none; } /* 견적 앞 구분선 (2026-11-08 "실측 제안 디자인 완료 | 견적") */
   .views button { background: none; border: 0; color: var(--muted); padding: 6px 14px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .views button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
   .dot { background: var(--warn); color: #000; border-radius: 9px; font-size: 10px; padding: 0 6px; font-weight: 700; }
