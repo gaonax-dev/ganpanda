@@ -15,7 +15,7 @@
   import BubbleShape from '../ui/BubbleShape.svelte';
   import type { Pt } from '../core/homography';
   import { faceUrl } from '../photoDisplay';
-  import { withoutDesign } from '../core/parts';
+  import { asDesigned, withoutDesign } from '../core/parts';
   import DesignFace from '../ui/DesignFace.svelte';
   import PartsOverlay from '../ui/PartsOverlay.svelte';
 
@@ -50,7 +50,7 @@
   // 탭마다 그리는 층 (2026-11-06 "사인물카드는 실측(사진), 2d(속성내용), 3d(속성내용 3d추가), 디자인(대지 이미지)") — core/cardLayers
   // 2D·3D = 디자인 적용 전 임시 설정(디자인을 뗀 사본으로 그림), 디자인 탭 = 전체 디자인 (2026-11-07 "이건 일종의 약속과 같은거여서")
   const layers = $derived(cardLayers(app.tab, !!o.design));
-  const propsObj = $derived(withoutDesign(o));
+  const propsObj = $derived(app.designView ? withoutDesign(asDesigned(o)) : withoutDesign(o)); // 디자인 탭 = 디자인 내용(PDF 패스·원본 색), 제안 = 제안 내용(글자·지정 색) (2026-11-08)
   const look = $derived(layers.fill ? bodyLook(o) : null);
   const badge = $derived(faceBadge(o));
   // 정면도 카드의 말풍선 (2026-10-18 "사진에 갇혀 있는데 정면도들에게도 적용"): 사인물 좌표(0~1)로 저장된 자리를 카드 px 로

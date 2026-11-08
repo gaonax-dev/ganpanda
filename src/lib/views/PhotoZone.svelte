@@ -1,6 +1,6 @@
 <!-- 사진 = 보드 위의 구역. 사인물 영역(사각·원형)을 그리고 편집한다. 좌표는 사진 원본 픽셀. -->
 <script lang="ts">
-  import { withoutDesign } from '../core/parts';
+  import { asDesigned, withoutDesign } from '../core/parts';
   import { askPrompt } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
   import type { Pt } from '../core/homography';
@@ -194,7 +194,7 @@
   const clipOf = (o: SignObject, q: Pt[]) => (o.shape === 'rect' && !o.corner ? undefined : outlinePts(o.shape, q, polyOf(o) ? scaled(polyOf(o)!) : undefined, o.corner));
   /** 입힌 디자인 층 — 원본 px 그대로면 3D 층이 너무 커진다 (2026-10-21 휴대폰 크래시) */
   // 2D 탭은 디자인 적용 전 임시 설정 — 디자인을 뗀 사본으로 그린다, 디자인 탭만 디자인 (2026-11-07 "2d, 3d는 디자인이 적용되기 전의 임시 설정")
-  const drawObjs = $derived(app.designView ? objects : objects.map(withoutDesign));
+  const drawObjs = $derived(app.designView ? objects.map(asDesigned) : objects.map(withoutDesign)); // 디자인 = 디자인 내용(PDF 패스), 제안 = 제안 내용 (2026-11-08)
   const designLayers = $derived(drawObjs.filter((o) => o.design).map((o) => {
     // 사진보드는 입체로 연결한 레이어를 뺀 디자인 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게")
     const ref = o.designBase ?? o.design!;

@@ -10,7 +10,7 @@
   import type { Snippet } from 'svelte';
   import { app } from '../state.svelte';
   import type { SignObject, SignPart } from '../core/model';
-  import { commitParts, newItem, partLabel, partsForProduct, partsOf } from '../core/parts';
+  import { asDesigned, commitParts, newItem, partLabel, partsForProduct, partsOf } from '../core/parts';
   import { componentOf } from '../core/components';
   import { applyPreset } from '../core/partPresets';
   import { categoryOf, productById, productsOf, signParts } from '../core/catalog';
@@ -22,9 +22,15 @@
   import { layersOf, lockedItemIds } from '../core/layers';
   import type { PartItem } from '../core/model';
 
-  let { obj, layout }: { obj: SignObject; layout?: Snippet } = $props();
-  const ro = $derived(!app.canEdit);
-  const update = (patch: Partial<SignObject>) => { if (!app.canEdit) return; app.editBoundary(); app.project.updateObject(obj.id, patch); app.editBoundary(); };
+  let { obj: own, layout }: { obj: SignObject; layout?: Snippet } = $props();
+  // [제안 | 디자인] (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각 보여야한다. 속성에서 이걸 구분하고 관리"): 디자인 내용(designItems)이 있으면 둘을 바꿔 본다.
+  // 디자인 쪽은 보기 전용(내용은 디자인 싱크로 받는다) · [디자인 내용 지우기]. 처음은 지금 탭에 맞춰(디자인 탭·고객 = 디자인)
+  const hasDesign = $derived(!!own.designItems && Object.keys(own.designItems).length > 0);
+  let side = $state<'propose' | 'design'>(app.designView ? 'design' : 'propose');
+  const showDesign = $derived(hasDesign && side === 'design');
+  const obj = $derived(showDesign ? asDesigned(own) : own);
+  const ro = $derived(!app.canEdit || showDesign);
+  const update = (patch: Partial<SignObject>) => { if (ro) return; app.editBoundary(); app.project.updateObject(obj.id, patch); app.editBoundary(); };
   const parts = $derived(partsOf(obj));
   const editParts = (fn: (ps: SignPart[]) => void) => { const ps: SignPart[] = JSON.parse(JSON.stringify(parts)); fn(ps); update(commitParts(obj, ps)); };
   // 배치 (정면도 편집기) — 패널 안에서도 쓰도록 여기서 가진다 (2026-10-31 "해당 위치로 변경해줘": 간판 속성이 패널로)
@@ -45,7 +51,7 @@
   const onFrame = $derived(parts.filter((p) => !isUpper(p)));
   const upper = $derived(parts.filter(isUpper));
   const tiers = $derived([upper, onFrame].filter((t) => t.length));
-  const textOf = (p: SignPart) => p.items.filter((i) => i.kind === 'text' && i.text?.trim()).map((i) => i.text!.trim()).join(' ');
+  const textOf = (p: SignPart) => { const t = p.items.filter((i) => i.kind === 'text' && i.text?.trim()).map((i) => i.text!.trim()).join(' '); const v = p.items.filter((i) => i.vector).length; return t ? `"${t}"` : v ? `PDF 패스 ${v}` : ''; };
 
   // 색: 요소마다 칠하는 면 — 프로젝트 컬러 칸에서 고른다
   const FRAME_ROLES: [string, string][] = [['face', '바탕'], ['framePaint', '테']];
@@ -72,7 +78,19 @@
   const back = () => { focus = null; picking = false; };
 </script>
 
-<section class="props" data-testid="sign-props" data-mode={focus ? 'focus' : mode}>
+<section class="props" data-testid="sign-props" data-mode={focus ? 'focus' : mode} data-side={showDesign ? 'design' : 'propose'}>
+  {#if hasDesign}
+    <div class="side" data-testid="sign-side">
+      <div class="seg">
+        <button class:on={!showDesign} data-testid="sign-side-propose" title="제안 내용 — 글자·지정 색 (견적 기준)" onclick={() => (side = 'propose')}>제안</button>
+        <button class:on={showDesign} data-testid="sign-side-design" title="디자인 내용 — 디자인 싱크로 받은 PDF 패스·원본 색" onclick={() => (side = 'design')}>디자인</button>
+      </div>
+      {#if showDesign}
+        <small>디자인 싱크로 받은 내용 · 보기 전용</small>
+        {#if app.canEdit}<button class="btn small" data-testid="sign-design-clear" title="디자인 내용을 지우면 디자인 탭도 제안 내용으로" onclick={() => { app.clearDesignItems(own.id); side = 'propose'; }}>디자인 내용 지우기</button>{/if}
+      {:else}<small>견적 기준</small>{/if}
+    </div>
+  {/if}
   <div class="viewer" data-testid="sign-props-viewer">
     <!-- 3D 뷰어는 늘 붙어 있다 — 요소를 고르거나 배치로 바꿀 때 다시 만들지 않는다(다시 만들면 카메라가 다가가는 대신 화면이 새로 그려져 "리프레시"처럼 보였다, 2026-10-31).
          같은 사인물 3D 에서 고른 요소만 남기고 가까이 (키트 G 모델은 고르기 카드에만) -->
@@ -91,7 +109,7 @@
         <div class="tier" data-testid="sign-tier">
           {#each tier as p (p.id)}
             <button class="el" data-testid="sign-el" data-kind={p.kind} style:--c={componentOf(p.kind).color} onclick={() => (focus = p.id)}>
-              <b>{partLabel(p)}</b>{#if textOf(p)}<small>"{textOf(p)}"</small>{/if}
+              <b>{partLabel(p)}</b>{#if textOf(p)}<small>{textOf(p)}</small>{/if}
             </button>
           {/each}
         </div>
@@ -184,4 +202,9 @@
   .slot-chip i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line); }
   .link { align-self: flex-start; background: none; border: 0; color: var(--muted); text-decoration: underline; padding: 0; font-size: 12px; }
   .items { display: flex; gap: 6px; flex-wrap: wrap; }
+  .side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .side small { color: var(--muted); font-size: 11px; flex: 1; }
+  .seg { display: inline-flex; background: var(--input); border-radius: 8px; padding: 2px; }
+  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+  .seg button.on { background: var(--panel); color: var(--text); font-weight: 600; }
 </style>

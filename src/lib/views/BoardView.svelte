@@ -2,7 +2,7 @@
 <script lang="ts">
   import PhotoMasks from './PhotoMasks.svelte';
   import { followQuad } from '../core/pathEdit';
-  import { withoutDesign } from '../core/parts';
+  import { asDesigned, withoutDesign } from '../core/parts';
   import { paymentsShown } from '../auth';
   import { askConfirm } from '../ui/ask.svelte';
   import { panThrough } from '../ui/panThrough';
@@ -271,7 +271,7 @@
    */
   const variant = (): 'p' | 'd' => (app.designView ? 'd' : 'p');
   const slot = (id: string, v = variant()) => `${v}:${id}`;
-  const viewObjs = (id: string, v = variant()) => app.objects.filter((o) => o.photoId === id).map((o) => (v === 'd' ? o : withoutDesign(o)));
+  const viewObjs = (id: string, v = variant()) => app.objects.filter((o) => o.photoId === id).map((o) => (v === 'd' ? asDesigned(o) : withoutDesign(o))); // 디자인 = 디자인 내용, 제안 = 제안 내용 (2026-11-08)
   /**
    * 3D 단계 그림 (LOD 바탕, 2026-10-29 "사인물을 변경한 경우가 아니라면 기존의 저장된 이미지를 사용한다"): 내용 키가 바뀐 사진만, 차례로.
    * 기기에 저장된 그림이 있으면 그것을 쓰고(만들지 않음), 없으면 데스크톱은 합성해서 저장. 휴대폰은 만들지 않고 — 가운데 사진의 실시간 화면에서 떠서 저장한다

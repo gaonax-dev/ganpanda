@@ -113,6 +113,11 @@ export interface SignObject {
   quad: Pt[];
   /** shape = polygon 일 때 윤곽 (사진 픽셀) */
   polygon?: Pt[];
+  /**
+   * 디자인 쪽 내용 (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각 보여야한다"): 구성 요소 id → 그 구성 요소의 내용(글자·패스·색).
+   * 제안(parts 의 items)은 그대로 두고, 디자인 탭·고객 화면은 asDesigned(o) 로 이 내용을 본다. 구조·재료·치수는 함께 쓰고 견적은 제안 기준 (1단계, roadmap 11-0)
+   */
+  designItems?: Record<string, PartItem[]>;
   /** polygon 꼭짓점마다 베지어 곡선 손잡이 (없거나 null = 직선 모서리, 2026-11-08) → core/pathEdit.ts. 점 목록이 필요한 곳은 polygonPts(o) */
   curves?: (import('./pathEdit').Curve | null)[];
   /** 사각형 모서리 둥글기: 짧은 변 대비 반지름 비율 0~0.5 (0.5 = 알약/원). 원형 도구는 0.5 로 만든다 */

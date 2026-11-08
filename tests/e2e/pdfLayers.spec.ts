@@ -53,7 +53,9 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
   const o = await page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
   expect(o.design).toBeTruthy();
-  const ch = o.parts.find((p: any) => p.id === 'ch1');
+  // 패스는 디자인 쪽 내용으로 — 제안 내용(글자 "카페")은 그대로 (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각")
+  expect(o.parts.find((p: any) => p.id === 'ch1').items).toEqual([expect.objectContaining({ kind: 'text', text: '카페' })]);
+  const ch = { items: o.designItems.ch1 };
   expect(ch.items).toEqual([expect.objectContaining({ kind: 'image', vector: true, x: 0, y: 0, w: 3000, h: 1500 })]);
   // 패스 색 = 원본(채널 레이어는 파랑 0 0 1 rg) — 2026-11-07 "추출한 패스의 컬러는 원본에 따르게 해야됨"
   const svgText = await page.evaluate(async (assetId) => { const ap = '/src/lib/assets.ts'; const { assetUrl } = await import(/* @vite-ignore */ ap); return (await fetch(await assetUrl(assetId))).text(); }, ch.items[0].image.assetId);
@@ -97,7 +99,8 @@ test('PDF 레이어: 받은 이미지는 끄고 디자인 그림, "채널" 레�
   // 3D: 채널 벡터 = 바깥 사각형 + 구멍(짝홀), 사인물 mm 로
   const vec = await page.evaluate(async (id) => {
     const ip = '/src/lib/render/itemImages.ts'; const { loadItemVectors } = await import(/* @vite-ignore */ ip);
-    const g = (window as any).__ganpanda; const v = await loadItemVectors(g.project.object(id), g.sources);
+    const pp = '/src/lib/core/parts.ts'; const { asDesigned } = await import(/* @vite-ignore */ pp);
+    const g = (window as any).__ganpanda; const v = await loadItemVectors(asDesigned(g.project.object(id)), g.sources); // 디자인 쪽 내용으로 (2026-11-08)
     const shapes = Object.values(v)[0] as any[]; const xs = shapes[0].getPoints(4).map((p: any) => p.x);
     return { n: shapes.length, holes: shapes[0].holes.length, minX: Math.min(...xs), maxX: Math.max(...xs) };
   }, id);
@@ -242,4 +245,30 @@ test('사진 3D 는 둘: 3D 탭 = 디자인 전 임시 설정, 디자인 탭 = �
   await page.getByTestId('view-propose').click();
   await expect.poll(async () => (await r('p'))?.key ?? '', { timeout: 30_000 }).toBe(p1.key);
   expect(await page.evaluate(() => (window as any).__ganpanda.stageMade)).toBe(0);
+});
+
+// 2026-11-08 사용자: "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각 보여야한다. 속성에서 이걸 구분하고 관리 가능한가?" → "추천대로 진행해"
+test('제안·디자인 내용 분리: 싱크해도 제안은 글자 그대로, 속성에서 [제안 | 디자인]으로 보고 디자인 내용을 지울 수 있다. 예전 데이터는 패스를 디자인 쪽으로 옮긴다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  await upload(page, layeredPdf('1'));
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
+  await page.getByTestId('view-propose').click();
+  await page.evaluate((id) => (window as any).__ganpanda.selectObject(id), id);
+  const props = page.getByTestId('sign-props');
+  await expect(props).toHaveAttribute('data-side', 'propose'); // 제안 탭 = 제안 내용
+  await expect(props.locator('[data-testid="sign-el"][data-kind="channel"]')).toContainText('카페');
+  await props.getByTestId('sign-side-design').click();
+  await expect(props).toHaveAttribute('data-side', 'design');
+  await expect(props.locator('[data-testid="sign-el"][data-kind="channel"]')).toContainText('PDF 패스 1');
+  await props.getByTestId('sign-design-clear').click();
+  await expect(page.getByTestId('sign-side')).toHaveCount(0); // 디자인 내용이 없으면 전환도 없다
+  expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).designItems, id)).toBeUndefined();
+  // 예전 데이터: 제안 내용 자리에 PDF 레이어 패스 → 디자인 쪽으로, 제안 내용은 비움
+  const moved = await page.evaluate((id) => { const g = (window as any).__ganpanda; const o = g.project.object(id);
+    const vec = { id: 'old', kind: 'image', image: { assetId: 'A', name: '정면 채널 (PDF 레이어)' }, vector: true, x: 0, y: 0, w: 3000, h: 1500 };
+    g.project.updateObject(id, { parts: o.parts.map((p: any) => (p.id === 'ch1' ? { ...p, items: [vec] } : p)), layers: undefined });
+    g.migrateDesignItems(); const n = g.project.object(id); return { design: n.designItems?.ch1?.map((i: any) => i.id), propose: n.parts.find((p: any) => p.id === 'ch1').items.length }; }, id);
+  expect(moved).toEqual({ design: ['old'], propose: 0 });
 });

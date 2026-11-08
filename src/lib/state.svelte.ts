@@ -13,7 +13,7 @@ import { newVersionAvailable, shouldAutoReload, bundleOf, reloadPlan, bustedUrl 
 import { layoutList } from './core/layout';
 import { arrangeLikePhotos, homeOf, unfoldCenters, type UnfoldItem } from './core/arrange';
 import { anchorOf, outlinePoints3 } from './core/boxGizmo';
-import type { Message, Attachment, ExtraItem, ProjectSettings, SignObject, TalkRef } from './core/model';
+import type { Message, Attachment, ExtraItem, PartItem, ProjectSettings, SignObject, TalkRef } from './core/model';
 import { addRef, canSeeTalkMessage, roomIdOf, roomKey, talkUnread, visibleRooms } from './core/talk';
 import { mergePrices, type Markup, type PriceTable } from './core/pricing';
 import { applyMarkup } from './core/markup';
@@ -62,7 +62,7 @@ import { voiceCounts } from './core/voices';
 import { createHistory } from './core/history';
 import { clipOf, pastedObject, type ClipSign } from './core/clipboard';
 import { categoryOf, defaultProductFor, productById, signParts, type Group } from './core/catalog';
-import { categoryPatch, commitParts, materialPatch, newItem, partLabel, partsOf as partsOfSign, withoutDesign } from './core/parts';
+import { asDesigned, categoryPatch, commitParts, legacyDesignPatch, materialPatch, newItem, partLabel, partsOf as partsOfSign, withoutDesign } from './core/parts';
 import { FRAME_PART, isBundleName, parseBundle, pngSize, svgSize, type BundleItem } from './core/illustratorBundle';
 import { Segmenter, type SegmentStatus } from './segment/segmenter';
 import { boundsOf } from './core/mask';
@@ -280,7 +280,7 @@ class AppState {
   /** 사진 3D 그림의 내용 키 — design = 디자인 탭(디자인을 입힌 3D, 예전 키 그대로), 아니면 임시 설정 3D(디자인 빼고 'p' 표시 — 디자인이 바뀌어도 그대로) */
   stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
-    const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
+    const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? asDesigned(o0) : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
     return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(p?.masks?.length ? { masks: p.masks } : {}), ...(design ? {} : { v: 'p' }) })); // 앞가림 마스크도 3D 그림에 들어간다 (2026-11-08) // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
@@ -1256,17 +1256,27 @@ class AppState {
     const picked = Object.entries(layerParts).filter(([layer, part]) => part && svgs[layer]);
     if (!o || !picked.length) return;
     const size = this.sizeOf(o) ?? { w: o.widthMm ?? 1000, h: o.heightMm ?? 1000 };
-    let parts = partsOfSign(o);
+    const ids = new Set(partsOfSign(o).map((p) => p.id));
+    // 디자인 쪽 내용으로 — 제안 내용(글자·지정 색)은 그대로 (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각"). 예전엔 구성 요소 내용을 바꿨다
+    const designItems: Record<string, PartItem[]> = { ...(o.designItems ?? {}) };
     const fresh = new Set<string>();
     for (const [layer, partId] of picked) {
-      const part = parts.find((p) => p.id === partId);
-      if (!part) continue;
+      if (!ids.has(partId)) continue;
       const assetId = await putAsset(new Blob([svgs[layer]], { type: 'image/svg+xml' }));
       const item = { ...newItem('image'), image: { assetId, name: `${o.name} ${layer} (PDF 레이어)` }, vector: true, x: 0, y: 0, w: size.w, h: size.h };
-      parts = parts.map((p) => (p.id === partId ? { ...p, items: fresh.has(partId) ? [...p.items, item] : [item] } : p));
+      designItems[partId] = fresh.has(partId) ? [...(designItems[partId] ?? []), item] : [item];
       fresh.add(partId);
     }
-    this.editBoundary(); this.project.updateObject(o.id, commitParts(o, parts)); this.editBoundary();
+    this.editBoundary(); this.project.updateObject(o.id, { designItems }); this.editBoundary();
+  }
+
+  /** 예전 디자인 싱크가 제안 내용을 PDF 레이어 패스로 덮어쓴 사인물 → 패스를 디자인 쪽으로, 제안 내용은 비움 (2026-11-08, 한 번) */
+  migrateDesignItems() {
+    const todo = this.project.allObjects().flatMap((o) => { const p = legacyDesignPatch(o); return p ? [{ o, p }] : []; });
+    if (!todo.length) return;
+    this.editBoundary();
+    for (const { o, p } of todo) this.project.updateObject(o.id, { ...commitParts(o, p.parts!), designItems: p.designItems });
+    this.editBoundary();
   }
 
   private async applyIllustratorBundle(items: BundleItem[], rows: SyncRow[]): Promise<number> {
@@ -1316,6 +1326,13 @@ class AppState {
     if (!this.canEdit) return;
     this.editBoundary();
     this.project.updateObject(objectId, { design: undefined, designBase: undefined });
+    this.editBoundary();
+  }
+  /** 디자인 내용 지우기 → 디자인 탭도 제안 내용으로 (2026-11-08) */
+  clearDesignItems(objectId: string) {
+    if (!this.canEdit) return;
+    this.editBoundary();
+    this.project.updateObject(objectId, { designItems: undefined });
     this.editBoundary();
   }
 
@@ -1474,6 +1491,7 @@ class AppState {
       this.synced = true;
       // 기기에만 있고 서버에 없는 파일을 찾아 올린다 — 예전에 저장 용량 한도로 못 올린 사진 등 (2026-11-04 "유료로 전환했을때 누락 업로드를 서버로 다시 업로드")
       const r = room;
+      setTimeout(() => { if (this.room === r && this.canEdit) this.migrateDesignItems(); }, 1200); // 예전 PDF 레이어 패스를 디자인 쪽으로 (2026-11-08)
       setTimeout(() => { if (this.room === r && this.canEdit) void repairMissingUploads(projectAssetIds({ photos: this.project.allPhotos(), sources: this.project.allSources(), objects: this.project.allObjects(), messages: this.project.allMessages() })); }, 1500);
     });
     setTimeout(() => (this.syncWaited = true), 4000);

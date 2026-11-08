@@ -113,6 +113,29 @@ export const isPreviewPart = (p: SignPart) => p.options?.included === true; // i
  * 이건 일종의 약속과 같은거여서" · "3d는 이전의 임시설정이 디자인은 디자인파일에서 가져온 걸로 사진위에 3d가 나와야한다. 둘은 다른다"). 미리보기 글자 숨김·시트 색 생략 같은 디자인 동작이 모두 빠진다
  */
 export const withoutDesign = <T extends { design?: unknown; designBase?: unknown }>(o: T): T => (o.design || o.designBase ? { ...o, design: undefined, designBase: undefined } : o);
+/** 디자인 쪽 내용으로 본 사인물 (디자인 탭·고객) — 구성 요소 구조는 같고, 디자인 내용이 있는 구성 요소만 items 를 바꾼다. 없으면 같은 객체 (2026-11-08) */
+export function asDesigned(o: SignObject): SignObject {
+  const di = o.designItems;
+  if (!di || !Object.keys(di).length) return o;
+  const ps = partsOf(o);
+  if (!ps.some((p) => di[p.id])) return o;
+  return { ...o, parts: ps.map((p) => (di[p.id] ? { ...p, items: di[p.id] } : p)) };
+}
+/** 예전 디자인 싱크가 PDF 레이어 패스로 제안 내용을 덮어쓴 것인가 (이름 끝 "(PDF 레이어)" 의 벡터 그림) */
+const isLegacyPdfVector = (it: PartItem) => it.kind === 'image' && !!it.vector && !!it.image && 'name' in it.image && / \(PDF 레이어\)$/.test(it.image.name ?? '');
+/**
+ * 예전 데이터 옮기기 (2026-11-08): PDF 레이어 벡터만 든 구성 요소의 내용을 디자인 쪽(designItems)으로, 제안 내용은 비운다(다시 넣거나 버전 기록에서).
+ * 옮길 것이 없거나 이미 디자인 내용이 있으면 null
+ */
+export function legacyDesignPatch(o: SignObject): Pick<SignObject, 'parts' | 'designItems'> | null {
+  if (o.designItems && Object.keys(o.designItems).length) return null;
+  const ps = o.parts;
+  if (!ps) return null;
+  const moved: Record<string, PartItem[]> = {};
+  for (const p of ps) if (p.items.length && p.items.every(isLegacyPdfVector)) moved[p.id] = p.items;
+  if (!Object.keys(moved).length) return null;
+  return { designItems: moved, parts: ps.map((p) => (moved[p.id] ? { ...p, items: [] } : p)) };
+}
 export const drawnParts = (o: Pick<SignObject, 'design'>, parts: SignPart[]) => (o.design ? parts.filter((p) => !isPreviewPart(p)) : parts);
 /**
  * 출력 글자·그림 (2026-10-21 사용자: "uv후렉스출력에 배경색 글자 그림 옵션 넣어줘"): 후렉스·천갈이처럼 몸통이 곧 출력면인 종류에 글자·그림을 넣는다.

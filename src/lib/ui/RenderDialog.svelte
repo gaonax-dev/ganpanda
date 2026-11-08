@@ -1,6 +1,7 @@
 <!-- 3D 뷰 (사진마다): 사진 + 복원 카메라 + 벽면 격자·축. 사인물이 있으면 3D 로 합성 (주간 그림자·야간 발광), PNG 저장.
      카메라가 없으면(원근 맞추기 전·치수 없음) 왜 3D 가 안 되는지와 다음 할 일을 알려 준다 -->
 <script lang="ts">
+  import { asDesigned } from '../core/parts';
   import type { Font } from 'opentype.js';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
   import { app } from '../state.svelte';
@@ -25,7 +26,7 @@
   let built: BuiltSign[] = [];
   let token = 0;
 
-  const objects = $derived(app.objects.filter((o) => o.photoId === photo.id));
+  const objects = $derived(app.objects.filter((o) => o.photoId === photo.id).map(asDesigned)); // 렌더링 = 디자인 포함 최종 — 디자인 내용(PDF 패스)으로 (2026-11-08)
   const plane = $derived(wallPlaneOf(objects, app.calibrations.get(photo.id)));
   const close = () => (app.renderPhotoId = null);
 
