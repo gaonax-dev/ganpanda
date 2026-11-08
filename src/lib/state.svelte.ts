@@ -79,6 +79,9 @@ export type Access =
   | { status: 'ok'; role: Role; projectName: string; /** 원가 배수 — 소유자 계정 전체 설정 (2026-10-26 "원가는 전체 변경이다"). 소유자·팀에게만, null = 아직 없음 */ costMarkup?: import('./core/pricing').Markup | null;  /** 정산 보기: 오너 또는 "정산 보기"를 켠 팀 멤버 */ billing?: boolean; /** 소유자가 무료 요금제 → 제안 페이지에 간판다 표시 */ branding?: boolean; /** 소유자의 확인된 사업자 (제안 페이지 배지, 2026-10-21) */ business?: { name: string; status: string }; /** 요청에서 만든 프로젝트 (요청판) */ requestId?: string; /** 외주 프로젝트 (2026-10-22) — 핫핑크, [외주 요청] */ outsource?: boolean; /** 가게 사장이 다른 간판집을 확정 (2026-10-22) */ lost?: boolean; /** 요청 크레딧 (2026-10-24): 금액·이미 냄·실제 결제 여부 */ credit?: { fee: number; paid: boolean; /** 제안했고 고객이 열면 결제 (2026-10-25) */ reserved?: boolean; on: boolean; /** 고객이 열었는데 카드 결제 실패 */ error?: string } }
   | { status: 'denied'; code: 401 | 403 | 404 | 410 | 0 }; // 410 = 다른 간판집으로 확정된 요청의 견적 (2026-10-28)
 
+/** 3D 그리는 방식이 바뀌면 올린다 — 기기에 저장된 사진 3D 그림을 한 번 새로 만든다 (2: 두께를 면 배율로, 2026-11-08 — 저장 그림이 예전 두께로 남지 않게) */
+const STAGE_RENDER_VERSION = 2;
+
 class AppState {
   project = new Project();
   /** Yjs 변경마다 증가 → $derived 재계산 트리거 */
@@ -278,7 +281,7 @@ class AppState {
   stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
     const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
-    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, ...(design ? {} : { v: 'p' }) })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
+    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(design ? {} : { v: 'p' }) })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');
