@@ -53,7 +53,10 @@ function glowTexture(
 /** 전광 앞면 야간 발광 세기 — 제 색 그대로 2 (빛 색을 '같은 색상 가장 밝게'로 바꾸면 분홍으로 바랬다, 2026-11-08 핀볼 비교) */
 export const FRONT_LIT = 2;
 /** 주간 발광 — 낮에도 조명이 들어온 모습 (2026-11-09 "주간에도 조명이 들어오게 해줘"). 번짐은 낮엔 없다(햇빛에 묻힘) */
-export const DAY_LIT_BOX = 0.4, DAY_LIT_FRONT = 0.7;
+export const DAY_LIT_BOX = 1.2, DAY_LIT_FRONT = 2.2;
+/** 발광 앞면의 햇빛 반사 (1 = 불 없는 면과 같음) — 줄여서 그만큼 제 빛으로. 주간 발광 상자 1.2·전광 2.2 (2026-11-09 "주간에 조명이 보이지 않는다": 0.4·0.7 은 햇빛 반사에 묻혔다 — 핀볼 전광 글자 (179,27,60) → (231,40,76)) */
+export const LIT_DIFFUSE_K = 0.35;
+const LIT_DIFFUSE = new THREE.Color(LIT_DIFFUSE_K, LIT_DIFFUSE_K, LIT_DIFFUSE_K);
 
 /** RGBA 박스 블러 (가로·세로 따로, passes 번 — 3 번이면 가우스에 가깝다). 작은 그림용 */
 function boxBlur(img: ImageData, r: number, passes: number) {
@@ -441,7 +444,8 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     spec.bulbPitchMm // 벌브: 앞면은 도장, 빛은 전구가
       ? new THREE.MeshStandardMaterial({ color: led, metalness: 0.3, roughness: 0.55 })
       : spec.lighting === 'front'
-      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
+      ? new THREE.MeshPhysicalMaterial({ color: led.clone().multiplyScalar(LIT_DIFFUSE_K), emissive: led, // 발광 앞면은 햇빛 반사를 줄이고 제 빛으로 (2026-11-09)
+         roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
         ? new THREE.MeshStandardMaterial({ color: spec.sideColor, ...(spec.finish ? metal : { metalness: 0.7, roughness: 0.45 }) })
         : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.7, clearcoat: 0.05 });
@@ -668,6 +672,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   const front = new THREE.MeshPhysicalMaterial({
     ...(spec.clearFace ? { transparent: true, depthWrite: false } : {}),
     map: tex, emissiveMap: lit ? tex : null, emissive: lit ? 0xffffff : 0x000000, roughness: 0.75, clearcoat: 0.05, // 앞면 반사광이 디자인·글자를 덮지 않게
+    ...(lit ? { color: LIT_DIFFUSE } : {}), // 발광 앞면 = 안에서 빛나는 아크릴 — 햇빛 반사는 적고 제 빛으로 보인다. 그래야 낮에도 불이 들어온 게 보인다 (2026-11-09 "주간에 조명이 보이지 않는다")
   });
   const frame = new THREE.MeshStandardMaterial({ color: spec.sideColor, metalness: 0.5, roughness: 0.55, ...(spec.clearFace ? { visible: false } : {}) }); // 시트만 = 옆면 없음
   const geo = lightboxGeometry(w, h, d, spec.corner);

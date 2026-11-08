@@ -95,6 +95,19 @@ export const NIGHT_CONTRAST = 1.18;
 /** 초저녁 해(노을빛) 세기 */
 export const DUSK_SUN = 0.3;
 
+/** 사진 평균 밝기 (sRGB 휘도 0~1) — 32px 로 줄여 잰다 (주간 조명을 사진에 맞추기, 2026-11-09) */
+export function meanLuminance(img: CanvasImageSource): number {
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 32;
+    const g = c.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(img, 0, 0, 32, 32);
+    const d = g.getImageData(0, 0, 32, 32).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    return sum / (d.length / 4) / 255;
+  } catch { return 0.5; }
+}
+
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -396,8 +409,13 @@ export class Viewer {
     cam.updateProjectionMatrix();
   }
 
+  /** 사진 밝기에 맞춘 주간 조명 배율 (core/render.ts photoLightScale) — 낮의 해·하늘빛·환경광에 곱한다 (2026-11-09) */
+  private photoLight = 1;
+  setPhotoLight(k: number) { this.photoLight = k; this.setNight(this.night); }
+
   setNight(night: boolean) {
     this.night = night;
+    const k = this.photoLight;
     // 야간 = **초저녁** (2026-11-08 "아직도 너무 어두워 야간 도심의 느낌이 필요한데 많이 우울해보여 활기차야하거든 초저녁으로 설정하고"):
     // 하늘·벽은 푸른 기의 밝은 저녁(NIGHT_BG, 채도 조금 올림), 낮게 깔린 따뜻한 노을빛(해)으로 불 없는 사인물에도 입체감, 발광 사인물은 그대로 빛난다.
     // 앞선 어두운 밤(0.06 → 0.13)은 대체됨. 0.42 는 낮 같아 0.24 로 (같은 날 핀볼로 맞춤)
@@ -405,12 +423,12 @@ export class Viewer {
     this.bgMat.uniforms.sat.value = night ? 1.18 : 1;
     this.bgMat.uniforms.contrast.value = night ? NIGHT_CONTRAST : 1;
     (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.9 : 1, night ? 0.94 : 1, night ? 1.12 : 1);
-    this.sun.intensity = night ? DUSK_SUN : SUN_DAY;
+    this.sun.intensity = night ? DUSK_SUN : SUN_DAY * k;
     this.sun.color.set(night ? 0xffb27a : 0xffffff); // 노을빛
     // 하늘빛은 거의 무채색 — 보랏빛(#9fb4ff)이면 불 없는 흰 시트가 라벤더로 떠 보였다 (2026-11-08 핀볼)
-    this.hemi.intensity = night ? 0.22 : 1.0;
+    this.hemi.intensity = night ? 0.22 : 1.0 * k;
     this.hemi.color.set(night ? 0xd2daea : 0xdde8ff); // 저녁 하늘
-    this.scene.environmentIntensity = night ? 0.16 : ENV_DAY;
+    this.scene.environmentIntensity = night ? 0.16 : ENV_DAY * k;
     (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0.2 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();

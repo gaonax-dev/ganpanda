@@ -7,10 +7,10 @@
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import type { Photo, SignObject } from '../core/model';
-  import { depthScale, fitScale, renderSpecOf } from '../core/render';
+  import { depthScale, fitScale, photoLightScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
   import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
-  import { Viewer } from '../sim/viewer';
+  import { meanLuminance, Viewer } from '../sim/viewer';
   import { loadItemImages, loadItemVectors } from '../render/itemImages';
   import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 
@@ -49,7 +49,9 @@
       try {
         const url = await assetUrl(photo.assetId);
         if (!url) throw new Error('no photo');
-        v.setPhoto(await loadImage(url));
+        const img = await loadImage(url);
+        v.setPhoto(img);
+        v.setPhotoLight(photoLightScale(meanLuminance(img))); // 주간 조명을 사진 밝기에 (2026-11-09)
         v.setMasks(photo.masks, photo.w, photo.h); // 앞가림 마스크 (2026-11-08)
         font = await loadFont(fontUrl);
         ready = true;

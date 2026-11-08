@@ -5,9 +5,9 @@ import { releaseTextures } from './release';
 import type { Font } from 'opentype.js';
 import type { CameraPose } from '../core/homography';
 import type { DesignSource, Photo, SignObject } from '../core/model';
-import { depthScale, fitScale, renderSpecOf } from '../core/render';
+import { depthScale, fitScale, photoLightScale, renderSpecOf } from '../core/render';
 import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, zTowardCamera, type WallPlane } from '../core/wallPlane';
-import { Viewer } from '../sim/viewer';
+import { meanLuminance, Viewer } from '../sim/viewer';
 import { buildLightbox, buildSign, orientBox, recessBox, warpToQuad, type BuiltSign, type FaceImage } from '../sim/signs';
 import { assetUrl } from '../assets';
 import { displayUrl } from '../photoDisplay';
@@ -34,6 +34,8 @@ export interface PreparedScene {
   photo: Photo;
   tex: THREE.Texture;
   P: number[]; pose: CameraPose; maxX: number; maxY: number;
+  /** 사진 밝기에 맞춘 주간 조명 배율 (2026-11-09) */
+  light: number;
   signs: { b: BuiltSign; P: number[]; pose: CameraPose; corners: [number, number][] }[];
 }
 type SceneOpts = { designs: boolean; estOf?: EstOf; /** 앞면 그림 긴 변 픽셀 (실시간 3D 는 크게) */ texLong?: number; /** 디자인 그림을 이만큼만 기다린다(ms) — 실시간 3D 는 못 받은 그림 하나 때문에 장면이 멈추지 않게 */ assetWaitMs?: number };
@@ -60,7 +62,9 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
   // 배경 사진은 줄인 표시용 사본으로 (휴대폰 1600 · 그 외 2400px) — 원본(3200px)을 통째로 텍스처로 올리면 휴대폰 메모리가 넘친다 (2026-10-28 아이폰 새로고침)
   const url = (await displayUrl(photo.assetId, { w: photo.w, h: photo.h })) ?? (await assetUrl(photo.assetId));
   if (!url) throw new Error('photo asset missing');
-  const tex = new THREE.Texture(await loadImage(url));
+  const img = await loadImage(url);
+  const light = photoLightScale(meanLuminance(img)); // 주간 조명을 사진 밝기에 (2026-11-09)
+  const tex = new THREE.Texture(img);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
   const placed = objects.map((o) => { const own = plane ? (signPlaneOf(o, plane) ?? plane) : plane; /* 원근에 맞는 사인물은 원근 설정의 각도 우선 */ return { o, plane: own, at: placeOnWall(own, o) }; });
@@ -95,7 +99,7 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
     b.setNight(false);
     signs.push({ b, P: projectionFromPlane(own, photo.w, photo.h), pose: poseOfPlane(own, photo.w, photo.h), corners });
   }
-  return { photo, tex, P: projectionFromPlane(plane, photo.w, photo.h), pose: poseOfPlane(plane, photo.w, photo.h), maxX, maxY, signs };
+  return { photo, tex, P: projectionFromPlane(plane, photo.w, photo.h), pose: poseOfPlane(plane, photo.w, photo.h), maxX, maxY, signs, light };
 }
 /** 장면 재료를 뷰어에 얹는다 (빠름 — 앞 장면은 내리기만, 버리지 않는다). owned = 뷰어가 사진 텍스처를 가진다(다음 사진에서 버림) */
 function applyScene(v: Viewer, s: PreparedScene, owned: boolean, night = false) {
@@ -106,6 +110,7 @@ function applyScene(v: Viewer, s: PreparedScene, owned: boolean, night = false) 
   v.setMasks(s.photo.masks, s.photo.w, s.photo.h); // 앞가림 마스크 — 3D 안에서 (2026-11-08)
   v.applyProjection(s.P, s.pose, s.maxX, s.maxY);
   for (const g of s.signs) { v.signsRoot.add(g.b.group); v.addSignCamera(g.b.group, g.P, g.pose, g.corners); g.b.setNight(night); }
+  v.setPhotoLight(s.light);
   v.setNight(night); // 사진 머리글 주간/야간 (2026-11-08)
 }
 function disposeScene(s: PreparedScene) { for (const g of s.signs) { g.b.group.removeFromParent(); releaseTextures(g.b.group); g.b.dispose(); } s.tex.dispose(); } // 캔버스도 바로 비운다 (2026-10-29 아이폰 화면 이동 반복 다운)

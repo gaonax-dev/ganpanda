@@ -62,6 +62,15 @@ export function depthScale(corners: [number, number][] | number[][], w: number, 
   return Number.isFinite(k) && k > 0 ? k : 1;
 }
 
+/**
+ * 사진 평균 밝기(sRGB 휘도 0~1) → 주간 조명(해·하늘빛·환경광) 배율 (2026-11-09 "기본 라이팅이 사진의 밝기와 연동되어야하는 것도 필요하다"):
+ * 보통(0.5) = 1, 흐리거나 그늘진 어두운 사진은 줄이고 밝은 사진은 조금 올린다 — 3D 사인물이 사진보다 혼자 밝거나 어둡지 않게. 0.4 ~ 1.3
+ */
+export function photoLightScale(meanLum: number): number {
+  if (!Number.isFinite(meanLum)) return 1;
+  return Math.min(1.3, Math.max(0.4, meanLum / 0.5));
+}
+
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
 /** 내부 조명이 켜진 몸통: 후렉스류는 '비조명'이 아니면, 갈바는 내부 조명 LED(레이저 타공, 2026-10-17)일 때 */
 const isLitBody = (bodyId: string | undefined, o: SignObject) => partsOf(o).some((p) => componentOf(p.kind).litsBody) || // LED 모듈이 있으면 (2026-10-19)
