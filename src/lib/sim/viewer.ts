@@ -19,11 +19,13 @@ uniform sampler2D map;
 uniform float brightness;
 uniform vec3 tint;
 uniform vec4 crop; // 보이는 부분만 (x, y, w, h — 사진 비율, 위에서부터). 기본 (0,0,1,1)
+uniform float sat; // 채도 (1 = 그대로) — 초저녁은 조금 올려 활기차게
 varying vec2 vUv;
 void main() {
   vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
   vec3 c = texture2D(map, uv).rgb;
-  gl_FragColor = vec4(c * brightness * tint, 1.0);
+  c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat);
+  gl_FragColor = vec4(max(c, 0.0) * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
 /**
@@ -41,10 +43,12 @@ const maskFragment = /* glsl */ `
 uniform sampler2D map;
 uniform float brightness;
 uniform vec3 tint;
+uniform float sat;
 varying vec2 vP;
 void main() {
   vec3 c = texture2D(map, vec2(vP.x, 1.0 - vP.y)).rgb;
-  gl_FragColor = vec4(c * brightness * tint, 1.0);
+  c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat);
+  gl_FragColor = vec4(max(c, 0.0) * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
 
@@ -80,8 +84,10 @@ class SignsPass extends Pass {
   }
 }
 
-/** 야간 배경 사진 밝기 (선형 — 화면에서 약 40%). 요즘 도심 밤은 가로등·가게 불로 밝다 (2026-11-08 "요즘 야간은 이렇게 어둡지 않아" — 0.06 은 너무 어두웠다) */
-export const NIGHT_BG = 0.13;
+/** 야간(초저녁) 배경 사진 밝기 (선형 — 화면에서 약 55%). 2026-11-08 "초저녁으로 설정" — 앞선 0.06·0.13 은 어둡고 우울했다 */
+export const NIGHT_BG = 0.24;
+/** 초저녁 해(노을빛) 세기 */
+export const DUSK_SUN = 0.3;
 
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
@@ -129,13 +135,13 @@ export class Viewer {
     this.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onLost?.(); });
 
     this.bgMat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) } },
+      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) }, sat: { value: 1 } },
       vertexShader: bgVertex, fragmentShader: bgFragment, depthWrite: false, depthTest: false,
     });
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
     // 마스크 = 배경과 같은 사진·밝기·색·자르기 유니폼을 나눠 쓴다 (야간·확대에도 배경과 같게)
     this.maskMat = new THREE.ShaderMaterial({
-      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop },
+      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop, sat: this.bgMat.uniforms.sat },
       vertexShader: maskVertex, fragmentShader: maskFragment, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
     });
     this.maskMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.maskMat);
@@ -170,7 +176,7 @@ export class Viewer {
     this.composer.addPass(this.maskPass);
     // 조명·그림자는 모든 레이어에
     this.sun.layers.enableAll(); this.hemi.layers.enableAll(); this.sun.shadow.camera.layers.enableAll();
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 1.0);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.35, 1.0); // 0.55 → 0.35: 초저녁엔 주변 빛과 더해져 발광 앞면이 씻겼다 (2026-11-08)
     this.bloom.enabled = false;
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -386,17 +392,22 @@ export class Viewer {
 
   setNight(night: boolean) {
     this.night = night;
-    // 야간 (2026-11-08 핀볼 점검): 배경 밝기는 선형 값이라 0.2 가 화면에선 절반쯤 밝아 해질녘 같았다 → 0.06(화면 약 1/4), 푸른 밤빛.
-    // 불 없는 사인물도 배경만큼 어둡게 — 반구광·환경광을 낮춘다
+    // 야간 = **초저녁** (2026-11-08 "아직도 너무 어두워 야간 도심의 느낌이 필요한데 많이 우울해보여 활기차야하거든 초저녁으로 설정하고"):
+    // 하늘·벽은 푸른 기의 밝은 저녁(NIGHT_BG, 채도 조금 올림), 낮게 깔린 따뜻한 노을빛(해)으로 불 없는 사인물에도 입체감, 발광 사인물은 그대로 빛난다.
+    // 앞선 어두운 밤(0.06 → 0.13)은 대체됨. 0.42 는 낮 같아 0.24 로 (같은 날 핀볼로 맞춤)
     this.bgMat.uniforms.brightness.value = night ? NIGHT_BG : 1;
-    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.92 : 1, night ? 0.93 : 1, night ? 1.06 : 1); // 푸른 기는 조금만 — 가로등 빛
-    this.sun.intensity = night ? 0 : SUN_DAY;
-    this.hemi.intensity = night ? 0.1 : 1.0;
-    this.scene.environmentIntensity = night ? 0.1 : ENV_DAY;
-    (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0 : 0.38;
+    this.bgMat.uniforms.sat.value = night ? 1.18 : 1;
+    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.9 : 1, night ? 0.94 : 1, night ? 1.12 : 1);
+    this.sun.intensity = night ? DUSK_SUN : SUN_DAY;
+    this.sun.color.set(night ? 0xffb27a : 0xffffff); // 노을빛
+    this.hemi.intensity = night ? 0.3 : 1.0;
+    this.hemi.color.set(night ? 0x9fb4ff : 0xdde8ff); // 저녁 하늘
+    this.scene.environmentIntensity = night ? 0.2 : ENV_DAY;
+    (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0.2 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();
   }
+
 
   setSelection(obj: THREE.Object3D | null) {
     this.selection.visible = !!obj;

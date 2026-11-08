@@ -422,7 +422,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     group,
     measured,
     setNight(night) {
-      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 1.7 : 0.12;
+      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 1.2 : 0.12; // 1.7 → 1.2 (2026-11-08 초저녁)
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.4) : 0;
@@ -604,7 +604,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     group,
     measured: { widthMm: w, heightMm: h, charCount: [...text].filter((c) => c.trim()).length },
     setNight(night) {
-      front.emissiveIntensity = night ? 0.85 : 0.1;
+      front.emissiveIntensity = night ? 0.6 : 0.1; // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
       if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.35 : 0;
     },
     dispose() {
