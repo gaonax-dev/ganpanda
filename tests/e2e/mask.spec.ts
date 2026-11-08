@@ -148,26 +148,6 @@ test('다각형 사인물 = 마스크와 같은 편집: 꼭짓점·변 가운데
   expect(after[0][1] - before[0][1]).toBeGreaterThan(30);
 });
 
-test('렌더링 PNG(제안 이미지)에도 마스크: 마스크 안은 원래 사진, 밖은 3D 그림 그대로, 야간은 사진을 어둡게', async ({ page, request }) => {
-  await openOwnedProject(page, request);
-  const r = await page.evaluate(async () => {
-    const path = '/src/lib/render/maskComposite.ts';
-    const { withMasks } = await import(/* @vite-ignore */ path);
-    const solid = (color: string, w: number, h: number) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d')!; x.fillStyle = color; x.fillRect(0, 0, w, h); return c.toDataURL('image/png'); };
-    const rendered = solid('#ff0000', 200, 100), photo = solid('#00ff00', 400, 200); // 렌더링은 사진 절반 크기
-    const masks = [{ pts: [[0, 0], [200, 0], [200, 200], [0, 200]] }]; // 사진 px 왼쪽 절반
-    const px = async (url: string, x: number, y: number) => { const im = new Image(); im.src = url; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d')!; g.drawImage(im, 0, 0); return [...g.getImageData(x, y, 1, 1).data].slice(0, 3); };
-    const day = await withMasks(rendered, photo, masks, 400, 200);
-    const night = await withMasks(rendered, photo, masks, 400, 200, true);
-    return { inDay: await px(day, 50, 50), outDay: await px(day, 150, 50), inNight: await px(night, 50, 50), same: await withMasks(rendered, photo, [], 400, 200) === rendered };
-  });
-  expect(r.inDay).toEqual([0, 255, 0]);
-  expect(r.outDay).toEqual([255, 0, 0]);
-  expect(r.inNight[1]).toBeLessThan(80); // 야간 = 어둡게
-  expect(r.inNight[1]).toBeGreaterThan(0);
-  expect(r.same).toBe(true); // 마스크 없으면 그대로
-});
-
 // 2026-11-08 사용자: "마스크 제안과 디자인에서 사인물을 제거하는 역활인데 나타나지 않는데" — DOM 순서만 보던 시험이 놓쳤다(실시간 3D 층 z-index 1 아래에 깔림). 화면 픽셀로 본다
 test('제안·디자인 화면에서 마스크 자리는 실제로 사진 색이 보인다 (사인물·3D 가 덮지 않는다)', async ({ page, request }) => {
   test.setTimeout(90_000);
@@ -244,4 +224,28 @@ test('마스크는 점을 찍어 그리고, 첫 점을 다시 누르지 않아�
   await dragOnPhoto(page, [100, 700], [400, 900]);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('mask-shape')).toHaveCount(2);
+});
+
+// 2026-11-08 사용자: "핀볼에서 마스크를 사용했는데 3d만 제거되야하는데 다른 사진처럼 살짝 색과 위치가 틀어져 있다" — 원본 사진을 3D 그림 위에 덮어 3D 배경과 색·자리가 달랐다.
+// 이제 3D 안에서(뷰어가 마스크 자리에 자기 배경을 다시) — 마스크 자리 = 그 사인물을 뺀 3D 그림과 같은 색
+test('3D 그림에서 마스크 자리는 사인물만 빠진 3D 배경과 같은 색 (원본 사진을 덮지 않는다)', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const pid = await page.evaluate(() => (window as unknown as G).__ganpanda.photos[0].id);
+  const ids = await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; const pid = a.photos[0].id;
+    const A = a.project.addObject({ photoId: pid, name: '가림', shape: 'rect', quad: [[300, 300], [1000, 300], [1000, 600], [300, 600]], sheetIds: [], widthMm: 4000, heightMm: 1500, productId: 'board-flex', text: '간판' });
+    const B = a.project.addObject({ photoId: pid, name: '다른', shape: 'rect', quad: [[1100, 700], [1500, 700], [1500, 900], [1100, 900]], sheetIds: [], widthMm: 2000, heightMm: 1000, productId: 'board-flex', text: '다른' });
+    a.addMask(pid, { pts: [[550, 250], [750, 250], [750, 650], [550, 650]] }); a.selectMask(null); return { A, B }; });
+  const overlayPx = async () => { await page.waitForTimeout(500); const b = (await page.getByTestId('photo-overlay').first().boundingBox())!; const k = b.width / 1600; const png = await page.screenshot({ clip: { x: Math.round(b.x + 650 * k), y: Math.round(b.y + 450 * k), width: 1, height: 1 } }); return page.evaluate(async (b64) => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d')!; g.drawImage(im, 0, 0); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3); }, png.toString('base64')); };
+  const key = () => page.evaluate((pid) => (window as any).__ganpanda.stageRenders['p:' + pid]?.key ?? '', pid);
+  await page.getByTestId('view-propose').click();
+  await expect.poll(() => page.evaluate((pid) => (window as any).__ganpanda.stageRenders['p:' + pid]?.url ?? '', pid), { timeout: 60_000 }).toMatch(/^blob:/);
+  await expect(page.getByTestId('photo-masks')).toHaveCount(0); // 3D 그림에는 원본 덮개를 얹지 않는다
+  const k1 = await key();
+  const withSign = await overlayPx();
+  await page.evaluate((id) => (window as any).__ganpanda.project.removeObject(id), ids.A);
+  await expect.poll(async () => { const k = await key(); return k !== k1 && !k.startsWith('stale|') && !!(await page.evaluate((pid) => (window as any).__ganpanda.stageRenders['p:' + pid]?.url, pid)); }, { timeout: 60_000 }).toBe(true);
+  const without = await overlayPx();
+  expect(Math.max(...withSign.map((v, i) => Math.abs(v - without[i])))).toBeLessThanOrEqual(4);
 });

@@ -349,6 +349,10 @@
     return () => { window.removeEventListener('resize', upd); off(); };
   });
   const planeOf = (id: string) => wallPlaneOf(app.objects.filter((o) => o.photoId === id), app.calibrations.get(id));
+  /** 이 사진을 2D 겹침으로 보이나 — 제안·디자인 탭: 3D 기본, 3D 를 못 만드는 사진(원근 없음·납작한 것뿐)·3D 그림이 아직 없거나 실패한 사진은 2D (2026-11-07 디자인, 2026-11-08 제안 "3D 기본, 안 되면 2D") */
+  const showsTwoD = (id: string) => (app.stage === '2d' || (app.stage === '3d' && (flatPhoto(id) || !planeOf(id) || (!app.stageRenders[slot(id)]?.url && live?.id !== id)))) && !app.safeMode;
+  /** 마스크 층이 필요한 사진 = 2D 겹침으로 보이는 사진만 — 3D 그림·실시간 3D 는 뷰어가 마스크 자리에 자기 배경을 다시 그린다 (2026-11-08 "3d만 제거되야하는데 … 색과 위치가 틀어져") */
+  const twoDMasked = $derived(app.stage === 'original' ? [] : app.photos.filter((p) => p.masks?.length && showsTwoD(p.id) && !(app.stage === '3d' && app.stageRenders[slot(p.id)]?.url)));
   const live = $derived.by((): LiveView | null => {
     if (app.stage !== '3d' || !boardSize.w) return null;
     return liveView(app.photos, viewport, boardSize, (id) => !flatPhoto(id) && !!planeOf(id), untrack(() => liveBuilt?.id)); // 앞 사진 유지 (2026-10-30)
@@ -695,7 +699,7 @@
         sameIds={app.sameAsSelected}
         tool={app.stage === '3d' ? (app.tool === 'pin' ? 'pin' : 'select') : app.canEdit || app.tool === 'pin' ? app.tool : 'select'}
         overlay={app.stage === '3d' ? app.stageRenders[slot(p.id)]?.url || undefined : undefined}
-        twoD={(app.stage === '2d' || (app.stage === '3d' && (flatPhoto(p.id) || !planeOf(p.id) || (!app.stageRenders[slot(p.id)]?.url && live?.id !== p.id)))) && !app.safeMode} /* 제안·디자인 탭: 3D 기본, 3D 를 못 만드는 사진(원근 없음)·3D 그림이 아직 없거나 실패한 사진은 2D 로 (2026-11-07 디자인, 2026-11-08 제안 "3D 기본, 안 되면 2D") */
+        twoD={showsTwoD(p.id)} /* 제안·디자인 탭: 3D 기본, 3D 를 못 만드는 사진(원근 없음)·3D 그림이 아직 없거나 실패한 사진은 2D 로 (2026-11-07 디자인, 2026-11-08 제안 "3D 기본, 안 되면 2D") */
         onduplicate={(id) => { const b = parseBlockId(id); if (b) return app.duplicateBlock(b.id, b.i, false); app.selectObject(id); return app.duplicateInPlace(); }}
         calib={app.calibrations.get(p.id)}
         gizmoPx={app.gizmoSize}
@@ -754,8 +758,8 @@
         style:left="{(lp?.x ?? 0) + (live?.rect.x ?? 0)}px" style:top="{(lp?.y ?? 0) + (live?.rect.y ?? 0)}px"
         style:width="{live?.px.w ?? 0}px" style:height="{live?.px.h ?? 0}px" style:transform="scale({1 / viewport.zoom})"></div>
     {/if}
-    <!-- 앞가림 마스크 (2026-11-08): 제안·디자인에서 사진 칸·실시간 3D 위에 마스크 모양대로 원래 사진 -->
-    {#if app.stage !== 'original'}<PhotoMasks photos={app.photos} />{/if}
+    <!-- 앞가림 마스크 (2026-11-08): 2D 겹침으로 보이는 사진만 — 마스크 모양대로 원래 사진. 3D 는 뷰어 안에서(Viewer.setMasks) -->
+    {#if twoDMasked.length}<PhotoMasks photos={twoDMasked} />{/if}
     <!-- 평면 구역: 리스트 뷰와 같은 배치. 사인물(원본)마다 카드 하나, 끌어서 배치 (2026-10-15) -->
     {#if app.flatCards.length}
       <!-- 글·단추(재정렬·간격·고정·축척·완료)는 상단 헤더 막대로 (2026-10-23 "글과 버튼들을 상단 헤더의 창으로 이동") — App.svelte flat-bar -->

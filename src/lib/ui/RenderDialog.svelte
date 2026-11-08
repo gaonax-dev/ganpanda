@@ -49,6 +49,7 @@
         const url = await assetUrl(photo.assetId);
         if (!url) throw new Error('no photo');
         v.setPhoto(await loadImage(url));
+        v.setMasks(photo.masks, photo.w, photo.h); // 앞가림 마스크 (2026-11-08)
         font = await loadFont(fontUrl);
         ready = true;
       } catch { status = '사진이나 폰트를 불러오지 못했습니다.'; }

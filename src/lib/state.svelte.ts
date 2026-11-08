@@ -281,7 +281,7 @@ class AppState {
   stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
     const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? o0 : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
-    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(design ? {} : { v: 'p' }) })); // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
+    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(p?.masks?.length ? { masks: p.masks } : {}), ...(design ? {} : { v: 'p' }) })); // 앞가림 마스크도 3D 그림에 들어간다 (2026-11-08) // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');

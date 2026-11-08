@@ -1,4 +1,5 @@
 // 사진 배경 + 복원된 카메라 + 벽면 평면 위 간판 렌더링
+import { pathD, type Path } from '../core/pathEdit';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -23,6 +24,22 @@ void main() {
   vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
   vec3 c = texture2D(map, uv).rgb;
   gl_FragColor = vec4(c * brightness * tint, 1.0);
+  #include <colorspace_fragment>
+}`;
+/** 앞가림 마스크: 사인물 위에 배경 사진을 마스크 모양대로 다시 — 배경과 같은 셰이더라 색·자리가 3D 배경과 똑같다 (2026-11-08) */
+const maskFragment = /* glsl */ `
+uniform sampler2D map;
+uniform sampler2D mask;
+uniform float brightness;
+uniform vec3 tint;
+uniform vec4 crop;
+varying vec2 vUv;
+void main() {
+  vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
+  float a = texture2D(mask, uv).r;
+  if (a < 0.004) discard;
+  vec3 c = texture2D(map, uv).rgb;
+  gl_FragColor = vec4(c * brightness * tint, a);
   #include <colorspace_fragment>
 }`;
 
@@ -66,6 +83,10 @@ export class Viewer {
   private bgScene = new THREE.Scene();
   private bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private bgMat: THREE.ShaderMaterial;
+  private maskMat: THREE.ShaderMaterial;
+  private maskScene = new THREE.Scene();
+  private maskPass: RenderPass;
+  private maskKey = '';
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private sun = new THREE.DirectionalLight(0xffffff, SUN_DAY);
@@ -103,6 +124,12 @@ export class Viewer {
       vertexShader: bgVertex, fragmentShader: bgFragment, depthWrite: false, depthTest: false,
     });
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
+    // 마스크 = 배경과 같은 사진·밝기·색·자르기 유니폼을 나눠 쓴다 (야간·확대에도 배경과 같게)
+    this.maskMat = new THREE.ShaderMaterial({
+      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop, mask: { value: null } },
+      vertexShader: bgVertex, fragmentShader: maskFragment, depthWrite: false, depthTest: false, transparent: true,
+    });
+    this.maskScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.maskMat));
 
     // 환경맵: 먼저 실내(RoomEnvironment)로 그리고, 도심 HDRI(public/env, 2026-10-17 "환경맵은 three 의 라이팅에 사용되는 HDRI")가 내려오면 바꿔 끼운다
     this.scene.environment = roomEnvironment(this.renderer);
@@ -126,6 +153,10 @@ export class Viewer {
     this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: this.light ? 0 : 4 }));
     this.composer.addPass(new RenderPass(this.bgScene, this.bgCamera));
     this.composer.addPass(new SignsPass(this.scene, this.camera, this.signCameras, this.crop));
+    this.maskPass = new RenderPass(this.maskScene, this.bgCamera);
+    this.maskPass.clear = false;
+    this.maskPass.enabled = false;
+    this.composer.addPass(this.maskPass);
     // 조명·그림자는 모든 레이어에
     this.sun.layers.enableAll(); this.hemi.layers.enableAll(); this.sun.shadow.camera.layers.enableAll();
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.35, 1.0);
@@ -176,6 +207,32 @@ export class Viewer {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     this.bgMat.uniforms.map.value = tex;
+    this.invalidate();
+  }
+
+  /**
+   * 앞가림 마스크 (사진 px 경로들, Photo.masks): 그 모양대로 배경 사진을 사인물·그림자 위에 다시 그린다 → 마스크 자리는 사인물만 빠진 3D 배경 그대로
+   * (2026-11-08 "마스크를 사용했는데 3d만 제거되야하는데 … 살짝 색과 위치가 틀어져 있다" — 원본 사진을 3D 그림 위에 덮던 것은 3D 배경과 색·자리가 달랐다)
+   */
+  setMasks(masks: Path[] | undefined, imgW: number, imgH: number) {
+    const key = masks?.length ? JSON.stringify([masks, imgW, imgH]) : '';
+    if (key === this.maskKey) return;
+    this.maskKey = key;
+    (this.maskMat.uniforms.mask.value as THREE.Texture | null)?.dispose();
+    this.maskMat.uniforms.mask.value = null;
+    this.maskPass.enabled = false;
+    if (masks?.length) {
+      const k = Math.min(1, 2048 / Math.max(imgW, imgH));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(imgW * k)); c.height = Math.max(1, Math.round(imgH * k));
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#fff';
+      for (const m of masks) g.fill(new Path2D(pathD(m, k)));
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.NoColorSpace;
+      this.maskMat.uniforms.mask.value = tex;
+      this.maskPass.enabled = true;
+    }
     this.invalidate();
   }
 
