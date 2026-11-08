@@ -80,8 +80,8 @@ class SignsPass extends Pass {
   }
 }
 
-/** 야간 배경 사진 밝기 (선형 — 화면에서 약 1/4) */
-export const NIGHT_BG = 0.06;
+/** 야간 배경 사진 밝기 (선형 — 화면에서 약 40%). 요즘 도심 밤은 가로등·가게 불로 밝다 (2026-11-08 "요즘 야간은 이렇게 어둡지 않아" — 0.06 은 너무 어두웠다) */
+export const NIGHT_BG = 0.13;
 
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
@@ -389,10 +389,10 @@ export class Viewer {
     // 야간 (2026-11-08 핀볼 점검): 배경 밝기는 선형 값이라 0.2 가 화면에선 절반쯤 밝아 해질녘 같았다 → 0.06(화면 약 1/4), 푸른 밤빛.
     // 불 없는 사인물도 배경만큼 어둡게 — 반구광·환경광을 낮춘다
     this.bgMat.uniforms.brightness.value = night ? NIGHT_BG : 1;
-    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.78 : 1, night ? 0.86 : 1, night ? 1.18 : 1);
+    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.92 : 1, night ? 0.93 : 1, night ? 1.06 : 1); // 푸른 기는 조금만 — 가로등 빛
     this.sun.intensity = night ? 0 : SUN_DAY;
-    this.hemi.intensity = night ? 0.04 : 1.0;
-    this.scene.environmentIntensity = night ? 0.05 : ENV_DAY;
+    this.hemi.intensity = night ? 0.1 : 1.0;
+    this.scene.environmentIntensity = night ? 0.1 : ENV_DAY;
     (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();
