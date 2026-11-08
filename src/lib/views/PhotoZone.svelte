@@ -809,16 +809,15 @@
     onpointerenter={() => { if (tool === 'magic') onmagicenter?.(); }}
     onpointerleave={() => { if (tool === 'magic') onmagicleave?.(); }}
   >
+    {#snippet maskShape(m: Path, mi: number)}
+      <path class="mask" class:sel={maskSel?.index === mi} data-testid="mask-shape" data-index={mi} d={pathD(m)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" role="button" tabindex="-1"
+        pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'} onpointerdown={(e) => maskDown(e, mi)} onpointermove={move} onpointerup={up} />
+    {/snippet}
     <!-- 앞가림 마스크 (실측): 빗금 윤곽, 고르면 꼭짓점·곡선 손잡이 -->
     {#if maskUi}
+      <!-- 고른 마스크는 사인물 외곽선·손잡이보다 위(아래 sel-mask) — 여기는 고르지 않은 것만 (2026-11-08 "마스크가 선택된 상태에서는 다른 사인물아웃라인 선택보다 우선되어야한다") -->
       {#each masks as m, mi (mi)}
-        {@const selected = maskSel?.index === mi}
-        <path class="mask" class:sel={selected} data-testid="mask-shape" d={pathD(m)} stroke-width={2 * u} stroke-dasharray="{6 * u} {4 * u}" role="button" tabindex="-1"
-          pointer-events={tool === 'magic' || tool === 'rect' || tool === 'ellipse' || tool === 'pin' || tool === 'block' ? 'none' : 'auto'} onpointerdown={(e) => maskDown(e, mi)} onpointermove={move} onpointerup={up} />
-        {#if selected && editable && tool === 'select'}
-          <PathEdit path={m} {u} hit={HIT} testid="mask" selVertex={maskSel?.vertex ?? null} toPhoto={toPhotoIn}
-            onchange={(next, b) => onmaskchange?.(mi, next, b)} onselect={(v) => onselectmask?.(mi, v)} ondragend={() => onmaskdragend?.()} />
-        {/if}
+        {#if maskSel?.index !== mi}{@render maskShape(m, mi)}{/if}
       {/each}
     {/if}
     {#if maskDraft}
@@ -1066,6 +1065,18 @@
         {/if}
       </g>
     {/each}
+    <!-- 고른 마스크: 모양·편집 손잡이를 모든 사인물·손잡이보다 위에 (눌러도 아래 사인물이 골라지지 않는다) -->
+    {#if maskUi && maskSel && masks[maskSel.index]}
+      {@const m = masks[maskSel.index]}
+      {@const mi = maskSel.index}
+      <g data-testid="sel-mask">
+        {@render maskShape(m, mi)}
+        {#if editable && tool === 'select'}
+          <PathEdit path={m} {u} hit={HIT} testid="mask" selVertex={maskSel.vertex} toPhoto={toPhotoIn}
+            onchange={(next, b) => onmaskchange?.(mi, next, b)} onselect={(v) => onselectmask?.(mi, v)} ondragend={() => onmaskdragend?.()} />
+        {/if}
+      </g>
+    {/if}
     {#if tool === 'magic' && hoverPolygon}
       <polygon class="magic" data-testid="magic-preview" points={hoverPolygon.map((p) => p.join(',')).join(' ')} stroke-width={2 * u} />
     {/if}

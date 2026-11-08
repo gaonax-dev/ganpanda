@@ -160,3 +160,48 @@ test('렌더링 PNG(제안 이미지)에도 마스크: 마스크 안은 원래 �
   expect(r.inNight[1]).toBeGreaterThan(0);
   expect(r.same).toBe(true); // 마스크 없으면 그대로
 });
+
+// 2026-11-08 사용자: "마스크 제안과 디자인에서 사인물을 제거하는 역활인데 나타나지 않는데" — DOM 순서만 보던 시험이 놓쳤다(실시간 3D 층 z-index 1 아래에 깔림). 화면 픽셀로 본다
+test('제안·디자인 화면에서 마스크 자리는 실제로 사진 색이 보인다 (사인물·3D 가 덮지 않는다)', async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const at = async () => { const b = (await page.getByTestId('photo-img').first().boundingBox())!; const k = b.width / 1600; return { x: Math.round(b.x + 650 * k), y: Math.round(b.y + 400 * k) }; };
+  const pixel = async () => { const p = await at(); const png = await page.screenshot({ clip: { x: p.x, y: p.y, width: 1, height: 1 } }); return page.evaluate(async (b64) => { const im = new Image(); im.src = 'data:image/png;base64,' + b64; await im.decode(); const c = document.createElement('canvas'); c.width = c.height = 1; const g = c.getContext('2d')!; g.drawImage(im, 0, 0); return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3); }, png.toString('base64')); };
+  const photoPx = await pixel(); // 실측: 사진 그대로
+  await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; const pid = a.photos[0].id; a.project.addObject({ photoId: pid, name: '간판', shape: 'rect', quad: [[200, 200], [1400, 200], [1400, 600], [200, 600]], sheetIds: [], widthMm: 6000, heightMm: 2000, productId: 'board-flex', text: '간판다' }); a.selectObject(null); });
+  const near = (a: number[], b: number[]) => Math.max(...a.map((v, i) => Math.abs(v - b[i]))) <= 12;
+  for (const tab of ['view-propose', 'view-design']) {
+    await page.getByTestId(tab).click();
+    await expect.poll(async () => near(await pixel(), photoPx), { timeout: 20_000 }).toBe(false); // 사인물이 덮었다 (평면이든 3D 든)
+  }
+  await page.getByTestId('view-board').click();
+  await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; a.addMask(a.photos[0].id, { pts: [[500, 100], [800, 100], [800, 900], [500, 900]] }); a.selectMask(null); });
+  for (const tab of ['view-propose', 'view-design']) {
+    await page.getByTestId(tab).click();
+    await page.waitForTimeout(3000); // 3D 그림·실시간 3D 가 올라온 뒤에도
+    await expect.poll(async () => near(await pixel(), photoPx), { timeout: 20_000 }).toBe(true);
+  }
+});
+
+// 2026-11-08 사용자: "마스크가 선택된 상태에서는 다른 사인물아웃라인 선택보다 우선되어야한다"
+test('고른 마스크는 사인물 외곽선보다 위: 겹친 자리를 눌러도 마스크가 그대로 골라져 있고, 사인물 위의 꼭짓점도 끌린다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  const sel = () => page.evaluate(() => { const a = (window as unknown as { __ganpanda: { selectedId: string | null; maskSel: unknown } }).__ganpanda; return { sign: a.selectedId, mask: a.maskSel }; });
+  await page.evaluate(() => { const a = (window as unknown as G).__ganpanda; const pid = a.photos[0].id;
+    a.project.addObject({ photoId: pid, name: '간판', shape: 'rect', quad: [[200, 200], [1400, 200], [1400, 600], [200, 600]], sheetIds: [] });
+    a.addMask(pid, { pts: [[500, 300], [800, 300], [800, 500], [500, 500]] }); }); // 사인물 안에 마스크, 만들면 골라진다
+  await expect(page.getByTestId('sel-mask')).toHaveCount(1);
+  await clickPhoto(page, 650, 400); // 겹친 자리
+  expect(await sel()).toEqual({ sign: null, mask: { photoId: expect.any(String), index: 0, vertex: null } });
+  const v = await center(page, 'mask-vertex', 0);
+  await page.mouse.move(v.x, v.y); await page.mouse.down(); await page.mouse.move(v.x - 40, v.y - 30, { steps: 4 }); await page.mouse.up();
+  const m = await page.evaluate(() => (window as unknown as G).__ganpanda.photos[0].masks![0].pts[0]);
+  expect(m[0]).toBeLessThan(490);
+  expect((await sel()).sign).toBeNull();
+  // 마스크를 풀면(빈 곳) 사인물이 다시 골라진다
+  await clickPhoto(page, 100, 900);
+  await clickPhoto(page, 300, 250);
+  expect((await sel()).sign).not.toBeNull();
+});

@@ -22,5 +22,6 @@
 {/each}
 
 <style>
-  .masks { position: absolute; pointer-events: none; overflow: visible; }
+  /* z 2 = 실시간 3D(.live3d z 1)·3D 그림 위 (2026-11-08 "마스크 … 나타나지 않는데" — z 없이 두어 실시간 3D 아래에 깔렸다), 커서(z 3) 아래 */
+  .masks { position: absolute; pointer-events: none; overflow: visible; z-index: 2; }
 </style>
