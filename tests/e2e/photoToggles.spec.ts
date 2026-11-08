@@ -54,3 +54,22 @@ test('렌더링 창(PNG 저장)은 사진 ⚙ 메뉴의 [렌더링]', async ({ p
   await page.getByTestId('render-open').click();
   await expect(page.getByTestId('render-dialog')).toBeVisible();
 });
+
+// 2026-11-08 사용자: "돌출간판의 라이팅 글로우가 컬러과 관계없이 나온다. 돌출간판의 경우 흰색영역에서 글로우가 생겨야 맞다. 버건디 컬러에서는 버건디 컬러로 글로우가 약하게 나와야한다"
+test('상자 사인물의 번짐은 앞면 그림 색대로 — 흰 곳은 밝게, 버건디는 버건디로 약하게', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  const r = await page.evaluate(async () => {
+    const sp = '/src/lib/sim/signs.ts'; const S = await import(/* @vite-ignore */ sp);
+    const c = document.createElement('canvas'); c.width = 400; c.height = 200; const g = c.getContext('2d')!;
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 200, 200); g.fillStyle = '#7b1e2b'; g.fillRect(200, 0, 200, 200); // 왼쪽 흰색 · 오른쪽 버건디
+    const b = S.buildLightbox({ id: 'x', kind: 'lightbox', text: '', heightMm: 500, widthMm: 1000, depthMm: 100, letterSpacing: 0, lighting: 'front', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000' }, 'sans-serif', { image: c, sx: 0, sy: 0, sw: 400, sh: 200 });
+    let glow: any = null; b.group.traverse((o: any) => { if (o.userData?.part === 'glow') glow = o; });
+    const img = glow.material.map.image as HTMLCanvasElement; const x = img.getContext('2d')!;
+    const at = (fx: number) => [...x.getImageData(Math.round(img.width * fx), Math.round(img.height * 0.5), 1, 1).data];
+    return { white: at(0.17), burgundy: at(0.83) }; // 앞면 왼쪽·오른쪽 바깥 둘레
+  });
+  const lum = (p: number[]) => (p[0] + p[1] + p[2]) * (p[3] / 255);
+  expect(lum(r.white)).toBeGreaterThan(lum(r.burgundy) * 2); // 흰 곳이 훨씬 밝게
+  expect(r.burgundy[0]).toBeGreaterThan(r.burgundy[1] + 30); // 버건디는 버건디 빛(빨강이 초록보다)
+  expect(r.white[0] - r.white[2]).toBeLessThan(25); // 흰 곳은 흰 빛
+});

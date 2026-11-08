@@ -44,7 +44,17 @@ function glowTexture(
     draw(ctx, s);
     ctx.restore();
   }
-  // 가장자리로 갈수록 0 — 번짐이 판보다 넓어도 판 끝에서 딱 끊기지 않게 (2026-11-08 측면간판 채널 번짐이 세로선으로 잘림)
+  fadeEdges(canvas, ctx); // 가장자리로 갈수록 0 — 번짐이 판보다 넓어도 판 끝에서 딱 끊기지 않게 (2026-11-08 측면간판 채널 번짐이 세로선으로 잘림)
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 전광 앞면 야간 발광 세기 — 제 색 그대로 2 (빛 색을 '같은 색상 가장 밝게'로 바꾸면 분홍으로 바랬다, 2026-11-08 핀볼 비교) */
+export const FRONT_LIT = 2;
+
+/** 번짐 그림 가장자리 14% 를 0 으로 */
+function fadeEdges(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
   ctx.globalCompositeOperation = 'destination-out';
   const fx = canvas.width * 0.14, fy = canvas.height * 0.14;
   const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
@@ -57,13 +67,44 @@ function glowTexture(
   edge(0, 0, 0, fy, 0, 0, canvas.width, fy);
   edge(0, canvas.height, 0, canvas.height - fy, 0, canvas.height - fy, canvas.width, fy);
   ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
+ * 상자 앞면 그림으로 만든 번짐 (2026-11-08 "돌출간판의 라이팅 글로우가 컬러과 관계없이 나온다. 흰색영역에서 글로우가 생겨야 맞다. 버건디 컬러에서는 버건디 컬러로 글로우가 약하게"):
+ * 앞면 그림을 아주 작게 줄였다가 넓게 키워 흐린 색 번짐으로 — 더하기 빛이라 흰 곳은 밝게, 버건디 같은 어두운 색은 그 색으로 약하게 번진다.
+ * 전엔 사인물 바탕색 한 가지(대개 흰색)로 앞면 전체가 번졌다
+ */
+function faceGlowTexture(face: HTMLCanvasElement, w: number, h: number, pad: number, cornerMm: number): THREE.CanvasTexture {
+  const gw = w + pad * 2, gh = h + pad * 2, s = 512 / Math.max(gw, gh);
+  // 둥근 사각·원은 그 모양으로 (앞면 그림은 사각이라 모양으로 잘라서 줄인다)
+  const shaped = document.createElement('canvas');
+  shaped.width = face.width; shaped.height = face.height;
+  const sc = shaped.getContext('2d')!;
+  const k = face.width / w;
+  roundedRectPath(sc, 0, 0, shaped.width, shaped.height, cornerMm * k);
+  sc.clip();
+  sc.drawImage(face, 0, 0);
+  const tinyLong = 14;
+  const tiny = document.createElement('canvas');
+  tiny.width = Math.max(2, Math.round((tinyLong * w) / Math.max(w, h))); tiny.height = Math.max(2, Math.round((tinyLong * h) / Math.max(w, h)));
+  const tc = tiny.getContext('2d')!;
+  tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = 'high';
+  tc.drawImage(shaped, 0, 0, tiny.width, tiny.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(gw * s); canvas.height = Math.ceil(gh * s);
+  const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  for (const [e, a] of [[0.25, 0.8], [0.6, 0.5]] as const) { // 가까이 진하게, 멀리 옅게
+    const ex = pad * e;
+    ctx.globalAlpha = a;
+    ctx.drawImage(tiny, (pad - ex) * s, (pad - ex) * s, (w + ex * 2) * s, (h + ex * 2) * s);
+  }
+  ctx.globalAlpha = 1;
+  fadeEdges(canvas, ctx);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
-
-/** 전광 앞면 야간 발광 세기 — 제 색 그대로 2 (빛 색을 '같은 색상 가장 밝게'로 바꾸면 분홍으로 바랬다, 2026-11-08 핀볼 비교) */
-export const FRONT_LIT = 2;
 
 /** 둥근 사각형 경로 (r = 0 이면 사각, 짧은 변의 반이면 알약·원) */
 function roundedRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -619,7 +660,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     const pad = Math.min(w, h) * 0.5;
     const gw = w + pad * 2, gh = h + pad * 2;
     const r = Math.max(0, Math.min(0.5, spec.corner ?? 0)) * Math.min(w, h); // 둥근 사각·원은 그 모양으로 번진다 (전엔 늘 사각)
-    const gt = glowTexture((c, sc) => { roundedRectPath(c, pad * sc, pad * sc, w * sc, h * sc, r * sc); c.fill(); }, gw, gh, spec.faceColor, [pad * 0.4, pad * 0.12]);
+    const gt = faceGlowTexture(canvas, w, h, pad, r); // 앞면 그림의 색·밝기대로 (흰 곳은 밝게, 어두운 색은 약하게)
     // 앞면 바로 뒤(1mm) — 앞면이 가운데를 가리고 둘레로만 번진다: 돌출(벽에서 튀어나온) 간판도 앞면 테두리에서 빛난다 (2026-11-08 "돌출의 라이팅림이 뒤에서만 나와").
     // 벽에 두면 돌출은 뒤 벽에서만 빛났고, 앞면 위(z=0.5)에 두면 앞면이 하얗게 씻겼다
     glow = glowPlane(gt, gw, gh, -1);
@@ -634,7 +675,7 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
       front.emissiveIntensity = night ? 0.6 : 0.1; // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
       // 옆면(테)은 금속이라 초저녁의 약한 주변 빛을 거의 못 받아 까맣게 보였다 → 제 색을 조금 (앞면 빛·주변 불빛 대신, 2026-11-08 돌출 원형)
       frame.emissive.set(spec.sideColor); frame.emissiveIntensity = night ? 0.15 : 0;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.15 : 0; // 상자(돌출 등) 테두리 번짐 0.35 → 0.15 (2026-11-08 "돌출간판 라이팅 글로우 줄여주고")
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.3 : 0; // 상자(돌출 등) 테두리 번짐 — 앞면 그림 색대로라 흰 곳만 밝다 (2026-11-08: 0.35 → 0.15 → 앞면 색 번짐 0.3)
     },
     dispose() {
       geo.dispose(); tex.dispose(); front.dispose(); frame.dispose();
