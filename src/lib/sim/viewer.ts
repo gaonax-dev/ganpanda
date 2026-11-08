@@ -1,5 +1,5 @@
 // 사진 배경 + 복원된 카메라 + 벽면 평면 위 간판 렌더링
-import { pathD, type Path } from '../core/pathEdit';
+import { flattenPath, type Path } from '../core/pathEdit';
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
@@ -26,20 +26,25 @@ void main() {
   gl_FragColor = vec4(c * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
-/** 앞가림 마스크: 사인물 위에 배경 사진을 마스크 모양대로 다시 — 배경과 같은 셰이더라 색·자리가 3D 배경과 똑같다 (2026-11-08) */
+/**
+ * 앞가림 마스크: 사인물 위에 배경 사진을 마스크 모양대로 다시 — 배경과 같은 사진·밝기·색·자르기라 3D 배경과 똑같다 (2026-11-08).
+ * 마스크는 그림(텍스처)이 아니라 **도형**(삼각형, 꼭짓점 = 사진 비율 좌표) — 확대해도 경계가 깍두기 없이 매끈하다(MSAA) (같은 날 "마스크와 3d가 깍두기 생겨": 2048px 마스크 그림을 키워 계단이 보였다)
+ */
+const maskVertex = /* glsl */ `
+uniform vec4 crop;
+varying vec2 vP;
+void main() {
+  vP = position.xy; // 사진 비율 (x 오른쪽, y 아래로)
+  gl_Position = vec4((position.x - crop.x) / crop.z * 2.0 - 1.0, 1.0 - (position.y - crop.y) / crop.w * 2.0, 0.0, 1.0);
+}`;
 const maskFragment = /* glsl */ `
 uniform sampler2D map;
-uniform sampler2D mask;
 uniform float brightness;
 uniform vec3 tint;
-uniform vec4 crop;
-varying vec2 vUv;
+varying vec2 vP;
 void main() {
-  vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
-  float a = texture2D(mask, uv).r;
-  if (a < 0.004) discard;
-  vec3 c = texture2D(map, uv).rgb;
-  gl_FragColor = vec4(c * brightness * tint, a);
+  vec3 c = texture2D(map, vec2(vP.x, 1.0 - vP.y)).rgb;
+  gl_FragColor = vec4(c * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
 
@@ -87,6 +92,7 @@ export class Viewer {
   private maskScene = new THREE.Scene();
   private maskPass: RenderPass;
   private maskKey = '';
+  private maskMesh: THREE.Mesh;
   private composer: EffectComposer;
   private bloom: UnrealBloomPass;
   private sun = new THREE.DirectionalLight(0xffffff, SUN_DAY);
@@ -126,10 +132,12 @@ export class Viewer {
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
     // 마스크 = 배경과 같은 사진·밝기·색·자르기 유니폼을 나눠 쓴다 (야간·확대에도 배경과 같게)
     this.maskMat = new THREE.ShaderMaterial({
-      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop, mask: { value: null } },
-      vertexShader: bgVertex, fragmentShader: maskFragment, depthWrite: false, depthTest: false, transparent: true,
+      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop },
+      vertexShader: maskVertex, fragmentShader: maskFragment, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
     });
-    this.maskScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.maskMat));
+    this.maskMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.maskMat);
+    this.maskMesh.frustumCulled = false;
+    this.maskScene.add(this.maskMesh);
 
     // 환경맵: 먼저 실내(RoomEnvironment)로 그리고, 도심 HDRI(public/env, 2026-10-17 "환경맵은 three 의 라이팅에 사용되는 HDRI")가 내려오면 바꿔 끼운다
     this.scene.environment = roomEnvironment(this.renderer);
@@ -218,23 +226,18 @@ export class Viewer {
     const key = masks?.length ? JSON.stringify([masks, imgW, imgH]) : '';
     if (key === this.maskKey) return;
     this.maskKey = key;
-    (this.maskMat.uniforms.mask.value as THREE.Texture | null)?.dispose();
-    this.maskMat.uniforms.mask.value = null;
+    this.maskMesh.geometry.dispose();
+    this.maskMesh.geometry = new THREE.BufferGeometry();
     this.maskPass.enabled = false;
-    if (masks?.length) {
-      const k = Math.min(1, 2048 / Math.max(imgW, imgH));
-      const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round(imgW * k)); c.height = Math.max(1, Math.round(imgH * k));
-      const g = c.getContext('2d')!;
-      g.fillStyle = '#fff';
-      for (const m of masks) g.fill(new Path2D(pathD(m, k)));
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.NoColorSpace;
-      this.maskMat.uniforms.mask.value = tex;
+    if (masks?.length && imgW > 0 && imgH > 0) {
+      // 곡선은 잘게 펴서, 사진 비율 좌표의 도형으로 (ShapeGeometry 가 삼각형으로 나눈다)
+      const shapes = masks.map((m) => new THREE.Shape(flattenPath(m, 24).map(([x, y]) => new THREE.Vector2(x / imgW, y / imgH))));
+      this.maskMesh.geometry = new THREE.ShapeGeometry(shapes);
       this.maskPass.enabled = true;
     }
     this.invalidate();
   }
+
 
   resize(w: number, h: number) {
     if (w === this.size.w && h === this.size.h) return; // 같은 크기면 버퍼를 다시 만들지 않는다
