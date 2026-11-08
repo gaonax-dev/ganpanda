@@ -98,15 +98,15 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
   return { photo, tex, P: projectionFromPlane(plane, photo.w, photo.h), pose: poseOfPlane(plane, photo.w, photo.h), maxX, maxY, signs };
 }
 /** 장면 재료를 뷰어에 얹는다 (빠름 — 앞 장면은 내리기만, 버리지 않는다). owned = 뷰어가 사진 텍스처를 가진다(다음 사진에서 버림) */
-function applyScene(v: Viewer, s: PreparedScene, owned: boolean) {
+function applyScene(v: Viewer, s: PreparedScene, owned: boolean, night = false) {
   v.showGrid(false);
   v.clearSignCameras();
   v.signsRoot.clear();
   v.usePhotoTexture(s.tex, owned);
   v.setMasks(s.photo.masks, s.photo.w, s.photo.h); // 앞가림 마스크 — 3D 안에서 (2026-11-08)
   v.applyProjection(s.P, s.pose, s.maxX, s.maxY);
-  for (const g of s.signs) { v.signsRoot.add(g.b.group); v.addSignCamera(g.b.group, g.P, g.pose, g.corners); }
-  v.setNight(false);
+  for (const g of s.signs) { v.signsRoot.add(g.b.group); v.addSignCamera(g.b.group, g.P, g.pose, g.corners); g.b.setNight(night); }
+  v.setNight(night); // 사진 머리글 주간/야간 (2026-11-08)
 }
 function disposeScene(s: PreparedScene) { for (const g of s.signs) { g.b.group.removeFromParent(); releaseTextures(g.b.group); g.b.dispose(); } s.tex.dispose(); } // 캔버스도 바로 비운다 (2026-10-29 아이폰 화면 이동 반복 다운)
 
@@ -148,13 +148,13 @@ export async function renderPhotoPngs(photo: Photo, objects: SignObject[], plane
 export class StageRenderer {
   private host: HTMLDivElement | null = null;
   private viewer: Viewer | null = null;
-  async render(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf): Promise<string> {
+  async render(photo: Photo, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf?: EstOf, night = false): Promise<string> {
     if (!this.viewer) { this.host = hiddenHost(); this.viewer = new Viewer(this.host); }
     const v = this.viewer;
     let built: BuiltSign[] = [];
     try {
       built = await buildScene(v, photo, objects, plane, sources, font, { designs: true, maxW: 640, maxH: 480, estOf }); // 디자인 이미지도 입힌다 (2026-10-17 사용자: "3d에서는 이미지 맵이 들어오지 않았다")
-      v.setNight(false); for (const b of built) b.setNight(false);
+      v.setNight(night); for (const b of built) b.setNight(night); // 사진 머리글 주간/야간 (2026-11-08)
       const sz = stageExportSize(photo.w, photo.h); // 긴 변 2560 (2026-11-05 맥 앱 확대 깍두기 — 전엔 가로 1280)
       return v.exportPng(sz.w, sz.h, 'image/jpeg', 0.88); // 저장해 두므로 JPEG (2026-10-29)
     } finally {
@@ -208,7 +208,7 @@ export class LiveStage {
    * 가운데 사진의 장면 — **한 번에 하나씩**(2026-10-28 핀볼: 겹쳐 지으면 사진이 바뀌고 사인물이 쌓였다), 지어 둔 장면이 있으면 바로 얹는다.
    * isCurrent 가 거짓이면 얹지 않는다(지은 것은 기억). 'built' = 새로 지음, 'cached' = 기억한 것, false = 얹지 않음
    */
-  build(photo: Photo, key: string, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf: EstOf | undefined, isCurrent: () => boolean = () => true): Promise<'built' | 'cached' | false> {
+  build(photo: Photo, key: string, objects: SignObject[], plane: WallPlane, sources: DesignSource[], font: Font, estOf: EstOf | undefined, isCurrent: () => boolean = () => true, night = false): Promise<'built' | 'cached' | false> {
     const run = this.chain.then(async () => {
       if (!isCurrent()) return false;
       const hit = this.cache.get(photo.id);
@@ -221,7 +221,7 @@ export class LiveStage {
         made = 'built';
       } else this.remember(photo.id, key, scene);
       if (!isCurrent()) return false;
-      applyScene(this.viewer, scene, false);
+      applyScene(this.viewer, scene, false, night);
       this.applied = photo.id;
       return made;
     });

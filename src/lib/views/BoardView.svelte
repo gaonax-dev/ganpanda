@@ -306,7 +306,7 @@
         const t0 = performance.now();
         crashLog.event(`3D 그림 ${p.name} 만들기 시작`);
         try {
-          const dataUrl = await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize);
+          const dataUrl = await stageRenderer.render(p, objs, plane, app.sources, stageFont, app.estSize, !!app.photoNight[id]);
           app.stageMade++;
           app.stageRenders[sk] = { key, url: await saveSnapshot(id, key, await dataUrlToBlob(dataUrl), v) };
           crashLog.event(`3D 그림 ${p.name} 완료 ${Math.round(performance.now() - t0)}ms`);
@@ -393,7 +393,7 @@
       if (!liveStage) { liveStage = new LiveStage(host); liveLight = liveStage.viewer.light; liveStage.viewer.onLost = () => { crashLog.event('3D 화면 잃음'); liveLost = true; liveStage?.dispose(); liveStage = null; liveBuilt = null; }; }
       let made: 'built' | 'cached' | false = false;
       crashLog.event(`3D 장면 ${p.name} 시작`);
-      try { made = await liveStage.build(p, key, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken); }
+      try { made = await liveStage.build(p, key, objs, plane, app.sources, stageFont, app.estSize, () => token === liveToken, !!app.photoNight[id]); }
       catch (e) { console.warn('실시간 3D 실패', e); return; }
       crashLog.event(`3D 장면 ${p.name} ${made || '취소'}`);
       if (made && token === liveToken) { liveBuilt = { id, key }; if (made === 'built') liveBuilds++; prefetchNeighbors(id); snapshotLater(id, key); }

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { SERVER, openOwnedProject, uploadPhoto, openDesignFiles } from './helpers';
+import { SERVER, openOwnedProject, uploadPhoto, openDesignFiles, openRender } from './helpers';
 
 /** 휴대폰 폭(390px, 터치) — 핀치 확대와 축약 라벨 */
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
@@ -50,8 +50,7 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   await expect(page.getByTestId('camera-auto')).toHaveText(''); // 원근 자동 매칭 (2026-10-19) — 선 아이콘만 (2026-10-26 이모지 대신)
   await expect(page.getByTestId('camera-auto').locator('svg')).toHaveCount(1);
   await expect(page.getByTestId('camera-open').locator('svg rect')).toHaveCount(2);
-  await expect(page.getByTestId('render-open')).toHaveText('');
-  await expect(page.getByTestId('render-open').locator('svg').first()).toBeVisible();
+  await expect(page.getByTestId('photo-menu')).toHaveText(''); // [렌더링]은 ⚙ 메뉴 안 (2026-11-08)
   // 접속자 칩·역할은 숨기고 프로젝트 이름은 보인다
   await expect(page.getByTestId('role-badge')).toBeHidden();
   const title = (await page.getByTestId('project-title').boundingBox())!;
@@ -63,7 +62,7 @@ test('휴대폰 폭에서는 상단 바·도구·사진 머리글이 축약되�
   const nav = (await page.getByTestId('top-nav').boundingBox())!;
   expect(nav.x + nav.width).toBeLessThanOrEqual(391);
   // 3D 뷰 창은 화면 폭 가득
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   const dlg = (await page.getByTestId('render-dialog').boundingBox())!;
   expect(dlg.width).toBeGreaterThanOrEqual(380);
   await page.getByTestId('close-render').click();

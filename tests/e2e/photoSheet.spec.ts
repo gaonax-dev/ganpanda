@@ -40,7 +40,7 @@ test.describe('안드로이드', () => {
     await openOwnedProject(page, request);
     await uploadPhoto(page);
     const zone = page.getByTestId('photo-zone').first();
-    for (const id of ['photo-menu', 'render-open']) {
+    for (const id of ['photo-menu']) { // [렌더링]은 ⚙ 메뉴 안 (2026-11-08)
       await expect(zone.getByTestId(id).locator('svg')).toHaveCount(1);
       expect(await zone.getByTestId(id).textContent()).not.toMatch(/[⚙🎨📐]/u);
     }

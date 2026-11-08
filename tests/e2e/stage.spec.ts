@@ -56,8 +56,8 @@ test('3D 단계: 사진 위에 합성 결과가 겹치고 영역 편집은 숨�
   const third = await overlay.getAttribute('src');
   await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { objects: { id: string }[]; project: { updateObject(id: string, p: unknown): void } } }).__ganpanda; app.project.updateObject(app.objects[0].id, { parts: [{ id: 'c', kind: 'channel', type: 'ch-front', options: {}, items: [{ id: 't', kind: 'text', text: '카페', x: -900, y: 0, h: 450 }] }] }); });
   await expect.poll(() => page.getByTestId('photo-overlay').getAttribute('src'), { timeout: 30_000 }).not.toBe(third);
-  // 렌더링 버튼은 사진마다 그대로 (디자인 포함 최종 합성 창)
-  await expect(page.getByTestId('render-open')).toContainText('렌더링');
+  // 사진 머리글 = 주간/야간 토글 (2026-11-08 — 렌더링 창은 ⚙ 메뉴)
+  await expect(page.getByTestId('photo-night')).toContainText('주간');
   await page.getByTestId('view-board').click();
   await expect(page.getByTestId('photo-overlay')).toHaveCount(0);
   await expect(page.getByTestId('sign-shape')).toHaveCount(1);

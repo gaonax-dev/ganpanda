@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearAutoCamera, openOwnedProject } from './helpers';
+import { clearAutoCamera, openOwnedProject, openRender } from './helpers';
 
 type Pt = [number, number];
 async function loadSample(page: import('@playwright/test').Page) {
@@ -127,7 +127,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
 
   // 실사 보기가 카메라를 쓴다 (패널이 사진 머리 바를 가리지 않게 선택 해제)
   await page.evaluate(() => (window as unknown as { __ganpanda: { selectObject(id: string | null): void } }).__ganpanda.selectObject(null));
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-dialog')).toContainText('원근 맞추기');
   await page.getByTestId('close-render').click();
 

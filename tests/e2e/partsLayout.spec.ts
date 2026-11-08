@@ -1,6 +1,6 @@
 // 조합형 4단계: 정면도 배치를 3D·실사 합성·평면도 카드·리스트·PDF 에 반영 (2026-10-16 사용자: "4단계 진행해")
 import { expect, test, type Page } from '@playwright/test';
-import { openOwnedProject, show2d } from './helpers';
+import { openOwnedProject, show2d, openRender } from './helpers';
 
 /** 합성 건물 사진 + 9000×1000 갈바 간판: 왼쪽(-3000)에 전광 채널 글자, 오른쪽(+3000)에 파란 그림(UV 출력 시트) */
 async function setup(page: Page, request: Parameters<typeof openOwnedProject>[1]) {
@@ -54,7 +54,7 @@ async function samplePixels(page: Page, dataUrl: string, at: [number, number], r
 
 test('실사 합성: 채널 글자는 정면도의 왼쪽 자리에 입체로, 그림 객체는 오른쪽 자리 앞면에', async ({ page, request }) => {
   const at = await setup(page, request);
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   const dlg = page.getByTestId('render-dialog');
   await expect(dlg.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await page.waitForTimeout(1000);

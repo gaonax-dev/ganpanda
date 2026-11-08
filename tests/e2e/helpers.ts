@@ -30,6 +30,12 @@ export async function show2d(page: Page) {
   await page.evaluate(() => { (window as unknown as { __ganpanda: { stage: string } }).__ganpanda.stage = '2d'; });
 }
 
+/** 렌더링 창 — 사진 ⚙ 메뉴의 [렌더링] (2026-11-08 머리글 [렌더링]은 주간/야간 토글로). n = 몇 번째 사진 */
+export async function openRender(page: Page, n = 0) {
+  await page.getByTestId('photo-menu').nth(n).click();
+  await page.getByTestId('render-open').click();
+}
+
 /** 사진 원본 픽셀 좌표로 드래그 */
 export async function dragOnPhoto(page: Page, from: [number, number], to: [number, number]) {
   const img = page.getByTestId('photo-img').first();

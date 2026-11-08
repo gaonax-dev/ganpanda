@@ -19,17 +19,12 @@
       const s = p.width / p.w;
       const at = (q: Pt) => ({ x: (p.x + q[0] * s) * z + viewport.x, y: (p.y + q[1] * s) * z + viewport.y });
       const inView = (a: { x: number; y: number }) => a.x > -M && a.x < screenW + M && a.y > -M && a.y < screenH + M;
-      const hideInfo = !!app.photoHide[p.id]?.info;
       for (const o of app.objects) {
         if (o.photoId !== p.id || !o.quad.length) continue;
-        const sel = app.selectionKind !== 'card' && o.id === app.selectedId, multi = !sel && app.photoHighlightIds.includes(o.id);
-        if (hideInfo && !sel && !multi) continue;
         const a = at(o.quad[0]);
         if (inView(a) || hide) out.push({ hide, key: `s${o.id}`, kind: 'sign', ...a, id: o.id, o });
       }
       (app.photoBlocks.get(p.id) ?? []).forEach((b, i) => {
-        const bsel = app.selectedBlock?.photoId === p.id && app.selectedBlock.i === i;
-        if (hideInfo && !bsel) return;
         const c = b.q.reduce((acc, q) => [acc[0] + q[0] / 4, acc[1] + q[1] / 4] as Pt, [0, 0] as Pt);
         const a = at(c);
         const mis = app.blockMismatchOf(p.id, i), odd = !mis && app.blockOutlierOf(p.id, i); // 원근과 안 맞음 · 다른 블록과 안 맞음 (2026-11-05) — 기준에서 빠진 블록

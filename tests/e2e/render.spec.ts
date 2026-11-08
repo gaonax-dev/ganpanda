@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiCreateInvite, clearAutoCamera, makePhoto, openInvited, openOwnedProject } from './helpers';
+import { apiCreateInvite, clearAutoCamera, makePhoto, openInvited, openOwnedProject, openRender } from './helpers';
 
 /** 합성 건물 사진 + 파사드 띠 영역(9000×1000, 전광 채널 "간판다") */
 async function setup(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
@@ -44,8 +44,8 @@ async function samplePixels(page: import('@playwright/test').Page, dataUrl: stri
 
 test('실사 보기: 사진 속 제자리에 입체 글자를 합성하고, 야간에는 발광하며, PNG 로 저장한다', async ({ page, request }) => {
   const { center } = await setup(page, request);
-  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'ok');
-  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('photo-menu')).toHaveAttribute('data-status', 'ok');
+  await openRender(page);
   const dlg = page.getByTestId('render-dialog');
   await expect(dlg).toBeVisible();
   await expect(dlg.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
@@ -87,7 +87,7 @@ test('폰트에 없는 글자(이모지)만 있는 채널 사인물이 있어도
     app.project.addObject({ photoId, name: '이모지', shape: 'rect', quad: rect(600, 4950, 1500, 850), sheetIds: [], productId: 'ch-front', text: '🙂' });
     app.project.addObject({ photoId, name: '뒤에 만든 것', shape: 'rect', quad: rect(2700, 4950, 1500, 850), sheetIds: [], productId: 'ch-halo', text: '카페' });
   });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('3', { timeout: 20_000 });
   await expect(page.getByTestId('render-status')).toContainText('이모지');
   await expect(page.getByTestId('render-status')).toContainText('상자');
@@ -113,7 +113,7 @@ test('카메라가 벽과 어긋나 있어도(기본 설정 그대로 적용) �
     app.project.addObject({ photoId, name: '흰 박스', shape: 'rect', quad: rect(5500, 4950, 2400, 850), sheetIds: [], productId: 'board-foamex' });
     return applyHomography(H, [6700, 5375]) as [number, number];
   });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('2', { timeout: 20_000 });
   await page.getByTestId('render-save').click();
   const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
@@ -139,7 +139,7 @@ test('벽과 맞지 않는 카메라에서 사진 곳곳에 그린 사인물이 
     for (const [x0, y0, x1, y1] of boxes) app.project.addObject({ photoId, name: `박스 ${x0}`, shape: 'rect', quad: [[x0, y0], [x1, y0 + 20], [x1, y1], [x0, y1 - 15]], sheetIds: [], productId: 'board-foamex' });
     return boxes.map(([x0, y0, x1, y1]) => [(x0 + x1) / 2, (y0 + y1) / 2] as [number, number]);
   });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('5', { timeout: 20_000 });
   await page.getByTestId('render-save').click();
   const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
@@ -174,7 +174,7 @@ test('카메라가 바닥 평면으로 잡혀 있어도(둘째 쌍 = 세로 Y) �
     app.project.addObject({ photoId, name: '위 박스', shape: 'rect', quad: rect(4900, 5000, 1300, 750), sheetIds: [], productId: 'board-foamex' });
     return applyHomography(H, [5550, 5375]) as [number, number];
   });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('2', { timeout: 20_000 });
   await page.getByTestId('render-save').click();
   const hook = () => (window as unknown as { __ganpanda: { lastRender: string } }).__ganpanda.lastRender;
@@ -196,8 +196,8 @@ test('두 번째 사진의 분류 없는 사인물도 3D 에 회색 판으로 �
     // 분류·문구 없이 치수만 (3D 벽면은 이 사인물로 잡힘)
     app.project.addObject({ photoId: side, name: '옆 간판', shape: 'rect', quad: [[300, 650], [1100, 650], [1100, 850], [300, 850]], sheetIds: [], widthMm: 4000, heightMm: 1000 });
   });
-  await expect(page.getByTestId('render-open').nth(1)).toHaveAttribute('data-status', 'ok');
-  await page.getByTestId('render-open').nth(1).click();
+  await expect(page.getByTestId('photo-menu').nth(1)).toHaveAttribute('data-status', 'ok');
+  await openRender(page, 1);
   await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await expect(page.getByTestId('render-status')).toHaveCount(0);
   await page.getByTestId('close-render').click();
@@ -207,7 +207,7 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
   const { session, projectId } = await setup(page, request);
   await clearAutoCamera(page); // 원근 없는 사진에서 그린 영역만으로
   const guest = await openInvited(browser, await apiCreateInvite(request, session, projectId, 'viewer'));
-  await guest.getByTestId('render-open').click();
+  await openRender(guest);
   await expect(guest.getByTestId('render-dialog')).toBeVisible();
   await expect(guest.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await guest.ctx.close();
@@ -217,8 +217,8 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
     const app = (window as unknown as { __ganpanda: { project: { allObjects(): { id: string }[]; updateObject(id: string, p: unknown): void } } }).__ganpanda;
     for (const o of app.project.allObjects()) app.project.updateObject(o.id, { widthMm: undefined, heightMm: undefined });
   });
-  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'ok');
-  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('photo-menu')).toHaveAttribute('data-status', 'ok');
+  await openRender(page);
   await expect(page.getByTestId('render-dialog')).toContainText('그린 영역');
   await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await page.getByTestId('close-render').click();
@@ -226,8 +226,8 @@ test('치수를 입력한 사인물이 없으면 안내하고, 고객(viewer)도
     const app = (window as unknown as { __ganpanda: { project: { allObjects(): { id: string }[]; removeObject(id: string): void } } }).__ganpanda;
     for (const o of app.project.allObjects()) app.project.removeObject(o.id);
   });
-  await expect(page.getByTestId('render-open')).toHaveAttribute('data-status', 'none');
-  await page.getByTestId('render-open').click();
+  await expect(page.getByTestId('photo-menu')).toHaveAttribute('data-status', 'none');
+  await openRender(page);
   await expect(page.getByTestId('render-status')).toContainText('영역');
   await expect(page.getByTestId('render-open-camera')).toBeVisible();
 });
@@ -245,7 +245,7 @@ test('원근 설정의 축 지정으로 카메라 +z 가 벽 안쪽이어도 상
     app.project.updateObject(app.objects[0].id, { productId: 'board-galva', options: { channel: '전광 채널' }, text: '카페' });
     return { center: P([4500, 4200]) };
   });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await page.waitForTimeout(1500);
   await page.getByTestId('render-save').click();
@@ -265,7 +265,7 @@ test('몸통 위 채널 글자가 반사광에 씻겨 사라지지 않는다 (�
   // 올릴 때 긴 변 3200 으로 줄어든다(2026-10-17 photoPrep) → 원본 5712px 좌표를 에셋 px 로 환산
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { photos: { w: number }[] } }).__ganpanda.photos[0]?.w)).toBe(3200);
   await page.evaluate(() => { const app = (window as unknown as { __ganpanda: { photos: { id: string; w: number }[]; project: { addObject(o: unknown): string } } }).__ganpanda; const s = app.photos[0].w / 5712; app.project.addObject({ photoId: app.photos[0].id, name: 's', shape: 'rect', quad: [[940, 881], [4685, 994], [4678, 1431], [931, 1338]].map(([x, y]) => [x * s, y * s]), sheetIds: [], productId: 'board-galva', options: { channel: '전광 채널' }, text: '바로바로정육점', widthMm: 6400, heightMm: 600 }); });
-  await page.getByTestId('render-open').click();
+  await openRender(page);
   await expect(page.getByTestId('render-count')).toContainText('1', { timeout: 20_000 });
   await page.waitForTimeout(1500);
   await page.getByTestId('render-save').click();
