@@ -36,6 +36,14 @@ describe('사인물을 그린 사각형에 맞춤 (warpToQuad)', () => {
     expect(zmin).toBeCloseTo(0, 3); expect(zmax).toBeCloseTo(100, 3);
     expect(g.position.length()).toBe(0);
   });
+  it('zScale 을 주면 두께도 그 배율로 (2026-11-08 앞면을 맞춘 배율만큼 두께도)', () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(lightboxGeometry(2000, 1000, 100, 0), new THREE.MeshBasicMaterial()));
+    warpToQuad(g, 2000, 1000, [[0, 500], [1000, 500], [1000, 0], [0, 0]], 1, 0.5);
+    const pos = (g.children[0] as THREE.Mesh).geometry.attributes.position as THREE.BufferAttribute;
+    let zmax = -Infinity; for (let i = 0; i < pos.count; i++) zmax = Math.max(zmax, pos.getZ(i));
+    expect(zmax).toBeCloseTo(50, 3);
+  });
   it('scale 을 주면 먼저 줄인 뒤 맞춘다 (글자 폭 맞춤)', () => {
     const g = new THREE.Group();
     g.add(new THREE.Mesh(lightboxGeometry(4000, 1000, 10, 0), new THREE.MeshBasicMaterial()));

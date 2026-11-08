@@ -6,7 +6,7 @@
   import { app } from '../state.svelte';
   import { assetUrl } from '../assets';
   import type { Photo, SignObject } from '../core/model';
-  import { fitScale, renderSpecOf } from '../core/render';
+  import { depthScale, fitScale, renderSpecOf } from '../core/render';
   import { loadFont } from '../core/textShapes';
   import { placeOnWall, poseOfPlane, projectionFromPlane, quadOnWall, signPlaneOf, sizedAt, boxLocalDirOf, wallPlaneOf, zTowardCamera } from '../core/wallPlane';
   import { Viewer } from '../sim/viewer';
@@ -113,7 +113,7 @@
       }
       if (it.spec.kind === 'lightbox' && !it.spec.bodyless) recessBox(b.group, it.spec.depthMm); // 외곽선 = 앞면 (2026-10-17)
       // 그린 사각형에 정확히 맞춘다 (카메라가 벽과 어긋나도). 글자는 먼저 영역 폭에 맞춤
-      warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1);
+      warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1, depthScale(it.corners, it.o.widthMm ?? 0, it.o.heightMm ?? 0)); // 두께도 면에서 잰 크기 ÷ 입력 크기 배율로 (2026-11-08)
       // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면(글자·디자인)이 카메라를 보게 (2026-10-15 사용자: "정면 페이스가 사라졌다")
       // 박스 방향으로 (정면 축·회전 고리, 2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"). 없으면 법선
       orientBox(b.group, boxLocalDirOf(it.o, it.plane, p, photo.w, photo.h), zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0);

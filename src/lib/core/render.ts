@@ -47,6 +47,21 @@ const UNCLASSIFIED_LOOK = { faceColor: '#9aa0a6', depthMm: 20 };
 /** 입체 글자가 그린 영역보다 넓으면 영역 폭에 맞게 줄이는 배율 (좁으면 그대로) — 3D 는 사용자가 그린 자리에 맞물린다 */
 export const fitScale = (measuredW: number, placementW: number) => (measuredW > placementW && measuredW > 0 ? placementW / measuredW : 1);
 
+/**
+ * 두께 배율 = 그 면에서 잰 외곽선 크기 ÷ 입력 크기 (가로·세로 배율의 기하 평균, 마주 보는 변의 평균 길이로). corners = 그 면의 mm 꼭짓점 TL,TR,BR,BL, w·h = 입력 가로·세로(mm, 없으면 0 → 1).
+ * 3D 의 사인물 자체 크기(글자·디자인 배치)는 그 면에서 잰 크기(contentSizeOf)인데 두께(몸통·채널 글자)는 입력 mm 그대로여서, 외곽선이 입력보다 작게 재지는
+ * 사진(옆면 등)에서 두께만 과하게 보였다 — 핀볼 정사선 사진의 측면간판: 입력 3200×600·두께 120 이 면에서 1663×310 → 두께가 크기에 비해 두 배.
+ * 두께도 같은 배율로 → 입력한 크기·두께 비율이 어느 사진에서나 그대로 (2026-11-08 "측면간판 두께가 과도하게 나온다 … 자주 발생하는데 조정이 어렵다")
+ */
+export function depthScale(corners: [number, number][] | number[][], w: number, h: number): number {
+  if (!(w > 0 && h > 0) || corners.length !== 4) return 1;
+  const d = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const [tl, tr, br, bl] = corners;
+  const qw = (d(tl, tr) + d(bl, br)) / 2, qh = (d(tl, bl) + d(tr, br)) / 2;
+  const k = Math.sqrt((qw / w) * (qh / h));
+  return Number.isFinite(k) && k > 0 ? k : 1;
+}
+
 const SCASHI_IDS = new Set(SCASHI_OPTIONS.map((c) => c.id));
 /** 내부 조명이 켜진 몸통: 후렉스류는 '비조명'이 아니면, 갈바는 내부 조명 LED(레이저 타공, 2026-10-17)일 때 */
 const isLitBody = (bodyId: string | undefined, o: SignObject) => partsOf(o).some((p) => componentOf(p.kind).litsBody) || // LED 모듈이 있으면 (2026-10-19)

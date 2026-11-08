@@ -443,7 +443,8 @@ export function lightboxGeometry(w: number, h: number, d: number, corner = 0): T
  * 평면 안 호모그래피를 모든 정점의 x,y 에 적용(z 는 그대로) — 카메라가 벽과 조금 어긋나 있어도 사인물은 사용자가 그린 자리에 그대로 놓인다
  * (2026-10-14 사용자: "사진 위의 사인물 크기는 사용자가 그린 사인물에 맞물리면 된다"). scale 은 먼저 곱한다(글자 폭 맞춤)
  */
-export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [number, number][], scale = 1) {
+/** zScale = 두께 배율 (core/render.ts depthScale — 앞면을 맞춘 배율만큼 두께도, 2026-11-08). 기본 1 = 두께 그대로 */
+export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [number, number][], scale = 1, zScale = 1) {
   const H = solveHomography([[-w / 2, h / 2], [w / 2, h / 2], [w / 2, -h / 2], [-w / 2, -h / 2]], corners);
   // 벽 좌표가 거울상(원근 축 하나를 리버스)이면 꼭짓점이 뒤집혀 놓여 삼각형 감김이 반대가 된다 → 감김을 되돌린다
   // (2026-10-15 사용자: "원근에서 x축 방향으로 리버스하면 3d가 뒤집어진다"). 중심에서의 야코비안 부호 = det(H)/d³
@@ -461,6 +462,7 @@ export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [n
       const x = pos.getX(i) * scale, y = pos.getY(i) * scale;
       const d = H[6] * x + H[7] * y + H[8];
       pos.setXY(i, (H[0] * x + H[1] * y + H[2]) / d, (H[3] * x + H[4] * y + H[5]) / d);
+      if (zScale !== 1) pos.setZ(i, pos.getZ(i) * zScale);
     }
     if (mirrored) reverseWinding(g);
     pos.needsUpdate = true;
