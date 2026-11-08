@@ -469,6 +469,8 @@ export function warpToQuad(group: THREE.Group, w: number, h: number, corners: [n
     g.computeVertexNormals();
     g.computeBoundingBox(); g.computeBoundingSphere();
   });
+  // 부품의 z 자리(까치발 띄움·상자 앞면 위 글자 묶음 등)도 같은 배율 — 정점만 줄이면 붙어 있던 것이 떨어진다 (2026-11-08 "체널위치와 까치발이 떨어져있다")
+  if (zScale !== 1) group.traverse((obj) => { if (obj !== group) obj.position.z *= zScale; });
   group.position.set(0, 0, 0);
   group.scale.setScalar(1);
 }

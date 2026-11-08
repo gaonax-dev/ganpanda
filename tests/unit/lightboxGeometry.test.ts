@@ -44,6 +44,21 @@ describe('사인물을 그린 사각형에 맞춤 (warpToQuad)', () => {
     let zmax = -Infinity; for (let i = 0; i < pos.count; i++) zmax = Math.max(zmax, pos.getZ(i));
     expect(zmax).toBeCloseTo(50, 3);
   });
+  // 2026-11-08 사용자: "핀볼의 측면간판에 체널위치와 까치발이 떨어져있다" — 두께 배율이 정점 z 만 바꾸고 부품의 띄움 자리(position.z: 까치발 띄움·상자 앞면 위 글자)는 그대로였다
+  it('zScale 은 부품의 z 자리(까치발 띄움·상자 앞면 위 글자)도 같은 배율로 — 붙어 있던 것이 떨어지지 않는다', () => {
+    const g = new THREE.Group();
+    const rod = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 40).translate(0, 0, 20), new THREE.MeshBasicMaterial()); // 벽(0)~글자 뒤(40)
+    const letter = new THREE.Mesh(new THREE.BoxGeometry(100, 100, 60).translate(0, 0, 30), new THREE.MeshBasicMaterial());
+    letter.position.z = 40; // 까치발 띄움
+    const sub = new THREE.Group(); sub.position.z = 100; sub.add(new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), new THREE.MeshBasicMaterial()));
+    g.add(rod, letter, sub);
+    warpToQuad(g, 2000, 1000, [[-1000, 500], [1000, 500], [1000, -500], [-1000, -500]], 1, 0.5);
+    rod.geometry.computeBoundingBox();
+    letter.geometry.computeBoundingBox();
+    expect(rod.geometry.boundingBox!.max.z).toBeCloseTo(20, 3); // 까치발 끝
+    expect(letter.position.z + letter.geometry.boundingBox!.min.z).toBeCloseTo(20, 3); // 글자 뒤 = 까치발 끝
+    expect(sub.position.z).toBeCloseTo(50, 3);
+  });
   it('scale 을 주면 먼저 줄인 뒤 맞춘다 (글자 폭 맞춤)', () => {
     const g = new THREE.Group();
     g.add(new THREE.Mesh(lightboxGeometry(4000, 1000, 10, 0), new THREE.MeshBasicMaterial()));
