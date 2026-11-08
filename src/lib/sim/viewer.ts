@@ -80,6 +80,9 @@ class SignsPass extends Pass {
   }
 }
 
+/** 야간 배경 사진 밝기 (선형 — 화면에서 약 1/4) */
+export const NIGHT_BG = 0.06;
+
 export class Viewer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -383,11 +386,13 @@ export class Viewer {
 
   setNight(night: boolean) {
     this.night = night;
-    this.bgMat.uniforms.brightness.value = night ? 0.2 : 1;
-    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.75 : 1, night ? 0.82 : 1, night ? 1.2 : 1);
+    // 야간 (2026-11-08 핀볼 점검): 배경 밝기는 선형 값이라 0.2 가 화면에선 절반쯤 밝아 해질녘 같았다 → 0.06(화면 약 1/4), 푸른 밤빛.
+    // 불 없는 사인물도 배경만큼 어둡게 — 반구광·환경광을 낮춘다
+    this.bgMat.uniforms.brightness.value = night ? NIGHT_BG : 1;
+    (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.78 : 1, night ? 0.86 : 1, night ? 1.18 : 1);
     this.sun.intensity = night ? 0 : SUN_DAY;
-    this.hemi.intensity = night ? 0.08 : 1.0;
-    this.scene.environmentIntensity = night ? 0.12 : ENV_DAY;
+    this.hemi.intensity = night ? 0.04 : 1.0;
+    this.scene.environmentIntensity = night ? 0.05 : ENV_DAY;
     (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();

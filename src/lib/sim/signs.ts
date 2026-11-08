@@ -32,13 +32,31 @@ function glowTexture(
   canvas.height = Math.ceil(h * s);
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = color;
+  // 흐림은 그림자로 — 캔버스 filter(blur)는 WebKit(맥 앱·사파리)이 지원하지 않아 번짐이 딱딱한 사각형으로 보였다 (2026-11-08 핀볼 야간 점검).
+  // 모양은 캔버스 밖에 그리고 그 그림자만 캔버스 안으로 (shadowOffset) — 흐린 번짐만 남는다
+  const off = canvas.width + canvas.height;
   for (const b of blurMm) {
-    ctx.filter = `blur(${Math.max(1, b * s)}px)`;
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = Math.max(1, b * s * 2);
+    ctx.shadowOffsetX = off;
+    ctx.translate(-off, 0);
     draw(ctx, s);
+    ctx.restore();
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/** 둥근 사각형 경로 (r = 0 이면 사각, 짧은 변의 반이면 알약·원) */
+function roundedRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const k = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + k, y);
+  c.arcTo(x + w, y, x + w, y + h, k); c.arcTo(x + w, y + h, x, y + h, k);
+  c.arcTo(x, y + h, x, y, k); c.arcTo(x, y, x + w, y, k);
+  c.closePath();
 }
 
 function glowPlane(tex: THREE.Texture, w: number, h: number, z: number) {
@@ -62,7 +80,9 @@ export function recessBox(group: THREE.Group, depthMm: number) {
   const done = new Set<THREE.BufferGeometry>();
   group.traverse((obj) => {
     const m = obj as THREE.Mesh;
-    if (!m.isMesh || m.userData.part === 'glow' || done.has(m.geometry)) return;
+    if (!m.isMesh || done.has(m.geometry)) return;
+    // 벽 번짐(glow)은 벽(상자 뒤, -두께)으로 — 앞면 자리(z=0)에 남겨 두면 앞면 위에 더해져 야간에 앞면·디자인이 하얗게 씻겼다 (2026-11-08 "야간 상태확인하고 쉐이딩 라이팅 조절")
+    if (m.userData.part === 'glow') { m.position.z -= depthMm; return; }
     done.add(m.geometry);
     m.geometry.translate(0, 0, -depthMm);
   });
@@ -574,7 +594,8 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
   if (lit && !spec.bodyless) {
     const pad = Math.min(w, h) * 0.5;
     const gw = w + pad * 2, gh = h + pad * 2;
-    const gt = glowTexture((c, sc) => c.fillRect(pad * sc, pad * sc, w * sc, h * sc), gw, gh, spec.faceColor, [pad * 0.4, pad * 0.12]);
+    const r = Math.max(0, Math.min(0.5, spec.corner ?? 0)) * Math.min(w, h); // 둥근 사각·원은 그 모양으로 번진다 (전엔 늘 사각)
+    const gt = glowTexture((c, sc) => { roundedRectPath(c, pad * sc, pad * sc, w * sc, h * sc, r * sc); c.fill(); }, gw, gh, spec.faceColor, [pad * 0.4, pad * 0.12]);
     glow = glowPlane(gt, gw, gh, 0.5);
     group.add(glow);
   }
