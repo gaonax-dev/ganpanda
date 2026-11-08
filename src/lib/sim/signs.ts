@@ -52,6 +52,29 @@ function glowTexture(
 
 /** 전광 앞면 야간 발광 세기 — 제 색 그대로 2 (빛 색을 '같은 색상 가장 밝게'로 바꾸면 분홍으로 바랬다, 2026-11-08 핀볼 비교) */
 export const FRONT_LIT = 2;
+/** 주간 발광 — 낮에도 조명이 들어온 모습 (2026-11-09 "주간에도 조명이 들어오게 해줘"). 번짐은 낮엔 없다(햇빛에 묻힘) */
+export const DAY_LIT_BOX = 0.4, DAY_LIT_FRONT = 0.7;
+
+/** RGBA 박스 블러 (가로·세로 따로, passes 번 — 3 번이면 가우스에 가깝다). 작은 그림용 */
+function boxBlur(img: ImageData, r: number, passes: number) {
+  const { width: W, height: H, data } = img;
+  const tmp = new Float32Array(data.length);
+  const run = (src: Uint8ClampedArray | Float32Array, dst: Uint8ClampedArray | Float32Array, horiz: boolean) => {
+    const n = horiz ? W : H, m = horiz ? H : W;
+    for (let j = 0; j < m; j++) {
+      for (let c = 0; c < 4; c++) {
+        let acc = 0;
+        const at = (i: number) => { const ii = Math.max(0, Math.min(n - 1, i)); return src[((horiz ? j * W + ii : ii * W + j) << 2) + c]; };
+        for (let i = -r; i <= r; i++) acc += at(i);
+        for (let i = 0; i < n; i++) {
+          dst[((horiz ? j * W + i : i * W + j) << 2) + c] = acc / (2 * r + 1);
+          acc += at(i + r + 1) - at(i - r);
+        }
+      }
+    }
+  };
+  for (let p = 0; p < passes; p++) { run(data, tmp, true); run(tmp, data, false); }
+}
 
 /** 번짐 그림 가장자리 14% 를 0 으로 */
 function fadeEdges(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
@@ -84,21 +107,22 @@ function faceGlowTexture(face: HTMLCanvasElement, w: number, h: number, pad: num
   roundedRectPath(sc, 0, 0, shaped.width, shaped.height, cornerMm * k);
   sc.clip();
   sc.drawImage(face, 0, 0);
-  const tinyLong = 14;
-  const tiny = document.createElement('canvas');
-  tiny.width = Math.max(2, Math.round((tinyLong * w) / Math.max(w, h))); tiny.height = Math.max(2, Math.round((tinyLong * h) / Math.max(w, h)));
-  const tc = tiny.getContext('2d')!;
-  tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = 'high';
-  tc.drawImage(shaped, 0, 0, tiny.width, tiny.height);
+  // 작은 그림(긴 변 약 64px)에 직접 흐림(박스 블러 3번 ≈ 가우스) — 14px 로 줄였다 키우던 것은 얼룩져 투박했다 (2026-11-08 "글로우에 사용되는 빛이 많이 투박해졌다").
+  // 캔버스 filter(blur)는 WebKit 미지원이라 픽셀로 직접
   const canvas = document.createElement('canvas');
   canvas.width = Math.ceil(gw * s); canvas.height = Math.ceil(gh * s);
   const ctx = canvas.getContext('2d')!;
+  const q = 64 / Math.max(gw, gh);
+  const small = document.createElement('canvas');
+  small.width = Math.max(4, Math.ceil(gw * q)); small.height = Math.max(4, Math.ceil(gh * q));
+  const smc = small.getContext('2d')!;
+  smc.imageSmoothingEnabled = true; smc.imageSmoothingQuality = 'high';
+  smc.drawImage(shaped, pad * q, pad * q, w * q, h * q);
+  const id = smc.getImageData(0, 0, small.width, small.height);
+  boxBlur(id, Math.max(1, Math.round(pad * q * 0.22)), 3);
+  smc.putImageData(id, 0, 0);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  for (const [e, a] of [[0.25, 0.8], [0.6, 0.5]] as const) { // 가까이 진하게, 멀리 옅게
-    const ex = pad * e;
-    ctx.globalAlpha = a;
-    ctx.drawImage(tiny, (pad - ex) * s, (pad - ex) * s, (w + ex * 2) * s, (h + ex * 2) * s);
-  }
+  ctx.drawImage(small, 0, 0, canvas.width, canvas.height);
   ctx.globalAlpha = 1;
   fadeEdges(canvas, ctx);
   const tex = new THREE.CanvasTexture(canvas);
@@ -484,7 +508,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
       if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) {
         // 전광 = 채도 (2026-11-08 "전광의 경우 채도가 높아야해 명암이 밝아지면 조명의 생명이 끝난거야"): 톤 매핑은 1 을 넘는 빛의 채도를 뺀다(빨강 → 분홍) —
         // 빛 색은 제 색 그대로(litColor 로 '가장 밝게' 바꾸면 분홍), 세기 2, 야간엔 앞면 흰 반사(코팅·환경·반사광)를 끄고, 판 위 색 번짐은 약하게
-        face.emissiveIntensity = night ? FRONT_LIT : 0.12;
+        face.emissiveIntensity = night ? FRONT_LIT : DAY_LIT_FRONT; // 주간에도 불 (0.12 → 0.7)
         if (face instanceof THREE.MeshPhysicalMaterial) { face.clearcoat = night ? 0 : 0.05; face.envMapIntensity = night ? 0 : 1; face.specularIntensity = night ? 0 : 1; } // 흰 반사광(분홍기)을 빼고 제 빛만
       }
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
@@ -672,10 +696,10 @@ export function buildLightbox(spec: SignSpec, fontFamily: string, face?: FaceIma
     group,
     measured: { widthMm: w, heightMm: h, charCount: [...text].filter((c) => c.trim()).length },
     setNight(night) {
-      front.emissiveIntensity = night ? 0.6 : 0.1; // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
+      front.emissiveIntensity = night ? 0.6 : DAY_LIT_BOX; // 주간에도 불이 들어온다 (2026-11-09 "주간에도 조명이 들어오게 해줘" — 0.1 → 0.4) // 초저녁 주변 빛이 더해지므로 0.85 → 0.6 — 앞면·디자인이 하얗게 씻기지 않게 (2026-11-08)
       // 옆면(테)은 금속이라 초저녁의 약한 주변 빛을 거의 못 받아 까맣게 보였다 → 제 색을 조금 (앞면 빛·주변 불빛 대신, 2026-11-08 돌출 원형)
       frame.emissive.set(spec.sideColor); frame.emissiveIntensity = night ? 0.15 : 0;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.3 : 0; // 상자(돌출 등) 테두리 번짐 — 앞면 그림 색대로라 흰 곳만 밝다 (2026-11-08: 0.35 → 0.15 → 앞면 색 번짐 0.3)
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? 0.5 : 0; // 상자(돌출 등) 테두리 번짐 (부드럽게 흐린 뒤 0.3 → 0.5) — 앞면 그림 색대로라 흰 곳만 밝다 (2026-11-08: 0.35 → 0.15 → 앞면 색 번짐 0.3)
     },
     dispose() {
       geo.dispose(); tex.dispose(); front.dispose(); frame.dispose();
