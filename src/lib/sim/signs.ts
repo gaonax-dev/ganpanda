@@ -62,14 +62,8 @@ function glowTexture(
   return tex;
 }
 
-/**
- * 발광 앞면의 빛 색 = 같은 색상을 가장 밝게 (가장 큰 채널을 1 로). 어두운 금색 글자가 제 색 그대로 빛나 흐릿했다 → 밝은 금색으로 빛난다
- * (2026-11-08 "전광은 잘 안보이고")
- */
-function litColor(c: THREE.Color): THREE.Color {
-  const m = Math.max(c.r, c.g, c.b);
-  return m > 0.001 ? new THREE.Color(c.r / m, c.g / m, c.b / m) : new THREE.Color(1, 1, 1);
-}
+/** 전광 앞면 야간 발광 세기 — 제 색 그대로 2 (빛 색을 '같은 색상 가장 밝게'로 바꾸면 분홍으로 바랬다, 2026-11-08 핀볼 비교) */
+export const FRONT_LIT = 2;
 
 /** 둥근 사각형 경로 (r = 0 이면 사각, 짧은 변의 반이면 알약·원) */
 function roundedRectPath(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -382,7 +376,7 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     spec.bulbPitchMm // 벌브: 앞면은 도장, 빛은 전구가
       ? new THREE.MeshStandardMaterial({ color: led, metalness: 0.3, roughness: 0.55 })
       : spec.lighting === 'front'
-      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: litColor(led), roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
+      ? new THREE.MeshPhysicalMaterial({ color: led, emissive: led, roughness: 0.7, clearcoat: 0.05 }) // 반사광에 글자가 씻기지 않게 (2026-10-15)
       : spec.lighting === 'halo'
         ? new THREE.MeshStandardMaterial({ color: spec.sideColor, ...(spec.finish ? metal : { metalness: 0.7, roughness: 0.45 }) })
         : new THREE.MeshPhysicalMaterial({ color: led, roughness: 0.7, clearcoat: 0.05 });
@@ -444,11 +438,16 @@ export function buildChannel(spec: SignSpec, font: Font): BuiltSign {
     group,
     measured,
     setNight(night) {
-      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) face.emissiveIntensity = night ? 2 : 0.12; // 전광 앞면: 빨강 전광이 1.2~1.3 에선 검붉고 3 은 분홍으로 바랬다 → 2, 빛 색은 litColor (2026-11-08 "전광은 잘 안보이고")
+      if ('emissiveIntensity' in face && spec.lighting === 'front' && !spec.bulbPitchMm) {
+        // 전광 = 채도 (2026-11-08 "전광의 경우 채도가 높아야해 명암이 밝아지면 조명의 생명이 끝난거야"): 톤 매핑은 1 을 넘는 빛의 채도를 뺀다(빨강 → 분홍) —
+        // 빛 색은 제 색 그대로(litColor 로 '가장 밝게' 바꾸면 분홍), 세기 2, 야간엔 앞면 흰 반사(코팅·환경·반사광)를 끄고, 판 위 색 번짐은 약하게
+        face.emissiveIntensity = night ? FRONT_LIT : 0.12;
+        if (face instanceof THREE.MeshPhysicalMaterial) { face.clearcoat = night ? 0 : 0.05; face.envMapIntensity = night ? 0 : 1; face.specularIntensity = night ? 0 : 1; } // 흰 반사광(분홍기)을 빼고 제 빛만
+      }
       if (spec.sideLit && 'emissiveIntensity' in side) side.emissiveIntensity = night ? 1.2 : 0.1;
       else if (side instanceof THREE.MeshStandardMaterial) { side.emissive.set(spec.sideColor); side.emissiveIntensity = night ? 0.18 : 0; } // 채널 옆면도 까맣지 않게 (2026-11-08)
       if (bulbMat) bulbMat.emissiveIntensity = night ? 2.6 : 0.3;
-      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.4) : 0;
+      if (glow) (glow.material as THREE.MeshBasicMaterial).opacity = night ? (haloish ? 1 : 0.3) : 0; // 전광 색 번짐 0.4 → 0.3: 밝은 판 위에 더해지면 분홍빛(흰+빨강)이 되어 전광이 바랬다 (2026-11-08)
     },
     dispose() {
       geo.dispose(); side.dispose(); face.dispose();
