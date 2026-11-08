@@ -20,12 +20,14 @@ uniform float brightness;
 uniform vec3 tint;
 uniform vec4 crop; // 보이는 부분만 (x, y, w, h — 사진 비율, 위에서부터). 기본 (0,0,1,1)
 uniform float sat; // 채도 (1 = 그대로) — 초저녁은 조금 올려 활기차게
+uniform float contrast; // 1 = 그대로, 1 보다 크면 어두운 곳이 깊어진다
 varying vec2 vUv;
 void main() {
   vec2 uv = vec2(crop.x + vUv.x * crop.z, 1.0 - (crop.y + (1.0 - vUv.y) * crop.w));
   vec3 c = texture2D(map, uv).rgb;
   c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat);
-  gl_FragColor = vec4(max(c, 0.0) * brightness * tint, 1.0);
+  c = pow(max(c, 0.0), vec3(contrast)); // 초저녁: 어두운 곳을 조금 더 깊게 — 뿌연 회색 대신 또렷하게
+  gl_FragColor = vec4(c * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
 /**
@@ -44,11 +46,13 @@ uniform sampler2D map;
 uniform float brightness;
 uniform vec3 tint;
 uniform float sat;
+uniform float contrast;
 varying vec2 vP;
 void main() {
   vec3 c = texture2D(map, vec2(vP.x, 1.0 - vP.y)).rgb;
   c = mix(vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), c, sat);
-  gl_FragColor = vec4(max(c, 0.0) * brightness * tint, 1.0);
+  c = pow(max(c, 0.0), vec3(contrast)); // 초저녁: 어두운 곳을 조금 더 깊게 — 뿌연 회색 대신 또렷하게
+  gl_FragColor = vec4(c * brightness * tint, 1.0);
   #include <colorspace_fragment>
 }`;
 
@@ -84,8 +88,10 @@ class SignsPass extends Pass {
   }
 }
 
-/** 야간(초저녁) 배경 사진 밝기 (선형 — 화면에서 약 55%). 2026-11-08 "초저녁으로 설정" — 앞선 0.06·0.13 은 어둡고 우울했다 */
-export const NIGHT_BG = 0.24;
+/** 야간(초저녁) 배경 사진 밝기 (선형 — 대비 NIGHT_CONTRAST 와 함께, 화면에서 밝은 곳 약 60%). 2026-11-08 "초저녁으로 설정" — 앞선 0.06·0.13 은 어둡고 우울했다 */
+export const NIGHT_BG = 0.3;
+/** 초저녁 대비 (배경 사진 pow) */
+export const NIGHT_CONTRAST = 1.18;
 /** 초저녁 해(노을빛) 세기 */
 export const DUSK_SUN = 0.3;
 
@@ -135,13 +141,13 @@ export class Viewer {
     this.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.onLost?.(); });
 
     this.bgMat = new THREE.ShaderMaterial({
-      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) }, sat: { value: 1 } },
+      uniforms: { map: { value: null }, brightness: { value: 1 }, tint: { value: new THREE.Color(1, 1, 1) }, crop: { value: new THREE.Vector4(0, 0, 1, 1) }, sat: { value: 1 }, contrast: { value: 1 } },
       vertexShader: bgVertex, fragmentShader: bgFragment, depthWrite: false, depthTest: false,
     });
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bgMat));
     // 마스크 = 배경과 같은 사진·밝기·색·자르기 유니폼을 나눠 쓴다 (야간·확대에도 배경과 같게)
     this.maskMat = new THREE.ShaderMaterial({
-      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop, sat: this.bgMat.uniforms.sat },
+      uniforms: { map: this.bgMat.uniforms.map, brightness: this.bgMat.uniforms.brightness, tint: this.bgMat.uniforms.tint, crop: this.bgMat.uniforms.crop, sat: this.bgMat.uniforms.sat, contrast: this.bgMat.uniforms.contrast },
       vertexShader: maskVertex, fragmentShader: maskFragment, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
     });
     this.maskMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.maskMat);
@@ -397,12 +403,14 @@ export class Viewer {
     // 앞선 어두운 밤(0.06 → 0.13)은 대체됨. 0.42 는 낮 같아 0.24 로 (같은 날 핀볼로 맞춤)
     this.bgMat.uniforms.brightness.value = night ? NIGHT_BG : 1;
     this.bgMat.uniforms.sat.value = night ? 1.18 : 1;
+    this.bgMat.uniforms.contrast.value = night ? NIGHT_CONTRAST : 1;
     (this.bgMat.uniforms.tint.value as THREE.Color).setRGB(night ? 0.9 : 1, night ? 0.94 : 1, night ? 1.12 : 1);
     this.sun.intensity = night ? DUSK_SUN : SUN_DAY;
     this.sun.color.set(night ? 0xffb27a : 0xffffff); // 노을빛
-    this.hemi.intensity = night ? 0.3 : 1.0;
-    this.hemi.color.set(night ? 0x9fb4ff : 0xdde8ff); // 저녁 하늘
-    this.scene.environmentIntensity = night ? 0.2 : ENV_DAY;
+    // 하늘빛은 거의 무채색 — 보랏빛(#9fb4ff)이면 불 없는 흰 시트가 라벤더로 떠 보였다 (2026-11-08 핀볼)
+    this.hemi.intensity = night ? 0.22 : 1.0;
+    this.hemi.color.set(night ? 0xd2daea : 0xdde8ff); // 저녁 하늘
+    this.scene.environmentIntensity = night ? 0.16 : ENV_DAY;
     (this.wallShadow.material as THREE.ShadowMaterial).opacity = night ? 0.2 : 0.38;
     this.bloom.enabled = night;
     this.invalidate();
