@@ -254,16 +254,20 @@ test('제안·디자인 내용 분리: 싱크해도 제안은 글자 그대로, 
   await upload(page, layeredPdf('1'));
   await page.getByTestId('sync-confirm').click();
   await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
+  // 속성은 상단 탭을 따른다 — 전환 단추 없음 (2026-11-08 "사인물 속성 창 맨 위의 [제안 | 디자인] 없이 상단 탭 변경에 따라 별도 표시")
   await page.getByTestId('view-propose').click();
   await page.evaluate((id) => (window as any).__ganpanda.selectObject(id), id);
   const props = page.getByTestId('sign-props');
+  await expect(page.getByTestId('sign-side-propose')).toHaveCount(0);
   await expect(props).toHaveAttribute('data-side', 'propose'); // 제안 탭 = 제안 내용
   await expect(props.locator('[data-testid="sign-el"][data-kind="channel"]')).toContainText('카페');
-  await props.getByTestId('sign-side-design').click();
+  await page.getByTestId('view-design').click();
+  await page.evaluate((id) => (window as any).__ganpanda.selectObject(id), id);
   await expect(props).toHaveAttribute('data-side', 'design');
   await expect(props.locator('[data-testid="sign-el"][data-kind="channel"]')).toContainText('PDF 패스 1');
   await props.getByTestId('sign-design-clear').click();
-  await expect(page.getByTestId('sign-side')).toHaveCount(0); // 디자인 내용이 없으면 전환도 없다
+  await expect(props).toHaveAttribute('data-side', 'propose'); // 디자인 내용이 없으면 디자인 탭도 제안 내용
+  await expect(props.locator('[data-testid="sign-el"][data-kind="channel"]')).toContainText('카페');
   expect(await page.evaluate((id) => (window as any).__ganpanda.project.object(id).designItems, id)).toBeUndefined();
   // 예전 데이터: 제안 내용 자리에 PDF 레이어 패스 → 디자인 쪽으로, 제안 내용은 비움
   const moved = await page.evaluate((id) => { const g = (window as any).__ganpanda; const o = g.project.object(id);

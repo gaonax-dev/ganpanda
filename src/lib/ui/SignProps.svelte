@@ -23,11 +23,11 @@
   import type { PartItem } from '../core/model';
 
   let { obj: own, layout }: { obj: SignObject; layout?: Snippet } = $props();
-  // [제안 | 디자인] (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각 보여야한다. 속성에서 이걸 구분하고 관리"): 디자인 내용(designItems)이 있으면 둘을 바꿔 본다.
-  // 디자인 쪽은 보기 전용(내용은 디자인 싱크로 받는다) · [디자인 내용 지우기]. 처음은 지금 탭에 맞춰(디자인 탭·고객 = 디자인)
+  // 제안 내용 ↔ 디자인 내용 (2026-11-08 "제안은 텍스트와 지정컬러가 디자인은 pdf에서 가져온 페스와 디자인으로 각각 보여야한다"): 상단 탭을 따른다 —
+  // 디자인 탭(·고객)이고 디자인 내용(designItems)이 있으면 디자인 내용(보기 전용, 내용은 디자인 싱크로 받는다 · [디자인 내용 지우기]), 아니면 제안 내용.
+  // 속성 창 안의 [제안 | 디자인] 전환은 없앰 (같은 날 "[제안 | 디자인] 없이 상단 탭 변경에 따라 별도 표시")
   const hasDesign = $derived(!!own.designItems && Object.keys(own.designItems).length > 0);
-  let side = $state<'propose' | 'design'>(app.designView ? 'design' : 'propose');
-  const showDesign = $derived(hasDesign && side === 'design');
+  const showDesign = $derived(hasDesign && app.designView);
   const obj = $derived(showDesign ? asDesigned(own) : own);
   const ro = $derived(!app.canEdit || showDesign);
   const update = (patch: Partial<SignObject>) => { if (ro) return; app.editBoundary(); app.project.updateObject(obj.id, patch); app.editBoundary(); };
@@ -79,16 +79,10 @@
 </script>
 
 <section class="props" data-testid="sign-props" data-mode={focus ? 'focus' : mode} data-side={showDesign ? 'design' : 'propose'}>
-  {#if hasDesign}
+  {#if showDesign}
     <div class="side" data-testid="sign-side">
-      <div class="seg">
-        <button class:on={!showDesign} data-testid="sign-side-propose" title="제안 내용 — 글자·지정 색 (견적 기준)" onclick={() => (side = 'propose')}>제안</button>
-        <button class:on={showDesign} data-testid="sign-side-design" title="디자인 내용 — 디자인 싱크로 받은 PDF 패스·원본 색" onclick={() => (side = 'design')}>디자인</button>
-      </div>
-      {#if showDesign}
-        <small>디자인 싱크로 받은 내용 · 보기 전용</small>
-        {#if app.canEdit}<button class="btn small" data-testid="sign-design-clear" title="디자인 내용을 지우면 디자인 탭도 제안 내용으로" onclick={() => { app.clearDesignItems(own.id); side = 'propose'; }}>디자인 내용 지우기</button>{/if}
-      {:else}<small>견적 기준</small>{/if}
+      <small>디자인 내용 — 디자인 싱크로 받은 PDF 패스 · 보기 전용</small>
+      {#if app.canEdit && !app.isCustomer}<button class="btn small" data-testid="sign-design-clear" title="디자인 내용을 지우면 디자인 탭도 제안 내용으로" onclick={() => app.clearDesignItems(own.id)}>디자인 내용 지우기</button>{/if}
     </div>
   {/if}
   <div class="viewer" data-testid="sign-props-viewer">
@@ -204,7 +198,4 @@
   .items { display: flex; gap: 6px; flex-wrap: wrap; }
   .side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .side small { color: var(--muted); font-size: 11px; flex: 1; }
-  .seg { display: inline-flex; background: var(--input); border-radius: 8px; padding: 2px; }
-  .seg button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
-  .seg button.on { background: var(--panel); color: var(--text); font-weight: 600; }
 </style>
