@@ -1,6 +1,7 @@
 <!-- 3D 뷰 (사진마다): 사진 + 복원 카메라 + 벽면 격자·축. 사인물이 있으면 3D 로 합성 (주간 그림자·야간 발광), PNG 저장.
      카메라가 없으면(원근 맞추기 전·치수 없음) 왜 3D 가 안 되는지와 다음 할 일을 알려 준다 -->
 <script lang="ts">
+  import { attachAO } from '../render/aoBake';
   import { asDesigned } from '../core/parts';
   import type { Font } from 'opentype.js';
   import fontUrl from 'pretendard/dist/public/static/Pretendard-Bold.otf?url';
@@ -116,11 +117,13 @@
         catch { notes.push(`"${os.find((o) => o.id === it.spec.id)?.name ?? it.spec.id}": 그릴 수 없음`); continue; }
       }
       if (it.spec.kind === 'lightbox' && !it.spec.bodyless) recessBox(b.group, it.spec.depthMm); // 외곽선 = 앞면 (2026-10-17)
+      const boxDir = boxLocalDirOf(it.o, it.plane, p, photo.w, photo.h), boxFlip = zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0;
+      await attachAO(b.group, it.spec, { bake: true, box: { dir: boxDir, flip: boxFlip } }); // 구운 AO — 사진보드와 같은 것 (2026-11-09)
       // 그린 사각형에 정확히 맞춘다 (카메라가 벽과 어긋나도). 글자는 먼저 영역 폭에 맞춤
       warpToQuad(b.group, it.spec.widthMm, it.spec.heightMm, it.corners, it.spec.kind === 'channel' ? fitScale(b.measured.widthMm, it.spec.widthMm) : 1, depthScale(it.corners, it.o.widthMm ?? 0, it.o.heightMm ?? 0)); // 두께도 면에서 잰 크기 ÷ 입력 크기 배율로 (2026-11-08)
       // 원근 카메라의 +z 가 벽 안쪽이면 상자를 뒤집어 앞면(글자·디자인)이 카메라를 보게 (2026-10-15 사용자: "정면 페이스가 사라졌다")
       // 박스 방향으로 (정면 축·회전 고리, 2026-10-15 사용자: "박스만 회전하고 크기는 외곽선만"). 없으면 법선
-      orientBox(b.group, boxLocalDirOf(it.o, it.plane, p, photo.w, photo.h), zTowardCamera(projectionFromPlane(it.plane, photo.w, photo.h), [it.spec.x, it.spec.y]) < 0);
+      orientBox(b.group, boxDir, boxFlip);
       b.setNight(night);
       v.signsRoot.add(b.group);
       v.addSignCamera(b.group, projectionFromPlane(it.plane, photo.w, photo.h), poseOfPlane(it.plane, photo.w, photo.h), it.corners);

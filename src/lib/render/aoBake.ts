@@ -9,9 +9,11 @@ import { aoKey, aoToGray, skyDirs } from '../core/aoBake';
 import { getDerived, putDerived } from '../derivedImages';
 
 /** 굽기 버전 — 굽는 방식이 바뀌면 올려 새로 굽는다 */
-const AO_VERSION = 1;
+const AO_VERSION = 2; // 2: 박스 방향 기울임(orientBox)을 넣어 굽는다 (2026-11-09)
 /** 하늘 빛 수 · 받는 면 그림 크기 · 그림자 맵 */
 const SAMPLES = 96, RES = 192, SHADOW = 768;
+/** 받는 면 평면을 긴 변에서 나누는 칸 수 (원근 맞추기용) */
+const RECEIVER_SEGMENTS = 64;
 /** AO 세기 (1 = 구운 그대로) — 회색을 흰색 쪽으로 당긴다 */
 export const AO_STRENGTH = 0.8;
 
@@ -32,7 +34,7 @@ const mem = new Map<string, ImageBitmap | HTMLCanvasElement>();
 const tick = () => new Promise<void>((ok) => setTimeout(ok, 0));
 
 /** 받는 면 하나를 굽는다 → AO 회색 캔버스 (RES × RES) */
-async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE.Box3): Promise<HTMLCanvasElement> {
+async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE.Box3, shear: THREE.Matrix4): Promise<HTMLCanvasElement> {
   const r = bakeRenderer();
   const plm = new ProgressiveLightMap(r, RES);
   const center = bounds.getCenter(new THREE.Vector3());
@@ -45,8 +47,9 @@ async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE
   cam.updateProjectionMatrix();
   light.shadow.bias = -0.0004;
   light.shadow.normalBias = radius * 0.002;
-  const recv = new THREE.Mesh(new THREE.PlaneGeometry(rc.w, rc.h), new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0x000000, shininess: 0 }));
-  recv.position.set(rc.cx, rc.cy, rc.z);
+  const recv = new THREE.Mesh(receiverGeometry(rc), new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0x000000, shininess: 0 }));
+  recv.matrixAutoUpdate = false;
+  recv.matrix.copy(shear).multiply(new THREE.Matrix4().makeTranslation(0, 0, rc.z));
   recv.updateMatrixWorld(true);
   const holder = new THREE.Group();
   holder.add(recv);
@@ -57,7 +60,7 @@ async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE
   for (const o of occluders) {
     const c = new THREE.Mesh(o.geometry, occMat);
     c.matrixAutoUpdate = false;
-    c.matrix.copy(o.matrixWorld);
+    c.matrix.copy(shear).multiply(o.matrixWorld); // 장면과 같은 기울임으로 — 기울인 뒤 글자 자리에 그림자가 앉는다
     c.castShadow = true;
     plm.scene.add(c);
   }
@@ -102,6 +105,23 @@ async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE
   return canvas;
 }
 
+/**
+ * 받는 면 평면 — 가운데 어긋남(cx·cy)은 도형에 굽는다(사진 자리 맞추기 warpToQuad 는 도형 꼭짓점만 옮기고 물체 자리 x·y 는 보지 않는다).
+ * 잘게 나눈다: 꼭짓점 4개면 사다리꼴(원근) 자리에 맞출 때 안쪽이 원근이 아닌 직선 보간으로 늘어나 그림자가 글자에서 밀렸다(핀볼 측면간판 약 100mm, 2026-11-09)
+ */
+function receiverGeometry(rc: Receiver): THREE.BufferGeometry {
+  const long = Math.max(rc.w, rc.h), seg = (s: number) => Math.max(2, Math.ceil((RECEIVER_SEGMENTS * s) / long));
+  return new THREE.PlaneGeometry(rc.w, rc.h, seg(rc.w), seg(rc.h)).translate(rc.cx, rc.cy, 0);
+}
+
+/** orientBox 와 같은 기울임 행렬 (z 를 dir 방향으로) */
+function shearOf(box?: { dir: [number, number, number] | null; flip: boolean }): THREE.Matrix4 {
+  const m = new THREE.Matrix4();
+  if (!box?.dir) { if (box?.flip) m.makeScale(1, 1, -1); return m; }
+  const d = box.dir, dz = Math.sign(d[2] || 1) * Math.max(Math.abs(d[2]), 0.15);
+  return m.set(1, 0, d[0], 0, 0, 1, d[1], 0, 0, 0, dz, 0, 0, 0, 0, 1);
+}
+
 const toBlob = (c: HTMLCanvasElement) => new Promise<Blob | null>((ok) => c.toBlob(ok, 'image/png'));
 
 /** 받는 면 자리 (사인물 자기 좌표, mm) */
@@ -118,7 +138,7 @@ function receiversOf(spec: { kind: string; widthMm: number; heightMm: number; bo
  * 사인물 그룹에 구운 AO 를 얹는다 (상자를 뒤로 물린 뒤, 사진 자리에 맞추기 전 — 자기 좌표). 저장된 것이 있으면 그것을, 없으면 bake 가 참일 때 굽고 저장.
  * 받는 면마다 곱하기 판 하나(userData.part = 'ao'). 실패하면 조용히 넘어간다(AO 없이 그린다)
  */
-export async function attachAO(group: THREE.Group, spec: Parameters<typeof receiversOf>[0] & object, opts: { bake: boolean }): Promise<void> {
+export async function attachAO(group: THREE.Group, spec: Parameters<typeof receiversOf>[0] & object, opts: { bake: boolean; box?: { dir: [number, number, number] | null; flip: boolean } }): Promise<void> {
   try {
     group.updateMatrixWorld(true);
     const occluders: THREE.Mesh[] = [];
@@ -127,7 +147,10 @@ export async function attachAO(group: THREE.Group, spec: Parameters<typeof recei
     const bounds = new THREE.Box3();
     for (const m of occluders) { m.geometry.computeBoundingBox(); bounds.union(m.geometry.boundingBox!.clone().applyMatrix4(m.matrixWorld)); }
     if (bounds.isEmpty()) return;
-    const base = `ao|v${AO_VERSION}|${aoKey(spec)}`;
+    // 박스 방향(사진마다 다름)도 키에 — 같은 사인물도 기울기가 다르면 그림자 자리가 다르다
+    const box = opts.box?.dir ? `|${opts.box.dir.map((v) => v.toFixed(2)).join(',')}` : opts.box?.flip ? '|f' : '';
+    const shear = shearOf(opts.box);
+    const base = `ao|v${AO_VERSION}|${aoKey(spec)}${box}`;
     for (const rc of receiversOf(spec, bounds)) {
       const key = `${base}|${rc.name}`;
       let src = mem.get(key) ?? null;
@@ -136,7 +159,7 @@ export async function attachAO(group: THREE.Group, spec: Parameters<typeof recei
         if (d && 'blob' in d) src = await createImageBitmap(d.blob);
       }
       if (!src && opts.bake) {
-        const c = await bakeReceiver(occluders, rc, bounds);
+        const c = await bakeReceiver(occluders, rc, bounds, shear);
         const blob = await toBlob(c);
         if (blob) await putDerived(key, { blob });
         src = c;
@@ -150,8 +173,8 @@ export async function attachAO(group: THREE.Group, spec: Parameters<typeof recei
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.NoColorSpace;
       const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.MultiplyBlending, premultipliedAlpha: true, toneMapped: false });
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(rc.w, rc.h), mat);
-      plane.position.set(rc.cx, rc.cy, rc.z);
+      const plane = new THREE.Mesh(receiverGeometry(rc), mat);
+      plane.position.set(0, 0, rc.z);
       plane.userData.part = 'ao';
       plane.renderOrder = -2;
       group.add(plane);

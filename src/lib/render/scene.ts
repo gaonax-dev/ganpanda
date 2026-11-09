@@ -93,11 +93,13 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
     try { b = buildSign(spec, font, 'Pretendard, sans-serif', face, images, opts.texLong, vectors ?? undefined); }
     catch { try { b = buildLightbox({ ...spec, kind: 'lightbox', text: '' }, 'Pretendard, sans-serif'); } catch { continue; } } // 실패한 사인물은 상자로, 그래도 안 되면 건너뜀
     if (spec.kind === 'lightbox' && !spec.bodyless) recessBox(b.group, spec.depthMm); // 외곽선 = 앞면: 바탕은 뒤로, 글자는 앞으로 (2026-10-17)
-    await attachAO(b.group, spec, { bake: opts.bakeAO ?? !isPhone() }); // 구운 AO — 사진에 놓기 전 자기 좌표에서 (2026-11-09 ProgressiveLightMap)
+    // 박스 방향 (정면 축·회전 고리, 2026-10-15). 없으면 법선 — 원근 카메라의 +z 가 벽 안쪽이면 뒤집어 앞면이 카메라를 보게
+    const boxDir = boxLocalDirOf(o, own, plane, photo.w, photo.h), boxFlip = zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0;
+    // 구운 AO — 사진에 놓기 전 자기 좌표에서, 장면과 같은 박스 기울임으로 (2026-11-09 ProgressiveLightMap; 기울임을 빼고 구워 측면간판 그림자가 밀렸다)
+    await attachAO(b.group, spec, { bake: opts.bakeAO ?? !isPhone(), box: { dir: boxDir, flip: boxFlip } });
     const corners = quadOnWall(own, o) as [number, number][];
     warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1, depthScale(corners, o.widthMm ?? 0, o.heightMm ?? 0)); // 두께도 면에서 잰 크기 ÷ 입력 크기 배율로 (2026-11-08)
-    // 박스 방향으로 (정면 축·회전 고리, 2026-10-15). 없으면 법선 — 원근 카메라의 +z 가 벽 안쪽이면 뒤집어 앞면이 카메라를 보게
-    orientBox(b.group, boxLocalDirOf(o, own, plane, photo.w, photo.h), zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0);
+    orientBox(b.group, boxDir, boxFlip);
     b.setNight(false);
     signs.push({ b, P: projectionFromPlane(own, photo.w, photo.h), pose: poseOfPlane(own, photo.w, photo.h), corners });
   }
