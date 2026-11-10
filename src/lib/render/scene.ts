@@ -1,5 +1,6 @@
 // 화면 없이 사진 한 장을 3D 합성해 PNG 로 (제안 이미지 만들기). RenderDialog 와 같은 규칙
 import { attachAO } from './aoBake';
+import { canBakeAO } from '../aoStore';
 import { stageExportSize } from './stageSize';
 import * as THREE from 'three';
 import { releaseTextures } from './release';
@@ -39,7 +40,7 @@ export interface PreparedScene {
   light: number;
   signs: { b: BuiltSign; P: number[]; pose: CameraPose; corners: [number, number][] }[];
 }
-type SceneOpts = { designs: boolean; /** AO 를 구울지 (없으면 휴대폰 말고) — 저장된 것은 늘 쓴다 */ bakeAO?: boolean; estOf?: EstOf; /** 앞면 그림 긴 변 픽셀 (실시간 3D 는 크게) */ texLong?: number; /** 디자인 그림을 이만큼만 기다린다(ms) — 실시간 3D 는 못 받은 그림 하나 때문에 장면이 멈추지 않게 */ assetWaitMs?: number };
+type SceneOpts = { designs: boolean; /** AO 를 구울지 (없으면 데스크톱 앱만 — 2026-11-10) — 저장·프로젝트에 올라온 것은 늘 쓴다 */ bakeAO?: boolean; estOf?: EstOf; /** 앞면 그림 긴 변 픽셀 (실시간 3D 는 크게) */ texLong?: number; /** 디자인 그림을 이만큼만 기다린다(ms) — 실시간 3D 는 못 받은 그림 하나 때문에 장면이 멈추지 않게 */ assetWaitMs?: number };
 /** 늦으면 없는 것으로 (2026-10-28 핀볼 사본: 못 받는 디자인 그림의 재시도 ~18초 동안 실시간 3D 장면 짓기 줄이 통째로 멈췄다) */
 const within = <T>(p: Promise<T>, ms?: number): Promise<T | undefined> => (ms !== undefined ? Promise.race([p, new Promise<undefined>((ok) => setTimeout(() => ok(undefined), ms))]) : p);
 /** 한 번 늦었던 디자인 그림(사인물 id → 시각) — 1분 동안은 다시 기다리지 않는다(받는 중이면 그대로 받고, 다음 장면부터 들어간다) */
@@ -96,7 +97,7 @@ async function prepareScene(photo: Photo, objects: SignObject[], plane: WallPlan
     // 박스 방향 (정면 축·회전 고리, 2026-10-15). 없으면 법선 — 원근 카메라의 +z 가 벽 안쪽이면 뒤집어 앞면이 카메라를 보게
     const boxDir = boxLocalDirOf(o, own, plane, photo.w, photo.h), boxFlip = zTowardCamera(projectionFromPlane(own, photo.w, photo.h), [spec.x, spec.y]) < 0;
     // 구운 AO — 사진에 놓기 전 자기 좌표에서, 장면과 같은 박스 기울임으로 (2026-11-09 ProgressiveLightMap; 기울임을 빼고 구워 측면간판 그림자가 밀렸다)
-    await attachAO(b.group, spec, { bake: opts.bakeAO ?? !isPhone(), box: { dir: boxDir, flip: boxFlip } });
+    await attachAO(b.group, spec, { bake: opts.bakeAO ?? canBakeAO(), box: { dir: boxDir, flip: boxFlip } });
     const corners = quadOnWall(own, o) as [number, number][];
     warpToQuad(b.group, spec.widthMm, spec.heightMm, corners, spec.kind === 'channel' ? fitScale(b.measured.widthMm, spec.widthMm) : 1, depthScale(corners, o.widthMm ?? 0, o.heightMm ?? 0)); // 두께도 면에서 잰 크기 ÷ 입력 크기 배율로 (2026-11-08)
     orientBox(b.group, boxDir, boxFlip);

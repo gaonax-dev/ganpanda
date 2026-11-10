@@ -5,7 +5,9 @@
 // 3D 장면에서는 받는 면 자리에 회색 그림을 곱하기(MultiplyBlending)로 얹는다 → docs/features/render-3d.md
 import * as THREE from 'three';
 import { ProgressiveLightMap } from 'three/examples/jsm/misc/ProgressiveLightMap.js';
-import { aoKey, aoToGray, skyDirs } from '../core/aoBake';
+import { aoGeomKey, aoToGray, skyDirs } from '../core/aoBake';
+import { aoStore as store } from '../aoStore';
+import { assetUrl, putAsset } from '../assets';
 import { getDerived, putDerived } from '../derivedImages';
 
 /** 굽기 버전 — 굽는 방식이 바뀌면 올려 새로 굽는다 */
@@ -31,6 +33,18 @@ function bakeRenderer(): THREE.WebGLRenderer {
 }
 
 const mem = new Map<string, ImageBitmap | HTMLCanvasElement>();
+
+async function fromStore(key: string): Promise<ImageBitmap | null> {
+  const id = store()?.get(key);
+  if (!id) return null;
+  try {
+    const url = await assetUrl(id);
+    if (!url) return null;
+    const blob = await (await fetch(url)).blob();
+    void putDerived(key, { blob }); // 다음엔 기기에서 바로
+    return await createImageBitmap(blob);
+  } catch { return null; }
+}
 const tick = () => new Promise<void>((ok) => setTimeout(ok, 0));
 
 /** 받는 면 하나를 굽는다 → AO 회색 캔버스 (RES × RES) */
@@ -138,7 +152,7 @@ function receiversOf(spec: { kind: string; widthMm: number; heightMm: number; bo
  * 사인물 그룹에 구운 AO 를 얹는다 (상자를 뒤로 물린 뒤, 사진 자리에 맞추기 전 — 자기 좌표). 저장된 것이 있으면 그것을, 없으면 bake 가 참일 때 굽고 저장.
  * 받는 면마다 곱하기 판 하나(userData.part = 'ao'). 실패하면 조용히 넘어간다(AO 없이 그린다)
  */
-export async function attachAO(group: THREE.Group, spec: Parameters<typeof receiversOf>[0] & object, opts: { bake: boolean; box?: { dir: [number, number, number] | null; flip: boolean } }): Promise<void> {
+export async function attachAO(group: THREE.Group, spec: Parameters<typeof receiversOf>[0], opts: { bake: boolean; box?: { dir: [number, number, number] | null; flip: boolean } }): Promise<void> {
   try {
     group.updateMatrixWorld(true);
     const occluders: THREE.Mesh[] = [];
@@ -150,18 +164,30 @@ export async function attachAO(group: THREE.Group, spec: Parameters<typeof recei
     // 박스 방향(사진마다 다름)도 키에 — 같은 사인물도 기울기가 다르면 그림자 자리가 다르다
     const box = opts.box?.dir ? `|${opts.box.dir.map((v) => v.toFixed(2)).join(',')}` : opts.box?.flip ? '|f' : '';
     const shear = shearOf(opts.box);
-    const base = `ao|v${AO_VERSION}|${aoKey(spec)}${box}`;
+    // 키 = 그림자를 드리우는 도형의 꼭짓점 자리만 — 색·재질·조명이 바뀌어도 그대로 쓴다 (2026-11-10 "체널과 프레임의 위치만 재질은 상관없음")
+    const geo = aoGeomKey(occluders.map((m) => ({ pos: (m.geometry.attributes.position as THREE.BufferAttribute).array, m: m.matrixWorld.elements })), `${spec.kind}|${Math.round(spec.widthMm)}x${Math.round(spec.heightMm)}|${spec.bodyless ? 'b' : ''}`);
+    const base = `ao|v${AO_VERSION}|${geo}${box}`;
     for (const rc of receiversOf(spec, bounds)) {
       const key = `${base}|${rc.name}`;
       let src = mem.get(key) ?? null;
       if (!src) {
         const d = await getDerived(key);
-        if (d && 'blob' in d) src = await createImageBitmap(d.blob);
+        if (d && 'blob' in d) {
+          src = await createImageBitmap(d.blob);
+          // 이 기기에서 구웠는데 프로젝트에 아직 없으면 올린다 (다른 기기가 쓰게)
+          const st = store();
+          if (st && !st.get(key) && opts.bake) { const blob = d.blob; void putAsset(blob).then((id) => st.set(key, id)).catch(() => undefined); }
+        }
       }
+      if (!src) src = await fromStore(key);
       if (!src && opts.bake) {
         const c = await bakeReceiver(occluders, rc, bounds, shear);
         const blob = await toBlob(c);
-        if (blob) await putDerived(key, { blob });
+        if (blob) {
+          await putDerived(key, { blob });
+          const st = store();
+          if (st) { try { st.set(key, await putAsset(blob)); } catch { /* 못 올려도 이 기기에서는 쓴다 */ } }
+        }
         src = c;
       }
       if (!src) continue;

@@ -29,6 +29,7 @@ import { crashLog } from './crashLog';
 import { componentOf } from './core/components';
 import { planArtboards, planBundle, type SyncAction, type SyncRow } from './core/designSync';
 import { STAGE_EXPORT_LONG } from './render/stageSize';
+import { canBakeAO, setAoStore } from './aoStore';
 import { assetUrl, imageSize, putAsset, StorageLimitError } from './assets';
 import { materializeRequestSigns } from './core/requestSigns';
 import { estimateProject } from './projects';
@@ -276,6 +277,8 @@ class AppState {
   movingPhotoId = $state<string | null>(null);
   /** 3D 그림을 새로 만든 횟수 (기기에 저장된 그림을 쓴 것은 세지 않는다 — 2026-10-29 확인용) */
   stageMade = $state(0);
+  /** 프로젝트에 올라온 구운 AO 수 — 굽지 않는 기기(휴대폰·브라우저)의 3D 그림 키에 (새로 올라오면 다시 그린다, 2026-11-10) */
+  aoCount = $state(0);
   /** 사진의 3D 합성에 영향을 주는 내용의 키 — 같으면 다시 그리지 않는다 */
   /** 디자인을 입힌 화면인가 — 디자인 탭만. 2D·3D 탭은 디자인 적용 전 임시 설정 (2026-11-07) */
   get designView(): boolean { return this.tab === 'design' || this.isCustomer; } // 고객(보기 초대)은 디자인 탭이 없다 — 디자인이 입혀진 결과를 본다
@@ -283,7 +286,7 @@ class AppState {
   stageKey(photoId: string, design = this.designView): string {
     const p = this.photos.find((x) => x.id === photoId);
     const objs = this.objects.filter((o) => o.photoId === photoId).map((o0) => design ? asDesigned(o0) : withoutDesign(o0)).map((o) => [o.id, o.quad, o.shape, o.corner ?? null, o.polygon ?? null, o.curves ?? null, o.productId ?? null, o.sheetIds, o.text ?? null, o.charCount ?? null, o.widthMm ?? null, o.heightMm ?? null, o.depthMm ?? null, o.options ?? null, o.letter3d ?? null, o.sameAs ?? null, o.parts ?? null /* 구성 요소·정면도 배치 (2026-10-17 "3d가 아직 정면도의 변경을 따르지 않는다") */, o.design ?? null /* 입힌 디자인 (2026-10-17) */, ...(o.designBase ? [o.designBase] : []) /* 사진보드용 입체 제외 디자인 (2026-11-07) — 있을 때만(다른 사진의 저장 3D 그림을 다시 만들지 않게) */]);
-    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(p?.masks?.length ? { masks: p.masks } : {}), ...(this.photoNight[photoId] ? { night: 1 } : {}), ...(design ? {} : { v: 'p' }) })); // 앞가림 마스크도 3D 그림에 들어간다 (2026-11-08) // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
+    return fnv1a(JSON.stringify({ objs, cam: p?.camera ?? null, w: p?.w, h: p?.h, px: STAGE_EXPORT_LONG, r: STAGE_RENDER_VERSION, ...(p?.masks?.length ? { masks: p.masks } : {}), ...(this.photoNight[photoId] ? { night: 1 } : {}), ...(design ? {} : { v: 'p' }), ...(this.aoCount && !canBakeAO() ? { ao: this.aoCount } : {}) })); // 앞가림 마스크도 3D 그림에 들어간다 (2026-11-08) // 저장 그림 크기가 바뀌면 한 번 다시 만든다 (2026-11-05 1280 → 2560)
   }
   /** 마지막으로 만든 전개도 SVG (테스트·재사용) */
   lastSvg = $state('');
@@ -661,6 +664,9 @@ class AppState {
     onStorageLimit((e) => { this.notice = `저장 용량 한도(${formatBytes(e.limitBytes)})를 넘어 파일(${formatBytes(e.sizeBytes)})을 서버에 올리지 못했습니다. 이 기기에서만 보이고 다른 사람에게는 보이지 않습니다. 사용 중 ${formatBytes(e.usedBytes)} — 요금제를 올려 주세요.`; });
     this.project.onChange(() => this.version++);
     this.watchSizes();
+    // 구운 AO 를 프로젝트로 나눈다 (2026-11-10): 데스크톱 앱이 굽고 올리면(편집 권한) 다른 기기는 받아 쓴다. 굽지 않는 기기는 새로 올라오면 3D 그림을 다시 만든다(stageKey)
+    setAoStore({ get: (k) => this.project.aoAsset(k), set: (k, id) => { if (this.canEdit) this.project.setAO(k, id); } });
+    this.project.aoMaps.observe(() => { this.aoCount = this.project.aoMaps.size; });
     this.history.onChange(() => this.historyVersion++);
     const url = new URL(location.href);
     if (url.pathname === '/request') location.replace(`/estimate${url.search}`); // 옛 요청 폼 → 소비자 보드 (2026-10-21)

@@ -28,6 +28,8 @@ export class Project {
   readonly messages: Y.Array<Message>;
   /** 톡방 (2026-10-22). 회사 멤버 방은 고정이라 저장하지 않는다 → core/talk.ts */
   readonly talks: Y.Map<Y.Map<unknown>>;
+  /** 구운 AO: 키(도형) → 에셋 id (2026-11-10) — 데스크톱 앱이 굽고 올린다, 다른 기기는 받아 쓴다 → render/aoBake.ts */
+  readonly aoMaps: Y.Map<string>;
 
   constructor(doc = new Y.Doc()) {
     this.doc = doc;
@@ -38,7 +40,11 @@ export class Project {
     this.settingsMap = doc.getMap('settings');
     this.messages = doc.getArray('messages');
     this.talks = doc.getMap('talks');
+    this.aoMaps = doc.getMap('ao');
   }
+
+  setAO(key: string, assetId: string) { if (this.aoMaps.get(key) !== assetId) this.aoMaps.set(key, assetId); }
+  aoAsset(key: string): string | undefined { return this.aoMaps.get(key); }
 
   addTalk(t: Pick<TalkRoom, 'name' | 'memberIds' | 'memberNames' | 'createdById' | 'createdBy'>): string {
     const id = uid();

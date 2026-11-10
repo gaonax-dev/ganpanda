@@ -123,3 +123,57 @@ test('AO 판은 원근(사다리꼴)에 맞춰도 안쪽 자리가 글자와 같
   });
   expect(err).toBeLessThan(5); // mm (꼭짓점 4개일 때 수십 mm)
 });
+
+// 2026-11-10 사용자: "구운 그림자를 활용해야하는데 모바일에서는 굽지않고(기기확인) 데스크탑 앱에서만 굽게하고 디지자인과 구성(체널과 프레임의 위치만 재질은 상관없음))이 변하지 않으면 계속 사용하게"
+test('색·재질만 바꾸면 구운 AO 를 그대로 쓰고, 글자 자리를 옮기면 새로 굽는다 — 구운 것은 프로젝트에 올라가 굽지 않는 기기가 받아 쓴다', async ({ page, request, browser }) => {
+  test.setTimeout(180_000);
+  await openOwnedProject(page, request);
+  const r = await page.evaluate(async () => {
+    const load = (p: string): Promise<any> => import(/* @vite-ignore */ p); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const S = await load('/src/lib/sim/signs.ts'), A = await load('/src/lib/render/aoBake.ts'), T = await load('/src/lib/core/textShapes.ts'), St = await load('/src/lib/aoStore.ts'), As = await load('/src/lib/assets.ts');
+    const font = await T.loadFont((await load('/node_modules/pretendard/dist/public/static/Pretendard-Bold.otf?url')).default);
+    const shared = new Map<string, string>();
+    St.setAoStore({ get: (k: string) => shared.get(k), set: (k: string, id: string) => shared.set(k, id) });
+    const base = { id: 'ao5', kind: 'lightbox', text: '', heightMm: 600, widthMm: 2400, depthMm: 100, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000' };
+    const item = { text: '가', x: 0, y: 0, z: 0, heightMm: 400, depthMm: 60, lighting: 'front', faceColor: '#ffcc00', sideColor: '#ffcc00', letterSpacing: 0 };
+    const planes = async (spec: any, bake: boolean) => {
+      const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+      await A.attachAO(b.group, spec, { bake });
+      let n = 0; b.group.traverse((o: any) => { if (o.userData?.part === 'ao') n++; }); return n;
+    };
+    const first = await planes({ ...base, letterItems: [item] }, true);
+    const recolored = await planes({ ...base, faceColor: '#123456', sideColor: '#ff0000', letterItems: [{ ...item, faceColor: '#00ff00', sideColor: '#0000ff', finish: 'mirror' }] }, false); // 굽지 않아도 있다
+    const moved = await planes({ ...base, letterItems: [{ ...item, x: 600 }] }, false); // 자리가 바뀌면 저장된 것이 없다
+    const out: Record<string, string> = {};
+    for (const [k, id] of shared) {
+      const url = await As.assetUrl(id);
+      const blob = await (await fetch(url)).blob();
+      out[k] = await new Promise<string>((ok) => { const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(blob); });
+    }
+    return { first, recolored, moved, shared: out };
+  });
+  expect(r.first).toBe(2); // 앞면 + 벽
+  expect(r.recolored).toBe(2);
+  expect(r.moved).toBe(0);
+  expect(Object.keys(r.shared)).toHaveLength(2); // 프로젝트에 올라감
+
+  // 다른 기기(굽지 않음): 프로젝트에 올라온 에셋만으로 AO 가 붙는다
+  const ctx = await browser.newContext();
+  const phone = await ctx.newPage();
+  await openOwnedProject(phone, request);
+  const n = await phone.evaluate(async (shared) => {
+    const load = (p: string): Promise<any> => import(/* @vite-ignore */ p); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const S = await load('/src/lib/sim/signs.ts'), A = await load('/src/lib/render/aoBake.ts'), T = await load('/src/lib/core/textShapes.ts'), St = await load('/src/lib/aoStore.ts'), As = await load('/src/lib/assets.ts');
+    const font = await T.loadFont((await load('/node_modules/pretendard/dist/public/static/Pretendard-Bold.otf?url')).default);
+    const map = new Map<string, string>();
+    for (const [k, data] of Object.entries(shared)) map.set(k, await As.putAsset(await (await fetch(data)).blob())); // 동기화로 받은 에셋 대신
+    St.setAoStore({ get: (k: string) => map.get(k), set: () => { throw new Error('굽지 않는 기기는 올리지 않는다'); } });
+    const spec = { id: 'ao5', kind: 'lightbox', text: '', heightMm: 600, widthMm: 2400, depthMm: 100, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000',
+      letterItems: [{ text: '가', x: 0, y: 0, z: 0, heightMm: 400, depthMm: 60, lighting: 'front', faceColor: '#ffcc00', sideColor: '#ffcc00', letterSpacing: 0 }] };
+    const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+    await A.attachAO(b.group, spec, { bake: false });
+    let n = 0; b.group.traverse((o: any) => { if (o.userData?.part === 'ao') n++; }); return n;
+  }, r.shared);
+  expect(n).toBe(2);
+  await ctx.close();
+});

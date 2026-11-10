@@ -164,3 +164,14 @@ describe('디자인 소스', () => {
     expect(p.removeMessage('없음')).toBe(false);
   });
 });
+
+// 2026-11-10 사용자: "모바일에서는 굽지않고(기기확인) 데스크탑 앱에서만 굽게" — 데스크톱 앱이 구운 AO(에셋 id)를 프로젝트 문서에 두고 다른 기기가 받아 쓴다
+describe('구운 AO (키 → 에셋 id)', () => {
+  it('한 기기가 올린 것을 다른 기기가 받는다', () => {
+    const a = new Project(), b = new Project();
+    a.setAO('ao|v2|abc|face', 'asset1');
+    Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc));
+    expect(b.aoAsset('ao|v2|abc|face')).toBe('asset1');
+    expect(b.aoAsset('없음')).toBeUndefined();
+  });
+});
