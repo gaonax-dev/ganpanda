@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto, openSettings } from './helpers';
+import { openOwnedProject, uploadPhoto, openSettings, openSettingsDialog } from './helpers';
 
 // 2026-10-19 V5 용어 통일: 품목에 연결된 공급사의 용어를 확인 창에 힌트로, 설정에서 용어집 CSV 내보내기
 test('연결 공급사 용어 힌트와 용어집 내보내기', async ({ page, request }) => {
@@ -13,11 +13,12 @@ test('연결 공급사 용어 힌트와 용어집 내보내기', async ({ page, 
     app.setPrices({ ...app.prices, links: { ...(app.prices.links ?? {}), 'ch-halo': linkOf(ALIDA, halo) } }); // 내 단가표에서 후광 채널을 알리다 품목에 연결
     app.selectObject(app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva', parts: [{ id: 'c', kind: 'channel', type: 'ch-halo', items: [] }] }));
   });
-  const spec = page.getByTestId('spec-input').first();
+  const spec = (await openSettingsDialog(page)).getByTestId('spec-input'); // 사양 글은 세부 설정 창 (2026-11-10)
   await spec.getByTestId('spec-text').fill('오싸이');
   await spec.getByTestId('spec-parse').click();
   await expect(spec.getByTestId('spec-term')).toContainText("알리다 용어 '오사이'");
   await spec.getByTestId('spec-cancel').click();
+  await page.getByTestId('close-object-settings').click();
   await openSettings(page);
   await page.getByTestId('settings-tab-rules').click();
   const download = page.waitForEvent('download');

@@ -20,7 +20,7 @@
   import { loadItemImages, loadItemVectors } from '../render/itemImages';
 
   /** focusPart: 그 구성 요소만 남기고 나머지(다른 구성 요소·프레임)는 숨겨 가까이 본다 (2026-10-31 "구성(채널)을 누르면 다른 사인물은 사라지고 채널만 클로즈업"). 'frame' = 프레임(상자)만 — 글자는 모두 숨김 */
-  let { obj, closeUp = false, focusPart = null }: { obj: SignObject; closeUp?: boolean; focusPart?: string | null } = $props();
+  let { obj, closeUp = false, focusPart = null, focusItem = null }: { obj: SignObject; closeUp?: boolean; focusPart?: string | null; /** 그 객체만 (입체 글자·패스 — 2026-11-10 "레이어의 아이탬을 선택하면 클로즈업"). 입체가 없는 객체(앞면 그림)면 구성 요소째 */ focusItem?: string | null } = $props();
   let host: HTMLDivElement;
   let font: Font | null = null;
   let renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: OrbitControls;
@@ -77,7 +77,7 @@
 
   const composed = $derived(obj.parts && obj.widthMm && obj.heightMm ? renderSpecOf(obj, { cx: 0, cy: 0, w: obj.widthMm, h: obj.heightMm }) : null);
   $effect(() => { void obj.text; void obj.widthMm; void obj.heightMm; void obj.productId; void obj.parts; void obj.options; void obj.letter3d; if (font) void rebuild(); });
-  $effect(() => { void closeUp; void focusPart; applyFocus(); frame(); });
+  $effect(() => { void closeUp; void focusPart; void focusItem; applyFocus(); frame(); });
 
   let token = 0;
   async function rebuild() {
@@ -109,13 +109,15 @@
   function applyFocus() {
     if (!built) return;
     const shown = new Set<string>();
-    const tagged = (o: THREE.Object3D): string | null => { let p: THREE.Object3D | null = o; while (p && p !== built!.group) { if (typeof p.userData.partId === 'string') return p.userData.partId; p = p.parent; } return null; };
+    const tagged = (o: THREE.Object3D, key = 'partId'): string | null => { let p: THREE.Object3D | null = o; while (p && p !== built!.group) { if (typeof p.userData[key] === 'string') return p.userData[key]; p = p.parent; } return null; };
+    let itemOnly = false; // 고른 객체가 입체로 있으면 그것만
+    if (focusItem) built.group.traverse((o) => { if ((o as THREE.Mesh).isMesh && tagged(o, 'itemId') === focusItem) itemOnly = true; });
     built.group.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       const pid = tagged(m);
       // 'frame': 표시 없는 메시(상자·프레임·앞면)만 — 글자 그룹은 모두 숨김. 구성 요소 id: 그 글자 그룹만
-      const on = !focusPart || (focusPart === 'frame' ? !pid : pid === focusPart);
+      const on = itemOnly ? tagged(m, 'itemId') === focusItem : !focusPart || (focusPart === 'frame' ? !pid : pid === focusPart);
       m.visible = on;
       if (on && pid) shown.add(pid);
     });
@@ -142,7 +144,7 @@
   }
 </script>
 
-<div class="view" bind:this={host} data-testid="sign-view" data-ready={ready ? 'true' : undefined} data-close={closeUp || undefined} data-focus={focusPart ?? undefined} data-visible-parts={visibleParts}></div>
+<div class="view" bind:this={host} data-testid="sign-view" data-ready={ready ? 'true' : undefined} data-close={closeUp || undefined} data-focus={focusPart ?? undefined} data-focus-item={focusItem ?? undefined} data-visible-parts={visibleParts}></div>
 {#if empty}<p class="hint empty" data-testid="sign-view-empty">가로·세로 치수와 구성을 넣으면 3D 로 보입니다</p>{/if}
 
 <style>

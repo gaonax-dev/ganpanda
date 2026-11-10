@@ -1,6 +1,6 @@
 // 시트 분류도 다른 분류와 같은 패널 인터페이스 (2026-10-22 "사인물에서 시트만 다른 인터페이스를 가진다")
 import { expect, test } from '@playwright/test';
-import { dragOnPhoto, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openOwnedProject, pickCategory, uploadPhoto, openSettingsDialog } from './helpers';
 
 test('시트 사인물 패널에도 사이즈 줄·사양 글·칩이 있고, 사이즈 줄로 치수를 넣는다', async ({ page, request }) => {
   await openOwnedProject(page, request);
@@ -9,8 +9,11 @@ test('시트 사인물 패널에도 사이즈 줄·사양 글·칩이 있고, �
   await dragOnPhoto(page, [300, 200], [700, 300]);
   await pickCategory(page, 'sheet');
   await expect(page.getByTestId('panel-size')).toBeVisible();
-  await expect(page.getByTestId('spec-input')).toBeVisible();
-  await expect(page.getByTestId('quick-spec')).toContainText('시트');
+  // 사양 글·칩은 ⚙ 세부 설정 창 (2026-11-10 패널은 레이어로 끝남)
+  const dlg = await openSettingsDialog(page);
+  await expect(dlg.getByTestId('spec-input')).toBeVisible();
+  await expect(dlg.getByTestId('quick-spec')).toContainText('시트');
+  await page.getByTestId('close-object-settings').click();
   await page.getByTestId('panel-width').fill('2000');
   await page.getByTestId('panel-height').fill('500');
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { objects: { widthMm?: number; heightMm?: number }[] } }).__ganpanda.objects[0])).toMatchObject({ widthMm: 2000, heightMm: 500 });

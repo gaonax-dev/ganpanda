@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { SERVER, apiLogin, openOwnedProject, uploadPhoto, openSettings } from './helpers';
+import { SERVER, apiLogin, openOwnedProject, uploadPhoto, openSettings, openSettingsDialog } from './helpers';
 
 // 2026-10-18 V1 (docs/features/spec-vocabulary.md): 못 알아본 말의 뜻을 묻고, 고른 뜻은 개인 규칙이 되어 다음부터 바로 알아본다
 test('퀵입력이 못 알아본 말에 뜻을 답하면 규칙으로 배우고, 다음 입력부터 알아본다', async ({ page, request }) => {
@@ -9,7 +9,7 @@ test('퀵입력이 못 알아본 말에 뜻을 답하면 규칙으로 배우고,
     const app = (window as unknown as { __ganpanda: { photos: { id: string }[]; project: { addObject(o: unknown): string }; selectObject(id: string): void } }).__ganpanda;
     app.selectObject(app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva' }));
   });
-  const spec = page.getByTestId('spec-input').first();
+  const spec = (await openSettingsDialog(page)).getByTestId('spec-input'); // 사양 글은 세부 설정 창 (2026-11-10)
   const phrase = `뒷광${Date.now().toString(36).slice(-4)}`; // 다른 테스트 계정과 섞이지 않게
   await spec.getByTestId('spec-text').fill(`갈바 ${phrase} 흰색`);
   await spec.getByTestId('spec-parse').click();
@@ -49,7 +49,7 @@ test('전국 기본값으로 알아본 말에 이의를 내면 내 뜻이 개인
     app.selectObject(app.project.addObject({ photoId: app.photos[0].id, name: '정면', shape: 'rect', quad: [[200, 100], [800, 100], [800, 300], [200, 300]], sheetIds: [], productId: 'board-galva' }));
   });
   await expect.poll(() => page.evaluate(() => (window as unknown as { __ganpanda: { specDefaults: { phrase: string }[] } }).__ganpanda.specDefaults.map((d) => d.phrase))).toContain(phrase);
-  const spec = page.getByTestId('spec-input').first();
+  const spec = (await openSettingsDialog(page)).getByTestId('spec-input'); // 사양 글은 세부 설정 창 (2026-11-10)
   await spec.getByTestId('spec-text').fill(`갈바 ${phrase} 흰색`);
   await spec.getByTestId('spec-parse').click();
   const national = spec.getByTestId('spec-item').filter({ hasText: '(전국:' });
@@ -68,6 +68,7 @@ test('전국 기본값으로 알아본 말에 이의를 내면 내 뜻이 개인
   await expect(spec.getByTestId('spec-item').filter({ hasText: '(내 사전:' })).toContainText('전후광');
   await expect(spec.getByTestId('spec-item').filter({ hasText: '(전국:' })).toHaveCount(0);
   await spec.getByTestId('spec-cancel').click();
+  await page.getByTestId('close-object-settings').click();
   // 설정 → 사양 글 사전: 규칙이 보이고 지울 수 있다
   await openSettings(page);
   await page.getByTestId('settings-tab-rules').click();

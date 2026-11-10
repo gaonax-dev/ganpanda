@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiCreateInvite, apiSetPlan, openInvited, openOwnedProject, uploadPhoto } from './helpers';
+import { apiCreateInvite, apiSetPlan, openInvited, openOwnedProject, uploadPhoto, openSettingsDialog } from './helpers';
 
 /** 사진 원본 픽셀 좌표 클릭 */
 async function clickPhoto(page: Page, x: number, y: number) {
@@ -155,6 +155,7 @@ test('꼭지가 가리키는 사인물: 말풍선 창의 [속성] 단추로 사�
   await expect(page.getByTestId('pin-goto-object')).toContainText('속성');
   await page.getByTestId('pin-goto-object').click();
   await expect(page.getByTestId('object-panel')).toBeVisible();
+  await openSettingsDialog(page); // 말풍선·컨펌 리스트는 세부 설정 창 (2026-11-10 패널은 레이어로 끝남)
   await expect(page.getByTestId('object-goto-bubble')).toHaveCount(1);
   await page.getByTestId('object-goto-bubble').click();
   await expect(page.getByTestId('pin-panel')).toBeVisible();
@@ -162,6 +163,7 @@ test('꼭지가 가리키는 사인물: 말풍선 창의 [속성] 단추로 사�
   await page.getByTestId('pin-resolve').click();
   await expect(page.getByTestId('pin')).toHaveCount(0);
   await page.getByTestId('pin-goto-object').click();
+  await openSettingsDialog(page);
   await expect(page.getByTestId('object-goto-bubble')).toHaveCount(0);
   await expect(page.getByTestId('object-confirm-item')).toHaveCount(1);
   await page.getByTestId('object-confirm-item').click();

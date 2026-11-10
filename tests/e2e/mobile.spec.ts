@@ -213,12 +213,7 @@ test('휴대폰 패널: 사양 칩이 많아져도 대화 입력칸이 보이고
   await page.getByTestId('quick-panel-open').click();
   const panel = page.getByTestId('object-panel');
   await expect(panel).toBeVisible();
-  // 사양 글 확인 창까지 열어 위쪽을 길게 만든다
-  await page.getByTestId('spec-text').fill('후렉스 검정 전광 3000K');
-  await page.getByTestId('spec-text').press('Enter');
-  await expect(page.getByTestId('spec-item')).toHaveCount(4);
-  await expect(page.getByTestId('spec-apply')).toBeVisible(); // 확인 창의 단추도 (위쪽은 스크롤)
-  await page.getByTestId('spec-cancel').click();
+  await expect(panel.getByTestId('spec-text')).toHaveCount(0); // 패널은 레이어로 끝난다 — 사양 글은 빠른 막대·설정 창 (2026-11-10)
   // 대화는 말풍선 창에서 (2026-10-18): 💬 를 누르면 창이 화면 안에, 입력칸도 창 안에
   await page.getByTestId('object-chat-open').click();
   const chat = page.getByTestId('object-chat');

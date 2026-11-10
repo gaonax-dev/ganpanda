@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { openOwnedProject, uploadPhoto } from './helpers';
+import { openOwnedProject, uploadPhoto, openSettingsDialog } from './helpers';
 
 // 2026-10-18 사용자: "메모로 전환하는 글만 모아서 ai로 전환하는 방식으로" — 못 알아본 글이 있으면 보내기 체크가 보이고, 적용하면 서버로 간다
 test('퀵입력에서 못 알아본 글은 체크해 두면 표본으로 보내진다', async ({ page, request }) => {
@@ -11,7 +11,7 @@ test('퀵입력에서 못 알아본 글은 체크해 두면 표본으로 보내�
   });
   const sent: unknown[] = [];
   await page.route('**/api/spec-samples', async (route) => { sent.push(route.request().postDataJSON()); await route.fulfill({ status: 201, contentType: 'application/json', body: '{"id":"x"}' }); });
-  const spec = page.getByTestId('spec-input').first();
+  const spec = (await openSettingsDialog(page)).getByTestId('spec-input'); // 사양 글은 세부 설정 창 (2026-11-10)
   await spec.getByTestId('spec-text').fill('갈바 흰색 배선은 뒤로'); // '로고 왼쪽 아래'는 배치 어휘로 알아본다 (2026-10-19)
   await spec.getByTestId('spec-parse').click();
   await expect(spec.getByTestId('spec-share')).toBeVisible();

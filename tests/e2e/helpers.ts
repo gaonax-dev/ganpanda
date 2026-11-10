@@ -192,3 +192,10 @@ export async function openCropCanvas(page: Page, card = 0) {
   await page.getByTestId('page-crop').nth(card).click();
   await expect(page.getByTestId('uv-canvas')).toBeVisible();
 }
+
+/** 사인물 패널 머리글 ⚙ → 세부 설정 창 (2026-11-10 패널은 레이어로 끝남 — 사양 글·칩·말풍선은 설정 창에). 알림 띠가 머리글을 덮어도 누른다 */
+export async function openSettingsDialog(page: Page) {
+  await page.getByTestId('object-settings-open').dispatchEvent('click');
+  await page.getByTestId('object-settings').waitFor();
+  return page.getByTestId('object-settings');
+}

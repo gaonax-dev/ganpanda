@@ -1,6 +1,6 @@
 // 빠른 설정 칩 (2026-10-17 사용자: "현재설정창과 퀵설정으로 만들수 있을까? 사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k")
 import { expect, test, type Page } from '@playwright/test';
-import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto } from './helpers';
+import { dragOnPhoto, openObjectSettings, openOwnedProject, pickCategory, uploadPhoto, openSettingsDialog } from './helpers';
 
 const objOf = (page: Page) => page.evaluate(() => JSON.parse(JSON.stringify((window as unknown as { __ganpanda: { objects: unknown[] } }).__ganpanda.objects[0])));
 
@@ -71,7 +71,7 @@ test.describe('휴대폰', () => {
   });
 });
 
-test('패널: 사이즈 → 사양 글 → 확인 창에서 체크 → 적용하면 글은 비고 칩이 생긴다. 칩을 누르면 설정 창이 그 탭으로, [+] 로 요청사항을 더한다 (2026-10-17)', async ({ page, request }) => {
+test('패널 사이즈 → ⚙ 세부 설정의 사양 글 → 확인 창에서 체크 → 적용하면 글은 비고 칩이 생긴다. 칩 = 설정 창의 탭, [+] 로 요청사항을 더한다 (2026-10-17, 2026-11-10 패널은 레이어로 끝남 — 사양 글·칩은 설정 창)', async ({ page, request }) => {
   await openOwnedProject(page, request, '사양 글');
   await uploadPhoto(page);
   await page.keyboard.press('t');
@@ -80,38 +80,35 @@ test('패널: 사이즈 → 사양 글 → 확인 창에서 체크 → 적용하
   // 패널의 사이즈 줄
   await page.getByTestId('panel-width').fill('3000');
   await page.getByTestId('panel-height').fill('600');
-  // 사양 글 → 확인 창 (항목 5개) → 하나 빼고 적용
-  await page.getByTestId('spec-text').fill('갈바 흰색 채널 갈색 후광 4000K 급함');
-  await page.getByTestId('spec-text').press('Enter');
-  const items = page.getByTestId('spec-item');
+  const dlg = await openSettingsDialog(page);
+  // 사양 글 → 확인 창 (항목 6개) → 하나 빼고 적용
+  await dlg.getByTestId('spec-text').fill('갈바 흰색 채널 갈색 후광 4000K 급함');
+  await dlg.getByTestId('spec-text').press('Enter');
+  const items = dlg.getByTestId('spec-item');
   await expect(items).toHaveCount(6);
   await expect(items.nth(0)).toContainText('몸통: 갈바');
   await expect(items.nth(5)).toContainText('요청사항에 추가: 급함');
   await items.nth(5).locator('input').uncheck(); // 메모는 뺀다
-  await page.getByTestId('spec-apply').click();
-  await expect(page.getByTestId('spec-confirm')).toHaveCount(0);
-  await expect(page.getByTestId('spec-text')).toHaveValue(''); // 글은 비워진다
-  const panelChips = page.getByTestId('object-panel').getByTestId('quick-spec');
-  await expect(panelChips.getByTestId('quick-body')).toContainText('흰색');
-  await expect(panelChips.getByTestId('quick-part')).toContainText('후광');
-  await expect(panelChips.getByTestId('quick-part')).toContainText('갈색');
-  await expect(panelChips.getByTestId('quick-part')).toContainText('4000K');
+  await dlg.getByTestId('spec-apply').click();
+  await expect(dlg.getByTestId('spec-confirm')).toHaveCount(0);
+  await expect(dlg.getByTestId('spec-text')).toHaveValue(''); // 글은 비워진다
+  const chips = dlg.getByTestId('quick-spec');
+  await expect(chips.getByTestId('quick-body')).toContainText('흰색');
+  await expect(chips.getByTestId('quick-part')).toContainText('후광');
+  await expect(chips.getByTestId('quick-part')).toContainText('갈색');
+  await expect(chips.getByTestId('quick-part')).toContainText('4000K');
   const o = await objOf(page);
   expect(o).toMatchObject({ productId: 'board-galva', widthMm: 3000, heightMm: 600 });
   expect(o.note).toBeUndefined();
-  // 패널 칩 → 설정 창이 그 탭으로 열린다 (채널 카드)
-  await panelChips.getByTestId('quick-part').click();
-  await expect(page.getByTestId('object-settings')).toBeVisible();
-  await expect(page.getByTestId('object-settings').getByTestId('part-type')).toHaveValue('ch-halo');
-  await page.getByTestId('close-object-settings').click();
-  // [+] → 요청사항 더하기 → 설정 창의 메모 칸으로
-  await panelChips.getByTestId('quick-add').click();
-  await expect(panelChips.getByTestId('quick-add-menu')).toBeVisible();
-  await panelChips.getByTestId('quick-add-note').click();
-  await expect(page.getByTestId('object-settings')).toBeVisible();
-  await page.getByTestId('object-settings').getByTestId('sign-note').fill('기존 간판 철거');
-  await page.getByTestId('close-object-settings').click();
-  await expect(panelChips.getByTestId('quick-note')).toContainText('기존 간판 철거');
+  // 칩 → 그 탭 (채널 카드)
+  await chips.getByTestId('quick-part').click();
+  await expect(dlg.getByTestId('part-type')).toHaveValue('ch-halo');
+  // [+] → 요청사항 더하기 → 메모 칸
+  await chips.getByTestId('quick-add').click();
+  await expect(chips.getByTestId('quick-add-menu')).toBeVisible();
+  await chips.getByTestId('quick-add-note').click();
+  await dlg.getByTestId('sign-note').fill('기존 간판 철거');
+  await expect(chips.getByTestId('quick-note')).toContainText('기존 간판 철거');
   expect((await objOf(page)).note).toBe('기존 간판 철거');
 });
 
@@ -121,6 +118,7 @@ test('사양 글: "후랙스 연한베이지 비조명 체널 버건디 전광 �
   await page.keyboard.press('t');
   await dragOnPhoto(page, [400, 200], [800, 300]);
   await pickCategory(page, 'sign');
+  await openSettingsDialog(page); // 사양 글은 세부 설정 창 (2026-11-10)
   await page.getByTestId('spec-text').fill('후랙스 연한베이지 비조명 체널 버건디 전광 두께 120');
   await page.getByTestId('spec-text').press('Enter');
   const items = page.getByTestId('spec-item');
@@ -137,7 +135,7 @@ test('사양 글: "후랙스 연한베이지 비조명 체널 버건디 전광 �
   expect(o).toMatchObject({ productId: 'board-flex', depthMm: 120 });
   expect(o.options).toMatchObject({ light: '비조명', faceSystem: '직접' });
   expect(o.parts[0]).toMatchObject({ kind: 'channel', type: 'ch-front', options: { bodySystem: '기본색', bodyCode: '버건디' } });
-  const chips = page.getByTestId('object-panel').getByTestId('quick-spec');
+  const chips = page.getByTestId('object-settings').getByTestId('quick-spec');
   await expect(chips.getByTestId('quick-body')).toContainText('후렉스');
   await expect(chips.getByTestId('quick-part')).toContainText('버건디');
 });

@@ -17,6 +17,8 @@
   import { normalizeOptions, optionGroupsFor, optionValue, type OptionField } from '../core/options';
   import { specFromObject } from '../core/letter3d';
   import type { SignObject } from '../core/model';
+  import { pinsOnObject } from '../core/bubbleTarget';
+  import { lastStateOf } from '../core/bubbles';
 
   let { obj }: { obj: SignObject } = $props();
 
@@ -31,6 +33,11 @@
   const can3d = $derived(isChannel && !!specFromObject(obj));
   const bodyId = $derived(signParts(obj).bodyId);
   const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+  // 이 사인물의 말풍선·컨펌 리스트 — 사인물 패널(레이어에서 끝남, 2026-11-10)에서 이리로
+  const pinsHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
+  const bubblesHere = $derived(pinsHere.filter((p) => !p.resolved));
+  const confirms = $derived(pinsHere.filter((p) => p.resolved));
+  const when = (ts: number) => new Date(ts).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
 
   const ro = $derived(!app.canEdit);
   const update = (patch: Partial<SignObject>) => { if (app.canEdit) app.project.updateObject(obj.id, patch); };
@@ -126,6 +133,26 @@
           <p class="hint">한 영역의 실제 치수를 입력하면, 같은 사진의 다른 영역 크기를 자동으로 추정하고 잘못 입력한 치수를 경고합니다.</p>
         {/if}
       </section>
+      {#if bubblesHere.length || confirms.length}
+        <section data-testid="object-pins">
+          {#if bubblesHere.length}
+            <div class="row bubbles" data-testid="object-bubbles">
+              <span class="hint">이 사인물의 말풍선</span>
+              {#each bubblesHere as p (p.id)}
+                <button class="btn small" data-testid="object-goto-bubble" title="{p.author} → {p.to || '모두'}" onclick={() => { close(); app.selectPin(p.id); }}>💬 #{p.number}{#if app.unread[p.id]} <b>{app.unread[p.id]}</b>{/if}</button>
+              {/each}
+            </div>
+          {/if}
+          {#if confirms.length}
+            <div class="row confirms" data-testid="object-confirms">
+              <span class="hint">✓ 컨펌 리스트 {confirms.length}</span>
+              {#each confirms as p (p.id)}
+                <button class="citem" data-testid="object-confirm-item" title="다시 보기" onclick={() => { close(); app.selectPin(p.id); }}>✓ #{p.number} <b>{p.author}</b> <small>{when(p.createdAt)}</small> <span>{lastStateOf(app.messages, p.id)?.text.slice(0, 30) ?? ''}</span></button>
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/if}
       <!-- 사양 글 + 칩(탭): 치수 바로 아래 (2026-10-17 사용자: "사이즈 아래에 갈바 흰색 / 체널 갈색 / 후광4000k", "칩을 일종의 탭으로") -->
       {#if category}<section data-testid="quick-section" class="tabs">{#if !ro}<SpecInput {obj} {ro} {update} />{/if}<QuickSpec {obj} {ro} {update} active={tab} onPick={(t) => (tab = t)} /></section>{/if}
       {#if tab === 'stack'}
@@ -310,4 +337,9 @@
   .mini small { display: block; color: var(--muted); }
   footer { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
   .sp { flex: 1; }
+  .row.bubbles { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .row.confirms { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin-top: 6px; }
+  .row .hint { font-size: 11px; }
+  .citem { background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--text); font: inherit; font-size: 12px; text-align: left; padding: 5px 8px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
+  .citem small { color: var(--muted); } .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

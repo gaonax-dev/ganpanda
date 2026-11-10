@@ -5,17 +5,13 @@
   import { app } from '../state.svelte';
   import { voicesOf } from '../core/voices';
   import AttachmentView from './AttachmentView.svelte';
-  import { pinsOnObject } from '../core/bubbleTarget';
-  import { lastStateOf } from '../core/bubbles';
   import { categoryPatch } from '../core/parts';
   import { CATEGORY_GROUPS, categoryOf, defaultProductFor, productById, sheetById, type Group } from '../core/catalog';
   import { copiesOf } from '../core/link';
   import { quoteObject, won } from '../core/quote';
   import { describeOptions } from '../core/options';
   import type { SignObject } from '../core/model';
-  import SpecInput from './SpecInput.svelte';
   import SignProps from './SignProps.svelte';
-  import QuickSpec from './QuickSpec.svelte';
   import TemplateQuick from './TemplateQuick.svelte';
 
   let { obj }: { obj: SignObject } = $props();
@@ -24,12 +20,6 @@
   const chatId = $derived(obj.sameAs ?? obj.id);
   let voicesOpen = $state(false);
   const voices = $derived.by(() => (app.version, voicesOf(app.messages, chatId)));
-  /** 이 사인물을 가리키는 지점 말풍선들 (2026-10-18 "사인물에서도 말풍선 이동 버튼으로 간단 이동") */
-  const pinsHere = $derived(pinsOnObject(app.visiblePins, app.objects, obj));
-  const bubblesHere = $derived(pinsHere.filter((p) => !p.resolved));
-  /** 컨펌 리스트 (2026-10-18 "완료를 누르면 컨펌 리스트로 속성에 남기고"): 완료한 말풍선 */
-  const confirms = $derived(pinsHere.filter((p) => p.resolved));
-  const when = (ts: number) => new Date(ts).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
   /** 연결 대상 후보: 다른 사인물(원본)들 */
   const linkTargets = $derived(app.signs.filter((s) => s.id !== obj.id && s.id !== obj.sameAs));
   const copies = $derived(copiesOf(obj.sameAs ?? obj.id, app.objects));
@@ -84,8 +74,15 @@
     <button class="icon chat" title="말풍선 (이 사인물의 대화)" data-testid="object-chat-open" onclick={() => app.openChat(obj.id)}>💬{#if app.unread[chatId]}<i data-testid="object-chat-unread">{app.unread[chatId]}</i>{/if}</button>
     <!-- 음성 메모 (2026-10-18 "상세에 말풍선 옆에 녹음 파일 아이콘"): 말풍선과 따로, 누르면 아래에 목록 -->
     <button class="icon chat" class:on={voicesOpen} title="음성 메모 {app.voiceCounts[chatId] ?? 0}개" data-testid="object-voices-open" onclick={() => (voicesOpen = !voicesOpen)}>🎙{#if app.voiceCounts[chatId]}<i data-testid="object-voices-count">{app.voiceCounts[chatId]}</i>{/if}</button>
+    <!-- 세부 설정은 머리글 ⚙ (2026-11-10 "사인물 속성이 여기까지만 보이면 좋을 것같아 … 하단이 레이어로 마치게" — 패널 아래 요약 줄의 [세부 설정]이 여기로) -->
+    <button class="icon" title="세부 설정 (치수·단면·옵션·사양 글·견적)" data-testid="object-settings-open" onclick={() => (app.objectSettingsOpen = true)}>⚙</button>
     <button class="icon" title="닫기" data-testid="object-panel-close" onclick={() => { if (app.compact) app.panelOpen = false; else app.selectObject(null); }}>✕</button>
   </header>
+  <!-- 한 줄 요약(종류·치수·금액)은 머리글 바로 아래 — 패널은 레이어로 끝난다 (2026-11-10) -->
+  <p class="summary" data-testid="object-summary">
+    {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 ⚙ 세부 설정에서 종류·치수를 정하세요</span>{/if}
+    {#if app.warnMeasure && m?.warnings.length}<button class="warning" data-testid="measure-warning-hint" onclick={() => (app.objectSettingsOpen = true)}>⚠ 실측 확인 필요</button>{/if}
+  </p>
   {#if voicesOpen}
     <div class="voices" data-testid="object-voices">
       {#each voices as v (v.id)}
@@ -149,34 +146,8 @@
       <TemplateQuick {obj} {ro} {update} />
       {#if !sizeFirst}{@render sizeRow()}{/if}
       <!-- 간판 속성 (2026-10-31 사용자: 스크린샷 "해당 위치로 변경해줘 / 모바일에서는 상세가 왼쪽 네모안만 있게"): 3D 뷰어 · [배치] · 단 · 요소 클로즈업이 패널 안으로 — 사양 글 입력이 있던 자리. 세부 설정 창은 [세부 설정]으로 -->
+      <!-- 패널은 여기(레이어)서 끝난다 — 사양 글·칩·말풍선·컨펌은 ⚙ 세부 설정 창으로 (2026-11-10) -->
       <SignProps {obj} />
-      {#if !ro}<SpecInput {obj} {ro} {update} />{/if}
-      <QuickSpec {obj} {ro} {update} compact onPick={(tab) => { app.objectSettingsFocus = tab; app.objectSettingsOpen = true; }} />
-    {/if}
-    {#if bubblesHere.length}
-      <div class="row bubbles" data-testid="object-bubbles">
-        <span class="hint">이 사인물의 말풍선</span>
-        {#each bubblesHere as p (p.id)}
-          <button class="btn small" data-testid="object-goto-bubble" title="{p.author} → {p.to || '모두'}" onclick={() => app.selectPin(p.id)}>💬 #{p.number}{#if app.unread[p.id]} <b>{app.unread[p.id]}</b>{/if}</button>
-        {/each}
-      </div>
-    {/if}
-    {#if confirms.length}
-      <div class="row confirms" data-testid="object-confirms">
-        <span class="hint">✓ 컨펌 리스트 {confirms.length}</span>
-        {#each confirms as p (p.id)}
-          <button class="citem" data-testid="object-confirm-item" title="다시 보기" onclick={() => app.selectPin(p.id)}>✓ #{p.number} <b>{p.author}</b> <small>{when(p.createdAt)}</small> <span>{lastStateOf(app.messages, p.id)?.text.slice(0, 30) ?? ''}</span></button>
-        {/each}
-      </div>
-    {/if}
-    <div class="row">
-      <p class="summary" data-testid="object-summary">
-        {#if summary.length}{summary.join(' · ')}{:else}<span class="hint">분류를 고르고 설정에서 종류·치수를 정하세요</span>{/if}
-      </p>
-      <button class="btn small" data-testid="object-settings-open" onclick={() => (app.objectSettingsOpen = true)}>세부 설정</button>
-    </div>
-    {#if app.warnMeasure && m?.warnings.length}
-      <button class="warning" data-testid="measure-warning-hint" onclick={() => (app.objectSettingsOpen = true)}>⚠ 실측 확인 필요 — 설정에서 확인</button>
     {/if}
   </section>
 
@@ -184,11 +155,6 @@
 </aside>
 
 <style>
-  .row.bubbles { flex-wrap: wrap; gap: 6px; }
-  .row.confirms { flex-direction: column; align-items: stretch; gap: 2px; }
-  .citem { background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--text); font: inherit; font-size: 12px; text-align: left; padding: 5px 8px; cursor: pointer; display: flex; gap: 6px; align-items: baseline; }
-  .citem small { color: var(--muted); } .citem span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row.bubbles .hint { font-size: 11px; color: var(--muted); }
   .icon.chat { position: relative; }
   .icon.chat.on { background: var(--hover); }
   .voices { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); max-height: 40vh; overflow-y: auto; }
@@ -214,7 +180,7 @@
   .sizes input { width: 100%; min-width: 0; text-align: right; }
   section { padding: 10px 14px; border-bottom: 1px solid var(--line); }
   .row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-  .summary { flex: 1; margin: 0; font-size: 12px; color: var(--text); line-height: 1.4; }
+  .summary { margin: 0; padding: 6px 14px; font-size: 12px; color: var(--muted); line-height: 1.4; border-bottom: 1px solid var(--line); }
   .hint { color: var(--muted); }
   .cat { flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
   .cat select { flex: 1; }
@@ -226,7 +192,7 @@
   .linked { margin: 0 0 6px; font-size: 12px; color: var(--blue); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .jump { background: var(--input); border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 1px 8px; font: inherit; font-size: 11px; cursor: pointer; }
   .warning {
-    display: block; width: 100%; margin-top: 8px; text-align: left; cursor: pointer; font: inherit; font-size: 12px;
+    display: block; width: 100%; margin-top: 4px; text-align: left; cursor: pointer; font: inherit; font-size: 12px;
     background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.5); color: var(--warn); border-radius: 8px; padding: 6px 10px;
   }
   .info { flex: 0 1 auto; min-height: 0; overflow-y: auto; }

@@ -105,7 +105,8 @@
         </div>
       </div>
     {:else}
-      <button class="btn small" data-testid="tpl-open" onclick={() => { open = true; family = null; sub = null; }}>완성품 사진에서 고르기</button>
+      <!-- 접힌 줄 (2026-11-10 "완성풀 사진고르기도 접히고") — 누르면 펼친다 -->
+      <button class="fold" data-testid="tpl-open" aria-expanded="false" onclick={() => { open = true; family = null; sub = null; }}>▸ 완성품 사진에서 고르기</button>
     {/if}
   </div>
 {/if}
@@ -144,5 +145,7 @@
   .sw.on { outline: 2px solid var(--accent); outline-offset: 2px; }
   .colors input[type='color'] { width: 40px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
   .txt { width: 100%; font-size: 15px; padding: 8px; }
+  .fold { align-self: flex-start; background: none; border: 0; padding: 2px 0; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+  .fold:hover { color: var(--text); }
   .nav { display: flex; justify-content: space-between; gap: 6px; }
 </style>

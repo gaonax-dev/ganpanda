@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { clearAutoCamera, openOwnedProject, openRender } from './helpers';
+import { clearAutoCamera, openOwnedProject, openRender, openSettingsDialog } from './helpers';
 
 type Pt = [number, number];
 async function loadSample(page: import('@playwright/test').Page) {
@@ -118,7 +118,7 @@ test('카메라 설정: 축 선 두 쌍 + 원점 + 기준 길이 → 사인물 �
 
   // 창문 추정 1500×850 의 10% 안
   await page.evaluate((id) => (window as unknown as { __ganpanda: { selectObject(id: string): void } }).__ganpanda.selectObject(id), winId);
-  await page.getByTestId('object-settings-open').click();
+  await openSettingsDialog(page);
   const w = Number((await page.getByTestId('width-mm').getAttribute('placeholder'))!.replace(/[^\d]/g, ''));
   const h = Number((await page.getByTestId('height-mm').getAttribute('placeholder'))!.replace(/[^\d]/g, ''));
   expect(Math.abs(w - 1500) / 1500).toBeLessThan(0.1);
