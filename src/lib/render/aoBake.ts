@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { ProgressiveLightMap } from 'three/examples/jsm/misc/ProgressiveLightMap.js';
 import { aoGeomKey, aoToGray, skyDirs } from '../core/aoBake';
-import { aoStore as store } from '../aoStore';
+import { aoLoaded, aoStore as store } from '../aoStore';
 import { assetUrl, putAsset } from '../assets';
 import { getDerived, putDerived } from '../derivedImages';
 
@@ -34,16 +34,25 @@ function bakeRenderer(): THREE.WebGLRenderer {
 
 const mem = new Map<string, ImageBitmap | HTMLCanvasElement>();
 
-async function fromStore(key: string): Promise<ImageBitmap | null> {
+/**
+ * 프로젝트에 올라온 AO 를 **뒤에서** 받는다 — 3D 짓기를 기다리게 하지 않는다. 받으면 기억(mem·기기)하고 알린다(aoLoaded → 다시 그림).
+ * 올리는 중이라 서버에 아직 없으면 재시도에 수십 초 — 그동안 실시간 3D 가 안 지어져 저장된 3D 그림만 늘어나 깍두기였다 (2026-11-10 "확대시 3d가 깍두기 생긴다")
+ */
+const fetching = new Set<string>();
+function fetchFromStore(key: string) {
   const id = store()?.get(key);
-  if (!id) return null;
-  try {
-    const url = await assetUrl(id);
-    if (!url) return null;
-    const blob = await (await fetch(url)).blob();
-    void putDerived(key, { blob }); // 다음엔 기기에서 바로
-    return await createImageBitmap(blob);
-  } catch { return null; }
+  if (!id || fetching.has(key)) return;
+  fetching.add(key);
+  void (async () => {
+    try {
+      const url = await assetUrl(id);
+      if (!url) return;
+      const blob = await (await fetch(url)).blob();
+      mem.set(key, await createImageBitmap(blob));
+      await putDerived(key, { blob }); // 다음엔 기기에서 바로
+      aoLoaded();
+    } catch { /* 못 받으면 AO 없이 */ } finally { fetching.delete(key); }
+  })();
 }
 const tick = () => new Promise<void>((ok) => setTimeout(ok, 0));
 
@@ -179,7 +188,7 @@ export async function attachAO(group: THREE.Group, spec: Parameters<typeof recei
           if (st && !st.get(key) && opts.bake) { const blob = d.blob; void putAsset(blob).then((id) => st.set(key, id)).catch(() => undefined); }
         }
       }
-      if (!src) src = await fromStore(key);
+      if (!src && !opts.bake) { fetchFromStore(key); continue; } // 굽지 않는 기기: 받는 건 뒤에서
       if (!src && opts.bake) {
         const c = await bakeReceiver(occluders, rc, bounds, shear);
         const blob = await toBlob(c);

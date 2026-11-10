@@ -9,3 +9,12 @@ export function setAoStore(s: AoStore | null) { current = s; }
 export const aoStore = () => current;
 /** 이 기기가 AO 를 굽는가 — 데스크톱 앱만 */
 export const canBakeAO = () => typeof navigator !== 'undefined' && canBakeAOOn(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+
+/** 프로젝트의 AO 를 뒤에서 받아 쓸 수 있게 되면 알린다 (여럿이 이어 오면 한 번에, 0.5초) — state 가 굽지 않는 기기의 3D 그림 키를 바꿔 다시 그린다 */
+const loadedHandlers: (() => void)[] = [];
+let loadedTimer: ReturnType<typeof setTimeout> | null = null;
+export function onAoLoaded(f: () => void) { loadedHandlers.push(f); }
+export function aoLoaded() {
+  if (loadedTimer) return;
+  loadedTimer = setTimeout(() => { loadedTimer = null; for (const f of loadedHandlers) f(); }, 500);
+}

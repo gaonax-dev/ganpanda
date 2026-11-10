@@ -170,10 +170,38 @@ test('색·재질만 바꾸면 구운 AO 를 그대로 쓰고, 글자 자리를 
     St.setAoStore({ get: (k: string) => map.get(k), set: () => { throw new Error('굽지 않는 기기는 올리지 않는다'); } });
     const spec = { id: 'ao5', kind: 'lightbox', text: '', heightMm: 600, widthMm: 2400, depthMm: 100, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000',
       letterItems: [{ text: '가', x: 0, y: 0, z: 0, heightMm: 400, depthMm: 60, lighting: 'front', faceColor: '#ffcc00', sideColor: '#ffcc00', letterSpacing: 0 }] };
-    const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
-    await A.attachAO(b.group, spec, { bake: false });
-    let n = 0; b.group.traverse((o: any) => { if (o.userData?.part === 'ao') n++; }); return n;
+    const planes = async () => {
+      const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+      await A.attachAO(b.group, spec, { bake: false });
+      let n = 0; b.group.traverse((o: any) => { if (o.userData?.part === 'ao') n++; }); return n;
+    };
+    let loaded = 0; St.onAoLoaded(() => loaded++);
+    const before = await planes(); // 받기는 뒤에서 — 3D 를 기다리게 하지 않는다
+    for (let t = 0; t < 100 && !loaded; t++) await new Promise((ok) => setTimeout(ok, 100));
+    return { before, loaded, after: await planes() }; // 받았다고 알린 뒤 다시 지으면 붙는다
   }, r.shared);
-  expect(n).toBe(2);
+  expect(n.before).toBe(0);
+  expect(n.loaded).toBeGreaterThan(0);
+  expect(n.after).toBe(2);
   await ctx.close();
+});
+
+// 2026-11-10 사용자: "모바일은 ao만 베이크되어야하는데 3d도 베이크된다" → "확대시 3d가 깍두기 생긴다" — 프로젝트에 적혔지만 아직 서버에 없는(올리는 중) AO 를
+// 받으려고 실시간 3D 짓기가 재시도(수십 초)를 기다려, 그동안 저장된 3D 그림만 늘어나 깍두기. AO 받기는 3D 를 붙잡지 않는다 — 받으면 알리고 다음에 쓴다
+test('굽지 않는 기기: 프로젝트의 AO 에셋이 아직 없어도 3D 짓기를 기다리게 하지 않는다', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  const ms = await page.evaluate(async () => {
+    const load = (p: string): Promise<any> => import(/* @vite-ignore */ p); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const S = await load('/src/lib/sim/signs.ts'), A = await load('/src/lib/render/aoBake.ts'), T = await load('/src/lib/core/textShapes.ts'), St = await load('/src/lib/aoStore.ts');
+    const font = await T.loadFont((await load('/node_modules/pretendard/dist/public/static/Pretendard-Bold.otf?url')).default);
+    St.setAoStore({ get: () => '0123456789abcdef0123456789abcdef', set: () => undefined }); // 서버에 없는 에셋
+    const spec = { id: 'ao6', kind: 'lightbox', text: '', heightMm: 600, widthMm: 2400, depthMm: 100, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000',
+      letterItems: [{ text: '나', x: 0, y: 0, z: 0, heightMm: 400, depthMm: 60, lighting: 'front', faceColor: '#ffcc00', sideColor: '#ffcc00', letterSpacing: 0 }] };
+    const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+    const t0 = performance.now();
+    await A.attachAO(b.group, spec, { bake: false });
+    return performance.now() - t0;
+  });
+  expect(ms).toBeLessThan(500);
 });
