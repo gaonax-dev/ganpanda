@@ -93,6 +93,27 @@
   }
   const itemName = (i: PartItem) => i.kind === 'text' ? (i.text?.trim() || '빈 글자') : i.vector ? 'PDF 패스' : i.kind === 'image' ? (i.image && 'name' in i.image && i.image.name ? i.image.name : '그림') : '도형';
   const num = (v: string) => (v.trim() === '' ? 0 : Number(v));
+
+  // PDF 레이어 연결 (2026-11-12 사용자: "디자인 파일 연결을 싱크에서 연결한 이후에 레이어 설정에 접근하는 방법이 없다"): 디자인 싱크에서 고른 레이어 → 구성물 연결을
+  // 확정한 뒤에도 여기서 — 원본 PDF 에서 레이어를 다시 꺼내 고르고 [적용]하면 디자인 내용·사진보드용 입체 제외 그림을 다시 짓는다
+  const pdfSource = $derived(own.design ? app.sources.find((x) => x.id === own.design!.sourceId && x.kind === 'pdf') : undefined);
+  const canRelink = $derived(!!pdfSource && app.canEdit && !app.isCustomer);
+  let pdfOpen = $state(false);
+  let pdfBusy = $state(false);
+  let pdfLayers = $state<{ name: string; paths: number; texts: number }[] | null>(null);
+  let pdfSel = $state<Record<string, string>>({});
+  const extrudeParts = $derived(partsOf(own).filter((p) => componentOf(p.kind).extrude));
+  async function openPdfLayers() {
+    if (pdfOpen) { pdfOpen = false; return; }
+    pdfOpen = true; pdfLayers = null;
+    const ls = await app.designLayersOf(own.id);
+    pdfLayers = ls ?? [];
+    pdfSel = Object.fromEntries(pdfLayers.map((l) => { const v = own.layerLinks?.[l.name]; return [l.name, v !== undefined && (v === '' || extrudeParts.some((p) => p.id === v)) ? v : '']; }));
+  }
+  async function applyPdfLayers() {
+    pdfBusy = true;
+    try { await app.relinkDesignLayers(own.id, { ...pdfSel }); pdfOpen = false; } finally { pdfBusy = false; }
+  }
   const setItem = (patch: Partial<PartItem>) => { if (focused && focusedItem) setItemById(focused.id, focusedItem.id, patch); };
   function deleteItem() { if (!focused || !focusedItem) return; const pid = focused.id, iid = focusedItem.id; editParts((ps) => { const p = ps.find((x) => x.id === pid)!; p.items = p.items.filter((x) => x.id !== iid); }); item = null; }
 </script>
@@ -119,8 +140,30 @@
     <button class="btn small" class:on={mode === 'layout'} data-testid="sign-props-layout-toggle" onclick={() => (mode = mode === 'layout' ? 'overview' : 'layout')}>{mode === 'layout' ? '배치 끝' : '배치'}</button>
     <div class="layers-head">
       <b>레이어</b>
+      {#if canRelink}<button class="btn small" class:on={pdfOpen} data-testid="sign-pdf-layers" title="디자인 싱크로 받은 PDF 의 레이어를 어느 구성물(입체)로 쓸지 다시 고르기" onclick={openPdfLayers}>PDF 레이어</button>{/if}
       {#if !ro && kinds.length}<button class="icon add" data-testid="sign-layer-add" title="빈 레이어를 맨 위에" onclick={() => { if (kinds.length === 1) addLayer(kinds[0]); else adding = !adding; }}>＋</button>{/if}
     </div>
+    {#if pdfOpen}
+      <div class="pdf" data-testid="pdf-layers">
+        {#if pdfLayers === null}<small class="hint">원본 PDF 에서 레이어를 읽는 중…</small>
+        {:else if !pdfLayers.length}<small class="hint">이 디자인 파일에는 레이어가 없습니다 (원본 PDF 가 없거나 레이어 없이 저장됨).</small>
+        {:else}
+          {#each pdfLayers as l (l.name)}
+            <label class="prow" data-testid="pdf-layer-row" data-layer={l.name}>
+              <span class="lname">{l.name}<small>{l.paths ? `패스 ${l.paths}` : l.texts ? '글자만 — 윤곽선 만들기 필요' : '비어 있음'}</small></span>
+              <select value={pdfSel[l.name] ?? ''} disabled={!l.paths || pdfBusy} onchange={(e) => (pdfSel = { ...pdfSel, [l.name]: e.currentTarget.value })}>
+                <option value="">입체 안 함</option>
+                {#each extrudeParts as p (p.id)}<option value={p.id}>{partLabel(p)}</option>{/each}
+              </select>
+            </label>
+          {/each}
+          <div class="row">
+            <button class="btn small primary" data-testid="pdf-layers-apply" disabled={pdfBusy} onclick={applyPdfLayers}>{pdfBusy ? '적용 중…' : '적용'}</button>
+            <button class="btn small" data-testid="pdf-layers-close" disabled={pdfBusy} onclick={() => (pdfOpen = false)}>닫기</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
     {#if adding}
       <div class="kinds" data-testid="sign-layer-kinds">
         {#each kinds as k (k)}<button class="opt" data-testid="sign-layer-kind" data-kind={k} style:--c={componentOf(k).color} onclick={() => addLayer(k)}>{componentOf(k).label}</button>{/each}
@@ -255,6 +298,12 @@
   .layers-head b { flex: 1; font-size: 13px; }
   .add { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 16px; line-height: 1; }
   .kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pdf { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); }
+  .prow { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12px; }
+  .lname { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .lname small { color: var(--muted); font-size: 11px; }
+  .prow select { flex: 0 0 auto; max-width: 55%; }
+  .hint { color: var(--muted); }
   .kinds .opt { border-left: 4px solid var(--c, var(--muted)); }
   .layer { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .it { padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 11px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

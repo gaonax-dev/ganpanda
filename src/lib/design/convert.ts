@@ -134,3 +134,28 @@ export async function renderPdfPageWithout(file: Blob, pageIndex: number, hide: 
     return out;
   } finally { await task.destroy(); }
 }
+
+/**
+ * PDF 한 쪽의 레이어 벡터만 다시 꺼낸다 — 싱크 확정 뒤 사인물 속성에서 레이어 → 구성물 연결을 다시 고를 때 (2026-11-12 "디자인 파일 연결을 싱크에서 연결한 이후에
+ * 레이어 설정에 접근하는 방법이 없다"). 받을 때(renderPdf)와 같은 규칙: 받은 이미지 등 숨김 레이어는 빼고, 이름 없는 것도 뺀다. 레이어가 없으면 []
+ */
+export async function pdfPageLayers(file: Blob, pageIndex: number): Promise<NonNullable<RenderedPage['layers']>> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  try {
+    const doc = await task.promise;
+    const ocNames = new Map<string, string>();
+    const oc = await doc.getOptionalContentConfig();
+    if (oc) for (const [id, g] of oc) ocNames.set(String(id), g.name ?? '');
+    if (!ocNames.size) return [];
+    const { pdfLayerVectors, layerSvg } = await import('../core/pdfVectors');
+    const page = await doc.getPage(pageIndex + 1);
+    const ol = await page.getOperatorList();
+    const view = page.view as [number, number, number, number];
+    const L = pdfLayerVectors(ol.fnArray, ol.argsArray, (id) => ocNames.get(String(id)) ?? null, view);
+    const pw = view[2] - view[0], ph = view[3] - view[1];
+    return [...L.values()].filter((l) => l.name && !HIDDEN_LAYERS.includes(l.name)).map((l) => ({ name: l.name, paths: l.paths.length, texts: l.texts, svg: layerSvg(l.paths, pw, ph) }));
+  } finally { await task.destroy(); }
+}

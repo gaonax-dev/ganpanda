@@ -1251,7 +1251,7 @@ class AppState {
    * 사진보드용 입체 제외 디자인 (2026-11-07 "입체로 추가한 경우 사진보드에서는 입체 내용을 제거한 이미지로 사인물 카드는 현재와 동일하게"):
    * 입체로 연결한 레이어를 끈 채 그 쪽을 다시 그려 숨은 디자인 파일(derived)로 넣고 designBase 로 — 사인물 카드는 design(전체) 그대로
    */
-  private async applyDesignBase(signId: string, file: File, fileName: string, page: number, layers3d: string[]) {
+  private async applyDesignBase(signId: string, file: Blob, fileName: string, page: number, layers3d: string[]) {
     if (!layers3d.length) return;
     try {
       const { renderPdfPageWithout } = await import('./design/convert');
@@ -1279,6 +1279,43 @@ class AppState {
       fresh.add(partId);
     }
     this.editBoundary(); this.project.updateObject(o.id, { designItems }); this.editBoundary();
+  }
+
+  /**
+   * 사인물 디자인의 원본 PDF 한 쪽 (2026-11-12 "디자인 파일 연결을 싱크에서 연결한 이후에 레이어 설정에 접근하는 방법이 없다"): 디자인 파일의 원본(fileAssetId)이 PDF 일 때만.
+   * 원본을 못 넣어 첫 페이지 그림이 원본 자리인 디자인 파일은 null
+   */
+  private async designPdfOf(signId: string): Promise<{ file: Blob; fileName: string; page: number } | null> {
+    const o = this.project.object(signId);
+    const src = o?.design ? this.sources.find((x) => x.id === o.design!.sourceId) : undefined;
+    if (!o?.design || !src || src.kind !== 'pdf' || !src.fileAssetId) return null;
+    const url = await assetUrl(src.fileAssetId);
+    if (!url) return null;
+    const file = await (await fetch(url)).blob();
+    const head = new TextDecoder('latin1').decode(new Uint8Array(await file.slice(0, 1024).arrayBuffer()));
+    return head.includes('%PDF') ? { file, fileName: src.name, page: o.design.page } : null;
+  }
+  /** 사인물 디자인 PDF 의 레이어 (이름·패스 수·글자 수) — 없으면 null */
+  async designLayersOf(signId: string): Promise<{ name: string; paths: number; texts: number }[] | null> {
+    const d = await this.designPdfOf(signId);
+    if (!d) return null;
+    const { pdfPageLayers } = await import('./design/convert');
+    return (await pdfPageLayers(d.file, d.page)).map(({ name, paths, texts }) => ({ name, paths, texts }));
+  }
+  /**
+   * 레이어 → 구성물 연결을 다시 (싱크 확정 뒤, 사인물 속성 [PDF 레이어]): 원본 PDF 에서 레이어 벡터를 다시 꺼내 디자인 내용(designItems)을 새로 짓고,
+   * 입체로 쓴 레이어를 끈 사진보드용 그림(designBase)도 다시 — 입체로 쓰는 레이어가 없으면 둘 다 없앤다. 연결은 기억(layerLinks)
+   */
+  async relinkDesignLayers(signId: string, links: Record<string, string>) {
+    if (!this.canEdit) return;
+    const d = await this.designPdfOf(signId);
+    if (!d) return;
+    const { pdfPageLayers } = await import('./design/convert');
+    const svgs = Object.fromEntries((await pdfPageLayers(d.file, d.page)).filter((l) => l.paths > 0).map((l) => [l.name, l.svg]));
+    this.editBoundary(); this.project.updateObject(signId, { designItems: undefined, designBase: undefined }); this.editBoundary();
+    await this.applyLayerVectors(signId, links, svgs);
+    await this.applyDesignBase(signId, d.file, d.fileName, d.page, Object.entries(links).filter(([, part]) => part).map(([layer]) => layer));
+    this.editBoundary(); this.project.updateObject(signId, { layerLinks: links }); this.editBoundary(); // 다 지은 뒤에 기억
   }
 
   /** 예전 디자인 싱크가 제안 내용을 PDF 레이어 패스로 덮어쓴 사인물 → 패스를 디자인 쪽으로, 제안 내용은 비움 (2026-11-08, 한 번) */

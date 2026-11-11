@@ -276,3 +276,40 @@ test('제안·디자인 내용 분리: 싱크해도 제안은 글자 그대로, 
     g.migrateDesignItems(); const n = g.project.object(id); return { design: n.designItems?.ch1?.map((i: any) => i.id), propose: n.parts.find((p: any) => p.id === 'ch1').items.length }; }, id);
   expect(moved).toEqual({ design: ['old'], propose: 0 });
 });
+
+// 2026-11-12 사용자: "디자인 파일 연결을 싱크에서 연결한 이후에 레이어 설정에 접근하는 방법이 없다" — 사인물 속성의 [PDF 레이어]에서 연결을 다시 고른다
+test('싱크 확정 뒤에도 사인물 속성 [PDF 레이어]에서 레이어 → 구성물 연결을 바꾼다 (원본 PDF 에서 다시 꺼냄)', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  const id = await sign(page);
+  await upload(page, layeredPdf('1'));
+  await page.getByTestId('sync-confirm').click();
+  await expect(page.getByTestId('notice')).toContainText('입힘 1', { timeout: 20_000 });
+  const obj = () => page.evaluate((id) => (window as any).__ganpanda.project.object(id), id);
+  expect((await obj()).layerLinks).toEqual({ 디자인: '', 채널: 'ch1' });
+  await page.getByTestId('view-design').click();
+  await page.evaluate((id) => (window as any).__ganpanda.selectObject(id), id);
+  const props = page.getByTestId('object-panel').getByTestId('sign-props');
+  await props.getByTestId('sign-pdf-layers').click();
+  const rows = props.getByTestId('pdf-layer-row');
+  await expect(rows).toHaveCount(2, { timeout: 20_000 }); // 디자인 · 채널 (받은 이미지는 빠짐)
+  await expect(props.locator('[data-testid="pdf-layer-row"][data-layer="채널"] select')).toHaveValue('ch1'); // 지금 연결
+  // 채널 레이어는 입체 안 함, 디자인 레이어를 채널 구성물로
+  await props.locator('[data-testid="pdf-layer-row"][data-layer="채널"] select').selectOption('');
+  await props.locator('[data-testid="pdf-layer-row"][data-layer="디자인"] select').selectOption('ch1');
+  await props.getByTestId('pdf-layers-apply').click();
+  await expect.poll(async () => (await obj()).layerLinks, { timeout: 20_000 }).toEqual({ 디자인: 'ch1', 채널: '' });
+  const o = await obj();
+  expect(o.designItems.ch1).toHaveLength(1);
+  expect(o.designItems.ch1[0].image.name).toContain('디자인');
+  expect(o.designBase).toBeTruthy(); // 입체로 쓴 레이어(디자인)를 끈 사진보드용 그림
+  expect(o.parts.find((p: any) => p.id === 'ch1').items[0].text).toBe('카페'); // 제안 내용은 그대로
+  // 모두 입체 안 함 → 디자인 내용·입체 제외 그림도 없어진다
+  await props.getByTestId('sign-pdf-layers').click();
+  await props.locator('[data-testid="pdf-layer-row"][data-layer="디자인"] select').selectOption('');
+  await props.getByTestId('pdf-layers-apply').click();
+  await expect.poll(async () => (await obj()).layerLinks, { timeout: 20_000 }).toEqual({ 디자인: '', 채널: '' });
+  const o2 = await obj();
+  expect(o2.designItems ?? {}).toEqual({});
+  expect(o2.designBase).toBeUndefined();
+});
