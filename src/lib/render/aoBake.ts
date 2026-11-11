@@ -11,7 +11,7 @@ import { assetUrl, putAsset } from '../assets';
 import { getDerived, putDerived } from '../derivedImages';
 
 /** 굽기 버전 — 굽는 방식이 바뀌면 올려 새로 굽는다 */
-const AO_VERSION = 3; // 2: 박스 방향 기울임(orientBox)을 넣어 굽는다 (2026-11-09) · 3: 긴 변 1픽셀 ≈ 5mm·편향 텍셀 크기 (2026-11-11)
+const AO_VERSION = 4; // 2: 박스 방향 기울임(orientBox)을 넣어 굽는다 (2026-11-09) · 3: 긴 변 1픽셀 ≈ 5mm·편향 텍셀 크기 (2026-11-11) · 4: 앞뒤 뒤집힌 상자도 (2026-11-12)
 /** 하늘 빛 수 · 받는 면 그림 크기 · 그림자 맵 */
 const SAMPLES = 96;
 /**
@@ -147,11 +147,14 @@ function receiverGeometry(rc: Receiver): THREE.BufferGeometry {
   return new THREE.PlaneGeometry(rc.w, rc.h, seg(rc.w), seg(rc.h)).translate(rc.cx, rc.cy, 0);
 }
 
-/** orientBox 와 같은 기울임 행렬 (z 를 dir 방향으로) */
+/**
+ * orientBox 와 같은 기울임 행렬 (z 를 dir 방향으로) — 단, 앞뒤 뒤집기(flip, dir 의 z 가 음수)는 뺀다: 뒤집으면 받는 면이 하늘 빛을 등져 전부 어두워지고(→ 흰색, AO 없음),
+ * 앞뒤 뒤집기는 앞면 위 그림자 자리를 바꾸지 않는다 (2026-11-12 "핀볼에서 첫번째 정면간판에 ao가 안보인다" — 정면 사진의 상자가 boxFlip)
+ */
 function shearOf(box?: { dir: [number, number, number] | null; flip: boolean }): THREE.Matrix4 {
   const m = new THREE.Matrix4();
-  if (!box?.dir) { if (box?.flip) m.makeScale(1, 1, -1); return m; }
-  const d = box.dir, dz = Math.sign(d[2] || 1) * Math.max(Math.abs(d[2]), 0.15);
+  if (!box?.dir) return m;
+  const d = box.dir, dz = Math.max(Math.abs(d[2]), 0.15); // 장면 행렬에 z 거울을 곱한 것 — x·y 기울기는 그대로, z 만 양수로
   return m.set(1, 0, d[0], 0, 0, 1, d[1], 0, 0, 0, dz, 0, 0, 0, 0, 1);
 }
 

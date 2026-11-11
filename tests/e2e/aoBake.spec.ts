@@ -235,3 +235,27 @@ test('가로로 긴 간판의 얇은 스카시(3mm)도 AO 접촉 그림자가 �
   expect(r.min).toBeLessThan(235); // 얇은 글자 둘레도 어둡다
   expect(r.far).toBeGreaterThan(240);
 });
+
+// 2026-11-12 사용자: "핀볼에서 첫번째 정면간판에 ao가 안보인다" — 정면 사진의 상자 방향이 뒤집힘(boxFlip, z = -1)이라 굽기에도 뒤집기를 넣어
+// 받는 면이 하늘 빛을 등졌다(전부 어두움 → 기준 0 → 흰색). 앞뒤 뒤집기는 앞면 위 그림자 자리를 바꾸지 않으므로 굽기에서는 뺀다
+test('상자 방향이 뒤집힌 사진(boxFlip)에서도 AO 가 생긴다', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  const r = await page.evaluate(async () => {
+    const load = (p: string): Promise<any> => import(/* @vite-ignore */ p); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const S = await load('/src/lib/sim/signs.ts'), A = await load('/src/lib/render/aoBake.ts'), T = await load('/src/lib/core/textShapes.ts');
+    const font = await T.loadFont((await load('/node_modules/pretendard/dist/public/static/Pretendard-Bold.otf?url')).default);
+    const spec = { id: 'ao8', kind: 'lightbox', text: '', heightMm: 600, widthMm: 3200, depthMm: 120, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000',
+      letterItems: [{ text: '정육점', x: 0, y: 0, z: 0, heightMm: 400, depthMm: 80, lighting: 'front', faceColor: '#cc0033', sideColor: '#cc0033', letterSpacing: 0 }] };
+    const darkest = async (box: unknown) => {
+      const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+      await A.attachAO(b.group, spec, { bake: true, box });
+      let face: any = null; b.group.traverse((o: any) => { if (o.userData?.part === 'ao' && Math.abs(o.position.z - 0.3) < 0.01) face = o; });
+      const img = face.material.map.image as HTMLCanvasElement; const d = img.getContext('2d')!.getImageData(0, 0, img.width, img.height).data;
+      let min = 255; for (let i = 0; i < d.length; i += 4) min = Math.min(min, d[i]); return min;
+    };
+    return { flip: await darkest({ dir: null, flip: true }), back: await darkest({ dir: [0.1, 0, -0.95], flip: true }) };
+  });
+  expect(r.flip).toBeLessThan(200);
+  expect(r.back).toBeLessThan(200);
+});
