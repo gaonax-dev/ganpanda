@@ -56,3 +56,20 @@ test('레이어 [+] = 맨 위에 빈 레이어 · 객체를 고르면 그 객체
   await props.getByTestId('sign-focus-back').click();
   await expect(props.getByTestId('sign-el').first()).toContainText('빈 레이어');
 });
+
+// 2026-11-10 사용자: "완성사진 고르기는 이미 결정된 상태에서는 접혀있게" — 제안 글자가 없어도 디자인 내용(PDF 패스)·디자인이 있으면 결정된 것
+test('완성품 고르기: 디자인 내용만 있는 사인물(제안 글자 없음)도 접혀 있다', async ({ page, request }) => {
+  await openOwnedProject(page, request);
+  await uploadPhoto(page);
+  await page.evaluate(() => {
+    const a = (window as unknown as G).__ganpanda;
+    const id = a.project.addObject({ photoId: a.project.allPhotos()[0].id, name: '측면', shape: 'rect', quad: [[100, 100], [700, 100], [700, 300], [100, 300]], sheetIds: [], productId: 'board-galva', widthMm: 3000, heightMm: 600,
+      parts: [{ id: 'ch1', kind: 'channel', type: 'ch-front', options: {}, items: [] }],
+      designItems: { ch1: [{ id: 'v1', kind: 'image', image: { assetId: 'A', name: '정면 채널 (PDF 레이어)' }, vector: true, x: 0, y: 0, w: 3000, h: 600 }] } });
+    a.selectObject(id);
+  });
+  const panel = page.getByTestId('object-panel');
+  await expect(panel.getByTestId('tpl-open')).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel.getByTestId('tpl-pick')).toHaveCount(0);
+  await expect(panel.getByTestId('tpl-family')).toHaveCount(0);
+});

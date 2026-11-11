@@ -31,9 +31,11 @@
   /** 고른 완성품 (칸 채우는 중) */
   let tpl = $state<SignTemplate | null>(null);
   let step = $state(0);
-  /** 사진 펼침: 정하지 않았으면 새 사인물(글자·그림이 아직 없음 — 스카시 분류는 빈 스카시가 기본으로 있다)일 때 */
+  /** 사진 펼침: 정하지 않았으면 새 사인물(글자·그림이 아직 없음 — 스카시 분류는 빈 스카시가 기본으로 있다)일 때.
+   *  이미 결정된 사인물은 접는다 — 제안 글자가 없어도 디자인 내용(PDF 패스)·입힌 디자인이 있으면 결정된 것 (2026-11-10 "완성사진 고르기는 이미 결정된 상태에서는 접혀있게") */
   let open = $state<boolean | null>(null);
-  const shown = $derived(open ?? (!tpl && !partsOf(obj).some((p) => p.items.length)));
+  const decided = $derived(partsOf(obj).some((p) => p.items.length) || Object.values(obj.designItems ?? {}).some((l) => l.length) || !!obj.design);
+  const shown = $derived(open ?? (!tpl && !decided));
   // 분류가 바뀌면 처음부터 (그 분류의 완성품)
   let lastCat: ReturnType<typeof categoryOf> | undefined;
   $effect(() => { const c = categoryOf(obj); if (lastCat !== undefined && c !== lastCat) { tpl = null; step = 0; open = null; family = null; sub = null; } lastCat = c; });
