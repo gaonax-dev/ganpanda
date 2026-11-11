@@ -11,9 +11,16 @@ import { assetUrl, putAsset } from '../assets';
 import { getDerived, putDerived } from '../derivedImages';
 
 /** 굽기 버전 — 굽는 방식이 바뀌면 올려 새로 굽는다 */
-const AO_VERSION = 2; // 2: 박스 방향 기울임(orientBox)을 넣어 굽는다 (2026-11-09)
+const AO_VERSION = 3; // 2: 박스 방향 기울임(orientBox)을 넣어 굽는다 (2026-11-09) · 3: 긴 변 1픽셀 ≈ 5mm·편향 텍셀 크기 (2026-11-11)
 /** 하늘 빛 수 · 받는 면 그림 크기 · 그림자 맵 */
-const SAMPLES = 96, RES = 192, SHADOW = 768;
+const SAMPLES = 96;
+/**
+ * 받는 면 그림 크기 — 긴 변 1픽셀 ≈ AO_MM_PER_PX(192~1024, 32 배수). 그림자 맵은 1텍셀 ≈ SHADOW_MM_PER_TEXEL(768~4096)
+ * (2026-11-11 핀볼 측면간판 6.1m: 192px 한 장이면 1픽셀 ≈ 33mm 라 스카시 전화번호(높이 63mm · 두께 3mm)가 그림에 남지 않았다 → "진행해줘")
+ */
+const AO_MM_PER_PX = 5, RES_MIN = 192, RES_MAX = 1024, SHADOW_MM_PER_TEXEL = 2, SHADOW_MIN = 768, SHADOW_MAX = 4096;
+export function aoResOf(longMm: number): number { return Math.min(RES_MAX, Math.max(RES_MIN, Math.ceil(longMm / AO_MM_PER_PX / 32) * 32)); }
+function shadowSizeOf(spanMm: number): number { return Math.min(SHADOW_MAX, Math.max(SHADOW_MIN, Math.ceil(spanMm / SHADOW_MM_PER_TEXEL / 256) * 256)); }
 /** 받는 면 평면을 긴 변에서 나누는 칸 수 (원근 맞추기용) */
 const RECEIVER_SEGMENTS = 64;
 /** AO 세기 (1 = 구운 그대로) — 회색을 흰색 쪽으로 당긴다 */
@@ -56,20 +63,23 @@ function fetchFromStore(key: string) {
 }
 const tick = () => new Promise<void>((ok) => setTimeout(ok, 0));
 
-/** 받는 면 하나를 굽는다 → AO 회색 캔버스 (RES × RES) */
+/** 받는 면 하나를 굽는다 → AO 회색 캔버스 (RES × RES, 받는 면 긴 변에 맞춘 크기) */
 async function bakeReceiver(occluders: THREE.Mesh[], rc: Receiver, bounds: THREE.Box3, shear: THREE.Matrix4): Promise<HTMLCanvasElement> {
   const r = bakeRenderer();
+  const RES = aoResOf(Math.max(rc.w, rc.h));
   const plm = new ProgressiveLightMap(r, RES);
   const center = bounds.getCenter(new THREE.Vector3());
   const radius = Math.max(1, bounds.getBoundingSphere(new THREE.Sphere()).radius, Math.hypot(rc.w, rc.h) / 2);
   const light = new THREE.DirectionalLight(0xffffff, 1);
   light.castShadow = true;
+  const SHADOW = shadowSizeOf(radius * 2), texel = (radius * 2) / SHADOW;
   light.shadow.mapSize.set(SHADOW, SHADOW);
   const cam = light.shadow.camera as THREE.OrthographicCamera;
   cam.left = -radius; cam.right = radius; cam.top = radius; cam.bottom = -radius; cam.near = 1; cam.far = radius * 6;
   cam.updateProjectionMatrix();
-  light.shadow.bias = -0.0004;
-  light.shadow.normalBias = radius * 0.002;
+  // 편향은 텍셀 크기만큼만 — 사인물 크기 비례(반지름 0.2%·깊이 범위 0.04%)였을 때는 6m 간판에서 약 7mm 라 두께 3mm 스카시가 그림자를 못 드리웠다
+  light.shadow.bias = -(texel * 0.5) / (cam.far - cam.near);
+  light.shadow.normalBias = texel * 0.75;
   const recv = new THREE.Mesh(receiverGeometry(rc), new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0x000000, shininess: 0 }));
   recv.matrixAutoUpdate = false;
   recv.matrix.copy(shear).multiply(new THREE.Matrix4().makeTranslation(0, 0, rc.z));

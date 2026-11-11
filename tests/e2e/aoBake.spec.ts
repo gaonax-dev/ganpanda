@@ -205,3 +205,33 @@ test('굽지 않는 기기: 프로젝트의 AO 에셋이 아직 없어도 3D 짓
   });
   expect(ms).toBeLessThan(500);
 });
+
+// 2026-11-11 핀볼 확인: 측면간판(6.1m)의 스카시 전화번호(글자 높이 약 63mm · 두께 3mm)는 AO 가 거의 흰색(252) — 192px 한 장을 6.1m 에 늘려 1픽셀 ≈ 33mm,
+// 그림자 맵 편향(약 7mm)이 3mm 두께보다 커 그림자가 생기지 않았다 → "진행해줘": 긴 변 1픽셀 ≈ 5mm(최대 1024)로, 그림자 맵·편향도 그에 맞춰
+test('가로로 긴 간판의 얇은 스카시(3mm)도 AO 접촉 그림자가 보인다', async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await openOwnedProject(page, request);
+  const r = await page.evaluate(async () => {
+    const load = (p: string): Promise<any> => import(/* @vite-ignore */ p); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const S = await load('/src/lib/sim/signs.ts'), A = await load('/src/lib/render/aoBake.ts'), T = await load('/src/lib/core/textShapes.ts');
+    const font = await T.loadFont((await load('/node_modules/pretendard/dist/public/static/Pretendard-Bold.otf?url')).default);
+    const W = 6100, H = 600;
+    const spec = { id: 'ao7', kind: 'lightbox', text: '', heightMm: H, widthMm: W, depthMm: 120, letterSpacing: 0, lighting: 'none', faceColor: '#ffffff', sideColor: '#555555', textColor: '#000000',
+      letterItems: [{ text: '010-8132-8553', x: 1900, y: -215, z: 0, heightMm: 63, widthMm: 780, depthMm: 3, lighting: 'none', faceColor: '#333333', sideColor: '#333333', letterSpacing: 0 }] };
+    const b = S.buildSign(spec, font, 'sans-serif'); S.recessBox(b.group, spec.depthMm);
+    const t0 = performance.now();
+    await A.attachAO(b.group, spec, { bake: true });
+    const ms = performance.now() - t0;
+    let face: any = null; b.group.traverse((o: any) => { if (o.userData?.part === 'ao' && Math.abs(o.position.z - 0.3) < 0.01) face = o; });
+    const img = face.material.map.image as HTMLCanvasElement; const d = img.getContext('2d')!.getImageData(0, 0, img.width, img.height).data;
+    // 전화번호 자리(가로 1510~2290, 세로 -247~-183 mm)의 가장 어두운 값
+    const px = (mm: number) => Math.round(((mm + W / 2) / W) * img.width), py = (mm: number) => Math.round(((H / 2 - mm) / H) * img.height);
+    let min = 255; for (let y = py(-183); y <= py(-247); y++) for (let x = px(1510); x <= px(2290); x++) min = Math.min(min, d[(y * img.width + x) * 4]);
+    // 먼 곳(왼쪽 위 빈 판)은 흰색 그대로 (그림자 여드름 없음)
+    let far = 255; for (let y = py(200); y <= py(100); y++) for (let x = px(-2800); x <= px(-1500); x++) far = Math.min(far, d[(y * img.width + x) * 4]);
+    return { min, far, w: img.width, ms };
+  });
+  console.log('AO7', JSON.stringify(r));
+  expect(r.min).toBeLessThan(235); // 얇은 글자 둘레도 어둡다
+  expect(r.far).toBeGreaterThan(240);
+});
